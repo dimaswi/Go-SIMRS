@@ -808,7 +808,7 @@ export function CopyFromHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[56%] sm:max-w-none p-0">
+      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[80vw] sm:max-w-[80vw] p-0">
         <SheetHeader className="px-3 py-2.5 border-b bg-muted/30">
           <div>
             <SheetTitle className="text-sm font-semibold flex items-center gap-2">

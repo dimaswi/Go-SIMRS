@@ -611,7 +611,7 @@ func StartProcedureOrder(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var order models.ProcedureOrder
-	if err := database.DB.First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -647,7 +647,7 @@ func StartProcedureOrder(c *gin.Context) {
 	}
 
 	// Update target visit status
-	if order.TargetVisitID != nil {
+	if order.TargetVisitID != nil && !order.IsCasemix {
 		database.DB.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
 			Update("status", models.VisitStatusInProgress)
 		database.DB.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
@@ -690,7 +690,7 @@ func SubmitProcedureResults(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var order models.ProcedureOrder
-	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Preload("Items").Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -760,6 +760,24 @@ func SubmitProcedureResults(c *gin.Context) {
 
 	// Process items and results
 	for _, itemInput := range input.Items {
+		meaningfulResults := make([]struct {
+			ParameterID  uint    `json:"parameter_id" binding:"required"`
+			Value        string  `json:"value"`
+			NumericValue float64 `json:"numeric_value"`
+			Notes        string  `json:"notes"`
+		}, 0, len(itemInput.Results))
+		for _, resultInput := range itemInput.Results {
+			if strings.TrimSpace(resultInput.Value) == "" && strings.TrimSpace(resultInput.Notes) == "" {
+				continue
+			}
+			meaningfulResults = append(meaningfulResults, resultInput)
+		}
+		if len(meaningfulResults) == 0 {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Hasil item belum diisi. Isi minimal satu parameter sebelum menyimpan."})
+			return
+		}
+
 		// Ensure item belongs to this order
 		var item models.ProcedureOrderItem
 		if err := tx.Where("id = ? AND procedure_order_id = ?", itemInput.ItemID, order.ID).First(&item).Error; err != nil {
@@ -789,7 +807,7 @@ func SubmitProcedureResults(c *gin.Context) {
 		}
 
 		// Create new results
-		for _, resultInput := range itemInput.Results {
+		for _, resultInput := range meaningfulResults {
 			// Get parameter for validation
 			var param models.ProcedureParameter
 			if err := tx.First(&param, resultInput.ParameterID).Error; err != nil {
@@ -840,7 +858,7 @@ func SubmitProcedureResults(c *gin.Context) {
 	}
 
 	// Update target visit and queue
-	if order.TargetVisitID != nil {
+	if order.TargetVisitID != nil && !order.IsCasemix {
 		if err := tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
 			Updates(map[string]interface{}{
 				"status":   models.VisitStatusCompleted,
@@ -899,7 +917,7 @@ func SaveItemResults(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var order models.ProcedureOrder
-	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Preload("Items").Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -961,7 +979,7 @@ func SaveItemResults(c *gin.Context) {
 		order.StartedAt = &now
 
 		// Update target visit status
-		if order.TargetVisitID != nil {
+		if order.TargetVisitID != nil && !order.IsCasemix {
 			if err := tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
 				Update("status", models.VisitStatusInProgress).Error; err != nil {
 				tx.Rollback()
@@ -1105,7 +1123,7 @@ func CompleteProcedureOrder(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var order models.ProcedureOrder
-	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Preload("Items").Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1178,7 +1196,7 @@ func CancelProcedureOrder(c *gin.Context) {
 	id := c.Param("id")
 
 	var order models.ProcedureOrder
-	if err := database.DB.First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1205,7 +1223,7 @@ func CancelProcedureOrder(c *gin.Context) {
 	}
 
 	// Cancel target visit and queue
-	if order.TargetVisitID != nil {
+	if order.TargetVisitID != nil && !order.IsCasemix {
 		tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
 			Update("status", models.VisitStatusCancelled)
 		tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
@@ -1226,7 +1244,7 @@ func RecalculateProcedureOrderStatus(c *gin.Context) {
 	id := c.Param("id")
 	var order models.ProcedureOrder
 
-	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Preload("Items").Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1730,7 +1748,7 @@ func ValidateProcedureResult(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var order models.ProcedureOrder
-	if err := database.DB.First(&order, id).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1899,8 +1917,9 @@ func AddProcedureOrderItem(c *gin.Context) {
 		return
 	}
 
-	// Check if procedure is assigned to target room (if target room is set)
-	if order.TargetRoomID != 0 {
+	// Check assignment only for original (non-casemix) workflow.
+	// In RM duplicate/casemix, procedure can be edited freely.
+	if order.TargetRoomID != 0 && !order.IsCasemix {
 		var roomProcedure models.RoomProcedure
 		if err := database.DB.Where("room_id = ? AND procedure_id = ? AND is_available = ?",
 			order.TargetRoomID, input.ProcedureID, true).First(&roomProcedure).Error; err != nil {
@@ -1965,7 +1984,7 @@ func UpdateProcedureOrderItem(c *gin.Context) {
 
 	// Get procedure order
 	var order models.ProcedureOrder
-	if err := database.DB.First(&order, orderID).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, orderID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1978,7 +1997,7 @@ func UpdateProcedureOrderItem(c *gin.Context) {
 
 	// Get item
 	var item models.ProcedureOrderItem
-	if err := database.DB.Where("id = ? AND procedure_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+	if err := database.DB.Where("id = ? AND procedure_order_id = ? AND is_casemix = ?", itemID, orderID, order.IsCasemix).First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order item not found"})
 		return
 	}
@@ -2018,7 +2037,7 @@ func DeleteProcedureOrderItem(c *gin.Context) {
 
 	// Get procedure order
 	var order models.ProcedureOrder
-	if err := database.DB.Preload("Items").First(&order, orderID).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Preload("Items").Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, orderID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -2031,7 +2050,7 @@ func DeleteProcedureOrderItem(c *gin.Context) {
 
 	// Get item
 	var item models.ProcedureOrderItem
-	if err := database.DB.Where("id = ? AND procedure_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+	if err := database.DB.Where("id = ? AND procedure_order_id = ? AND is_casemix = ?", itemID, orderID, order.IsCasemix).First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order item not found"})
 		return
 	}

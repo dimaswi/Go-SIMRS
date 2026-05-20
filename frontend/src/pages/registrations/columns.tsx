@@ -35,6 +35,8 @@ interface ColumnOptions {
   onEditPayment: (registration: Registration) => void;
   onCreateSPRI: (registration: Registration) => void;
   onCreateSEPRanap: (registration: Registration) => void;
+  onViewSPRI: (registration: Registration) => void;
+  onViewSEPRanap: (registration: Registration) => void;
   hasViewPermission: boolean;
   hasDeletePermission: boolean;
   printingType?: { regId: number; type: 'queue' | 'label' } | null;
@@ -76,14 +78,14 @@ export function createRegistrationColumns(
   return [
     {
       accessorKey: "registration_number",
-      header: () => columnHeader("No. Registrasi", "min-w-[138px]"),
+      header: () => columnHeader("No. Registrasi", "w-[130px]"),
       cell: ({ row }) => {
         const regId = getRegistrationId(row.original);
         const mjknQueue = options.mjknQueueMap.get(regId);
 
         return (
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-medium">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-mono font-medium break-all">
               {row.original.registration_number}
             </span>
             {mjknQueue && (
@@ -106,12 +108,12 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "registration_date",
-      header: () => columnHeader("Tanggal", "min-w-[108px]"),
+      header: () => columnHeader("Tanggal", "w-[112px]"),
       cell: ({ row }) => {
         const reg = row.original;
         const queueNumber = reg.visit?.room_queue?.queue_number;
         return (
-          <div className="min-w-[100px]">
+          <div className="min-w-0">
             <div className="text-sm">
               {format(new Date(reg.registration_date), "dd MMM yyyy", {
                 locale: localeId,
@@ -128,18 +130,26 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "patient",
-      header: () => columnHeader("Pasien", "min-w-[220px]"),
+      header: () => columnHeader("Pasien", "w-[280px]"),
       cell: ({ row }) => {
-        const patient = row.original.patient;
+        const reg = row.original;
+        const patient = reg.patient;
+        const regId = getRegistrationId(reg);
+        const sepRanapNo = options.sepRanapMap.get(regId);
         if (!patient) return "-";
         const name = formatPatientName(patient.nama_lengkap || patient.name, patient.jenis_kelamin, undefined, patient.tanggal_lahir) || "-";
         const mrn = patient.no_rm || patient.medical_record_number || "";
         return (
-          <div className="min-w-[200px] max-w-[250px]">
-            <div className="font-medium text-sm leading-5 truncate">{name}</div>
+          <div className="min-w-0 max-w-[320px] space-y-0.5">
+            <div className="font-medium text-sm leading-5 break-words">{name}</div>
             {mrn && (
               <div className="text-xs text-muted-foreground font-mono truncate">
                 {mrn}
+              </div>
+            )}
+            {sepRanapNo && (
+              <div className="text-[11px] leading-4 text-muted-foreground break-all">
+                No. SEP: <span className="font-mono">{sepRanapNo}</span>
               </div>
             )}
           </div>
@@ -148,7 +158,7 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "destination_room",
-      header: () => columnHeader("Poli/Ruangan", "min-w-[200px]"),
+      header: () => columnHeader("Poli/Ruangan", "w-[190px]"),
       cell: ({ row }) => {
         const room = row.original.destination_room;
         if (!room) return "-";
@@ -159,7 +169,7 @@ export function createRegistrationColumns(
         );
 
         return (
-          <div className="min-w-[180px] max-w-[240px]">
+          <div className="min-w-0 max-w-[220px]">
             <div className="text-sm leading-5 truncate">{room.name}</div>
             {inpatientVisit ? (
               <div className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1 leading-4">
@@ -177,13 +187,13 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "doctor",
-      header: () => columnHeader("Dokter", "min-w-[180px]"),
+      header: () => columnHeader("Dokter", "w-[170px]"),
       cell: ({ row }) => {
         const doctor = row.original.doctor;
         if (!doctor) return <span className="text-muted-foreground">-</span>;
         const name = doctor.nama_lengkap || doctor.nama || doctor.name || "-";
         return (
-          <div className="flex min-w-[160px] max-w-[210px] items-center gap-1.5">
+          <div className="flex min-w-0 max-w-[190px] items-center gap-1.5">
             <Stethoscope className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
             <span className="text-sm leading-5 truncate">{name}</span>
           </div>
@@ -192,7 +202,7 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "payment_method",
-      header: () => columnHeader("Pembayaran", "min-w-[190px]"),
+      header: () => columnHeader("Pembayaran", "w-[150px]"),
       cell: ({ row }) => {
         const reg = row.original;
         const canEdit = reg.status !== "cancelled" && reg.status !== "completed";
@@ -200,13 +210,8 @@ export function createRegistrationColumns(
         const isBPJSInpatient = reg.payment_method === "bpjs" && reg.registration_type === "inpatient";
         const spriData = options.spriMap.get(regId);
         const sepRanapNo = options.sepRanapMap.get(regId);
-        const paymentDetail = reg.payment_method === "bpjs"
-          ? reg.bpjs_number || "Nomor BPJS belum diisi"
-          : reg.payment_method === "insurance"
-            ? [reg.insurance_name, reg.insurance_number].filter(Boolean).join(" • ") || "Penjamin belum diisi"
-            : "Pembayaran umum";
         return (
-          <div className="min-w-[180px] max-w-[220px] space-y-1">
+          <div className="min-w-0 max-w-[170px] space-y-1">
             <div className="flex items-center gap-1.5">
               <Badge
                 className={`${paymentColors[reg.payment_method]} ${canEdit ? "cursor-pointer hover:opacity-80" : ""} h-5 w-fit px-2 text-[11px] leading-none`}
@@ -216,9 +221,6 @@ export function createRegistrationColumns(
                 {canEdit && <Pencil className="h-2.5 w-2.5 ml-1" />}
               </Badge>
             </div>
-            <div className="text-xs leading-4 text-muted-foreground truncate">
-              {paymentDetail}
-            </div>
             {isBPJSInpatient && (
               <div className="flex items-center gap-1.5">
                 {spriData ? (
@@ -226,21 +228,33 @@ export function createRegistrationColumns(
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
-                            <CheckCircle className="h-3 w-3" />
-                            SPRI
-                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => options.onViewSPRI(reg)}
+                            className="inline-flex items-center rounded-sm"
+                          >
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
+                              <CheckCircle className="h-3 w-3" />
+                              SPRI
+                            </Badge>
+                          </button>
                         </TooltipTrigger>
-                        <TooltipContent>{spriData.no_spri}</TooltipContent>
+                        <TooltipContent>Lihat detail SPRI: {spriData.no_spri}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   ) : (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
-                            SPRI
-                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => options.onCreateSPRI(reg)}
+                            className="inline-flex items-center rounded-sm"
+                          >
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-amber-100">
+                              SPRI
+                            </Badge>
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>Draft Lokal — belum terkirim ke BPJS</TooltipContent>
                       </Tooltip>
@@ -259,12 +273,18 @@ export function createRegistrationColumns(
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
-                          <CheckCircle className="h-3 w-3" />
-                          SEP
-                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => options.onViewSEPRanap(reg)}
+                          className="inline-flex items-center rounded-sm"
+                        >
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
+                            <CheckCircle className="h-3 w-3" />
+                            SEP
+                          </Badge>
+                        </button>
                       </TooltipTrigger>
-                      <TooltipContent>{sepRanapNo}</TooltipContent>
+                      <TooltipContent>Lihat detail SEP: {sepRanapNo}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 ) : spriData ? (
@@ -288,7 +308,7 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "status",
-      header: () => columnHeader("Status", "min-w-[112px]"),
+      header: () => columnHeader("Status", "w-[104px]"),
       cell: ({ row }) => {
         const status = row.original.status;
         const colorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
@@ -302,7 +322,7 @@ export function createRegistrationColumns(
     },
     {
       id: "actions",
-      header: () => <div className="min-w-[120px] text-right">Aksi</div>,
+      header: () => <div className="w-[100px] text-right">Aksi</div>,
       cell: ({ row }) => {
         const reg = row.original;
         const hasRoomQueue = reg.visit?.room_queue;

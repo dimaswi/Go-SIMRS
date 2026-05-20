@@ -43,6 +43,12 @@ const fetchPdfBlob = async (endpoint: string): Promise<Blob> => {
   return response.data;
 };
 
+const withCasemixPrintQuery = (endpoint: string, rmDuplicateId?: number) => {
+  if (!rmDuplicateId) return endpoint;
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}rm_duplicate_id=${rmDuplicateId}&is_casemix=true`;
+};
+
 /**
  * Fetch PDF blob with signature lookup params appended
  * Used by cetakan tab to tell backend which signature to look up
@@ -60,8 +66,9 @@ export const fetchPdfBlobWithSig = async (
 /**
  * Fetch available document types for a visit
  */
-export const fetchAvailableDocs = async (visitId: number): Promise<string[]> => {
-  const response = await api.get(`${BASE_URL}/available-docs/${visitId}`);
+export const fetchAvailableDocs = async (visitId: number, rmDuplicateId?: number): Promise<string[]> => {
+  const endpoint = withCasemixPrintQuery(`${BASE_URL}/available-docs/${visitId}`, rmDuplicateId);
+  const response = await api.get(endpoint);
   return response.data?.available_docs || [];
 };
 
@@ -456,46 +463,49 @@ export const printApi = {
 
   blob: {
     informedConsent: (patientId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/informed-consent/${patientId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/informed-consent/${patientId}`, rmDuplicateId)),
     admissionDischargeSummary: (registrationId: number, visitId?: number, rmDuplicateId?: number) => {
       const params = new URLSearchParams();
       if (visitId) params.append('visit_id', visitId.toString());
-      if (rmDuplicateId) params.append('rm_duplicate_id', rmDuplicateId.toString());
+      if (rmDuplicateId) {
+        params.append('rm_duplicate_id', rmDuplicateId.toString());
+        params.append('is_casemix', 'true');
+      }
       const qs = params.toString();
       return fetchPdfBlob(`${BASE_URL}/admission-discharge-summary/${registrationId}${qs ? `?${qs}` : ''}`);
     },
     registrationReceipt: (registrationId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/registration-receipt/${registrationId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/registration-receipt/${registrationId}`, rmDuplicateId)),
     outpatientResume: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/outpatient-resume/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/outpatient-resume/${visitId}`, rmDuplicateId)),
     inpatientResume: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/inpatient-resume/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/inpatient-resume/${visitId}`, rmDuplicateId)),
     sickLetter: (visitId: number, days: number, startDate: string) =>
       fetchPdfBlob(`${BASE_URL}/sick-letter/${visitId}?days=${days}&start_date=${startDate}`),
     sickLetterById: (visitId: number, letterId: number) =>
       fetchPdfBlob(`${BASE_URL}/sick-letter/${visitId}?letter_id=${letterId}`),
     referralLetter: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/referral-letter/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/referral-letter/${visitId}`, rmDuplicateId)),
     inpatientCertificate: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/inpatient-certificate/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/inpatient-certificate/${visitId}`, rmDuplicateId)),
     deathCertificate: (visitId: number, certificateId: number) =>
       fetchPdfBlob(`${BASE_URL}/death-certificate/${visitId}?certificate_id=${certificateId}`),
     triageForm: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/triage/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/triage/${visitId}`, rmDuplicateId)),
     emergencySummary: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/emergency-summary/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/emergency-summary/${visitId}`, rmDuplicateId)),
     cppt: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/cppt/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/cppt/${visitId}`, rmDuplicateId)),
     nursingCare: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/nursing-care/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/nursing-care/${visitId}`, rmDuplicateId)),
     fluidBalance: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/fluid-balance/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/fluid-balance/${visitId}`, rmDuplicateId)),
     bedTransfer: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/bed-transfer/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/bed-transfer/${visitId}`, rmDuplicateId)),
     vitalSignChart: (visitId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/vital-sign-chart/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/vital-sign-chart/${visitId}`, rmDuplicateId)),
     prescription: (orderId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/prescription/${orderId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/prescription/${orderId}`, rmDuplicateId)),
     prescriptionThermal: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription-thermal/${orderId}`),
     labOrder: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-order/${orderId}`),
     labResult: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-result/${orderId}`),
@@ -508,7 +518,7 @@ export const printApi = {
     billing: (billingId: number) => fetchPdfBlob(`${BASE_URL}/billing/${billingId}`),
     nutritionEtiket: (orderId: number) => fetchPdfBlob(`${BASE_URL}/nutrition-etiket/${orderId}`),
     sep: (sepId: number, rmDuplicateId?: number) =>
-      fetchPdfBlob(`${BASE_URL}/sep/${sepId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/sep/${sepId}`, rmDuplicateId)),
     spri: (spriId: number) => fetchPdfBlob(`${BASE_URL}/spri/${spriId}`),
     suratKontrol: (suratKontrolId: number) => fetchPdfBlob(`${BASE_URL}/surat-kontrol/${suratKontrolId}`),
 

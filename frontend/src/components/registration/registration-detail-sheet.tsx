@@ -153,7 +153,7 @@ export function RegistrationDetailSheet({
   if (loading) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%] overflow-y-auto">
+        <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto sm:w-[80vw] sm:max-w-[80vw]">
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -168,7 +168,7 @@ export function RegistrationDetailSheet({
   if (!registration) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%]">
+        <SheetContent className="w-[80vw] max-w-[80vw] sm:w-[80vw] sm:max-w-[80vw]">
           <div className="flex items-center justify-center h-full">
             <p className="text-muted-foreground">Data tidak ditemukan</p>
           </div>
@@ -179,7 +179,7 @@ export function RegistrationDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[50%] sm:max-w-[50%] overflow-y-auto">
+      <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto sm:w-[80vw] sm:max-w-[80vw]">
         <SheetHeader>
           <div className="flex items-center justify-between">
             <div>

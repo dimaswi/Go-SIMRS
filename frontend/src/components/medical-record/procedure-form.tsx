@@ -66,6 +66,7 @@ interface ProcedureFormProps {
   readOnly?: boolean;
   externalData?: VisitProcedure[];
   useExternalData?: boolean;
+  procedureTypeFilter?: string;
 }
 
 // Check if procedure has parameters
@@ -73,7 +74,13 @@ function procedureHasParameters(procedure: VisitProcedure): boolean {
   return (procedure.procedure?.parameters && procedure.procedure.parameters.length > 0) || false;
 }
 
-export function ProcedureForm({ visitId, readOnly = false, externalData, useExternalData = false }: ProcedureFormProps) {
+export function ProcedureForm({
+  visitId,
+  readOnly = false,
+  externalData,
+  useExternalData = false,
+  procedureTypeFilter,
+}: ProcedureFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -387,7 +394,10 @@ export function ProcedureForm({ visitId, readOnly = false, externalData, useExte
   };
 
   // Show all procedures (allow same procedure to be added multiple times)
-  const availableProcedures = roomProcedures;
+  const availableProcedures = useMemo(() => {
+    if (!procedureTypeFilter) return roomProcedures;
+    return roomProcedures.filter((proc) => proc.procedure_type === procedureTypeFilter);
+  }, [roomProcedures, procedureTypeFilter]);
   const filteredProcedures = availableProcedures.filter((proc) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -400,18 +410,23 @@ export function ProcedureForm({ visitId, readOnly = false, externalData, useExte
     return acc;
   }, {} as Record<number, number>);
 
+  const scopedVisitProcedures = useMemo(() => {
+    if (!procedureTypeFilter) return visitProcedures;
+    return visitProcedures.filter((vp) => vp.procedure?.procedure_type === procedureTypeFilter);
+  }, [visitProcedures, procedureTypeFilter]);
+
   const queueCounts = useMemo(() => {
     return {
-      all: visitProcedures.length,
-      pending: visitProcedures.filter((p) => p.status === "pending").length,
-      in_progress: visitProcedures.filter((p) => p.status === "in_progress").length,
-      completed: visitProcedures.filter((p) => p.status === "completed").length,
-      cancelled: visitProcedures.filter((p) => p.status === "cancelled").length,
+      all: scopedVisitProcedures.length,
+      pending: scopedVisitProcedures.filter((p) => p.status === "pending").length,
+      in_progress: scopedVisitProcedures.filter((p) => p.status === "in_progress").length,
+      completed: scopedVisitProcedures.filter((p) => p.status === "completed").length,
+      cancelled: scopedVisitProcedures.filter((p) => p.status === "cancelled").length,
     };
-  }, [visitProcedures]);
+  }, [scopedVisitProcedures]);
 
   const filteredVisitProcedures = useMemo(() => {
-    return visitProcedures.filter((vp) => {
+    return scopedVisitProcedures.filter((vp) => {
       if (statusFilter !== "all" && vp.status !== statusFilter) return false;
       if (!queueSearchQuery.trim()) return true;
 
@@ -422,7 +437,7 @@ export function ProcedureForm({ visitId, readOnly = false, externalData, useExte
       const filler = vp.filled_by?.full_name?.toLowerCase() || "";
       return name.includes(q) || code.includes(q) || creator.includes(q) || filler.includes(q);
     });
-  }, [visitProcedures, statusFilter, queueSearchQuery]);
+  }, [scopedVisitProcedures, statusFilter, queueSearchQuery]);
 
   if (loading) {
     return (
@@ -432,7 +447,7 @@ export function ProcedureForm({ visitId, readOnly = false, externalData, useExte
     );
   }
 
-  if (roomProcedures.length === 0) {
+  if (availableProcedures.length === 0) {
     return (
       <div>
         <div className="py-12">

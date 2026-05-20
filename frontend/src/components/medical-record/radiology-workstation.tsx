@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { usePermission } from "@/hooks/usePermission";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +29,8 @@ import {
   ShieldX,
   CheckCircle2,
 } from "lucide-react";
-import { procedureOrdersApi, visitProceduresApi, printApi, PROCEDURE_ORDER_STATUS, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
-import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
+import { procedureOrdersApi, proceduresApi, visitProceduresApi, printApi, PROCEDURE_ORDER_STATUS, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter, Procedure } from "@/lib/api/procedure-orders";
 import type { VisitProcedure } from "@/lib/api/visit-procedures";
 import { usePINVerification, PINVerificationDialog } from "./edit-mode-controller";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
@@ -54,6 +54,10 @@ interface RadiologyWorkstationProps {
     runtimeOrderId: number,
     updates: { fake_date?: string; doctor_name?: string },
   ) => void;
+  onCreateDuplicateOrder?: (payload?: {
+    ordered_by_id?: number;
+    order_date?: string;
+  }) => Promise<ProcedureOrder>;
 }
 
 export function RadiologyWorkstation({
@@ -63,6 +67,7 @@ export function RadiologyWorkstation({
   apiAdapter,
   duplicateDoctorOptions = [],
   onUpdateDuplicateOrderMeta,
+  onCreateDuplicateOrder,
 }: RadiologyWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
@@ -111,8 +116,35 @@ export function RadiologyWorkstation({
   const [pendingDoctorName, setPendingDoctorName] = useState("");
   const [pendingOrderDate, setPendingOrderDate] = useState("");
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "editor">("list");
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [newOrderDoctorId, setNewOrderDoctorId] = useState<string>("");
+  const [newOrderDate, setNewOrderDate] = useState("");
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+  const [availableProcedures, setAvailableProcedures] = useState<Procedure[]>([]);
+  const [addingItem, setAddingItem] = useState(false);
+  const selectedOrderIDRef = useRef<number | null>(null);
 
   const canPerform = hasPermission("procedure_orders.perform");
+  const canEditDuplicate = rmDuplicateMode && hasPermission("eklaim.edit");
+  const canPerformOrDuplicate = canPerform || canEditDuplicate;
+  const cloneOrder = (order: ProcedureOrder | null | undefined): ProcedureOrder | null =>
+    order ? (JSON.parse(JSON.stringify(order)) as ProcedureOrder) : null;
+  const cloneOrders = (items: ProcedureOrder[]): ProcedureOrder[] =>
+    items.map((item) => JSON.parse(JSON.stringify(item)) as ProcedureOrder);
+  const casemixScope = useMemo(() => {
+    if (!rmDuplicateMode) return undefined;
+    const rawEklaimID = sessionStorage.getItem("casemix_eklaim_id");
+    const parsedEklaimID = rawEklaimID ? Number(rawEklaimID) : NaN;
+    if (Number.isFinite(parsedEklaimID) && parsedEklaimID > 0) {
+      return {
+        is_casemix: "true" as const,
+        casemix_eklaim_id: parsedEklaimID,
+      };
+    }
+    return { is_casemix: "true" as const };
+  }, [rmDuplicateMode]);
 
   useEffect(() => {
     const handleFooterAction = (event: Event) => {
@@ -125,7 +157,7 @@ export function RadiologyWorkstation({
       customEvent.detail.handled = true;
 
       if (submitting) return;
-      if (!selectedOrder || selectedOrder.status !== "in_progress" || !canPerform || rmDuplicateMode) {
+      if (!selectedOrder || selectedOrder.status !== "in_progress" || !canPerformOrDuplicate) {
         toast({
           title: "Info",
           description: "Tidak ada data hasil yang dapat disimpan pada order aktif.",
@@ -140,7 +172,17 @@ export function RadiologyWorkstation({
     return () => {
       window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
     };
-  }, [submitting, selectedOrder, canPerform, rmDuplicateMode]);
+  }, [
+    submitting,
+    selectedOrder,
+    canPerformOrDuplicate,
+    inlineResults,
+    resultSummary,
+    conclusion,
+    suggestion,
+    isCritical,
+    criticalNotes,
+  ]);
 
   useEffect(() => {
     loadOrders();
@@ -148,13 +190,20 @@ export function RadiologyWorkstation({
 
   useEffect(() => {
     const handleRefreshOrders = () => {
-      loadOrders();
+      const preferredOrderID = selectedOrderIDRef.current || undefined;
+      loadOrders(preferredOrderID);
     };
 
     const handleOpenOrderPicker = () => {
       if (!rmDuplicateMode) return;
       if (orders.length <= 1) return;
       setOrderPickerOpen(true);
+    };
+    const handleAddOrder = () => {
+      if (!canEditDuplicate) return;
+      setNewOrderDoctorId("");
+      setNewOrderDate(new Date().toISOString().slice(0, 16));
+      setCreateOrderOpen(true);
     };
 
     window.addEventListener("refresh-final-visit", handleRefreshOrders);
@@ -163,6 +212,7 @@ export function RadiologyWorkstation({
       "rm-duplicate-open-radiology-order-picker",
       handleOpenOrderPicker,
     );
+    window.addEventListener("rm-duplicate-add-radiology-order", handleAddOrder);
 
     return () => {
       window.removeEventListener("refresh-final-visit", handleRefreshOrders);
@@ -171,11 +221,13 @@ export function RadiologyWorkstation({
         "rm-duplicate-open-radiology-order-picker",
         handleOpenOrderPicker,
       );
+      window.removeEventListener("rm-duplicate-add-radiology-order", handleAddOrder);
     };
-  }, [visitId, rmDuplicateMode, orders.length]);
+  }, [visitId, rmDuplicateMode, orders.length, canEditDuplicate]);
 
   useEffect(() => {
     if (selectedOrder) {
+      selectedOrderIDRef.current = selectedOrder.id;
       setResultSummary(selectedOrder.result_summary || "");
       setConclusion(selectedOrder.conclusion || "");
       setSuggestion(selectedOrder.suggestion || "");
@@ -200,6 +252,8 @@ export function RadiologyWorkstation({
         (selectedOrder.created_at || "").replace(" ", "T").slice(0, 16),
       );
       setDoctorSearch("");
+    } else {
+      selectedOrderIDRef.current = null;
     }
   }, [selectedOrder]);
 
@@ -208,7 +262,7 @@ export function RadiologyWorkstation({
       const activeOrder = orders.find(
         (order) => order.status === "pending" || order.status === "in_progress",
       );
-      setSelectedOrder(activeOrder || orders[0]);
+      setSelectedOrder(cloneOrder(activeOrder || orders[0]));
     }
   }, [orders, selectedOrder]);
 
@@ -276,14 +330,22 @@ export function RadiologyWorkstation({
     toast({ variant: "success", title: "Berhasil", description: "Tanda tangan radiologi berhasil dibatalkan" });
   };
 
-  const loadOrders = async () => {
+  const loadOrders = async (preferredOrderId?: number) => {
     setLoading(true);
     try {
-      const res = await orderApi.getAll({
-        target_visit_id: visitId,
-        order_type: "radiology",
-      });
-      const data = res.data || [];
+      const res = await orderApi.getAll(
+        rmDuplicateMode
+          ? {
+              source_visit_id: visitId,
+              order_type: "radiology",
+              ...(casemixScope || {}),
+            }
+          : {
+              target_visit_id: visitId,
+              order_type: "radiology",
+            },
+      );
+      const data = cloneOrders(res.data || []);
       setOrders(data);
       setDirectProcedures([]);
 
@@ -292,12 +354,13 @@ export function RadiologyWorkstation({
       setDirectProcedures(directData.filter((item: VisitProcedure) => item.procedure?.procedure_type === "radiology"));
 
       // Keep currently selected order if still present after refresh.
-      const currentSelectedOrder = selectedOrder
-        ? data.find((o: ProcedureOrder) => o.id === selectedOrder.id)
+      const activeOrderId = preferredOrderId ?? selectedOrder?.id;
+      const currentSelectedOrder = activeOrderId
+        ? data.find((o: ProcedureOrder) => o.id === activeOrderId)
         : null;
 
       if (currentSelectedOrder) {
-        setSelectedOrder(currentSelectedOrder);
+        setSelectedOrder(cloneOrder(currentSelectedOrder));
         return;
       }
 
@@ -305,9 +368,9 @@ export function RadiologyWorkstation({
         (o: ProcedureOrder) => o.status === "pending" || o.status === "in_progress"
       );
       if (activeOrder) {
-        setSelectedOrder(activeOrder);
+        setSelectedOrder(cloneOrder(activeOrder));
       } else if (data.length > 0) {
-        setSelectedOrder(data[0]);
+        setSelectedOrder(cloneOrder(data[0]));
       } else {
         setSelectedOrder(null);
         setSignatureStatus(null);
@@ -325,14 +388,124 @@ export function RadiologyWorkstation({
     }
   };
 
+  const handleCreateDuplicateOrder = async () => {
+    if (!rmDuplicateMode || !onCreateDuplicateOrder) return;
+    try {
+      setSubmitting(true);
+      const payload: { ordered_by_id?: number; order_date?: string } = {};
+      if (newOrderDoctorId) {
+        const nextDoctorID = Number(newOrderDoctorId);
+        if (Number.isFinite(nextDoctorID) && nextDoctorID > 0) {
+          payload.ordered_by_id = nextDoctorID;
+        }
+      }
+      if (newOrderDate) payload.order_date = newOrderDate;
+      const created = await onCreateDuplicateOrder(payload);
+      await loadOrders(created?.id);
+      if (created?.id) {
+        const latest = await procedureOrdersApi.getById(created.id, casemixScope);
+        setSelectedOrder(cloneOrder(latest.data));
+      }
+      setViewMode("editor");
+      setCreateOrderOpen(false);
+      toast({
+        title: "Berhasil",
+        description: "Order radiologi duplikat berhasil dibuat",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal membuat order",
+        description: error?.response?.data?.error || "Order radiologi duplikat gagal dibuat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenAddItem = async () => {
+    if (!selectedOrder) return;
+    try {
+      setAddingItem(true);
+      const roomID = selectedOrder.target_room_id || selectedOrder.source_room_id;
+      const merged = new Map<number, Procedure>();
+
+      try {
+        const roomRes = await procedureOrdersApi.getProceduresByRoom(
+          roomID,
+          "radiology",
+        );
+        const roomProcedures = Array.isArray(roomRes.data) ? roomRes.data : [];
+        roomProcedures.forEach((proc) => merged.set(proc.id, proc));
+      } catch {
+        // Fallback still continues with all radiology procedures
+      }
+
+      const allRes = await proceduresApi.getAll({
+        procedure_type: "radiology",
+        is_active: true,
+      });
+      const allProcedures = Array.isArray(allRes.data?.data) ? allRes.data.data : [];
+      allProcedures.forEach((proc) => {
+        if (!merged.has(proc.id)) {
+          merged.set(proc.id, {
+            id: proc.id,
+            code: proc.code,
+            name: proc.name,
+            description: proc.description,
+            procedure_type: proc.procedure_type,
+            is_active: proc.is_active,
+          } as Procedure);
+        }
+      });
+
+      setAvailableProcedures(
+        Array.from(merged.values()).sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", "id"),
+        ),
+      );
+      setItemSearch("");
+      setAddItemOpen(true);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal memuat pemeriksaan",
+        description: error?.response?.data?.error || "Daftar pemeriksaan radiologi tidak dapat dimuat.",
+      });
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const handleAddOrderItem = async (procedureID: number) => {
+    if (!selectedOrder || !procedureID) return;
+    const activeOrderId = selectedOrder.id;
+    try {
+      setAddingItem(true);
+      await procedureOrdersApi.addItem(selectedOrder.id, { procedure_id: procedureID }, casemixScope);
+      await loadOrders(activeOrderId);
+      toast({ title: "Berhasil", description: "Pemeriksaan berhasil ditambahkan ke order." });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal menambahkan pemeriksaan",
+        description: error?.response?.data?.error || "Pemeriksaan tidak dapat ditambahkan.",
+      });
+    } finally {
+      setAddingItem(false);
+      setAddItemOpen(false);
+    }
+  };
+
   const handleStartOrder = async () => {
     if (!selectedOrder) return;
+    const activeOrderId = selectedOrder.id;
     setSubmitting(true);
     try {
-      const res = await orderApi.start(selectedOrder.id);
-      setSelectedOrder(res.data);
+      const res = await orderApi.start(selectedOrder.id, casemixScope);
+      setSelectedOrder(cloneOrder(res.data));
       toast({ title: "Berhasil", description: "Pemeriksaan dimulai" });
-      loadOrders();
+      loadOrders(activeOrderId);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -348,20 +521,79 @@ export function RadiologyWorkstation({
       ...prev,
       [itemId]: { ...prev[itemId], [paramId]: value },
     }));
+    setSelectedOrder((prev) => {
+      if (!prev) return prev;
+      const nextItems = (prev.items || []).map((item) => {
+        if (Number(item.id) !== Number(itemId)) return item;
+        const nextResults = [...(item.results || [])];
+        const existingIndex = nextResults.findIndex(
+          (result) => Number(result.procedure_parameter_id) === Number(paramId),
+        );
+        if (existingIndex >= 0) {
+          nextResults[existingIndex] = {
+            ...nextResults[existingIndex],
+            value,
+          };
+        } else {
+          nextResults.push({
+            procedure_order_item_id: Number(item.id || itemId),
+            procedure_parameter_id: Number(paramId),
+            value,
+          });
+        }
+        return {
+          ...item,
+          results: nextResults,
+        };
+      });
+      return {
+        ...prev,
+        items: nextItems,
+      };
+    });
   };
 
   const doSaveAllResults = async () => {
     if (!selectedOrder) return;
+    const activeOrderId = selectedOrder.id;
     setSubmitting(true);
     try {
-      const items = selectedOrder.items?.map((item) => ({
-        item_id: item.id!,
-        notes: "",
-        results: Object.entries(inlineResults[item.id!] || {}).map(([paramId, value]) => ({
-          parameter_id: Number(paramId),
-          value: value,
-        })),
-      })) || [];
+      const items = (selectedOrder.items || [])
+        .map((item) => {
+          const rawItemId = Number(item.id);
+          if (!Number.isFinite(rawItemId) || rawItemId <= 0) return null;
+          const itemId = rawItemId;
+          const inlineMap = inlineResults[itemId] || {};
+          const params = item.procedure?.parameters || [];
+          const existingResults = Array.isArray(item.results) ? item.results : [];
+
+          const mergedResults = params
+            .map((param) => {
+              const paramID = Number(param.id);
+              if (!Number.isFinite(paramID) || paramID <= 0) return null;
+
+              const hasInlineValue = Object.prototype.hasOwnProperty.call(inlineMap, paramID);
+              const inlineValue = hasInlineValue ? String(inlineMap[paramID] ?? "") : undefined;
+              const existingValue =
+                existingResults.find((r) => Number(r.procedure_parameter_id) === paramID)?.value ?? "";
+              const finalValue = hasInlineValue ? inlineValue ?? "" : String(existingValue ?? "");
+
+              return {
+                parameter_id: paramID,
+                value: finalValue,
+              };
+            })
+            .filter((result): result is { parameter_id: number; value: string } => !!result)
+            .filter((result) => String(result.value ?? "").trim() !== "");
+
+          return {
+            item_id: itemId,
+            notes: "",
+            results: mergedResults,
+          };
+        })
+        .filter((item): item is { item_id: number; notes: string; results: { parameter_id: number; value: string }[] } => !!item)
+        .filter((item) => item.results.length > 0);
 
       const res = await orderApi.saveResults(selectedOrder.id, {
         result_summary: resultSummary,
@@ -370,11 +602,13 @@ export function RadiologyWorkstation({
         is_critical: isCritical,
         critical_notes: criticalNotes,
         items,
-      });
+      }, casemixScope);
 
-      setSelectedOrder(res.data);
+      setSelectedOrder(cloneOrder(res.data));
+      const latest = await procedureOrdersApi.getById(activeOrderId, casemixScope);
+      setSelectedOrder(cloneOrder(latest.data));
       toast({ title: "Berhasil", description: "Hasil pemeriksaan berhasil disimpan" });
-      loadOrders();
+      await loadOrders(activeOrderId);
       // Trigger refresh on print options dropdown and final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -387,12 +621,16 @@ export function RadiologyWorkstation({
 
   const handleSaveAllResults = () => {
     if (!selectedOrder) return;
+    if (rmDuplicateMode) {
+      void doSaveAllResults();
+      return;
+    }
     requestPINVerification(doSaveAllResults);
   };
 
   const renderInlineInput = (item: ProcedureOrderItem, param: ProcedureParameter) => {
     const value = inlineResults[item.id!]?.[param.id] || "";
-    const isEditable = selectedOrder?.status === "in_progress" && canPerform;
+    const isEditable = selectedOrder?.status === "in_progress" && canPerformOrDuplicate;
 
     if (!isEditable) {
       return <span className="text-sm">{value || "-"}</span>;
@@ -487,7 +725,7 @@ export function RadiologyWorkstation({
     );
   }
 
-  if (orders.length === 0 && directProcedures.length === 0) {
+  if (!rmDuplicateMode && orders.length === 0 && directProcedures.length === 0) {
     return (
       <div>
         <div className="py-8">
@@ -500,7 +738,7 @@ export function RadiologyWorkstation({
     );
   }
 
-  if (orders.length === 0 && directProcedures.length > 0) {
+  if (!rmDuplicateMode && orders.length === 0 && directProcedures.length > 0) {
     return (
       <div className="space-y-4">
         <div className="rounded-lg border bg-muted/50 p-4 text-sm">
@@ -543,14 +781,90 @@ export function RadiologyWorkstation({
 
   return (
     <div className="space-y-4">
+      {rmDuplicateMode && viewMode === "list" && (
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Order Radiologi Duplikat
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/20">
+                <tr className="border-b border-border/70">
+                  <th className="px-3 py-2 text-left font-medium">No. Order</th>
+                  <th className="px-3 py-2 text-left font-medium">Tanggal</th>
+                  <th className="px-3 py-2 text-left font-medium">Dokter</th>
+                  <th className="px-3 py-2 text-left font-medium">Jumlah Item</th>
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                  <th className="px-3 py-2 text-right font-medium">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                      Belum ada order radiologi duplikat.
+                    </td>
+                  </tr>
+                )}
+                {orders.map((order) => (
+                  <tr key={order.id} className="border-b border-border/50">
+                    <td className="px-3 py-2 font-medium">{order.order_number}</td>
+                    <td className="px-3 py-2">
+                      {order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}
+                    </td>
+                    <td className="px-3 py-2">{order.ordered_by?.nama_lengkap || "-"}</td>
+                    <td className="px-3 py-2">{order.items?.length || 0}</td>
+                    <td className="px-3 py-2">{getStatusBadge(order.status)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 rounded-none"
+                        onClick={() => {
+                          setSelectedOrder(cloneOrder(order));
+                          setViewMode("editor");
+                        }}
+                      >
+                        Isi Order
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Selected Order */}
-      {selectedOrder && (
+      {selectedOrder && (!rmDuplicateMode || viewMode === "editor") && (
         <div className="space-y-4">
+          {rmDuplicateMode && (
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-none"
+                onClick={() => setViewMode("list")}
+              >
+                Kembali ke List Order
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-none"
+                disabled={!canEditDuplicate || addingItem}
+                onClick={handleOpenAddItem}
+              >
+                Tambah Pemeriksaan
+              </Button>
+            </div>
+          )}
           <div className="border border-border/70 bg-background">
             <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
               <span>Hasil Radiologi</span>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[240px] sm:items-end">
-                {canPerform && selectedOrder.status === "pending" && (
+                {canPerformOrDuplicate && selectedOrder.status === "pending" && (
                   <Button onClick={handleStartOrder} disabled={submitting} size="sm" className="h-6 px-2 py-0 text-[10px]">
                     {submitting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
                     Mulai Pemeriksaan
@@ -833,7 +1147,8 @@ export function RadiologyWorkstation({
                     key={order.id}
                     type="button"
                     onClick={() => {
-                      setSelectedOrder(order);
+                      setSelectedOrder(cloneOrder(order));
+                      setViewMode("editor");
                       setOrderPickerOpen(false);
                     }}
                     className={cn(
@@ -853,6 +1168,102 @@ export function RadiologyWorkstation({
                   </button>
                 );
               })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && (
+        <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Buat Order Radiologi</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Dokter Pengirim</div>
+                <Select value={newOrderDoctorId} onValueChange={setNewOrderDoctorId}>
+                  <SelectTrigger className="h-9 rounded-none">
+                    <SelectValue placeholder="Pilih dokter (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {duplicateDoctorOptions.map((doc) => (
+                      <SelectItem key={doc.id} value={String(doc.id)}>
+                        {doc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Tanggal Order</div>
+                <Input
+                  type="datetime-local"
+                  value={newOrderDate}
+                  onChange={(e) => setNewOrderDate(e.target.value)}
+                  className="rounded-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setCreateOrderOpen(false)}>
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  disabled={submitting || !onCreateDuplicateOrder}
+                  onClick={handleCreateDuplicateOrder}
+                >
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Buat Order
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={addItemOpen} onOpenChange={setAddItemOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Tambah Pemeriksaan Radiologi</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder="Cari pemeriksaan..."
+              />
+              <div className="max-h-72 overflow-y-auto rounded-none border">
+                {availableProcedures.length === 0 && (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    Belum ada tindakan radiologi aktif.
+                  </div>
+                )}
+                {availableProcedures
+                  .filter((proc) => {
+                    const q = itemSearch.toLowerCase();
+                    if (!q) return true;
+                    return (
+                      proc.name.toLowerCase().includes(q) ||
+                      (proc.code || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .map((proc) => (
+                    <button
+                      key={proc.id}
+                      type="button"
+                      className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent"
+                      onClick={() => handleAddOrderItem(proc.id)}
+                      disabled={addingItem}
+                    >
+                      <div>
+                        <div className="font-medium">{proc.name}</div>
+                        <div className="text-xs text-muted-foreground">{proc.code || "-"}</div>
+                      </div>
+                    </button>
+                  ))}
+              </div>
             </div>
           </DialogContent>
         </Dialog>

@@ -187,6 +187,12 @@ export interface SubmitResultsInput {
   }[];
 }
 
+export interface ProcedureOrderScopeParams {
+  is_casemix?: string | boolean;
+  casemix_eklaim_id?: number;
+  rm_duplicate_id?: number;
+}
+
 // API Functions
 export const procedureOrdersApi = {
   // Get all orders with filters
@@ -199,42 +205,60 @@ export const procedureOrdersApi = {
     status?: string;
     start_date?: string;
     end_date?: string;
+    is_casemix?: string | boolean;
+    casemix_eklaim_id?: number;
+    rm_duplicate_id?: number;
   }) => api.get<ProcedureOrder[]>("/procedure-orders", { params }),
 
   // Get single order
-  getById: (id: number) => api.get<ProcedureOrder>(`/procedure-orders/${id}`),
+  getById: (id: number, scope?: ProcedureOrderScopeParams) =>
+    api.get<ProcedureOrder>(`/procedure-orders/${id}`, {
+      params: scope,
+    }),
 
   // Create new order
   create: (data: CreateProcedureOrderInput) =>
     api.post<ProcedureOrder>("/procedure-orders", data),
 
   // Start working on order
-  start: (id: number) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/start`),
+  start: (id: number, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/start`, undefined, {
+      params: scope,
+    }),
 
   // Save results without completing
-  saveResults: (id: number, data: SubmitResultsInput) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/save-results`, data),
+  saveResults: (id: number, data: SubmitResultsInput, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/save-results`, data, {
+      params: scope,
+    }),
 
   // Submit results and complete (legacy)
-  submitResults: (id: number, data: SubmitResultsInput) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/results`, data),
+  submitResults: (id: number, data: SubmitResultsInput, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/results`, data, {
+      params: scope,
+    }),
 
   // Complete order
-  complete: (id: number) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/complete`),
+  complete: (id: number, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/complete`, undefined, {
+      params: scope,
+    }),
 
   // Cancel order
-  cancel: (id: number, reason?: string) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/cancel`, { reason }),
+  cancel: (id: number, reason?: string, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/cancel`, { reason }, {
+      params: scope,
+    }),
 
   // Recalculate order status (fix inconsistent status)
   recalculate: (id: number) =>
     api.post<{ message: string; new_status: string }>(`/procedure-orders/${id}/recalculate`, {}),
 
   // Validate result
-  validate: (id: number) =>
-    api.post<ProcedureOrder>(`/procedure-orders/${id}/validate`),
+  validate: (id: number, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrder>(`/procedure-orders/${id}/validate`, undefined, {
+      params: scope,
+    }),
 
   // Get orders by source visit
   getBySourceVisit: (visitId: number, orderType?: string) =>
@@ -318,16 +342,22 @@ export const procedureOrdersApi = {
 
   // === PROCEDURE ORDER ITEM CRUD ===
   // Add item to order
-  addItem: (orderId: number, data: { procedure_id: number; notes?: string }) =>
-    api.post<ProcedureOrderItem>(`/procedure-orders/${orderId}/items`, data),
+  addItem: (orderId: number, data: { procedure_id: number; notes?: string }, scope?: ProcedureOrderScopeParams) =>
+    api.post<ProcedureOrderItem>(`/procedure-orders/${orderId}/items`, data, {
+      params: scope,
+    }),
 
   // Update item in order
-  updateItem: (orderId: number, itemId: number, data: { notes?: string }) =>
-    api.put<ProcedureOrderItem>(`/procedure-orders/${orderId}/items/${itemId}`, data),
+  updateItem: (orderId: number, itemId: number, data: { notes?: string }, scope?: ProcedureOrderScopeParams) =>
+    api.put<ProcedureOrderItem>(`/procedure-orders/${orderId}/items/${itemId}`, data, {
+      params: scope,
+    }),
 
   // Delete item from order
-  deleteItem: (orderId: number, itemId: number) =>
-    api.delete(`/procedure-orders/${orderId}/items/${itemId}`),
+  deleteItem: (orderId: number, itemId: number, scope?: ProcedureOrderScopeParams) =>
+    api.delete(`/procedure-orders/${orderId}/items/${itemId}`, {
+      params: scope,
+    }),
 };
 
 export default procedureOrdersApi;

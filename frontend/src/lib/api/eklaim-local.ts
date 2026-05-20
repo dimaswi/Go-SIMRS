@@ -1224,8 +1224,27 @@ export const eklaimLocalApi = {
     return response.data;
   },
 
+  syncProcedureOrderFromVisit: async (id: number, sourceOrderId: number) => {
+    const response = await api.post(`/eklaim-local/${id}/sync-procedure-order-from-visit`, {
+      source_order_id: sourceOrderId,
+    });
+    return response.data;
+  },
+
   createPharmacyOrder: async (id: number, data?: { prescriber_id?: number; order_date?: string }) => {
     const response = await api.post(`/eklaim-local/${id}/create-pharmacy-order`, data || {});
+    return response.data;
+  },
+
+  createProcedureOrder: async (
+    id: number,
+    data: {
+      order_type: "laboratory" | "radiology";
+      ordered_by_id?: number;
+      order_date?: string;
+    },
+  ) => {
+    const response = await api.post(`/eklaim-local/${id}/create-procedure-order`, data);
     return response.data;
   },
 

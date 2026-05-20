@@ -779,6 +779,39 @@ export const vclaimApi = {
   getSEPList: (params?: { registration_id?: number; patient_id?: number; status?: string; limit?: number; no_sep?: string }) =>
     api.get<{ data: SEPLocal[] }>('/bpjs/vclaim/sep/list', { params }),
 
+  importSEP: (data: {
+    no_sep: string;
+    no_kartu?: string;
+    nama_pasien?: string;
+    nik?: string;
+    tgl_lahir?: string;
+    jenis_kelamin?: string;
+    tgl_sep?: string;
+    jns_pelayanan?: string;
+    kls_rawat_hak?: string;
+    no_mr?: string;
+    asal_rujukan?: string;
+    no_rujukan?: string;
+    tgl_rujukan?: string;
+    ppk_rujukan?: string;
+    nama_rujukan?: string;
+    kode_poli?: string;
+    nama_poli?: string;
+    kode_dpjp?: string;
+    nama_dpjp?: string;
+    ppk_pelayanan?: string;
+    diag_awal?: string;
+    nama_diagnosa?: string;
+    catatan?: string;
+    patient_id?: number;
+    registration_id?: number;
+    visit_id?: number;
+  }) =>
+    api.post<{ data: SEPLocal; message: string }>('/bpjs/vclaim/sep/import', data),
+
+  deleteSEPLocal: (noSEP: string) =>
+    api.delete<{ message: string }>(`/bpjs/vclaim/sep/${noSEP}/local`),
+
   // SPRI (Surat Perintah Rawat Inap)
   createSPRI: (data: VClaimSPRIRequest) =>
     api.post<{ data: VClaimSPRIResponse; message: string }>('/bpjs/vclaim/spri', data),
@@ -799,6 +832,25 @@ export const vclaimApi = {
     sep_id?: number;
   }) =>
     api.post<{ data: SPRILocal; message: string }>('/bpjs/vclaim/spri/local', data),
+
+  importSPRI: (data: {
+    no_spri: string;
+    no_kartu?: string;
+    nama?: string;
+    kelamin?: string;
+    tgl_lahir?: string;
+    tgl_rencana_kontrol?: string;
+    kode_poli?: string;
+    nama_poli?: string;
+    kode_dokter?: string;
+    nama_dokter?: string;
+    nama_diagnosa?: string;
+    patient_id?: number;
+    registration_id?: number;
+    visit_id?: number;
+    sep_id?: number;
+  }) =>
+    api.post<{ data: SPRILocal; message: string }>('/bpjs/vclaim/spri/import', data),
 
   getSPRIByVisit: (visitId: number) =>
     api.get<{ data: SPRILocal }>(`/bpjs/vclaim/spri/visit/${visitId}`),

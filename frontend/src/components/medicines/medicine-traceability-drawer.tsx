@@ -152,7 +152,7 @@ export function MedicineTraceabilityDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-screen max-w-[100vw] border-l border-border/70 p-0 sm:w-[90vw] sm:max-w-[90vw]">
+      <SheetContent side="right" className="w-screen max-w-[100vw] border-l border-border/70 p-0 sm:w-[80vw] sm:max-w-[80vw]">
         <div className="flex h-full flex-col bg-background">
           <SheetHeader className="border-b border-border/70 px-6 py-5 pr-14">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

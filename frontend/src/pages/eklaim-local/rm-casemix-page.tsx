@@ -59,11 +59,9 @@ import { AssessmentPlanForm } from "@/components/medical-record/assessment-plan-
 import { DispositionForm } from "@/components/medical-record/disposition-form";
 import { MedicineOrderForm } from "@/components/medical-record/medicine-order-form";
 import { MedicineTimesheetForm } from "@/components/medical-record/medicine-timesheet-form";
-import { RadiologyOrderForm } from "@/components/medical-record/radiology-order-form";
-import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-order-form";
 import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
-import { RadiologyWorkstation } from "@/components/medical-record/radiology-workstation";
 import { LaboratoryWorkstation } from "@/components/medical-record/laboratory-workstation";
+import { RadiologyWorkstation } from "@/components/medical-record/radiology-workstation";
 import { PharmacyEditPrescription } from "@/components/medical-record/pharmacy-edit-prescription";
 import { ProcedureForm } from "@/components/medical-record/procedure-form";
 import { CPPTForm } from "@/components/medical-record/cppt-form";
@@ -79,6 +77,8 @@ import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form
 import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
 import CetakanTab from "./cetakan-tab";
 
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+
 const importableTabLabels: Record<string, string> = {
   triage: "Triase",
   anamnesis: "Anamnesis",
@@ -87,6 +87,8 @@ const importableTabLabels: Record<string, string> = {
   diagnosis: "Diagnosis",
   "assessment-plan": "Assessment & Plan",
   "prescription-edit": "Edit Farmasi",
+  "laboratory-edit": "Edit Lab",
+  "radiology-edit": "Edit Radiologi",
   procedure: "Tindakan",
   cppt: "CPPT",
   "nursing-care": "Asuhan Keperawatan",
@@ -111,6 +113,15 @@ const normalizeDiagnosisImport = (diagnoses: any[]) => ({
   })),
 });
 
+const pickOriginalVisitProcedures = (originalRM: any, procedureType?: "laboratory" | "radiology") => {
+  const procedures = Array.isArray(originalRM?.visit_procedures) ? originalRM.visit_procedures : [];
+  if (!procedureType) return procedures;
+  return procedures.filter((item: any) => {
+    const type = item?.procedure?.procedure_type || item?.procedure_type;
+    return type === procedureType;
+  });
+};
+
 const pickOriginalTabData = (originalRM: any, tabId: string) => {
   switch (tabId) {
     case "triage":
@@ -130,7 +141,15 @@ const pickOriginalTabData = (originalRM: any, tabId: string) => {
     case "discharge-planning":
       return Array.isArray(originalRM?.discharge_planning?.items) && originalRM.discharge_planning.items.length > 0 ? originalRM.discharge_planning : null;
     case "procedure":
-      return Array.isArray(originalRM?.visit_procedures) && originalRM.visit_procedures.length > 0 ? originalRM.visit_procedures : null;
+      return pickOriginalVisitProcedures(originalRM).length > 0 ? pickOriginalVisitProcedures(originalRM) : null;
+    case "laboratory-edit":
+      return pickOriginalVisitProcedures(originalRM, "laboratory").length > 0
+        ? pickOriginalVisitProcedures(originalRM, "laboratory")
+        : null;
+    case "radiology-edit":
+      return pickOriginalVisitProcedures(originalRM, "radiology").length > 0
+        ? pickOriginalVisitProcedures(originalRM, "radiology")
+        : null;
     case "prescription-edit":
       return Array.isArray(originalRM?.medicine_orders) && originalRM.medicine_orders.length > 0 ? originalRM.medicine_orders : null;
     case "cppt":
@@ -290,8 +309,6 @@ export default function RMCasemixPage() {
     const load = async () => {
       try {
         setLoading(true);
-        // Temporarily disable casemix context so this meta-request is not intercepted
-        setCasemixContext(false);
         const res = await eklaimLocalApi.getDetail(eklaimId);
         const eklaimData = res.data || res; // Fallback in case api interceptor unwraps it
         
@@ -334,8 +351,6 @@ export default function RMCasemixPage() {
       } catch {
         toast({ title: "Gagal memuat data kunjungan", variant: "destructive" });
       } finally {
-        // Always restore casemix context for clinical API calls
-        setCasemixContext(true, eklaimId);
         setLoading(false);
       }
     };
@@ -380,8 +395,26 @@ export default function RMCasemixPage() {
   const showProcedureTab = allowedServiceTypes.includes(visit?.room?.service_type || "");
   const activeTabLabel = importableTabLabels[activeTab] || activeTab;
   const canDownloadOriginalForActiveTab = Boolean(importableTabLabels[activeTab]);
-  const canQuickAddPharmacy = activeTab === "prescription-edit" && visitId > 0;
+  const canQuickAddAction =
+    visitId > 0 &&
+    (activeTab === "prescription-edit" ||
+      activeTab === "laboratory-edit" ||
+      activeTab === "radiology-edit");
   const originalPharmacyOrders = Array.isArray(originalRM?.medicine_orders) ? originalRM.medicine_orders : [];
+
+  const handleQuickAddClick = () => {
+    if (activeTab === "prescription-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-pharmacy-medicine"));
+      return;
+    }
+    if (activeTab === "laboratory-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-lab-order"));
+      return;
+    }
+    if (activeTab === "radiology-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-radiology-order"));
+    }
+  };
 
   const handleSaveTriage = async (data: any) => {
     try {
@@ -451,7 +484,6 @@ export default function RMCasemixPage() {
 
     try {
       setDownloadingOriginal(true);
-      setCasemixContext(false);
 
       if (activeTab === "prescription-edit") return;
 
@@ -484,7 +516,6 @@ export default function RMCasemixPage() {
         variant: "destructive",
       });
     } finally {
-      setCasemixContext(true, eklaimId);
       setDownloadingOriginal(false);
       setDownloadConfirmOpen(false);
     }
@@ -514,10 +545,21 @@ export default function RMCasemixPage() {
     if (list.length === 0) return false;
 
     switch (tabId) {
-      case "procedure": {
+      case "procedure":
+      case "laboratory-edit":
+      case "radiology-edit": {
+        const procedureTypeFilter =
+          tabId === "laboratory-edit" ? "laboratory" : tabId === "radiology-edit" ? "radiology" : null;
+        const filteredList = procedureTypeFilter
+          ? list.filter((item: any) => (item?.procedure?.procedure_type || item?.procedure_type) === procedureTypeFilter)
+          : list;
         const existing = await visitProceduresApi.getAll(visitId);
-        await Promise.all((existing.data?.data || []).map((item: any) => visitProceduresApi.delete(visitId, item.id)));
-        for (const item of list) {
+        const existingItems = existing.data?.data || [];
+        const deletableItems = procedureTypeFilter
+          ? existingItems.filter((item: any) => (item?.procedure?.procedure_type || item?.procedure_type) === procedureTypeFilter)
+          : existingItems;
+        await Promise.all(deletableItems.map((item: any) => visitProceduresApi.delete(visitId, item.id)));
+        for (const item of filteredList) {
           const created = await visitProceduresApi.create(visitId, {
             procedure_id: Number(item.procedure_id || item.procedure?.id || 0),
             notes: item.notes || "",
@@ -633,6 +675,23 @@ export default function RMCasemixPage() {
   };
 
   const handleSaveActiveTabFromFooter = () => {
+    if (activeTab === "laboratory-edit" || activeTab === "radiology-edit") {
+      const detail = {
+        tabId: activeTab === "laboratory-edit" ? "laboratory-workstation" : "radiology-workstation",
+        action: "save" as const,
+        handled: false,
+      };
+      window.dispatchEvent(new CustomEvent(FOOTER_ACTION_EVENT, { detail }));
+      if (!detail.handled) {
+        toast({
+          title: "Simpan tidak tersedia",
+          description: "Aksi simpan workstation belum tersedia.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     const importedData = frontendImportedData[activeTab];
     if (
       (Array.isArray(importedData) && importedData.length > 0) ||
@@ -680,13 +739,41 @@ export default function RMCasemixPage() {
       case "o2-usage": return <O2UsageForm visitId={visitId} externalData={importedData} useExternalData={usesImportedData} />;
       case "medicine-order": return <MedicineOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} sourceServiceType={visit?.room?.service_type} />;
       case "medicine-timesheet": return <MedicineTimesheetForm visitId={visitId} />;
-      case "radiology-order": return <RadiologyOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />;
-      case "laboratory-order": return <LaboratoryOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />;
       case "consultation-order": return <ConsultationOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />;
       case "surgery-order": return <SurgeryOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />;
       case "nutrition-order": return <NutritionOrderForm visitId={visitId} />;
-      case "laboratory-edit": return <LaboratoryWorkstation visitId={visitId} />;
-      case "radiology-edit": return <RadiologyWorkstation visitId={visitId} />;
+      case "laboratory-edit":
+        return (
+          <LaboratoryWorkstation
+            visitId={visitId}
+            rmDuplicateMode
+            duplicateDoctorOptions={visit?.doctor ? [{ id: Number(visit.doctor.id), name: visit.doctor.nama_lengkap || "-" }] : []}
+            onCreateDuplicateOrder={async (payload) => {
+              const res = await eklaimLocalApi.createProcedureOrder(eklaimId, {
+                order_type: "laboratory",
+                ordered_by_id: payload?.ordered_by_id,
+                order_date: payload?.order_date,
+              });
+              return res.data;
+            }}
+          />
+        );
+      case "radiology-edit":
+        return (
+          <RadiologyWorkstation
+            visitId={visitId}
+            rmDuplicateMode
+            duplicateDoctorOptions={visit?.doctor ? [{ id: Number(visit.doctor.id), name: visit.doctor.nama_lengkap || "-" }] : []}
+            onCreateDuplicateOrder={async (payload) => {
+              const res = await eklaimLocalApi.createProcedureOrder(eklaimId, {
+                order_type: "radiology",
+                ordered_by_id: payload?.ordered_by_id,
+                order_date: payload?.order_date,
+              });
+              return res.data;
+            }}
+          />
+        );
       case "surgery-edit": return <SurgeryWorkstation visitId={visitId} />;
       case "consultation": return <ConsultationForm visitId={visitId} />;
       case "prescription-edit":
@@ -706,7 +793,7 @@ export default function RMCasemixPage() {
     }
   };
 
-  const handleDownloadOriginalClick = () => {
+  const handleDownloadOriginalClick = async () => {
     if (activeTab === "prescription-edit") {
       if (originalPharmacyOrders.length === 0) {
         toast({
@@ -720,6 +807,47 @@ export default function RMCasemixPage() {
       setPharmacySourceDialogOpen(true);
       return;
     }
+    if (activeTab === "laboratory-edit" || activeTab === "radiology-edit") {
+      try {
+        setDownloadingOriginal(true);
+        const response = await eklaimLocalApi.getDetail(eklaimId);
+        const sourceRM = response?.original_rm || {};
+        setOriginalRM(sourceRM);
+        const sourceOrders = activeTab === "laboratory-edit"
+          ? (Array.isArray(sourceRM?.lab_orders) ? sourceRM.lab_orders : [])
+          : (Array.isArray(sourceRM?.radiology_orders) ? sourceRM.radiology_orders : []);
+        if (sourceOrders.length === 0) {
+          toast({
+            title: `Data ${activeTab === "laboratory-edit" ? "laboratorium" : "radiologi"} asli kosong`,
+            description: "Belum ada order pada rekam medis asli untuk disalin.",
+            variant: "destructive",
+          });
+          return;
+        }
+        for (const order of sourceOrders) {
+          if (order?.id) {
+            await eklaimLocalApi.syncProcedureOrderFromVisit(eklaimId, Number(order.id));
+          }
+        }
+        emitMedicalRecordTabSaved(activeTab, true);
+        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+        toast({
+          title: "Order berhasil diunduh",
+          description: `${sourceOrders.length} order ${activeTab === "laboratory-edit" ? "laboratorium" : "radiologi"} asli berhasil disalin.`,
+        });
+        return;
+      } catch (error: any) {
+        toast({
+          title: "Gagal mengunduh order",
+          description: error.response?.data?.error || "Order asli gagal disalin.",
+          variant: "destructive",
+        });
+      } finally {
+        setDownloadingOriginal(false);
+      }
+      return;
+    }
     setDownloadConfirmOpen(true);
   };
 
@@ -730,7 +858,6 @@ export default function RMCasemixPage() {
     }
     try {
       setDownloadingOriginal(true);
-      setCasemixContext(false);
       const syncRes = await eklaimLocalApi.syncPharmacyOrderFromVisit(eklaimId, selectedOriginalPharmacyOrderId);
       setPharmacyRefreshKey((prev) => prev + 1);
       emitMedicalRecordTabSaved("prescription-edit", true);
@@ -746,7 +873,6 @@ export default function RMCasemixPage() {
         variant: "destructive",
       });
     } finally {
-      setCasemixContext(true, eklaimId);
       setDownloadingOriginal(false);
     }
   };
@@ -815,16 +941,20 @@ export default function RMCasemixPage() {
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 rounded-none"
-                        disabled={!canQuickAddPharmacy}
-                        onClick={() => window.dispatchEvent(new CustomEvent("rm-duplicate-add-pharmacy-medicine"))}
+                        disabled={!canQuickAddAction}
+                        onClick={handleQuickAddClick}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {canQuickAddPharmacy
-                        ? "Tambah obat duplikat"
-                        : "Tambah obat hanya tersedia di tab Edit Farmasi"}
+                      {!canQuickAddAction
+                        ? "Tambah data hanya tersedia di tab Edit Farmasi/Lab/Radiologi"
+                        : activeTab === "prescription-edit"
+                          ? "Tambah resep farmasi duplikat"
+                          : activeTab === "laboratory-edit"
+                            ? "Tambah order laboratorium duplikat"
+                            : "Tambah order radiologi duplikat"}
                     </TooltipContent>
                   </Tooltip>
 
@@ -924,7 +1054,7 @@ export default function RMCasemixPage() {
                 >
                   <div className="font-medium">{order.order_number || `Resep #${order.id}`}</div>
                   <div className="text-xs text-muted-foreground">
-                    {(order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-")} • {items.length} item
+                    {(order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-")} - {items.length} item
                   </div>
                 </button>
               );
@@ -941,7 +1071,29 @@ export default function RMCasemixPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/*
 
+      
+                  <div className="text-xs text-muted-foreground">
+                    {(order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-")} • {items.length} item
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setProcedureSourceDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button type="button" onClick={handleImportSingleProcedureOrder} disabled={downloadingOriginal}>
+              {downloadingOriginal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Unduh Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      */}
       <AlertDialog open={downloadConfirmOpen} onOpenChange={setDownloadConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -961,7 +1113,7 @@ export default function RMCasemixPage() {
       </AlertDialog>
 
       <Sheet open={printDrawerOpen} onOpenChange={handlePrintDrawerOpenChange}>
-        <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[70vw] sm:max-w-[70vw]">
+        <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <SheetHeader className="border-b bg-muted/30 px-4 py-3">
             <SheetTitle className="flex items-center gap-2 text-base">
               <Printer className="h-4 w-4" />

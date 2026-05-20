@@ -19,11 +19,24 @@ import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import { ClinicalPackageSelector } from "@/components/registration/clinical-package-selector";
 import type { Patient, Room, RoomStaff, Registration } from "@/lib/api";
-import { Loader2, UserPlus, User, FileText, CheckCircle2, AlertCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import { Loader2, UserPlus, FileText, CheckCircle2, AlertCircle, ExternalLink, AlertTriangle, Pencil, Trash2, Unlink2, Printer } from "lucide-react";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
+import { vclaimApi } from "@/lib/api/vclaim";
+import { printApi } from "@/lib/api/print";
 import { OrderRoomSelection } from "@/components/registration/order-room-selection";
 import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 import { useNavigate } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   BPJS_FIELD_CLASS,
   BPJS_FOOTER_CLASS,
@@ -66,6 +79,11 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   const [sepSheetOpen, setSepSheetOpen] = useState(false);
   const [sepNumber, setSepNumber] = useState("");
   const [sepData, setSepData] = useState<any>(null);
+  const [deleteSEPOpen, setDeleteSEPOpen] = useState(false);
+  const [deletingSEP, setDeletingSEP] = useState(false);
+  const [unlinkSEPOpen, setUnlinkSEPOpen] = useState(false);
+  const [unlinkingSEP, setUnlinkingSEP] = useState(false);
+  const [printingSEP, setPrintingSEP] = useState(false);
 
   // Master data
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -111,6 +129,37 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     if (procedureType === "laboratory") return isDirectLaboratoryRoom;
     if (procedureType === "radiology") return isDirectRadiologyRoom;
     return false;
+  };
+
+  const loadLatestActiveSEP = async (cardNumber: string) => {
+    if (!cardNumber) {
+      setSepNumber("");
+      setSepData(null);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/bpjs/vclaim/sep/list?no_kartu=${cardNumber}&limit=10`);
+      const seps = res.data.data || [];
+      const activeSeps = seps.filter((s: any) => s.status !== "deleted");
+      if (activeSeps.length > 0) {
+        const latestSEP = activeSeps[0];
+        setSepNumber(latestSEP.no_sep);
+        setSepData({
+          id: latestSEP.id,
+          no_sep: latestSEP.no_sep,
+          poli: { nama: latestSEP.nama_poli },
+          dokter: { nama: latestSEP.nama_dpjp },
+          diagnosa: { nama: latestSEP.nama_diagnosa },
+        });
+      } else {
+        setSepNumber("");
+        setSepData(null);
+      }
+    } catch {
+      setSepNumber("");
+      setSepData(null);
+    }
   };
 
   // Check active registration and load rooms when sheet opens
@@ -174,32 +223,23 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       setPharmacyRoomOptionsByMedicineId({});
       setHasActiveRegistration(false);
       setActiveRegistration(null);
+      setDeleteSEPOpen(false);
+      setUnlinkSEPOpen(false);
     }
   }, [open, patient]);
 
   // Auto-load SEP data when payment method is BPJS
   useEffect(() => {
-    if (paymentMethod === "bpjs" && patient && bpjsNumber) {
-      const checkLocalSEP = async () => {
-        try {
-          const res = await api.get(`/bpjs/vclaim/sep/list?no_kartu=${bpjsNumber}&limit=10`);
-          const seps = res.data.data || [];
-          // Filter hanya SEP yang aktif (bukan yang sudah dihapus)
-          const activeSeps = seps.filter((s: any) => s.status !== "deleted");
-          if (activeSeps.length > 0) {
-            const latestSEP = activeSeps[0];
-            setSepNumber(latestSEP.no_sep);
-            setSepData({
-              poli: { nama: latestSEP.nama_poli },
-              dokter: { nama: latestSEP.nama_dpjp },
-              diagnosa: { nama: latestSEP.nama_diagnosa },
-            });
-          }
-        } catch (error) {
-          console.log("No local SEP found");
-        }
-      };
-      checkLocalSEP();
+    if (paymentMethod === "bpjs") {
+      if (patient && bpjsNumber) {
+        loadLatestActiveSEP(bpjsNumber);
+      } else {
+        setSepNumber("");
+        setSepData(null);
+      }
+    } else {
+      setSepNumber("");
+      setSepData(null);
     }
   }, [paymentMethod, patient, bpjsNumber]);
 
@@ -229,6 +269,88 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       console.error("Error checking patient registrations:", error);
     } finally {
       setCheckingRegistration(false);
+    }
+  };
+
+  const handleDeleteSEP = async () => {
+    if (!sepNumber) return;
+
+    setDeletingSEP(true);
+    try {
+      await vclaimApi.deleteSEP(sepNumber, "");
+      toast({
+        title: "SEP berhasil dihapus",
+        description: "Status SEP lokal diubah menjadi deleted dan Anda bisa assign SEP baru.",
+      });
+      setDeleteSEPOpen(false);
+      setSepNumber("");
+      setSepData(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal menghapus SEP",
+        description: error.response?.data?.error || "Terjadi kesalahan saat menghapus SEP",
+      });
+    } finally {
+      setDeletingSEP(false);
+    }
+  };
+
+  const handleUnlinkSEP = async () => {
+    if (!sepNumber) return;
+
+    setUnlinkingSEP(true);
+    try {
+      await vclaimApi.deleteSEPLocal(sepNumber);
+      toast({
+        title: "SEP berhasil di-unlink",
+        description: "Relasi SEP ke kunjungan lokal dilepas dan Anda bisa assign SEP baru.",
+      });
+      setUnlinkSEPOpen(false);
+      setSepNumber("");
+      setSepData(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal unlink SEP",
+        description: error.response?.data?.error || "Terjadi kesalahan saat unlink SEP lokal",
+      });
+    } finally {
+      setUnlinkingSEP(false);
+    }
+  };
+
+  const handlePrintSEP = async () => {
+    if (!sepNumber) return;
+
+    setPrintingSEP(true);
+    try {
+      let sepId = sepData?.id as number | undefined;
+
+      if (!sepId) {
+        const res = await vclaimApi.getSEPList({ no_sep: sepNumber, limit: 1 });
+        const sep = (res.data?.data || [])[0];
+        sepId = sep?.id;
+      }
+
+      if (!sepId) {
+        toast({
+          variant: "destructive",
+          title: "Gagal cetak SEP",
+          description: "Data SEP lokal tidak ditemukan untuk dicetak.",
+        });
+        return;
+      }
+
+      await printApi.sep(sepId);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal cetak SEP",
+        description: error.response?.data?.error || "Terjadi kesalahan saat mencetak SEP",
+      });
+    } finally {
+      setPrintingSEP(false);
     }
   };
 
@@ -760,19 +882,10 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     patient.tanggal_lahir,
   );
 
-  const patientInfoItems = [
-    { label: "Nama Pasien", value: patientDisplayName },
-    { label: "No. RM", value: patient.no_rm, mono: true },
-    { label: "NIK", value: patient.nik || "-", mono: true },
-    { label: "Tanggal Lahir", value: patient.tanggal_lahir || "-" },
-    { label: "No. BPJS", value: patient.no_bpjs || "-", mono: true },
-    { label: "Status", value: patient.status || "-" },
-  ];
-
   if (checkingRegistration) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+        <SheetContent className="flex w-[80vw] flex-col p-0 sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Registrasi"
             title="Pendaftaran Pasien"
@@ -821,7 +934,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Registrasi"
             title="Pasien Sudah Terdaftar"
@@ -836,10 +949,6 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
           <ScrollArea className="flex-1">
             <div className="space-y-6 p-6">
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
-                <BPJSInfoGrid items={patientInfoItems} />
-              </div>
 
               <div className={BPJS_SECTION_CLASS}>
                 <BPJSSectionHeader eyebrow="Status" title="Pendaftaran Aktif" />
@@ -913,7 +1022,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Registrasi"
             title="Pendaftaran Pasien"
@@ -954,11 +1063,6 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   }
                 />
               )}
-
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
-                <BPJSInfoGrid items={patientInfoItems} />
-              </div>
 
               <div className={BPJS_SECTION_CLASS}>
                 <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
@@ -1129,16 +1233,88 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                         <FileText className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-medium text-foreground">SEP (Surat Eligibilitas Peserta)</span>
                       </div>
-                      {sepNumber ? (
-                        <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          {sepNumber}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
-                          Belum Ada
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {sepNumber ? (
+                          <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            {sepNumber}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
+                            Belum Ada
+                          </Badge>
+                        )}
+
+                        {sepNumber && (
+                          <TooltipProvider>
+                            <div className="flex items-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-none"
+                                    onClick={handlePrintSEP}
+                                    disabled={printingSEP || deletingSEP || unlinkingSEP}
+                                  >
+                                    {printingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cetak SEP</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-none"
+                                    onClick={() => setSepSheetOpen(true)}
+                                    disabled={!bpjsNumber}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Lihat / Edit SEP</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-none"
+                                    onClick={() => setDeleteSEPOpen(true)}
+                                    disabled={deletingSEP || unlinkingSEP}
+                                  >
+                                    {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Hapus SEP ke BPJS</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-none"
+                                    onClick={() => setUnlinkSEPOpen(true)}
+                                    disabled={deletingSEP || unlinkingSEP}
+                                  >
+                                    {unlinkingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink2 className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Unlink SEP lokal</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </div>
 
                     {sepNumber && sepData ? (
@@ -1153,17 +1329,19 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                       </p>
                     )}
 
-                    <Button
-                      type="button"
-                      variant={sepNumber ? "outline" : "default"}
-                      size="sm"
-                      className="mt-3 w-full rounded-none"
-                      onClick={() => setSepSheetOpen(true)}
-                      disabled={!bpjsNumber}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      {sepNumber ? "Lihat / Edit SEP" : "Buat SEP"}
-                    </Button>
+                    {!sepNumber && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="mt-3 w-full rounded-none"
+                        onClick={() => setSepSheetOpen(true)}
+                        disabled={!bpjsNumber}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Buat SEP
+                      </Button>
+                    )}
                   </div>
                   </div>
                 </div>
@@ -1257,6 +1435,57 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
           onSEPCreated?.();
         }}
       />
+
+      <AlertDialog open={deleteSEPOpen} onOpenChange={setDeleteSEPOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus SEP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              SEP <strong className="font-mono">{sepNumber}</strong> akan dihapus dari BPJS.
+              Data lokal tidak dihapus, hanya status menjadi <strong>deleted</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSEP}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleDeleteSEP();
+              }}
+              disabled={deletingSEP}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Hapus SEP
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={unlinkSEPOpen} onOpenChange={setUnlinkSEPOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink SEP Lokal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gunakan opsi ini jika SEP di BPJS sudah terhapus tapi relasi lokal masih menempel.
+              SEP lokal <strong className="font-mono">{sepNumber}</strong> akan dilepas dari assignment tanpa hit delete BPJS.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlinkingSEP}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleUnlinkSEP();
+              }}
+              disabled={unlinkingSEP}
+            >
+              {unlinkingSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Unlink SEP
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

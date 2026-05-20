@@ -44,6 +44,517 @@ func clinicalSourceVisitQuery(c *gin.Context, visitID interface{}) *gorm.DB {
 	return applyCasemixEklaimScope(c, getClinicalDB(c).Where("source_visit_id = ? AND is_casemix = ?", visitID, useCasemixClinicalData(c)))
 }
 
+func parseRMDuplicateDateTime(value string) time.Time {
+	if strings.TrimSpace(value) == "" {
+		return time.Time{}
+	}
+	formats := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
+		"2006-01-02",
+		time.RFC3339,
+	}
+	for _, format := range formats {
+		if t, err := time.Parse(format, value); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+// ensureCasemixMirrorFromRMDuplicate mirrors editable RM duplicate payload into Casemix clinical tables.
+// This keeps print endpoints consistent with RM Duplicate data even when edits were saved via legacy endpoints.
+func ensureCasemixMirrorFromRMDuplicate(c *gin.Context, visitID uint) {
+	rmDupIDStr := c.Query("rm_duplicate_id")
+	if rmDupIDStr == "" || database.CasemixDB == nil {
+		return
+	}
+
+	rmDupID64, err := strconv.ParseUint(rmDupIDStr, 10, 32)
+	if err != nil || rmDupID64 == 0 {
+		return
+	}
+	rmDupID := uint(rmDupID64)
+
+	var rmDup models.EKlaimRMDuplicate
+	if err := database.DB.
+		Preload("Diagnoses").
+		Preload("CPPTNotes").
+		Preload("NursingCares").
+		Preload("FluidBalances").
+		First(&rmDup, rmDupID).Error; err != nil {
+		return
+	}
+	if rmDup.VisitID != 0 && visitID != 0 && rmDup.VisitID != visitID {
+		return
+	}
+
+	casemixEklaimID := rmDup.EKlaimLocalID
+	cmx := database.CasemixDB
+
+	// Anamnesis
+	anamnesisUpdates := map[string]interface{}{
+		"is_casemix":                 true,
+		"casemix_eklaim_id":          casemixEklaimID,
+		"anamnesis_source":           rmDup.AnamnesisSource,
+		"functional_status":          rmDup.FunctionalStatus,
+		"chief_complaint":            rmDup.ChiefComplaint,
+		"history_of_present_illness": rmDup.HistoryOfPresentIllness,
+		"past_medical_history":       rmDup.PastMedicalHistory,
+		"family_history":             rmDup.FamilyHistory,
+		"social_history":             rmDup.SocialHistory,
+		"allergies":                  rmDup.Allergies,
+		"current_medications":        rmDup.CurrentMedications,
+		"review_of_systems":          rmDup.ReviewOfSystems,
+	}
+	var anamnesis models.Anamnesis
+	if err := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID).First(&anamnesis).Error; err == nil {
+		cmx.Model(&anamnesis).Updates(anamnesisUpdates)
+	} else {
+		anamnesis = models.Anamnesis{
+			VisitID:                 rmDup.VisitID,
+			IsCasemix:               true,
+			CasemixEklaimID:         &casemixEklaimID,
+			AnamnesisSource:         rmDup.AnamnesisSource,
+			FunctionalStatus:        rmDup.FunctionalStatus,
+			ChiefComplaint:          rmDup.ChiefComplaint,
+			HistoryOfPresentIllness: rmDup.HistoryOfPresentIllness,
+			PastMedicalHistory:      rmDup.PastMedicalHistory,
+			FamilyHistory:           rmDup.FamilyHistory,
+			SocialHistory:           rmDup.SocialHistory,
+			Allergies:               rmDup.Allergies,
+			CurrentMedications:      rmDup.CurrentMedications,
+			ReviewOfSystems:         rmDup.ReviewOfSystems,
+		}
+		cmx.Create(&anamnesis)
+	}
+
+	// Physical Examination
+	physicalUpdates := map[string]interface{}{
+		"is_casemix":         true,
+		"casemix_eklaim_id":  casemixEklaimID,
+		"general_condition":  rmDup.GeneralCondition,
+		"consciousness":      rmDup.Consciousness,
+		"blood_pressure":     rmDup.BloodPressure,
+		"systolic":           rmDup.Systolic,
+		"diastolic":          rmDup.Diastolic,
+		"heart_rate":         rmDup.HeartRate,
+		"respiratory_rate":   rmDup.RespiratoryRate,
+		"temperature":        rmDup.Temperature,
+		"oxygen_saturation":  rmDup.OxygenSaturation,
+		"weight":             rmDup.Weight,
+		"height":             rmDup.Height,
+		"bmi":                rmDup.BMI,
+		"head_circum":        rmDup.HeadCircum,
+		"waist":              rmDup.Waist,
+		"pain_method":        rmDup.PainMethod,
+		"pain_scale":         rmDup.PainScale,
+		"pain_location":      rmDup.PainLocation,
+		"head":               rmDup.Head,
+		"eyes":               rmDup.Eyes,
+		"ears":               rmDup.Ears,
+		"nose":               rmDup.Nose,
+		"throat":             rmDup.Throat,
+		"ent":                rmDup.ENT,
+		"neck":               rmDup.Neck,
+		"chest":              rmDup.Chest,
+		"thorax":             rmDup.Thorax,
+		"heart":              rmDup.Heart,
+		"cardiac":            rmDup.Cardiac,
+		"lungs":              rmDup.Lungs,
+		"pulmonary":          rmDup.Pulmonary,
+		"abdomen":            rmDup.Abdomen,
+		"extremities":        rmDup.Extremities,
+		"skin":               rmDup.Skin,
+		"neurological":       rmDup.Neurological,
+		"musculoskel":        rmDup.Musculoskel,
+		"genitourinary":      rmDup.Genitourinary,
+		"other_findings":     rmDup.OtherFindings,
+		"ecg_performed":      rmDup.ECGPerformed,
+		"ecg_result":         rmDup.ECGResult,
+		"ecg_interpretation": rmDup.ECGInterpretation,
+		"ecg_notes":          rmDup.ECGNotes,
+	}
+	var physical models.PhysicalExamination
+	if err := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID).First(&physical).Error; err == nil {
+		cmx.Model(&physical).Updates(physicalUpdates)
+	} else {
+		physical = models.PhysicalExamination{
+			VisitID:           rmDup.VisitID,
+			IsCasemix:         true,
+			CasemixEklaimID:   &casemixEklaimID,
+			GeneralCondition:  rmDup.GeneralCondition,
+			Consciousness:     rmDup.Consciousness,
+			BloodPressure:     rmDup.BloodPressure,
+			Systolic:          rmDup.Systolic,
+			Diastolic:         rmDup.Diastolic,
+			HeartRate:         rmDup.HeartRate,
+			RespiratoryRate:   rmDup.RespiratoryRate,
+			Temperature:       rmDup.Temperature,
+			OxygenSaturation:  rmDup.OxygenSaturation,
+			Weight:            rmDup.Weight,
+			Height:            rmDup.Height,
+			BMI:               rmDup.BMI,
+			HeadCircum:        rmDup.HeadCircum,
+			Waist:             rmDup.Waist,
+			PainMethod:        rmDup.PainMethod,
+			PainScale:         rmDup.PainScale,
+			PainLocation:      rmDup.PainLocation,
+			Head:              rmDup.Head,
+			Eyes:              rmDup.Eyes,
+			Ears:              rmDup.Ears,
+			Nose:              rmDup.Nose,
+			Throat:            rmDup.Throat,
+			ENT:               rmDup.ENT,
+			Neck:              rmDup.Neck,
+			Chest:             rmDup.Chest,
+			Thorax:            rmDup.Thorax,
+			Heart:             rmDup.Heart,
+			Cardiac:           rmDup.Cardiac,
+			Lungs:             rmDup.Lungs,
+			Pulmonary:         rmDup.Pulmonary,
+			Abdomen:           rmDup.Abdomen,
+			Extremities:       rmDup.Extremities,
+			Skin:              rmDup.Skin,
+			Neurological:      rmDup.Neurological,
+			Musculoskel:       rmDup.Musculoskel,
+			Genitourinary:     rmDup.Genitourinary,
+			OtherFindings:     rmDup.OtherFindings,
+			ECGPerformed:      rmDup.ECGPerformed,
+			ECGResult:         rmDup.ECGResult,
+			ECGInterpretation: rmDup.ECGInterpretation,
+			ECGNotes:          rmDup.ECGNotes,
+		}
+		cmx.Create(&physical)
+	}
+
+	// Assessment Plan
+	assessmentUpdates := map[string]interface{}{
+		"is_casemix":          true,
+		"casemix_eklaim_id":   casemixEklaimID,
+		"clinical_assessment": rmDup.ClinicalAssessment,
+		"prognosis":           rmDup.Prognosis,
+		"treatment_plan":      rmDup.TreatmentPlan,
+		"medication_plan":     rmDup.MedicationPlan,
+		"diet_plan":           rmDup.DietPlan,
+		"activity_plan":       rmDup.ActivityPlan,
+		"education_plan":      rmDup.EducationPlan,
+		"monitoring_plan":     rmDup.MonitoringPlan,
+		"procedure_plan":      rmDup.ProcedurePlan,
+		"consultation_plan":   rmDup.ConsultationPlan,
+	}
+	var assessment models.AssessmentPlan
+	if err := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID).First(&assessment).Error; err == nil {
+		cmx.Model(&assessment).Updates(assessmentUpdates)
+	} else {
+		assessment = models.AssessmentPlan{
+			VisitID:            rmDup.VisitID,
+			IsCasemix:          true,
+			CasemixEklaimID:    &casemixEklaimID,
+			ClinicalAssessment: rmDup.ClinicalAssessment,
+			Prognosis:          rmDup.Prognosis,
+			TreatmentPlan:      rmDup.TreatmentPlan,
+			MedicationPlan:     rmDup.MedicationPlan,
+			DietPlan:           rmDup.DietPlan,
+			ActivityPlan:       rmDup.ActivityPlan,
+			EducationPlan:      rmDup.EducationPlan,
+			MonitoringPlan:     rmDup.MonitoringPlan,
+			ProcedurePlan:      rmDup.ProcedurePlan,
+			ConsultationPlan:   rmDup.ConsultationPlan,
+		}
+		cmx.Create(&assessment)
+	}
+
+	// Disposition
+	dispositionUpdates := map[string]interface{}{
+		"is_casemix":            true,
+		"casemix_eklaim_id":     casemixEklaimID,
+		"disposition_type":      rmDup.DispositionType,
+		"disposition_note":      rmDup.DispositionNote,
+		"discharge_status":      rmDup.DischargeStatus,
+		"discharge_condition":   rmDup.DischargeCondition,
+		"discharge_instruction": rmDup.DischargeInstruction,
+		"discharge_medication":  rmDup.DischargeMedication,
+		"follow_up_instruction": rmDup.FollowUpInstruction,
+		"referral_facility":     rmDup.ReferralFacility,
+		"referral_reason":       rmDup.ReferralReason,
+		"referral_diagnosis":    rmDup.ReferralDiagnosis,
+		"referral_therapy":      rmDup.ReferralTherapy,
+		"referral_notes":        rmDup.ReferralNotes,
+		"death_cause":           rmDup.DeathCause,
+	}
+	if followUpDate := parseFollowUpDate(rmDup.FollowUpDate); followUpDate != nil {
+		dispositionUpdates["follow_up_date"] = *followUpDate
+	}
+	if deathTime := parseRMDuplicateDateTime(rmDup.DeathTime); !deathTime.IsZero() {
+		dispositionUpdates["death_time"] = deathTime
+	}
+	var disposition models.Disposition
+	if err := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID).First(&disposition).Error; err == nil {
+		cmx.Model(&disposition).Updates(dispositionUpdates)
+	} else {
+		disposition = models.Disposition{
+			VisitID:              rmDup.VisitID,
+			IsCasemix:            true,
+			CasemixEklaimID:      &casemixEklaimID,
+			DispositionType:      rmDup.DispositionType,
+			DispositionNote:      rmDup.DispositionNote,
+			DischargeStatus:      rmDup.DischargeStatus,
+			DischargeCondition:   rmDup.DischargeCondition,
+			DischargeInstruction: rmDup.DischargeInstruction,
+			DischargeMedication:  rmDup.DischargeMedication,
+			FollowUpDate:         parseFollowUpDate(rmDup.FollowUpDate),
+			FollowUpInstruction:  rmDup.FollowUpInstruction,
+			ReferralFacility:     rmDup.ReferralFacility,
+			ReferralReason:       rmDup.ReferralReason,
+			ReferralDiagnosis:    rmDup.ReferralDiagnosis,
+			ReferralTherapy:      rmDup.ReferralTherapy,
+			ReferralNotes:        rmDup.ReferralNotes,
+			DeathCause:           rmDup.DeathCause,
+		}
+		if deathTime := parseRMDuplicateDateTime(rmDup.DeathTime); !deathTime.IsZero() {
+			disposition.DeathTime = &deathTime
+		}
+		cmx.Create(&disposition)
+	}
+
+	// Triage
+	if rmDup.HasTriage {
+		triageUpdates := map[string]interface{}{
+			"is_casemix":        true,
+			"casemix_eklaim_id": casemixEklaimID,
+			"arrival_mode":      rmDup.TriageArrivalMode,
+			"triage_complaint":  rmDup.TriageComplaint,
+			"triage_level":      rmDup.TriageLevel,
+			"airway":            rmDup.TriageAirway,
+			"airway_note":       rmDup.TriageAirwayNote,
+			"breathing":         rmDup.TriageBreathing,
+			"breathing_note":    rmDup.TriageBreathingNote,
+			"breathing_rate":    rmDup.TriageRespiratoryRate,
+			"circulation":       rmDup.TriageCirculation,
+			"circulation_note":  rmDup.TriageCirculationNote,
+			"blood_pressure":    rmDup.TriageBloodPressure,
+			"heart_rate":        rmDup.TriageHeartRate,
+			"temperature":       rmDup.TriageTemperature,
+			"oxygen_saturation": rmDup.TriageOxygenSat,
+			"pain_scale":        rmDup.TriagePainScale,
+			"gcs_e":             rmDup.TriageGCSE,
+			"gcs_v":             rmDup.TriageGCSV,
+			"gcs_m":             rmDup.TriageGCSM,
+			"triage_assessment": rmDup.TriageAssessment,
+			"immediate_actions": rmDup.TriageImmediateAction,
+		}
+		var triage models.Triage
+		if err := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID).First(&triage).Error; err == nil {
+			cmx.Model(&triage).Updates(triageUpdates)
+		} else {
+			triage = models.Triage{
+				VisitID:          rmDup.VisitID,
+				IsCasemix:        true,
+				CasemixEklaimID:  &casemixEklaimID,
+				ArrivalMode:      rmDup.TriageArrivalMode,
+				TriageComplaint:  rmDup.TriageComplaint,
+				TriageLevel:      rmDup.TriageLevel,
+				Airway:           rmDup.TriageAirway,
+				AirwayNote:       rmDup.TriageAirwayNote,
+				Breathing:        rmDup.TriageBreathing,
+				BreathingNote:    rmDup.TriageBreathingNote,
+				BreathingRate:    rmDup.TriageRespiratoryRate,
+				Circulation:      rmDup.TriageCirculation,
+				CirculationNote:  rmDup.TriageCirculationNote,
+				BloodPressure:    rmDup.TriageBloodPressure,
+				HeartRate:        rmDup.TriageHeartRate,
+				Temperature:      rmDup.TriageTemperature,
+				OxygenSaturation: rmDup.TriageOxygenSat,
+				PainScale:        rmDup.TriagePainScale,
+				GCSE:             rmDup.TriageGCSE,
+				GCSV:             rmDup.TriageGCSV,
+				GCSM:             rmDup.TriageGCSM,
+				TriageAssessment: rmDup.TriageAssessment,
+				ImmediateActions: rmDup.TriageImmediateAction,
+			}
+			cmx.Create(&triage)
+		}
+	}
+
+	// Diagnoses
+	diagQuery := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID)
+	diagQuery.Delete(&models.Diagnosis{})
+	for i, d := range rmDup.Diagnoses {
+		diag := models.Diagnosis{
+			VisitID:         rmDup.VisitID,
+			IsCasemix:       true,
+			CasemixEklaimID: &casemixEklaimID,
+			Type:            d.Type,
+			ICD10Code:       d.ICD10Code,
+			ICD10Name:       d.ICD10Name,
+		}
+		if diag.Type == "" {
+			diag.Type = "secondary"
+		}
+		if diag.ICD10Code == "" {
+			diag.ICD10Code = fmt.Sprintf("DUP-%d", i+1)
+		}
+		if diag.ICD10Name == "" {
+			diag.ICD10Name = "-"
+		}
+		cmx.Create(&diag)
+	}
+
+	// CPPT
+	cpptQuery := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID)
+	cpptQuery.Delete(&models.CPPT{})
+	for _, row := range rmDup.CPPTNotes {
+		if row.IsFake {
+			continue
+		}
+		recordDate := parseRMDuplicateDateTime(row.RecordDate)
+		if recordDate.IsZero() {
+			recordDate = time.Now()
+		}
+		cppt := models.CPPT{
+			VisitID:          rmDup.VisitID,
+			IsCasemix:        true,
+			CasemixEklaimID:  &casemixEklaimID,
+			RecordDate:       recordDate,
+			Profession:       row.Profession,
+			CPPTFormat:       row.CPPTFormat,
+			Subjective:       row.Subjective,
+			Objective:        row.Objective,
+			Assessment:       row.Assessment,
+			Plan:             row.Plan,
+			Instruction:      row.Instruction,
+			BloodPressure:    row.BloodPressure,
+			HeartRate:        row.HeartRate,
+			RespiratoryRate:  row.RespiratoryRate,
+			Temperature:      row.Temperature,
+			OxygenSaturation: row.OxygenSaturation,
+			PainScale:        row.PainScale,
+		}
+		if cppt.Profession == "" {
+			cppt.Profession = models.CPPTProfessionDoctor
+		}
+		if cppt.CPPTFormat == "" {
+			cppt.CPPTFormat = models.CPPTFormatSOAP
+		}
+		cmx.Create(&cppt)
+	}
+
+	// Nursing Care
+	nursingQuery := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID)
+	nursingQuery.Delete(&models.NursingCare{})
+	for _, row := range rmDup.NursingCares {
+		if row.IsFake {
+			continue
+		}
+		recordDate := parseRMDuplicateDateTime(row.RecordDate)
+		if recordDate.IsZero() {
+			recordDate = time.Now()
+		}
+		implementationTime := parseRMDuplicateDateTime(row.ImplementationTime)
+		nursing := models.NursingCare{
+			VisitID:                 rmDup.VisitID,
+			IsCasemix:               true,
+			CasemixEklaimID:         &casemixEklaimID,
+			RecordDate:              recordDate,
+			ShiftType:               row.ShiftType,
+			ChiefComplaint:          row.ChiefComplaint,
+			PainAssessment:          row.PainAssessment,
+			PainScale:               row.PainScale,
+			ConsciousnessLevel:      row.ConsciousnessLevel,
+			FunctionalStatus:        row.FunctionalStatus,
+			FallRiskAssessment:      row.FallRiskAssessment,
+			FallRiskScore:           row.FallRiskScore,
+			NutritionAssessment:     row.NutritionAssessment,
+			SkinAssessment:          row.SkinAssessment,
+			PressureUlcerRisk:       row.PressureUlcerRisk,
+			BloodPressure:           row.BloodPressure,
+			HeartRate:               row.HeartRate,
+			RespiratoryRate:         row.RespiratoryRate,
+			Temperature:             row.Temperature,
+			OxygenSaturation:        row.OxygenSaturation,
+			NursingDiagnosis:        row.NursingDiagnosis,
+			NursingDiagnosisCode:    row.NursingDiagnosisCode,
+			ProblemEtiology:         row.ProblemEtiology,
+			SignsSymptoms:           row.SignsSymptoms,
+			NursingOutcome:          row.NursingOutcome,
+			NursingOutcomeCode:      row.NursingOutcomeCode,
+			OutcomeIndicators:       row.OutcomeIndicators,
+			OutcomeTarget:           row.OutcomeTarget,
+			NursingIntervention:     row.NursingIntervention,
+			NursingInterventionCode: row.NursingInterventionCode,
+			ObservationActions:      row.ObservationActions,
+			TherapeuticActions:      row.TherapeuticActions,
+			EducationActions:        row.EducationActions,
+			CollaborationActions:    row.CollaborationActions,
+			Implementation:          row.Implementation,
+			PatientResponse:         row.PatientResponse,
+			EvaluationSubjective:    row.EvaluationSubjective,
+			EvaluationObjective:     row.EvaluationObjective,
+			EvaluationAnalysis:      row.EvaluationAnalysis,
+			EvaluationPlanning:      row.EvaluationPlanning,
+			ProblemStatus:           row.ProblemStatus,
+			Notes:                   row.Notes,
+		}
+		if !implementationTime.IsZero() {
+			nursing.ImplementationTime = implementationTime
+		}
+		cmx.Create(&nursing)
+	}
+
+	// Fluid Balance
+	fluidQuery := cmx.Where("visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", rmDup.VisitID, true, casemixEklaimID)
+	fluidQuery.Delete(&models.FluidBalance{})
+	for _, row := range rmDup.FluidBalances {
+		if row.IsFake {
+			continue
+		}
+		recordDate := parseRMDuplicateDateTime(row.RecordDate)
+		if recordDate.IsZero() {
+			recordDate = time.Now()
+		}
+		fluid := models.FluidBalance{
+			VisitID:         rmDup.VisitID,
+			IsCasemix:       true,
+			CasemixEklaimID: &casemixEklaimID,
+			RecordDate:      recordDate,
+			ShiftType:       row.ShiftType,
+			OralDrink:       row.OralDrink,
+			OralFood:        row.OralFood,
+			OralMedicine:    row.OralMedicine,
+			IVFluid:         row.IVFluid,
+			IVMedicine:      row.IVMedicine,
+			BloodProduct:    row.BloodProduct,
+			EnteralFeed:     row.EnteralFeed,
+			OtherIntake:     row.OtherIntake,
+			UrineAmount:     row.UrineAmount,
+			FecesAmount:     row.FecesAmount,
+			VomitAmount:     row.VomitAmount,
+			DrainAmount:     row.DrainAmount,
+			BloodLoss:       row.BloodLoss,
+			IWL:             row.IWL,
+			OtherOutput:     row.OtherOutput,
+			TotalIntake:     row.TotalIntake,
+			TotalOutput:     row.TotalOutput,
+			Balance:         row.Balance,
+			Notes:           row.Notes,
+		}
+		cmx.Create(&fluid)
+	}
+}
+
+func prepareCasemixPrintData(c *gin.Context, visitID uint) {
+	if c.Query("rm_duplicate_id") == "" {
+		return
+	}
+	ensureCasemixMirrorFromRMDuplicate(c, visitID)
+	rmDupID, err := strconv.ParseUint(c.Query("rm_duplicate_id"), 10, 32)
+	if err == nil && rmDupID > 0 {
+		InvalidateRMDuplicatePDFCaches(uint(rmDupID))
+	}
+}
+
 // formatInpatientClass converts kelas_1 etc to display format
 func formatInpatientClass(class string) string {
 	classMap := map[string]string{
@@ -1369,13 +1880,15 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 	if rmDuplicateSignature {
 		leftLog, leftSigned := findSignatureLogBySlot("left", lookups...)
 		rightLog, rightSigned := findSignatureLogBySlot("right", lookups...)
-		if !leftSigned && !rightSigned {
+		leftHasField := leftSigned && strings.TrimSpace(signatureLabelFromMeta(leftLog)) != ""
+		rightHasField := rightSigned && strings.TrimSpace(signatureLabelFromMeta(rightLog)) != ""
+		if !leftHasField && !rightHasField {
 			return
 		}
-		isSigned = leftSigned || rightSigned
-		if rightSigned {
+		isSigned = leftHasField || rightHasField
+		if rightHasField {
 			signatureLog = rightLog
-		} else {
+		} else if leftHasField {
 			signatureLog = leftLog
 		}
 	}
@@ -1445,10 +1958,26 @@ func drawUniversalTwoSignatureSlots(pdf *gofpdf.Fpdf, city, dateStr, docType str
 		rightTitle = signatureLabelFromMeta(rightLog)
 	}
 
-	if !rmDuplicateSignature || leftSigned {
+	if rmDuplicateSignature {
+		leftHasField := leftSigned && strings.TrimSpace(leftTitle) != ""
+		rightHasField := rightSigned && strings.TrimSpace(rightTitle) != ""
+		if !leftHasField && !rightHasField {
+			return
+		}
+		if leftHasField {
+			drawSlot(leftX, leftTitle, leftName, "left", leftLog, leftSigned)
+		}
+		if rightHasField {
+			drawSlot(rightX, rightTitle, rightName, "right", rightLog, rightSigned)
+		}
+		pdf.SetY(startY + 44)
+		return
+	}
+
+	if leftSigned {
 		drawSlot(leftX, leftTitle, leftName, "left", leftLog, leftSigned)
 	}
-	if !rmDuplicateSignature || rightSigned {
+	if rightSigned {
 		drawSlot(rightX, rightTitle, rightName, "right", rightLog, rightSigned)
 	}
 	pdf.SetY(startY + 44)
@@ -1483,13 +2012,15 @@ func addDualSignature(pdf *gofpdf.Fpdf, city, doctorName, docType string, docID 
 	if rmDuplicateSignature {
 		leftLog, leftSigned := findSignatureLogBySlot("left", lookups...)
 		rightLog, rightSigned := findSignatureLogBySlot("right", lookups...)
-		if !leftSigned && !rightSigned {
+		leftHasField := leftSigned && strings.TrimSpace(signatureLabelFromMeta(leftLog)) != ""
+		rightHasField := rightSigned && strings.TrimSpace(signatureLabelFromMeta(rightLog)) != ""
+		if !leftHasField && !rightHasField {
 			return
 		}
-		isSigned = leftSigned || rightSigned
-		if rightSigned {
+		isSigned = leftHasField || rightHasField
+		if rightHasField {
 			signatureLog = rightLog
-		} else {
+		} else if leftHasField {
 			signatureLog = leftLog
 		}
 	}
@@ -2070,6 +2601,9 @@ func parseFollowUpDate(dateStr string) *time.Time {
 func PrintOutpatientResume(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	if rmDuplicateID != "" {
@@ -2970,6 +3504,9 @@ func PrintPatientLabel(c *gin.Context) {
 func PrintInpatientResume(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	if rmDuplicateID != "" {
@@ -5030,6 +5567,9 @@ func PrintLabResult(c *gin.Context) {
 func PrintTriageForm(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	if rmDuplicateID != "" {
@@ -5555,6 +6095,9 @@ func PrintTriageForm(c *gin.Context) {
 func PrintEmergencySummary(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	if rmDuplicateID != "" {
@@ -5806,6 +6349,9 @@ func PrintEmergencySummary(c *gin.Context) {
 // GET /api/print/cppt/:visitId
 func PrintCPPT(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	rmDupCacheIDStr := c.Query("rm_duplicate_id")
@@ -6067,6 +6613,9 @@ func PrintCPPT(c *gin.Context) {
 // GET /api/print/nursing-care/:visitId
 func PrintNursingCare(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	rmDupCacheIDStr := c.Query("rm_duplicate_id")
@@ -6389,6 +6938,9 @@ func PrintNursingCare(c *gin.Context) {
 // GET /api/print/fluid-balance/:visitId
 func PrintFluidBalance(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	rmDupCacheIDStr := c.Query("rm_duplicate_id")
@@ -6656,6 +7208,9 @@ func PrintFluidBalance(c *gin.Context) {
 // GET /api/print/bed-transfer/:visitId
 func PrintBedTransfer(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 	vid, _ := strconv.ParseUint(visitID, 10, 32)
 	rmDupCacheIDStr := c.Query("rm_duplicate_id")
 
@@ -6971,6 +7526,9 @@ func PrintUnitTransfer(c *gin.Context) {
 // GET /api/print/vital-sign-chart/:visitId
 func PrintVitalSignChart(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 	vid, _ := strconv.ParseUint(visitID, 10, 32)
 
 	// Cache check for RM duplicate mode
@@ -7206,6 +7764,10 @@ func PrintVitalSignChart(c *gin.Context) {
 // GET /api/print/available-docs/:visitId
 func GetAvailableDocs(c *gin.Context) {
 	visitID := c.Param("visitId")
+	isCasemix := useCasemixClinicalData(c)
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	var visit models.Visit
 	if err := database.DB.First(&visit, visitID).Error; err != nil {
@@ -7215,12 +7777,25 @@ func GetAvailableDocs(c *gin.Context) {
 
 	docs := []string{}
 
-	// Resume - always available
-	docs = append(docs, "resume")
+	// Resume - available if duplicate clinical data exists (casemix) / clinical data exists (normal)
+	var resumeCount int64
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.Anamnesis{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&resumeCount)
+	if resumeCount == 0 {
+		applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.Diagnosis{}).
+			Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+			Count(&resumeCount)
+	}
+	if resumeCount > 0 {
+		docs = append(docs, "resume")
+	}
 
 	// Triage (UGD)
 	var triageCount int64
-	database.DB.Model(&models.Triage{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&triageCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.Triage{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&triageCount)
 	if triageCount > 0 {
 		docs = append(docs, "triage")
 		docs = append(docs, "emergency_summary")
@@ -7228,37 +7803,45 @@ func GetAvailableDocs(c *gin.Context) {
 
 	// CPPT
 	var cpptCount int64
-	database.DB.Model(&models.CPPT{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&cpptCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.CPPT{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&cpptCount)
 	if cpptCount > 0 {
 		docs = append(docs, "cppt")
 	}
 
 	// Nursing Care
 	var nursingCount int64
-	database.DB.Model(&models.NursingCare{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&nursingCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.NursingCare{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&nursingCount)
 	if nursingCount > 0 {
 		docs = append(docs, "nursing_care")
 	}
 
 	// Fluid Balance
 	var fluidCount int64
-	database.DB.Model(&models.FluidBalance{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&fluidCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.FluidBalance{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&fluidCount)
 	if fluidCount > 0 {
 		docs = append(docs, "fluid_balance")
 	}
 
 	// Bed Transfer
 	var transferCount int64
-	database.DB.Model(&models.BedTransfer{}).Where("visit_id = ?", visitID).Count(&transferCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.BedTransfer{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		Count(&transferCount)
 	if transferCount > 0 {
 		docs = append(docs, "bed_transfer")
 	}
 
 	// Vital Sign Chart (from CPPT with vital signs)
 	var vitalCount int64
-	database.DB.Model(&models.CPPT{}).
-		Where("visit_id = ? AND is_casemix = ?", visitID, false).
-		Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0").
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.CPPT{}).
+		Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix).
+		Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0")).
 		Count(&vitalCount)
 	if vitalCount > 0 {
 		docs = append(docs, "vital_sign_chart")
@@ -7266,7 +7849,9 @@ func GetAvailableDocs(c *gin.Context) {
 
 	// Referral Letter (disposition type = rujuk)
 	var referralCount int64
-	database.DB.Model(&models.Disposition{}).Where("visit_id = ? AND is_casemix = ? AND disposition_type = ?", visitID, false, "rujuk").Count(&referralCount)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Model(&models.Disposition{}).
+		Where("visit_id = ? AND is_casemix = ? AND disposition_type = ?", visitID, isCasemix, "rujuk")).
+		Count(&referralCount)
 	if referralCount > 0 {
 		docs = append(docs, "referral_letter")
 	}
@@ -7283,6 +7868,9 @@ func GetAvailableDocs(c *gin.Context) {
 // GET /api/print/referral-letter/:visitId
 func PrintReferralLetter(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	rmDuplicateID := c.Query("rm_duplicate_id")
@@ -7479,6 +8067,9 @@ func PrintReferralLetter(c *gin.Context) {
 // GET /api/print/inpatient-certificate/:visitId
 func PrintInpatientCertificate(c *gin.Context) {
 	visitID := c.Param("visitId")
+	if visitUint, err := strconv.ParseUint(visitID, 10, 32); err == nil {
+		prepareCasemixPrintData(c, uint(visitUint))
+	}
 
 	// Cache check
 	rmDuplicateID := c.Query("rm_duplicate_id")
@@ -9549,6 +10140,11 @@ func PrintInformedConsent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid patient ID"})
 		return
 	}
+	if visitIDStr := c.Query("visit_id"); visitIDStr != "" {
+		if visitUint, parseErr := strconv.ParseUint(visitIDStr, 10, 32); parseErr == nil {
+			prepareCasemixPrintData(c, uint(visitUint))
+		}
+	}
 
 	// Cache check
 	rmDuplicateID := c.Query("rm_duplicate_id")
@@ -9899,6 +10495,11 @@ func PrintInformedConsent(c *gin.Context) {
 // Uses registrationId to track the full patient journey across all visits
 func PrintAdmissionDischargeSummary(c *gin.Context) {
 	registrationID := c.Param("registrationId")
+	if visitIDStr := c.Query("visit_id"); visitIDStr != "" {
+		if visitUint, parseErr := strconv.ParseUint(visitIDStr, 10, 32); parseErr == nil {
+			prepareCasemixPrintData(c, uint(visitUint))
+		}
+	}
 
 	// Cache check
 	rmDuplicateID := c.Query("rm_duplicate_id")
@@ -11688,7 +12289,7 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 
 	// Load diagnoses for this visit
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visit.ID, false).Order("type ASC, id ASC").Find(&diagnoses)
+	clinicalVisitQuery(c, visit.ID).Order("type ASC, id ASC").Find(&diagnoses)
 
 	hospitalInfo := getHospitalInfo()
 

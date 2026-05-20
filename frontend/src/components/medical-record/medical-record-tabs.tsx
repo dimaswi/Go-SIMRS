@@ -425,6 +425,20 @@ export function MedicalRecordTabs({
       section: "care",
     },
     {
+      id: "laboratory-edit",
+      label: "Edit Lab",
+      icon: <ClipboardList />,
+      permission: "medical_records.procedure",
+      section: "laboratory",
+    },
+    {
+      id: "radiology-edit",
+      label: "Edit Radiologi",
+      icon: <ClipboardList />,
+      permission: "medical_records.procedure",
+      section: "radiology",
+    },
+    {
       id: "prescription-edit",
       label: "Edit Farmasi",
       icon: <Pill />,

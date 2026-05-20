@@ -607,7 +607,7 @@ export default function SPRIMonitoringPage() {
 
       {/* Edit Sheet */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="sm:max-w-lg overflow-y-auto">
+        <SheetContent className="sm:max-w-[80vw] overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               {editingSPRI?.is_bpjs ? (

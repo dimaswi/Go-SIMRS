@@ -385,7 +385,7 @@ export function SuratKontrolFormSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[760px]">
+        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Form Surat Kontrol"

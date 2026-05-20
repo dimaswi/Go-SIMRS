@@ -674,7 +674,7 @@ export default function SuratKontrolMonitoringPage() {
 
       {/* Edit Sheet */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="sm:max-w-lg overflow-y-auto">
+        <SheetContent className="sm:max-w-[80vw] overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5 text-purple-600" />

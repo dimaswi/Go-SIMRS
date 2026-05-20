@@ -54,10 +54,10 @@ import { BodyMarkerForm } from "@/components/medical-record/body-marker-form";
 import { DischargePlanningForm } from "@/components/medical-record/discharge-planning-form";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicineOrderForm } from "@/components/medical-record/medicine-order-form";
-import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-order-form";
-import { RadiologyOrderForm } from "@/components/medical-record/radiology-order-form";
 import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
 import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
+
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
 const importableTabLabels: Record<string, string> = {
   triage: "Triase",
@@ -67,6 +67,8 @@ const importableTabLabels: Record<string, string> = {
   diagnosis: "Diagnosis",
   "assessment-plan": "Assessment & Plan",
   "prescription-edit": "Edit Farmasi",
+  "laboratory-edit": "Edit Lab",
+  "radiology-edit": "Edit Radiologi",
   procedure: "Tindakan",
   cppt: "CPPT",
   "nursing-care": "Asuhan Keperawatan",
@@ -91,6 +93,15 @@ const normalizeDiagnosisImport = (diagnoses: any[]) => ({
   })),
 });
 
+const pickOriginalVisitProcedures = (originalRM: any, procedureType?: "laboratory" | "radiology") => {
+  const procedures = Array.isArray(originalRM?.visit_procedures) ? originalRM.visit_procedures : [];
+  if (!procedureType) return procedures;
+  return procedures.filter((item: any) => {
+    const type = item?.procedure?.procedure_type || item?.procedure_type;
+    return type === procedureType;
+  });
+};
+
 const pickOriginalTabData = (originalRM: any, tabId: string) => {
   switch (tabId) {
     case "triage":
@@ -110,7 +121,15 @@ const pickOriginalTabData = (originalRM: any, tabId: string) => {
     case "discharge-planning":
       return Array.isArray(originalRM?.discharge_planning?.items) && originalRM.discharge_planning.items.length > 0 ? originalRM.discharge_planning : null;
     case "procedure":
-      return Array.isArray(originalRM?.visit_procedures) && originalRM.visit_procedures.length > 0 ? originalRM.visit_procedures : null;
+      return pickOriginalVisitProcedures(originalRM).length > 0 ? pickOriginalVisitProcedures(originalRM) : null;
+    case "laboratory-edit":
+      return pickOriginalVisitProcedures(originalRM, "laboratory").length > 0
+        ? pickOriginalVisitProcedures(originalRM, "laboratory")
+        : null;
+    case "radiology-edit":
+      return pickOriginalVisitProcedures(originalRM, "radiology").length > 0
+        ? pickOriginalVisitProcedures(originalRM, "radiology")
+        : null;
     case "prescription-edit":
       return Array.isArray(originalRM?.medicine_orders) && originalRM.medicine_orders.length > 0 ? originalRM.medicine_orders : null;
     case "cppt":
@@ -275,6 +294,23 @@ export function RMDuplicateTab({
   };
 
   const handleSaveActiveTabFromFooter = () => {
+    if (activeTab === "laboratory-edit" || activeTab === "radiology-edit") {
+      const detail = {
+        tabId: activeTab === "laboratory-edit" ? "laboratory-workstation" : "radiology-workstation",
+        action: "save" as const,
+        handled: false,
+      };
+      window.dispatchEvent(new CustomEvent(FOOTER_ACTION_EVENT, { detail }));
+      if (!detail.handled) {
+        toast({
+          title: "Simpan tidak tersedia",
+          description: "Aksi simpan workstation belum tersedia.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     const importedData = frontendImportedData[activeTab];
     if (
       (Array.isArray(importedData) && importedData.length > 0) ||
@@ -304,8 +340,26 @@ export function RMDuplicateTab({
   const patientId = visit?.registration?.patient?.id || visit?.patient_id || 0;
   const activeTabLabel = importableTabLabels[activeTab] || activeTab;
   const canDownloadOriginalForActiveTab = Boolean(importableTabLabels[activeTab]);
-  const canQuickAddPharmacy = activeTab === "prescription-edit" && visitId > 0;
+  const canQuickAddAction =
+    visitId > 0 &&
+    (activeTab === "prescription-edit" ||
+      activeTab === "laboratory-edit" ||
+      activeTab === "radiology-edit");
   const originalPharmacyOrders = Array.isArray(originalRMData?.medicine_orders) ? originalRMData.medicine_orders : [];
+
+  const handleQuickAddClick = () => {
+    if (activeTab === "prescription-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-pharmacy-medicine"));
+      return;
+    }
+    if (activeTab === "laboratory-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-lab-order"));
+      return;
+    }
+    if (activeTab === "radiology-edit") {
+      window.dispatchEvent(new CustomEvent("rm-duplicate-add-radiology-order"));
+    }
+  };
 
   const handleSaveTriage = async (data: any) => {
     try {
@@ -452,6 +506,49 @@ export function RMDuplicateTab({
       }
       return;
     }
+    if (activeTab === "laboratory-edit" || activeTab === "radiology-edit") {
+      try {
+        setDownloadingOriginal(true);
+        setCasemixContext(false);
+        const response = await eklaimLocalApi.getDetail(eklaimId);
+        const sourceRM = response?.original_rm || {};
+        setOriginalRMData(sourceRM);
+        const sourceOrders = activeTab === "laboratory-edit"
+          ? (Array.isArray(sourceRM?.lab_orders) ? sourceRM.lab_orders : [])
+          : (Array.isArray(sourceRM?.radiology_orders) ? sourceRM.radiology_orders : []);
+        if (sourceOrders.length === 0) {
+          toast({
+            title: `Data ${activeTab === "laboratory-edit" ? "laboratorium" : "radiologi"} asli kosong`,
+            description: "Belum ada order pada rekam medis asli untuk disalin.",
+            variant: "destructive",
+          });
+          return;
+        }
+        for (const order of sourceOrders) {
+          if (order?.id) {
+            await eklaimLocalApi.syncProcedureOrderFromVisit(eklaimId, Number(order.id));
+          }
+        }
+        emitMedicalRecordTabSaved(activeTab, true);
+        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+        toast({
+          title: "Order berhasil diunduh",
+          description: `${sourceOrders.length} order ${activeTab === "laboratory-edit" ? "laboratorium" : "radiologi"} asli berhasil disalin.`,
+        });
+        return;
+      } catch (error: any) {
+        toast({
+          title: "Gagal mengunduh order",
+          description: error.response?.data?.error || "Order asli gagal disalin.",
+          variant: "destructive",
+        });
+      } finally {
+        setCasemixContext(true, eklaimId);
+        setDownloadingOriginal(false);
+      }
+      return;
+    }
     setDownloadConfirmOpen(true);
   };
 
@@ -509,10 +606,21 @@ export function RMDuplicateTab({
     if (list.length === 0) return false;
 
     switch (tabId) {
-      case "procedure": {
+      case "procedure":
+      case "laboratory-edit":
+      case "radiology-edit": {
+        const procedureTypeFilter =
+          tabId === "laboratory-edit" ? "laboratory" : tabId === "radiology-edit" ? "radiology" : null;
+        const filteredList = procedureTypeFilter
+          ? list.filter((item: any) => (item?.procedure?.procedure_type || item?.procedure_type) === procedureTypeFilter)
+          : list;
         const existing = await visitProceduresApi.getAll(visitId);
-        await Promise.all((existing.data?.data || []).map((item: any) => visitProceduresApi.delete(visitId, item.id)));
-        for (const item of list) {
+        const existingItems = existing.data?.data || [];
+        const deletableItems = procedureTypeFilter
+          ? existingItems.filter((item: any) => (item?.procedure?.procedure_type || item?.procedure_type) === procedureTypeFilter)
+          : existingItems;
+        await Promise.all(deletableItems.map((item: any) => visitProceduresApi.delete(visitId, item.id)));
+        for (const item of filteredList) {
           const created = await visitProceduresApi.create(visitId, {
             procedure_id: Number(item.procedure_id || item.procedure?.id || 0),
             notes: item.notes || "",
@@ -665,9 +773,17 @@ export function RMDuplicateTab({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8 rounded-none"
-                disabled={!canQuickAddPharmacy}
-                title={canQuickAddPharmacy ? "Tambah obat duplikat" : "Tambah obat hanya tersedia di tab Edit Farmasi"}
-                onClick={() => window.dispatchEvent(new CustomEvent("rm-duplicate-add-pharmacy-medicine"))}
+                disabled={!canQuickAddAction}
+                title={
+                  !canQuickAddAction
+                    ? "Tambah data hanya tersedia di tab Edit Farmasi/Lab/Radiologi"
+                    : activeTab === "prescription-edit"
+                      ? "Tambah resep farmasi duplikat"
+                      : activeTab === "laboratory-edit"
+                        ? "Tambah order laboratorium duplikat"
+                        : "Tambah order radiologi duplikat"
+                }
+                onClick={handleQuickAddClick}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -695,8 +811,36 @@ export function RMDuplicateTab({
             {activeTab === "assessment-plan" && <AssessmentPlanForm visitId={visitId} onSave={handleSaveAssessmentPlan} externalData={importedData} useExternalData={usesImportedData} />}
             {activeTab === "disposition" && <DispositionForm visitId={visitId} />}
 
-            {activeTab === "laboratory-edit" && <LaboratoryWorkstation visitId={visitId} />}
-            {activeTab === "radiology-edit" && <RadiologyWorkstation visitId={visitId} />}
+            {activeTab === "laboratory-edit" && (
+              <LaboratoryWorkstation
+                visitId={visitId}
+                rmDuplicateMode
+                duplicateDoctorOptions={visit?.doctor ? [{ id: Number(visit.doctor.id), name: visit.doctor.nama_lengkap || "-" }] : []}
+                onCreateDuplicateOrder={async (payload) => {
+                  const res = await eklaimLocalApi.createProcedureOrder(eklaimId, {
+                    order_type: "laboratory",
+                    ordered_by_id: payload?.ordered_by_id,
+                    order_date: payload?.order_date,
+                  });
+                  return res.data;
+                }}
+              />
+            )}
+            {activeTab === "radiology-edit" && (
+              <RadiologyWorkstation
+                visitId={visitId}
+                rmDuplicateMode
+                duplicateDoctorOptions={visit?.doctor ? [{ id: Number(visit.doctor.id), name: visit.doctor.nama_lengkap || "-" }] : []}
+                onCreateDuplicateOrder={async (payload) => {
+                  const res = await eklaimLocalApi.createProcedureOrder(eklaimId, {
+                    order_type: "radiology",
+                    ordered_by_id: payload?.ordered_by_id,
+                    order_date: payload?.order_date,
+                  });
+                  return res.data;
+                }}
+              />
+            )}
             {activeTab === "surgery-edit" && <SurgeryWorkstation visitId={visitId} />}
             {activeTab === "consultation" && <ConsultationForm visitId={visitId} />}
             {activeTab === "prescription-edit" && (
@@ -714,8 +858,6 @@ export function RMDuplicateTab({
 
             {/* ORDER FORMS */}
             {activeTab === "medicine-order" && <MedicineOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} sourceServiceType={visit?.room?.service_type} />}
-            {activeTab === "laboratory-order" && <LaboratoryOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />}
-            {activeTab === "radiology-order" && <RadiologyOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />}
             {activeTab === "consultation-order" && <ConsultationOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />}
             {activeTab === "surgery-order" && <SurgeryOrderForm visitId={visitId} registrationId={visit?.registration_id} sourceRoomId={visit?.room_id} />}
 

@@ -24,6 +24,7 @@ import {
 import {
   vclaimApi,
   type VClaimPeserta,
+  type VClaimSEP,
 } from "@/lib/api/vclaim";
 import { SEP_OPTIONS, type SEPOptionItem } from "@/lib/sep-options";
 import { formatPatientName } from "@/lib/print-utils";
@@ -96,6 +97,7 @@ export function SEPFormSheet({
 }: SEPFormSheetProps) {
   const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
+  const canAssignExisting = (registrationId || 0) > 0 || (visitId || 0) > 0;
 
   // Loading states
   const [loadingPeserta, setLoadingPeserta] = useState(false);
@@ -142,6 +144,11 @@ export function SEPFormSheet({
   const [assesmentPel, setAssesmentPel] = useState("");
   const [catatan, setCatatan] = useState("");
   const [noTelp, setNoTelp] = useState(patient.no_telepon || "");
+  const [searchNoSEP, setSearchNoSEP] = useState("");
+  const [searchingSEP, setSearchingSEP] = useState(false);
+  const [assigningSEP, setAssigningSEP] = useState(false);
+  const [searchSEPError, setSearchSEPError] = useState("");
+  const [searchedSEP, setSearchedSEP] = useState<VClaimSEP | null>(null);
 
   // Track apakah sudah fetch kepesertaan untuk mencegah loop
   const hasFetchedRef = useRef(false);
@@ -168,6 +175,11 @@ export function SEPFormSheet({
       setDiagAwal("");
       setNamaDiagnosa("");
       setCatatan("");
+      setSearchNoSEP("");
+      setSearchingSEP(false);
+      setAssigningSEP(false);
+      setSearchSEPError("");
+      setSearchedSEP(null);
       setLakaLantas("0");
       setTujuanKunj("0");
       setFlagProcedure("");
@@ -364,7 +376,7 @@ export function SEPFormSheet({
     }
   };
 
-  // Cek apakah poli IGD/UGD (tidak perlu rujukan)
+  // Cek apakah poli IGD/UGD
   const isIGD = kodePoli?.toUpperCase() === "IGD" || kodePoli?.toUpperCase() === "UGD";
 
   // Submit SEP
@@ -387,12 +399,6 @@ export function SEPFormSheet({
       toast({ variant: "destructive", title: "Error", description: "Pilih diagnosa awal" });
       return;
     }
-    // Rujukan tidak wajib untuk IGD/UGD atau jika ada Surat Kontrol (SKDP)
-    if (!noRujukan && !isIGD && !noSuratKontrol) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih rujukan atau surat kontrol terlebih dahulu" });
-      return;
-    }
-
     setLoadingSubmit(true);
     try {
       // Request sesuai dengan backend SEPInput struct (flat structure)
@@ -478,10 +484,94 @@ export function SEPFormSheet({
     }
   };
 
+  const handleSearchSEPForAssign = async () => {
+    const noSEP = searchNoSEP.trim();
+    if (!noSEP) {
+      setSearchSEPError("Nomor SEP wajib diisi");
+      setSearchedSEP(null);
+      return;
+    }
+
+    setSearchingSEP(true);
+    setSearchSEPError("");
+    setSearchedSEP(null);
+    try {
+      const res = await vclaimApi.getSEP(noSEP);
+      const detail = res.data?.data;
+      if (!detail?.noSep) {
+        setSearchSEPError("Detail SEP tidak ditemukan");
+        return;
+      }
+      setSearchedSEP(detail);
+    } catch (error: any) {
+      setSearchSEPError(error.response?.data?.error || "Gagal mencari detail SEP");
+    } finally {
+      setSearchingSEP(false);
+    }
+  };
+
+  const handleAssignSEPFromSearch = async () => {
+    if (!searchedSEP?.noSep) return;
+    if (!registrationId && !visitId) {
+      toast({
+        variant: "destructive",
+        title: "Gagal assign SEP",
+        description: "Registration/visit tidak tersedia untuk assignment SEP.",
+      });
+      return;
+    }
+
+    setAssigningSEP(true);
+    try {
+      const importRes = await vclaimApi.importSEP({
+        no_sep: searchedSEP.noSep,
+        no_kartu: searchedSEP.peserta?.noKartu || noKartu,
+        nama_pasien: searchedSEP.peserta?.nama || patient.nama_lengkap,
+        nik: searchedSEP.peserta?.nik || patient.nik || "",
+        tgl_lahir: searchedSEP.peserta?.tglLahir || patient.tanggal_lahir || "",
+        jenis_kelamin: searchedSEP.peserta?.jnsKelamin || patient.jenis_kelamin || "",
+        tgl_sep: searchedSEP.tglSep || tglSEP,
+        jns_pelayanan: searchedSEP.jnsPelayanan || "",
+        kls_rawat_hak: searchedSEP.peserta?.klsRawat?.klsRawatHak || "",
+        no_mr: searchedSEP.peserta?.noMr || patient.no_rm || "",
+        kode_poli: searchedSEP.poli || "",
+        nama_poli: searchedSEP.poli || "",
+        diag_awal: searchedSEP.diagnosa || "",
+        nama_diagnosa: searchedSEP.diagnosa || "",
+        catatan: searchedSEP.catatan || "",
+        patient_id: patient.id,
+        registration_id: registrationId || 0,
+        visit_id: visitId || 0,
+      });
+
+      toast({
+        title: "SEP berhasil di-assign",
+        description: `Nomor SEP ${searchedSEP.noSep} berhasil ditautkan ke pendaftaran.`,
+      });
+
+      onSEPCreated?.(searchedSEP.noSep, {
+        ...(importRes.data?.data || {}),
+        noSep: searchedSEP.noSep,
+        poli: { nama: searchedSEP.poli || "-" },
+        dokter: { nama: "-" },
+        diagnosa: { nama: searchedSEP.diagnosa || "-" },
+      });
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal assign SEP",
+        description: error.response?.data?.error || "Terjadi kesalahan saat assign SEP",
+      });
+    } finally {
+      setAssigningSEP(false);
+    }
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Form SEP"
@@ -496,6 +586,102 @@ export function SEPFormSheet({
 
           <ScrollArea className="flex-1">
             <div className="space-y-6 p-6">
+              {canAssignExisting && (
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Assign" title="CARI DATA KUNJUNGAN BERDASARKAN SEP" />
+
+                <div className="space-y-3 rounded-none border border-border/70 bg-muted/10 p-4">
+                  <div className="flex gap-2">
+                    <Input
+                      value={searchNoSEP}
+                      onChange={(e) => {
+                        setSearchNoSEP(e.target.value);
+                        if (searchSEPError) setSearchSEPError("");
+                      }}
+                      placeholder="Masukkan nomor SEP"
+                      className={BPJS_COMPACT_FIELD_CLASS}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSearchSEPForAssign();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={BPJS_ICON_BUTTON_CLASS}
+                      onClick={handleSearchSEPForAssign}
+                      disabled={searchingSEP || !searchNoSEP.trim()}
+                    >
+                      {searchingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
+
+                  {searchSEPError && (
+                    <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Pencarian SEP gagal" description={searchSEPError} />
+                  )}
+
+                  {searchedSEP && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2 rounded-none border border-border/70 bg-background p-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">No. SEP</span>
+                          <p className="font-mono font-medium text-foreground">{searchedSEP.noSep || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Tanggal SEP</span>
+                          <p className="font-medium text-foreground">{searchedSEP.tglSep || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Nama Peserta</span>
+                          <p className="font-medium text-foreground">{searchedSEP.peserta?.nama || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">No. Kartu</span>
+                          <p className="font-mono font-medium text-foreground">{searchedSEP.peserta?.noKartu || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Poli</span>
+                          <p className="font-medium text-foreground">{searchedSEP.poli || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Diagnosa</span>
+                          <p className="font-medium text-foreground">{searchedSEP.diagnosa || "-"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Jenis Pelayanan</span>
+                          <p className="font-medium text-foreground">
+                            {searchedSEP.jnsPelayanan === "1"
+                              ? "Rawat Inap"
+                              : searchedSEP.jnsPelayanan === "2"
+                                ? "Rawat Jalan"
+                                : searchedSEP.jnsPelayanan || "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Kelas Rawat</span>
+                          <p className="font-medium text-foreground">
+                            {searchedSEP.peserta?.klsRawat?.klsRawatHak ? `Kelas ${searchedSEP.peserta.klsRawat.klsRawatHak}` : "-"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        className="w-full rounded-none"
+                        onClick={handleAssignSEPFromSearch}
+                        disabled={assigningSEP}
+                      >
+                        {assigningSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Assign SEP ke Pendaftaran
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              )}
+
               {/* === KEPESERTAAN === */}
               <div className={BPJS_SECTION_CLASS}>
                 <BPJSSectionHeader eyebrow="Verification" title="Kepesertaan" />
@@ -579,7 +765,7 @@ export function SEPFormSheet({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Asal Rujukan {!isIGD && "*"}</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Asal Rujukan</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.asalRujukan)}
                       value={asalRujukan}
@@ -594,7 +780,7 @@ export function SEPFormSheet({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                      {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")} {!isIGD && "*"}
+                      {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")}
                     </Label>
                     <div className="flex gap-2">
                       <Input

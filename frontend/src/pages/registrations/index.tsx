@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,11 @@ import { registrationApi, type Registration } from "@/lib/api/queue";
 import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
 import { patientsApi, type Patient } from "@/lib/api";
 import { visitsApi, type Visit } from "@/lib/api/visits";
-import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
+import { vclaimApi, type SEPLocal, type SPRILocal } from "@/lib/api/vclaim";
 import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
+import { SEPDetailSheet } from "@/components/sep/sep-detail-sheet";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -34,6 +35,7 @@ import {
   XCircle,
   ArrowRight,
   ExternalLink,
+  ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -63,9 +65,17 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { api } from "@/lib/api/client";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import {
+  BPJSInfoGrid,
+  BPJS_SECTION_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+} from "@/components/sep/bpjs-sheet-chrome";
 
 interface Room {
   id: number;
@@ -203,7 +213,11 @@ export default function RegistrationIndex() {
   const [sepRanapSheetReg, setSepRanapSheetReg] = useState<Registration | null>(null);
   const [spriPatient, setSpriPatient] = useState<Patient | null>(null);
   const [sepRanapPatient, setSepRanapPatient] = useState<Patient | null>(null);
-  const spriSepLoadedRegIdsRef = useRef<Set<number>>(new Set());
+  const [spriDetailData, setSpriDetailData] = useState<SPRILocal | null>(null);
+  const [spriDetailOpen, setSpriDetailOpen] = useState(false);
+  const [sepDetailData, setSepDetailData] = useState<SEPLocal | null>(null);
+  const [sepDetailOpen, setSepDetailOpen] = useState(false);
+  const [sepDetailRegId, setSepDetailRegId] = useState<number | null>(null);
 
   // Current tab definition
   const currentTab = REG_TABS.find((t) => t.key === activeTab) ?? REG_TABS[0];
@@ -586,13 +600,13 @@ export default function RegistrationIndex() {
   // Load SPRI/SEP Ranap status for BPJS inpatient registrations
   const loadSPRIAndSEPData = useCallback(async (regs: Registration[]) => {
     const bpjsInpatient = regs
-      .filter((r) => r.payment_method === "bpjs" && r.registration_type === "inpatient")
-      .filter((r) => {
-        const regId = r.ID || r.id || 0;
-        return regId > 0 && !spriSepLoadedRegIdsRef.current.has(regId);
-      });
+      .filter((r) => r.payment_method === "bpjs" && r.registration_type === "inpatient");
 
-    if (bpjsInpatient.length === 0) return;
+    if (bpjsInpatient.length === 0) {
+      setSpriMap(new Map());
+      setSepRanapMap(new Map());
+      return;
+    }
 
     const newSpriMap = new Map<number, { no_spri: string; is_bpjs: boolean }>();
     const newSepRanapMap = new Map<number, string>();
@@ -651,33 +665,31 @@ export default function RegistrationIndex() {
       })
     );
 
-    if (newSpriMap.size > 0) {
-      setSpriMap((prev) => {
-        const merged = new Map(prev);
-        for (const [key, value] of newSpriMap.entries()) {
-          merged.set(key, value);
-        }
-        return merged;
-      });
-    }
+    setSpriMap((prev) => {
+      const next = new Map(prev);
+      for (const regId of processedRegIds) {
+        next.delete(regId);
+      }
+      for (const [key, value] of newSpriMap.entries()) {
+        next.set(key, value);
+      }
+      return next;
+    });
 
-    if (newSepRanapMap.size > 0) {
-      setSepRanapMap((prev) => {
-        const merged = new Map(prev);
-        for (const [key, value] of newSepRanapMap.entries()) {
-          merged.set(key, value);
-        }
-        return merged;
-      });
-    }
-
-    for (const regId of processedRegIds) {
-      spriSepLoadedRegIdsRef.current.add(regId);
-    }
+    setSepRanapMap((prev) => {
+      const next = new Map(prev);
+      for (const regId of processedRegIds) {
+        next.delete(regId);
+      }
+      for (const [key, value] of newSepRanapMap.entries()) {
+        next.set(key, value);
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
-    if (!isAdmissionRequestTab && registrations.length > 0) {
+    if (!isAdmissionRequestTab) {
       loadSPRIAndSEPData(registrations);
     }
   }, [isAdmissionRequestTab, registrations, loadSPRIAndSEPData]);
@@ -703,6 +715,78 @@ export default function RegistrationIndex() {
       return;
     }
     setSepRanapSheetReg(reg);
+  };
+
+  const handleViewSPRI = async (reg: Registration) => {
+    const regId = reg.ID || reg.id || 0;
+    if (!regId) return;
+    try {
+      const res = await vclaimApi.getSPRIByRegistration(regId);
+      if (!res.data?.data) {
+        toast({ variant: "destructive", title: "Error", description: "Detail SPRI tidak ditemukan" });
+        return;
+      }
+      setSpriDetailData(res.data.data);
+      setSpriDetailOpen(true);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal memuat detail SPRI",
+      });
+    }
+  };
+
+  const handleViewSEPRanap = async (reg: Registration) => {
+    const regId = reg.ID || reg.id || 0;
+    if (!regId) return;
+    try {
+      let sepData: SEPLocal | null = null;
+      const inpatientVisitId = reg.visits?.find((v) => v.visit_type === "inpatient" && v.status !== "cancelled")?.id
+        || reg.visits?.find((v) => v.visit_type === "inpatient" && v.status !== "cancelled")?.ID;
+
+      if (inpatientVisitId) {
+        try {
+          const byVisit = await vclaimApi.getSEPByVisit(inpatientVisitId);
+          if (byVisit.data?.data?.jns_pelayanan === "1") {
+            sepData = byVisit.data.data;
+          }
+        } catch {
+          // fallback below
+        }
+      }
+
+      if (!sepData) {
+        try {
+          const byReg = await vclaimApi.getSEPByRegistration(regId);
+          if (byReg.data?.data?.jns_pelayanan === "1") {
+            sepData = byReg.data.data;
+          }
+        } catch {
+          // fallback below
+        }
+      }
+
+      if (!sepData) {
+        const list = await vclaimApi.getSEPList({ registration_id: regId, status: "active" });
+        sepData = (list.data?.data || []).find((item) => item.jns_pelayanan === "1") || null;
+      }
+
+      if (!sepData) {
+        toast({ variant: "destructive", title: "Error", description: "Detail SEP tidak ditemukan" });
+        return;
+      }
+
+      setSepDetailData(sepData);
+      setSepDetailRegId(regId);
+      setSepDetailOpen(true);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal memuat detail SEP",
+      });
+    }
   };
 
   const handleCancel = async () => {
@@ -892,6 +976,8 @@ export default function RegistrationIndex() {
     onEditPayment: (reg: Registration) => setEditPaymentReg(reg),
     onCreateSPRI: handleOpenSPRI,
     onCreateSEPRanap: handleOpenSEPRanap,
+    onViewSPRI: handleViewSPRI,
+    onViewSEPRanap: handleViewSEPRanap,
     hasViewPermission: hasPermission("registrations.view"),
     hasDeletePermission: hasPermission("registrations.delete"),
     printingType,
@@ -900,6 +986,20 @@ export default function RegistrationIndex() {
     spriMap,
     sepRanapMap,
   });
+
+  const getSpriStatusBadge = (status?: string) => {
+    const normalized = (status || "").toLowerCase();
+    if (normalized === "active") {
+      return <Badge className="bg-green-100 text-green-700 border-green-300">Aktif</Badge>;
+    }
+    if (normalized === "used") {
+      return <Badge className="bg-blue-100 text-blue-700 border-blue-300">Terpakai</Badge>;
+    }
+    if (normalized === "cancelled") {
+      return <Badge variant="destructive">Dibatalkan</Badge>;
+    }
+    return <Badge variant="outline">{status || "-"}</Badge>;
+  };
 
   const getAdmissionStatusBadge = (status: string) => {
     switch (status) {
@@ -1573,6 +1673,133 @@ export default function RegistrationIndex() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={spriDetailOpen} onOpenChange={(open) => { setSpriDetailOpen(open); if (!open) setSpriDetailData(null); }}>
+        <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <BPJSSheetHero
+            eyebrow="Bridging BPJS"
+            title="Detail SPRI"
+            description={<span className="font-mono text-xs">{spriDetailData?.no_spri || "-"}</span>}
+            icon={ShieldCheck}
+            meta={getSpriStatusBadge(spriDetailData?.status)}
+          />
+
+          <div className="space-y-6 p-6">
+            {spriDetailData?.status === "cancelled" && (
+              <BPJSStatePanel
+                tone="danger"
+                title="SPRI ini telah dibatalkan"
+                description="Dokumen tidak dapat digunakan lagi untuk pembuatan SEP rawat inap."
+              />
+            )}
+
+            <div className={BPJS_SECTION_CLASS}>
+              <BPJSSectionHeader eyebrow="SPRI" title="Informasi Dokumen" />
+              <BPJSInfoGrid
+                columns={4}
+                items={[
+                  { label: "No. SPRI", value: spriDetailData?.no_spri || "-", mono: true, span: 2 },
+                  { label: "Status", value: spriDetailData?.status || "-" },
+                  { label: "Sumber", value: spriDetailData?.is_bpjs ? "BPJS" : "Lokal" },
+                  {
+                    label: "Tgl Rencana Kontrol",
+                    value: spriDetailData?.tgl_rencana_kontrol
+                      ? format(new Date(spriDetailData.tgl_rencana_kontrol), "dd MMM yyyy", { locale: idLocale })
+                      : "-",
+                  },
+                  { label: "User Buat", value: spriDetailData?.user_buat || "-" },
+                  {
+                    label: "Dibuat",
+                    value: spriDetailData?.created_at
+                      ? format(new Date(spriDetailData.created_at), "dd MMM yyyy HH:mm", { locale: idLocale })
+                      : "-",
+                  },
+                  {
+                    label: "Diupdate",
+                    value: spriDetailData?.updated_at
+                      ? format(new Date(spriDetailData.updated_at), "dd MMM yyyy HH:mm", { locale: idLocale })
+                      : "-",
+                  },
+                ]}
+              />
+            </div>
+
+            <div className={BPJS_SECTION_CLASS}>
+              <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
+              <BPJSInfoGrid
+                columns={4}
+                items={[
+                  { label: "Nama Peserta", value: spriDetailData?.nama || "-", span: 2 },
+                  { label: "No. Kartu BPJS", value: spriDetailData?.no_kartu || "-", mono: true, span: 2 },
+                  { label: "Jenis Kelamin", value: spriDetailData?.kelamin || "-" },
+                  { label: "Tgl Lahir", value: spriDetailData?.tgl_lahir || "-" },
+                  { label: "Patient ID", value: spriDetailData?.patient_id ? String(spriDetailData.patient_id) : "-", mono: true },
+                  { label: "Registration ID", value: spriDetailData?.registration_id ? String(spriDetailData.registration_id) : "-", mono: true },
+                ]}
+              />
+            </div>
+
+            <div className={BPJS_SECTION_CLASS}>
+              <BPJSSectionHeader eyebrow="Control Plan" title="Rencana Kontrol" />
+              <BPJSInfoGrid
+                columns={4}
+                items={[
+                  {
+                    label: "Poli Kontrol",
+                    value: (
+                      <>
+                        {spriDetailData?.nama_poli || "-"}
+                        {spriDetailData?.kode_poli ? ` (${spriDetailData.kode_poli})` : ""}
+                      </>
+                    ),
+                    span: 2,
+                  },
+                  {
+                    label: "Dokter DPJP",
+                    value: (
+                      <>
+                        {spriDetailData?.nama_dokter || "-"}
+                        {spriDetailData?.kode_dokter ? ` (${spriDetailData.kode_dokter})` : ""}
+                      </>
+                    ),
+                    span: 2,
+                  },
+                  { label: "Diagnosa", value: spriDetailData?.nama_diagnosa || "-", span: 4 },
+                ]}
+              />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <SEPDetailSheet
+        open={sepDetailOpen}
+        onOpenChange={(open) => {
+          setSepDetailOpen(open);
+          if (!open) {
+            setSepDetailData(null);
+            setSepDetailRegId(null);
+          }
+        }}
+        sep={sepDetailData}
+        onUpdate={() => {
+          loadData();
+          loadAllRegistrations();
+        }}
+        onDelete={() => {
+          if (sepDetailRegId) {
+            setSepRanapMap((prev) => {
+              const next = new Map(prev);
+              next.delete(sepDetailRegId);
+              return next;
+            });
+          }
+          setSepDetailData(null);
+          setSepDetailRegId(null);
+          loadData();
+          loadAllRegistrations();
+        }}
+      />
 
       {/* SPRI Form Sheet */}
       {spriSheetReg && spriPatient && (

@@ -575,7 +575,7 @@ export function ObservationReportDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[68vw] sm:max-w-[68vw]">
+      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[80vw] sm:max-w-[80vw]">
         <SheetHeader className="border-b bg-muted/30 px-4 py-3">
           <div className="pr-10">
             <SheetTitle className="text-base font-semibold">Laporan Observasi</SheetTitle>

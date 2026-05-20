@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { printApi } from '@/lib/api/print';
+import { fetchAvailableDocs, printApi } from '@/lib/api/print';
 import { signatureApi, DOCUMENT_TYPES } from '@/lib/api/signature';
 import { SignOnBehalfDialog } from '@/components/signature/sign-on-behalf-dialog';
 import { mergePdfs } from '@/lib/pdf-merge';
@@ -65,6 +65,7 @@ interface CetakanNode {
   documentType: string;
   documentId: number;
   signerHint: string;
+  availabilityKey?: string;
 }
 
 type SignContext = {
@@ -88,6 +89,11 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
   const patientId = detail.sep?.patient_id;
   const rmDuplicateId = detail.rm_duplicate?.id;
   const rmDuplicate = detail.rm_duplicate;
+
+  // RM duplicate belum ada -> jangan tampilkan daftar cetakan.
+  if (!rmDuplicateId) {
+    return [];
+  }
 
   // Unique prefix per RM Duplikat — prevents ID collision when same visit has multiple RM Duplikat
   const p = `rmd${rmDuplicateId || 0}`;
@@ -192,6 +198,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_RESUME,
       documentId: rmDuplicateId || visitId,
       signerHint: 'DPJP',
+      availabilityKey: 'resume',
     });
 
     nodes.push({
@@ -204,6 +211,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_INPATIENT_RESUME,
       documentId: rmDuplicateId || visitId,
       signerHint: 'DPJP',
+      availabilityKey: 'resume',
     });
 
     nodes.push({
@@ -216,6 +224,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_REFERRAL,
       documentId: rmDuplicateId || visitId,
       signerHint: 'DPJP',
+      availabilityKey: 'referral_letter',
     });
 
     nodes.push({
@@ -228,6 +237,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_INPATIENT_CERT,
       documentId: rmDuplicateId || visitId,
       signerHint: 'DPJP',
+      availabilityKey: 'inpatient_certificate',
     });
   }
 
@@ -243,6 +253,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_TRIAGE,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Dokter UGD',
+      availabilityKey: 'triage',
     });
     nodes.push({
       id: `${p}-emergency-summary-${visitId}`,
@@ -254,6 +265,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_EMERGENCY,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Dokter UGD',
+      availabilityKey: 'emergency_summary',
     });
   }
 
@@ -269,6 +281,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_CPPT,
       documentId: rmDuplicateId || visitId,
       signerHint: 'DPJP / Perawat',
+      availabilityKey: 'cppt',
     });
     nodes.push({
       id: `${p}-nursing-care-${visitId}`,
@@ -280,6 +293,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_NURSING_CARE,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Perawat',
+      availabilityKey: 'nursing_care',
     });
     nodes.push({
       id: `${p}-fluid-balance-${visitId}`,
@@ -291,6 +305,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_FLUID_BALANCE,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Perawat',
+      availabilityKey: 'fluid_balance',
     });
     nodes.push({
       id: `${p}-bed-transfer-${visitId}`,
@@ -302,6 +317,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_BED_TRANSFER,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Perawat',
+      availabilityKey: 'bed_transfer',
     });
     nodes.push({
       id: `${p}-vital-sign-chart-${visitId}`,
@@ -313,6 +329,7 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
       documentType: DOCUMENT_TYPES.RM_DUP_VITAL_SIGN,
       documentId: rmDuplicateId || visitId,
       signerHint: 'Perawat',
+      availabilityKey: 'vital_sign_chart',
     });
   }
 
@@ -421,7 +438,8 @@ function buildCetakanNodes(detail: EKlaimLocal, _originalRM: OriginalRM): Cetaka
     });
   }
 
-  return nodes;
+  // Hanya tampilkan daftar cetakan yang benar-benar tersedia dari data RM duplicate.
+  return nodes.filter((node) => node.available);
 }
 
 // ===== Signature status type =====
@@ -670,16 +688,64 @@ export default function CetakanTab({ detail, originalRM, hideTitle = false }: Ce
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [signTarget, setSignTarget] = useState<CetakanNode | null>(null);
   const [signContext, setSignContext] = useState<SignContext | null>(null);
+  const [availableDocKeys, setAvailableDocKeys] = useState<Set<string>>(new Set());
+  const [availableDocsLoaded, setAvailableDocsLoaded] = useState(false);
 
   // Track currently previewed node for auto-refresh after signing
   const previewNodeRef = useRef<CetakanNode | null>(null);
 
   const allNodes = useMemo(() => buildCetakanNodes(detail, originalRM), [detail, originalRM]);
   const hasRMDuplicate = !!detail.rm_duplicate?.id;
+  const isListDisabled = !hasRMDuplicate;
+  const effectiveNodes = useMemo(() => {
+    if (!availableDocsLoaded) return allNodes;
+    return allNodes.filter((node) => !node.availabilityKey || availableDocKeys.has(node.availabilityKey));
+  }, [allNodes, availableDocKeys, availableDocsLoaded]);
+
+  useEffect(() => {
+    const validIds = new Set(effectiveNodes.map((n) => n.id));
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) next.add(id);
+      });
+      return next;
+    });
+    setOrderedIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [effectiveNodes]);
+
+  useEffect(() => {
+    let active = true;
+    const loadAvailableDocs = async () => {
+      if (!hasRMDuplicate) {
+        if (active) {
+          setAvailableDocKeys(new Set());
+          setAvailableDocsLoaded(false);
+        }
+        return;
+      }
+      try {
+        const docs = await fetchAvailableDocs(detail.visit_id, detail.rm_duplicate?.id);
+        if (active) {
+          setAvailableDocKeys(new Set(docs));
+          setAvailableDocsLoaded(true);
+        }
+      } catch {
+        if (active) {
+          setAvailableDocKeys(new Set());
+          setAvailableDocsLoaded(false);
+        }
+      }
+    };
+    loadAvailableDocs();
+    return () => {
+      active = false;
+    };
+  }, [detail.visit_id, detail.rm_duplicate?.id, hasRMDuplicate]);
 
   // Batch load signature statuses
   const loadSignatureStatuses = useCallback(async () => {
-    const availableNodes = allNodes.filter((n) => n.available && n.documentType && n.documentId);
+    const availableNodes = effectiveNodes.filter((n) => n.available && n.documentType && n.documentId);
     if (availableNodes.length === 0) return;
 
     const documents = availableNodes.map((n) => ({
@@ -696,7 +762,7 @@ export default function CetakanTab({ detail, originalRM, hideTitle = false }: Ce
     } catch {
       // silent fail
     }
-  }, [allNodes]);
+  }, [effectiveNodes]);
 
   useEffect(() => {
     loadSignatureStatuses();
@@ -747,19 +813,19 @@ export default function CetakanTab({ detail, originalRM, hideTitle = false }: Ce
   // Group by category preserving order
   const categories = useMemo(() => {
     const map = new Map<string, CetakanNode[]>();
-    for (const node of allNodes) {
+    for (const node of effectiveNodes) {
       if (!map.has(node.category)) map.set(node.category, []);
       map.get(node.category)!.push(node);
     }
     return Array.from(map.entries());
-  }, [allNodes]);
+  }, [effectiveNodes]);
 
   // Node map for quick lookup
   const nodeMap = useMemo(() => {
     const m = new Map<string, CetakanNode>();
-    for (const n of allNodes) m.set(n.id, n);
+    for (const n of effectiveNodes) m.set(n.id, n);
     return m;
-  }, [allNodes]);
+  }, [effectiveNodes]);
 
   const handleToggle = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -978,22 +1044,32 @@ export default function CetakanTab({ detail, originalRM, hideTitle = false }: Ce
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: Tree selection */}
         <div className="lg:col-span-2 space-y-2">
-          {categories.map(([category, nodes]) => (
-            <CategoryNode
-              key={category}
-              category={category}
-              nodes={nodes}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              onSelectAll={handleSelectAll}
-              signatureStatuses={signatureStatuses}
-              onSign={handleOpenSignDialog}
-              nodePreviewLoading={nodePreviewLoading}
-              nodeDownloadLoading={nodeDownloadLoading}
-              onPreview={handlePreview}
-              onDownload={handleDownloadNode}
-            />
-          ))}
+          {isListDisabled ? (
+            <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+              Cetakan dinonaktifkan karena data rekam medis duplicate (casemix) belum tersedia.
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+              Belum ada dokumen cetakan yang tersedia dari data rekam medis duplicate.
+            </div>
+          ) : (
+            categories.map(([category, nodes]) => (
+              <CategoryNode
+                key={category}
+                category={category}
+                nodes={nodes}
+                selectedIds={selectedIds}
+                onToggle={handleToggle}
+                onSelectAll={handleSelectAll}
+                signatureStatuses={signatureStatuses}
+                onSign={handleOpenSignDialog}
+                nodePreviewLoading={nodePreviewLoading}
+                nodeDownloadLoading={nodeDownloadLoading}
+                onPreview={handlePreview}
+                onDownload={handleDownloadNode}
+              />
+            ))
+          )}
         </div>
 
         {/* Right: Selected order & actions */}
@@ -1074,7 +1150,7 @@ export default function CetakanTab({ detail, originalRM, hideTitle = false }: Ce
             <div className="flex flex-col gap-2">
               <Button
                 onClick={handleMerge}
-                disabled={selectedCount === 0 || merging}
+                disabled={isListDisabled || selectedCount === 0 || merging}
                 className="w-full"
               >
                 {merging ? (

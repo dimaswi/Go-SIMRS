@@ -1000,6 +1000,12 @@ func seedRolesAndAdmin() error {
 		"eklaim.grouping",
 		"pharmacy.view",
 		"pharmacy.edit",
+		"medical_records.laboratory_order",
+		"medical_records.radiology_order",
+		"procedure_orders.view",
+		"procedure_orders.create",
+		"procedure_orders.edit",
+		"procedure_orders.perform",
 	})
 	assignPermissionsToRoles([]string{"Rekam Medis"}, rekamMedisDefaultPermissions, false)
 

@@ -1025,7 +1025,7 @@ export function MedicalRecordPrintSelect({
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[50vw] sm:max-w-[50vw]">
+      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[80vw] sm:max-w-[80vw]">
         <SheetHeader className="border-b bg-muted/30 px-3 py-3 sm:px-5 sm:py-4">
           <div className="pr-8">
             <SheetTitle className="flex items-center gap-2 text-base">

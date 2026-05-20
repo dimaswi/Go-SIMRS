@@ -419,7 +419,7 @@ export function VisitHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[450px] p-0">
+      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[80vw] sm:max-w-[80vw] p-0">
         <SheetHeader className="px-4 py-3 border-b bg-muted/30">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>

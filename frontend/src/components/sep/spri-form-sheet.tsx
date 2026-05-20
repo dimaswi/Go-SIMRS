@@ -25,6 +25,7 @@ import {
   type VClaimPeserta,
   type SEPLocal,
   type VClaimSPRIResponse,
+  type VClaimSuratKontrolDetail,
 } from "@/lib/api/vclaim";
 import { PoliDokterSelector } from "./poli-dokter-selector";
 import {
@@ -68,6 +69,7 @@ export function SPRIFormSheet({
 }: SPRIFormSheetProps) {
   const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
+  const canAssignExisting = (registrationId || 0) > 0 || (visitId || 0) > 0;
 
   // Derive no_kartu from activeSEP or patient
   const noKartu = activeSEP?.no_kartu || patient.no_bpjs || "";
@@ -88,6 +90,11 @@ export function SPRIFormSheet({
   const [namaPoli, setNamaPoli] = useState("");
   const [kodeDokter, setKodeDokter] = useState("");
   const [namaDokter, setNamaDokter] = useState("");
+  const [searchNoSPRI, setSearchNoSPRI] = useState("");
+  const [searchingSPRI, setSearchingSPRI] = useState(false);
+  const [assigningSPRI, setAssigningSPRI] = useState(false);
+  const [searchSPRIError, setSearchSPRIError] = useState("");
+  const [searchedSPRI, setSearchedSPRI] = useState<VClaimSuratKontrolDetail | null>(null);
 
   // Track apakah sudah fetch kepesertaan untuk mencegah loop
   const hasFetchedRef = useRef(false);
@@ -104,6 +111,11 @@ export function SPRIFormSheet({
       setNamaPoli("");
       setKodeDokter("");
       setNamaDokter("");
+      setSearchNoSPRI("");
+      setSearchingSPRI(false);
+      setAssigningSPRI(false);
+      setSearchSPRIError("");
+      setSearchedSPRI(null);
     } else {
       hasFetchedRef.current = false;
     }
@@ -237,6 +249,99 @@ export function SPRIFormSheet({
     }
   };
 
+  const handleSearchSPRI = async () => {
+    const noSPRI = searchNoSPRI.trim();
+    if (!noSPRI) {
+      setSearchSPRIError("Nomor SPRI wajib diisi");
+      setSearchedSPRI(null);
+      return;
+    }
+
+    setSearchingSPRI(true);
+    setSearchSPRIError("");
+    setSearchedSPRI(null);
+    try {
+      const res = await vclaimApi.getSuratKontrolDetail(noSPRI);
+      const detail = res.data?.data;
+      if (!detail?.noSuratKontrol) {
+        setSearchSPRIError("Detail SPRI tidak ditemukan");
+        return;
+      }
+
+      const jnsKontrol = detail.jnsKontrol || "";
+      const namaJnsKontrol = (detail.namaJnsKontrol || "").toLowerCase();
+      if (jnsKontrol && jnsKontrol !== "1" && !namaJnsKontrol.includes("spri")) {
+        setSearchSPRIError("Nomor yang dicari bukan jenis SPRI");
+        return;
+      }
+
+      setSearchedSPRI(detail);
+    } catch (error: any) {
+      setSearchSPRIError(error.response?.data?.error || "Gagal mengambil detail SPRI");
+    } finally {
+      setSearchingSPRI(false);
+    }
+  };
+
+  const handleAssignSPRI = async () => {
+    if (!searchedSPRI?.noSuratKontrol) return;
+    if (!registrationId && !visitId) {
+      toast({
+        variant: "destructive",
+        title: "Gagal assign SPRI",
+        description: "Registration/visit tidak tersedia untuk assignment SPRI.",
+      });
+      return;
+    }
+
+    setAssigningSPRI(true);
+    try {
+      await vclaimApi.importSPRI({
+        no_spri: searchedSPRI.noSuratKontrol,
+        no_kartu: searchedSPRI.noKartu || noKartu,
+        nama: searchedSPRI.nama || patient.nama_lengkap,
+        kelamin: searchedSPRI.kelamin || "",
+        tgl_lahir: searchedSPRI.tglLahir || patient.tanggal_lahir || "",
+        tgl_rencana_kontrol: searchedSPRI.tglRencanaKontrol || "",
+        kode_poli: searchedSPRI.poli?.kode || "",
+        nama_poli: searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "",
+        kode_dokter: searchedSPRI.dokter?.kode || "",
+        nama_dokter: searchedSPRI.dokter?.nama || "",
+        nama_diagnosa: searchedSPRI.namaDiagnosa || "",
+        patient_id: patient.id,
+        registration_id: registrationId || 0,
+        visit_id: visitId || 0,
+        sep_id: activeSEP?.id || 0,
+      });
+
+      toast({
+        title: "SPRI berhasil di-assign",
+        description: `Nomor SPRI ${searchedSPRI.noSuratKontrol} berhasil ditautkan ke pendaftaran.`,
+      });
+
+      onSPRICreated?.({
+        noSPRI: searchedSPRI.noSuratKontrol,
+        tglRencanaKontrol: searchedSPRI.tglRencanaKontrol || "",
+        namaDokter: searchedSPRI.dokter?.nama || "",
+        noKartu: searchedSPRI.noKartu || noKartu,
+        nama: searchedSPRI.nama || patient.nama_lengkap,
+        kelamin: searchedSPRI.kelamin || "",
+        tglLahir: searchedSPRI.tglLahir || patient.tanggal_lahir || "",
+        namaDiagnosa: searchedSPRI.namaDiagnosa || null,
+      });
+
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal assign SPRI",
+        description: error.response?.data?.error || "Terjadi kesalahan saat assign SPRI",
+      });
+    } finally {
+      setAssigningSPRI(false);
+    }
+  };
+
   // Get minimum date (today)
   const getMinDate = () => {
     return format(new Date(), "yyyy-MM-dd");
@@ -245,7 +350,7 @@ export function SPRIFormSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[760px]">
+        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Form SPRI Rawat Inap"
@@ -259,7 +364,7 @@ export function SPRIFormSheet({
           />
 
           <ScrollArea className="flex-1">
-            <div className="space-y-6 p-6">
+            <div className="px-6 py-2">
               {/* === SEP AKTIF (jika ada) === */}
               {activeSEP && (
               <div className={BPJS_SECTION_CLASS}>
@@ -276,7 +381,69 @@ export function SPRIFormSheet({
               </div>
               )}
 
-              {/* Info Pasien (jika tidak ada SEP) */}
+              {canAssignExisting && (
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Assign" title="Cari & Assign SPRI (GetSuratKontrolDetail)" />
+                <div className={`${BPJS_PANEL_CLASS} space-y-3 p-4`}>
+                  <div className="flex gap-2">
+                    <Input
+                      value={searchNoSPRI}
+                      onChange={(e) => {
+                        setSearchNoSPRI(e.target.value);
+                        if (searchSPRIError) setSearchSPRIError("");
+                      }}
+                      placeholder="Masukkan nomor SPRI"
+                      className={BPJS_FIELD_CLASS}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSearchSPRI();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 rounded-none border-border/70 px-3"
+                      onClick={handleSearchSPRI}
+                      disabled={searchingSPRI || !searchNoSPRI.trim()}
+                    >
+                      {searchingSPRI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
+
+                  {searchSPRIError && (
+                    <BPJSStatePanel tone="danger" title="Pencarian SPRI gagal" description={searchSPRIError} />
+                  )}
+
+                  {searchedSPRI && (
+                    <div className="space-y-3">
+                      <BPJSInfoGrid
+                        items={[
+                          { label: "No. SPRI", value: searchedSPRI.noSuratKontrol || "-", mono: true },
+                          { label: "No. Kartu", value: searchedSPRI.noKartu || "-", mono: true },
+                          { label: "Nama Peserta", value: searchedSPRI.nama || "-" },
+                          { label: "Tgl Kontrol", value: searchedSPRI.tglRencanaKontrol || "-" },
+                          { label: "Poli", value: searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-", span: 2 },
+                          { label: "Dokter", value: searchedSPRI.dokter?.nama || "-" },
+                          { label: "Diagnosa", value: searchedSPRI.namaDiagnosa || "-", span: 2 },
+                        ]}
+                      />
+                      <Button
+                        type="button"
+                        className="w-full rounded-none"
+                        onClick={handleAssignSPRI}
+                        disabled={assigningSPRI}
+                      >
+                        {assigningSPRI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Assign SPRI ke Pendaftaran
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              )}
+
               {!activeSEP && (
               <div className={BPJS_SECTION_CLASS}>
                 <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
@@ -290,6 +457,7 @@ export function SPRIFormSheet({
                 />
               </div>
               )}
+
 
               {/* === KEPESERTAAN === */}
               <div className={BPJS_SECTION_CLASS}>
@@ -313,7 +481,6 @@ export function SPRIFormSheet({
                     description="Data peserta BPJS sedang diambil untuk memastikan hak kelas dan status aktif pasien."
                   />
                 )}
-
                 {/* Status Peserta */}
                 {peserta && !loadingPeserta && (
                   <BPJSStatePanel

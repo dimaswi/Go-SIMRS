@@ -1237,6 +1237,157 @@ func VClaimImportSEP(c *gin.Context) {
 	})
 }
 
+// SPRIImportInput adalah input untuk import SPRI dari BPJS (GetSuratKontrolDetail) ke database lokal
+type SPRIImportInput struct {
+	NoSPRI            string `json:"no_spri" binding:"required"`
+	NoKartu           string `json:"no_kartu"`
+	Nama              string `json:"nama"`
+	Kelamin           string `json:"kelamin"`
+	TglLahir          string `json:"tgl_lahir"`
+	TglRencanaKontrol string `json:"tgl_rencana_kontrol"`
+	KodePoli          string `json:"kode_poli"`
+	NamaPoli          string `json:"nama_poli"`
+	KodeDokter        string `json:"kode_dokter"`
+	NamaDokter        string `json:"nama_dokter"`
+	NamaDiagnosa      string `json:"nama_diagnosa"`
+	PatientID         uint   `json:"patient_id"`
+	RegistrationID    uint   `json:"registration_id"`
+	VisitID           uint   `json:"visit_id"`
+	SEPID             uint   `json:"sep_id"`
+}
+
+// VClaimImportSPRI menyimpan data SPRI existing dari BPJS ke database lokal untuk assignment ke registration/visit
+func VClaimImportSPRI(c *gin.Context) {
+	var input SPRIImportInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	noSPRI := strings.TrimSpace(input.NoSPRI)
+	if noSPRI == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor SPRI wajib diisi"})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Resolve patient_id
+	patientID := input.PatientID
+	if patientID == 0 && input.RegistrationID > 0 {
+		var reg models.Registration
+		if err := database.DB.Select("id", "patient_id").First(&reg, input.RegistrationID).Error; err == nil {
+			patientID = reg.PatientID
+		}
+	}
+	if patientID == 0 && input.VisitID > 0 {
+		var visit models.Visit
+		if err := database.DB.Select("id", "registration_id").First(&visit, input.VisitID).Error; err == nil && visit.RegistrationID > 0 {
+			var reg models.Registration
+			if err := database.DB.Select("id", "patient_id").First(&reg, visit.RegistrationID).Error; err == nil {
+				patientID = reg.PatientID
+			}
+		}
+	}
+	if patientID == 0 && strings.TrimSpace(input.NoKartu) != "" {
+		var patient models.Patient
+		if err := database.DB.Select("id").Where("no_bpjs = ?", strings.TrimSpace(input.NoKartu)).First(&patient).Error; err == nil {
+			patientID = patient.ID
+		}
+	}
+
+	if patientID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menentukan pasien untuk import SPRI"})
+		return
+	}
+
+	var regID *uint
+	if input.RegistrationID > 0 {
+		regID = &input.RegistrationID
+	}
+	var visitID *uint
+	if input.VisitID > 0 {
+		visitID = &input.VisitID
+	}
+	var sepID *uint
+	if input.SEPID > 0 {
+		sepID = &input.SEPID
+	}
+
+	// Upsert by no_spri (including soft-deleted rows)
+	var existing models.SPRI
+	if err := database.DB.Unscoped().Where("no_spri = ?", noSPRI).First(&existing).Error; err == nil {
+		updates := map[string]interface{}{
+			"is_bpjs":             true,
+			"no_kartu":            strings.TrimSpace(input.NoKartu),
+			"nama":                strings.TrimSpace(input.Nama),
+			"kelamin":             strings.TrimSpace(input.Kelamin),
+			"tgl_lahir":           strings.TrimSpace(input.TglLahir),
+			"tgl_rencana_kontrol": strings.TrimSpace(input.TglRencanaKontrol),
+			"kode_poli":           strings.TrimSpace(input.KodePoli),
+			"nama_poli":           strings.TrimSpace(input.NamaPoli),
+			"kode_dokter":         strings.TrimSpace(input.KodeDokter),
+			"nama_dokter":         strings.TrimSpace(input.NamaDokter),
+			"nama_diagnosa":       strings.TrimSpace(input.NamaDiagnosa),
+			"registration_id":     regID,
+			"visit_id":            visitID,
+			"sep_id":              sepID,
+			"patient_id":          patientID,
+			"status":              "active",
+			"user_buat":           user.Username,
+			"deleted_at":          nil,
+		}
+		if err := database.DB.Unscoped().Model(&existing).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update SPRI existing: " + err.Error()})
+			return
+		}
+
+		database.DB.Unscoped().Preload("Patient").First(&existing, existing.ID)
+		c.JSON(http.StatusOK, gin.H{
+			"message": "SPRI existing berhasil di-update dan di-assign",
+			"data":    existing,
+		})
+		return
+	}
+
+	spri := models.SPRI{
+		NoSPRI:            noSPRI,
+		IsBPJS:            true,
+		RegistrationID:    regID,
+		VisitID:           visitID,
+		SEPID:             sepID,
+		PatientID:         patientID,
+		NoKartu:           strings.TrimSpace(input.NoKartu),
+		Nama:              strings.TrimSpace(input.Nama),
+		Kelamin:           strings.TrimSpace(input.Kelamin),
+		TglLahir:          strings.TrimSpace(input.TglLahir),
+		TglRencanaKontrol: strings.TrimSpace(input.TglRencanaKontrol),
+		KodePoli:          strings.TrimSpace(input.KodePoli),
+		NamaPoli:          strings.TrimSpace(input.NamaPoli),
+		KodeDokter:        strings.TrimSpace(input.KodeDokter),
+		NamaDokter:        strings.TrimSpace(input.NamaDokter),
+		NamaDiagnosa:      strings.TrimSpace(input.NamaDiagnosa),
+		UserBuat:          user.Username,
+		Status:            "active",
+	}
+
+	if err := database.DB.Create(&spri).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan SPRI import: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SPRI berhasil di-import dan di-assign",
+		"data":    spri,
+	})
+}
+
 // SEPUpdateInput adalah input untuk update SEP
 type SEPUpdateInput struct {
 	NoSep           string `json:"no_sep" binding:"required"`
@@ -3274,8 +3425,19 @@ func unlinkSEPAssignments(tx *gorm.DB, noSEP string) error {
 		return nil
 	}
 
+	var sep models.SEP
+	if err := tx.Select("id", "registration_id", "visit_id").Where("no_sep = ?", cleanSEP).First(&sep).Error; err == nil {
+		if sep.RegistrationID != nil && *sep.RegistrationID > 0 {
+			if err := tx.Model(&models.Registration{}).
+				Where("id = ?", *sep.RegistrationID).
+				Update("sep_number", "").Error; err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := tx.Model(&models.Registration{}).
-		Where("sep_number = ?", cleanSEP).
+		Where("sep_number = ? OR TRIM(sep_number) = ?", cleanSEP, cleanSEP).
 		Update("sep_number", "").Error; err != nil {
 		return err
 	}
@@ -3416,9 +3578,10 @@ func GetSEPList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": seps})
 }
 
-// DeleteSEPLocal menghapus record SEP lokal (unlink dari kunjungan), tanpa menghapus dari BPJS
+// DeleteSEPLocal melepas assignment SEP lokal (unlink) tanpa call BPJS,
+// dan menandai status lokal menjadi deleted (tidak hard delete).
 func DeleteSEPLocal(c *gin.Context) {
-	noSEP := c.Param("noSEP")
+	noSEP := strings.TrimSpace(c.Param("noSEP"))
 	if noSEP == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor SEP wajib diisi"})
 		return
@@ -3437,15 +3600,21 @@ func DeleteSEPLocal(c *gin.Context) {
 		return
 	}
 
-	if err := tx.Delete(&sep).Error; err != nil {
+	if err := tx.Model(&models.SEP{}).Where("no_sep = ?", noSEP).Updates(map[string]interface{}{
+		"status":     "deleted",
+		"updated_at": time.Now(),
+	}).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus SEP lokal: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status SEP lokal: " + err.Error()})
 		return
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan perubahan unlink SEP: " + err.Error()})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "SEP berhasil dihapus dari sistem lokal"})
+	c.JSON(http.StatusOK, gin.H{"message": "SEP berhasil di-unlink dari sistem lokal"})
 }
 
 // UpdateSEPVisitID mengupdate visit_id di SEP lokal (untuk link SEP ke visit rawat inap)

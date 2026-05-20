@@ -131,6 +131,7 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 
 			// SPRI (Surat Perintah Rawat Inap)
 			vclaim.POST("/spri", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateSPRI)
+			vclaim.POST("/spri/import", middleware.RequirePermission("registrations.create"), handlers.VClaimImportSPRI)
 			vclaim.POST("/spri/local", middleware.RequirePermission("registrations.create"), handlers.CreateLocalSPRI)
 			vclaim.GET("/spri/poli", handlers.VClaimSearchPoliSPRI)
 			vclaim.GET("/spri/dokter", handlers.VClaimSearchDokterSPRI)

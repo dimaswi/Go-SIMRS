@@ -254,7 +254,7 @@ export function SEPDetailSheet({
   if (!sep) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%]">
+        <SheetContent className="w-[80vw] max-w-[80vw] sm:w-[80vw] sm:max-w-[80vw]">
           <div className="flex items-center justify-center h-full">
             <p className="text-muted-foreground">Data SEP tidak tersedia</p>
           </div>
@@ -266,7 +266,7 @@ export function SEPDetailSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[820px]">
+        <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Detail SEP"

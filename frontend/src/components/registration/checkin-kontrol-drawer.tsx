@@ -372,7 +372,7 @@ export function CheckInKontrolDrawer({
   if (step === "loading" || loading) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-lg">
+        <SheetContent className="sm:max-w-[80vw]">
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -389,7 +389,7 @@ export function CheckInKontrolDrawer({
 
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-lg">
+        <SheetContent className="sm:max-w-[80vw]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Send className="h-5 w-5 text-blue-600" />
@@ -509,7 +509,7 @@ export function CheckInKontrolDrawer({
   if (step === "antrean_success") {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-lg">
+        <SheetContent className="sm:max-w-[80vw]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
@@ -629,7 +629,7 @@ export function CheckInKontrolDrawer({
   if (step === "existing_sep" && kontrolInfo.existingSEP) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-lg">
+        <SheetContent className="sm:max-w-[80vw]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
