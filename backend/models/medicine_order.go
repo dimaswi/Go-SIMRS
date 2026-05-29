@@ -203,18 +203,43 @@ type PrescriptionReview struct {
 	Reviewer   *Employee `gorm:"foreignKey:ReviewerID" json:"reviewer,omitempty"`
 
 	// Review Checklist
-	DrugInteractionCheck  bool `gorm:"default:false" json:"drug_interaction_check"` // Cek interaksi obat
-	DoseCheck             bool `gorm:"default:false" json:"dose_check"`             // Cek dosis
-	DuplicationCheck      bool `gorm:"default:false" json:"duplication_check"`      // Cek duplikasi
-	AllergyCheck          bool `gorm:"default:false" json:"allergy_check"`          // Cek alergi
-	ContraindicationCheck bool `gorm:"default:false" json:"contraindication_check"` // Cek kontraindikasi
-	IndicationCheck       bool `gorm:"default:false" json:"indication_check"`       // Cek indikasi
+	PatientIdentityCheck     bool `gorm:"default:false" json:"patient_identity_check"`     // Lengkap identitas pasien
+	DoctorNameSignCheck      bool `gorm:"default:false" json:"doctor_name_sign_check"`     // Lengkap nama & paraf dokter
+	PrescriptionDateCheck    bool `gorm:"default:false" json:"prescription_date_check"`    // Tanggal resep
+	MedicineDataCheck        bool `gorm:"default:false" json:"medicine_data_check"`        // Nama obat, bentuk, kekuatan sediaan
+	DrugInteractionCheck     bool `gorm:"default:false" json:"drug_interaction_check"`     // Cek interaksi obat
+	DoseCheck                bool `gorm:"default:false" json:"dose_check"`                 // Cek dosis
+	DuplicationCheck         bool `gorm:"default:false" json:"duplication_check"`          // Cek duplikasi
+	AllergyCheck             bool `gorm:"default:false" json:"allergy_check"`              // Cek alergi
+	ContraindicationCheck    bool `gorm:"default:false" json:"contraindication_check"`     // Cek kontraindikasi
+	IndicationCheck          bool `gorm:"default:false" json:"indication_check"`           // Cek indikasi
+	AdministrationRouteCheck bool `gorm:"default:false" json:"administration_route_check"` // Cara pemakaian/rute
 
 	// Review Result
-	IsApproved bool   `gorm:"default:true" json:"is_approved"` // Apakah disetujui
-	Notes      string `gorm:"type:text" json:"notes"`          // Catatan review
-	Warnings   string `gorm:"type:text" json:"warnings"`       // Peringatan untuk pasien
-	Suggestion string `gorm:"type:text" json:"suggestion"`     // Saran untuk dokter
+	IsApproved             bool       `gorm:"default:true" json:"is_approved"` // Apakah disetujui
+	Notes                  string     `gorm:"type:text" json:"notes"`          // Catatan review
+	Warnings               string     `gorm:"type:text" json:"warnings"`       // Peringatan untuk pasien
+	Suggestion             string     `gorm:"type:text" json:"suggestion"`     // Saran untuk dokter
+	InitialReviewCompleted bool       `gorm:"default:false" json:"initial_review_completed"`
+	InitialReviewedAt      *time.Time `json:"initial_reviewed_at,omitempty"`
+
+	// Final Verification (Telaah Akhir)
+	FinalPatientCheck          bool `gorm:"default:false" json:"final_patient_check"`  // Benar pasien
+	FinalMedicineCheck         bool `gorm:"default:false" json:"final_medicine_check"` // Benar obat
+	FinalDoseCheck             bool `gorm:"default:false" json:"final_dose_check"`     // Benar dosis
+	FinalTimeCheck             bool `gorm:"default:false" json:"final_time_check"`     // Benar waktu pemberian
+	FinalRouteCheck            bool `gorm:"default:false" json:"final_route_check"`    // Benar rute pemberian
+	FinalVerificationCompleted bool `gorm:"default:false" json:"final_verification_completed"`
+
+	// PIO (Pelayanan Informasi Obat)
+	PIONameCheck         bool       `gorm:"default:false" json:"pio_name_check"`    // Nama obat
+	PIOUsageCheck        bool       `gorm:"default:false" json:"pio_usage_check"`   // Cara pakai
+	PIOBenefitCheck      bool       `gorm:"default:false" json:"pio_benefit_check"` // Kegunaan
+	PIOStorageCheck      bool       `gorm:"default:false" json:"pio_storage_check"` // Penyimpanan
+	PIOOtherCheck        bool       `gorm:"default:false" json:"pio_other_check"`   // Lain-lain
+	PIOCompleted         bool       `gorm:"default:false" json:"pio_completed"`
+	FinalReviewCompleted bool       `gorm:"default:false" json:"final_review_completed"`
+	FinalReviewedAt      *time.Time `json:"final_reviewed_at,omitempty"`
 
 	// Communication with Doctor
 	RequiresDoctorConfirmation bool       `gorm:"default:false" json:"requires_doctor_confirmation"`

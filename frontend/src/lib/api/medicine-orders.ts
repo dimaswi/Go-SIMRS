@@ -184,25 +184,51 @@ export interface CreateMedicineOrderInput {
 export interface PrescriptionReview {
   id: number;
   created_at: string;
+  updated_at?: string;
   medicine_order_id: number;
   reviewer_id: number;
   reviewer?: {
     id: number;
     name: string;
   };
+  patient_identity_check: boolean;
+  doctor_name_sign_check: boolean;
+  prescription_date_check: boolean;
+  medicine_data_check: boolean;
   drug_interaction_check: boolean;
   dose_check: boolean;
   duplication_check: boolean;
   allergy_check: boolean;
   contraindication_check: boolean;
   indication_check: boolean;
+  administration_route_check: boolean;
   is_approved: boolean;
   notes: string;
   warnings: string;
   suggestion: string;
+  initial_review_completed: boolean;
+  initial_reviewed_at?: string;
+  final_patient_check: boolean;
+  final_medicine_check: boolean;
+  final_dose_check: boolean;
+  final_time_check: boolean;
+  final_route_check: boolean;
+  final_verification_completed: boolean;
+  pio_name_check: boolean;
+  pio_usage_check: boolean;
+  pio_benefit_check: boolean;
+  pio_storage_check: boolean;
+  pio_other_check: boolean;
+  pio_completed: boolean;
+  final_review_completed: boolean;
+  final_reviewed_at?: string;
   requires_doctor_confirmation: boolean;
   doctor_confirmed_at?: string;
 }
+
+export type PrescriptionReviewInput = Partial<
+  Omit<PrescriptionReview, "id" | "created_at" | "updated_at" | "medicine_order_id" | "reviewer_id" | "reviewer">
+>;
 
 export interface DispenseInput {
   items: {
@@ -373,7 +399,7 @@ export const medicineOrdersApi = {
   },
 
   // Submit prescription review
-  submitReview: async (orderId: number, data: Omit<PrescriptionReview, 'id' | 'created_at' | 'medicine_order_id' | 'reviewer_id' | 'reviewer'>) => {
+  submitReview: async (orderId: number, data: PrescriptionReviewInput) => {
     const response = await api.post<PrescriptionReview>(`/medicine-orders/${orderId}/review`, data);
     return response;
   },

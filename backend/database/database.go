@@ -284,7 +284,7 @@ func Migrate() error {
 		&models.Purchase{}, &models.PurchaseItem{}, &models.PurchasePayment{},
 		&models.StockOpname{}, &models.StockOpnameItem{}, &models.Supplier{},
 		&models.RoomMedicine{}, &models.RoomInventory{},
-		&models.MedicineOrder{}, &models.MedicineOrderItem{},
+		&models.MedicineOrder{}, &models.MedicineOrderItem{}, &models.PrescriptionReview{}, &models.MedicineReturn{},
 		&models.ProcedureOrder{}, &models.ProcedureOrderItem{}, &models.ProcedureOrderResult{},
 		&models.Triage{}, &models.Anamnesis{}, &models.PhysicalExamination{},
 		&models.Diagnosis{}, &models.DiagnosisSummary{}, &models.AssessmentPlan{},
@@ -343,6 +343,8 @@ func Migrate() error {
 			&models.VitalSign{},            // Vital Signs History
 			&models.MedicineOrder{},        // Medicine Orders
 			&models.MedicineOrderItem{},    // Medicine Order Items
+			&models.PrescriptionReview{},   // Telaah Resep
+			&models.MedicineReturn{},       // Return Obat
 			&models.ProcedureOrder{},       // Procedure Orders
 			&models.ProcedureOrderItem{},   // Procedure Order Items
 			&models.ProcedureOrderResult{}, // Procedure Order Results

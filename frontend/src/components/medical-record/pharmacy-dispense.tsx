@@ -24,7 +24,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
-import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
+import type { MedicineOrder, MedicineOrderItem, PrescriptionReview } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
 
@@ -99,6 +99,7 @@ export function PharmacyDispense({
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
+  const [selectedOrderReview, setSelectedOrderReview] = useState<PrescriptionReview | null>(null);
   const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
   const [showDeliveredRows, setShowDeliveredRows] = useState(false);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
@@ -136,8 +137,23 @@ export function PharmacyDispense({
     if (selectedOrder) {
       initializeDispenseItems(selectedOrder);
       checkSignatureStatus(selectedOrder.id);
+      void checkReviewStatus(selectedOrder.id);
     }
   }, [selectedOrder]);
+
+  const checkReviewStatus = async (orderId: number) => {
+    try {
+      const res = await medicineOrdersApi.getReview(orderId);
+      const review = res.data;
+      if (review && review.id) {
+        setSelectedOrderReview(review);
+      } else {
+        setSelectedOrderReview(null);
+      }
+    } catch {
+      setSelectedOrderReview(null);
+    }
+  };
 
   const checkSignatureStatus = async (orderId: number) => {
     try {
@@ -267,7 +283,11 @@ export function PharmacyDispense({
 
   const hasDispensePermission = hasPermission("pharmacy.dispense");
   const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
-  const canDispense = hasDispensePermission && selectedOrder && ["reviewed", "preparing", "partial"].includes(selectedOrder.status);
+  const isFinalReviewComplete = selectedOrderReview?.final_review_completed === true;
+  const canDispense = hasDispensePermission &&
+    selectedOrder &&
+    ["reviewed", "preparing", "partial"].includes(selectedOrder.status) &&
+    isFinalReviewComplete;
   const allDelivered = dispenseItems.every((item) => item.remaining === 0) || isOrderDelivered;
   const orderedGrandTotal = dispenseItems.reduce((total, dispenseItem) => {
     const unitPrice = Number((dispenseItem.item as any).unit_price ?? (dispenseItem.item as any).price ?? (dispenseItem.item.medicine as any)?.selling_price ?? 0);
@@ -503,7 +523,7 @@ export function PharmacyDispense({
                 <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
                   <AlertCircle className="h-4 w-4" />
                   <p className="text-sm">
-                    Order ini belum ditelaah. Silakan lakukan telaah resep terlebih dahulu.
+                    Order belum memenuhi syarat telaah. Selesaikan Telaah Awal, Verifikasi Akhir, dan PIO terlebih dahulu.
                   </p>
                 </div>
               </div>

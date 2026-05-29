@@ -44,6 +44,8 @@ interface Tab {
 interface MedicalRecordTabsProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  disabledTabIds?: string[];
+  disabledTabReason?: string;
   layout?: "horizontal" | "vertical";
   indicators?: Record<string, string>;
   savedStates?: Record<string, boolean>;
@@ -63,6 +65,8 @@ type TabIndicatorStatus = "empty" | "progress" | "complete" | "neutral";
 export function MedicalRecordTabs({
   activeTab,
   onTabChange,
+  disabledTabIds = [],
+  disabledTabReason,
   layout = "horizontal",
   indicators = {},
   savedStates = {},
@@ -905,6 +909,7 @@ export function MedicalRecordTabs({
 
   const renderTab = (tab: Tab) => {
     const isActive = activeTab === tab.id;
+    const isDisabled = disabledTabIds.includes(tab.id);
     const indicatorValue = indicators[tab.id];
     const indicatorStatus = getIndicatorStatus(indicatorValue);
     const hasFractionIndicator = Boolean(indicatorValue?.replace(/\s+/g, "").includes("/"));
@@ -990,7 +995,14 @@ export function MedicalRecordTabs({
       >
         <button
           data-tab-id={tab.id}
-          onClick={() => onTabChange(tab.id)}
+          onClick={() => {
+            if (!isDisabled) {
+              onTabChange(tab.id);
+            }
+          }}
+          title={isDisabled ? (disabledTabReason || "Tab dikunci sampai telaah awal selesai") : tab.label}
+          aria-disabled={isDisabled}
+          disabled={isDisabled}
           draggable
           onDragStart={(e) => handleDragStart(e, tab.id)}
           onDragOver={(e) => handleDragOverTab(e, tab.id)}
@@ -1004,6 +1016,7 @@ export function MedicalRecordTabs({
           }}
           className={cn(
             "mr-tab-chip flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+            isDisabled && "cursor-not-allowed opacity-60",
             isActive
               ? "bg-primary/10 font-semibold text-primary"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -1100,7 +1113,14 @@ export function MedicalRecordTabs({
             >
               <button
                 data-tab-id={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => {
+                  if (!disabledTabIds.includes(tab.id)) {
+                    onTabChange(tab.id);
+                  }
+                }}
+                title={disabledTabIds.includes(tab.id) ? (disabledTabReason || "Tab dikunci sampai telaah awal selesai") : tab.label}
+                aria-disabled={disabledTabIds.includes(tab.id)}
+                disabled={disabledTabIds.includes(tab.id)}
                 draggable
                 onDragStart={(e) => handleDragStart(e, tab.id)}
                 onDragOver={(e) => handleDragOverTab(e, tab.id)}
@@ -1115,6 +1135,7 @@ export function MedicalRecordTabs({
                 className={cn(
                   "mr-tab-chip mr-tab-chip-horizontal flex flex-col items-center justify-center gap-2 rounded-lg p-3 text-center transition-colors",
                   "w-28 h-24", // Fixed size for horizontal tabs
+                  disabledTabIds.includes(tab.id) && "cursor-not-allowed opacity-60",
                   getTabStatusClass(indicatorStatus, isActive, hasFractionIndicator),
                   isActive && "bg-primary/10",
                 )}

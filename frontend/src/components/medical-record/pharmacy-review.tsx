@@ -1,11 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -13,30 +10,66 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
-  Loader2,
-  FileCheck,
-  Pill,
-  AlertTriangle,
   CheckCircle2,
   Clock,
+  FileCheck,
+  Loader2,
+  Pill,
 } from "lucide-react";
 import { medicineOrdersApi } from "@/lib/api";
-import type { MedicineOrder, PrescriptionReview } from "@/lib/api";
-import { OrderDetailInfoButton } from "./order-detail-info-button";
+import type {
+  MedicineOrder,
+  PrescriptionReview,
+} from "@/lib/api";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
 
 interface PharmacyReviewProps {
   visitId: number;
   readOnly?: boolean;
 }
 
-const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+type ReviewFormState = {
+  patient_identity_check: boolean;
+  doctor_name_sign_check: boolean;
+  prescription_date_check: boolean;
+  medicine_data_check: boolean;
+  dose_check: boolean;
+  administration_route_check: boolean;
+  drug_interaction_check: boolean;
+  duplication_check: boolean;
+  contraindication_check: boolean;
+  allergy_check: boolean;
+  final_patient_check: boolean;
+  final_medicine_check: boolean;
+  final_dose_check: boolean;
+  final_time_check: boolean;
+  final_route_check: boolean;
+  pio_name_check: boolean;
+  pio_usage_check: boolean;
+  pio_benefit_check: boolean;
+  pio_storage_check: boolean;
+  pio_other_check: boolean;
+};
+
+const ORDER_STATUS_LABELS: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
   pending: { label: "Menunggu Telaah", variant: "secondary" },
-  reviewed: { label: "Sudah Ditelaah", variant: "default" },
+  reviewed: { label: "Telaah Awal Selesai", variant: "default" },
   preparing: { label: "Disiapkan", variant: "default" },
   ready: { label: "Siap Diserahkan", variant: "default" },
   delivered: { label: "Sudah Diserahkan", variant: "default" },
@@ -45,18 +78,39 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
-const formatRupiah = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
+const createDefaultForm = (): ReviewFormState => ({
+  patient_identity_check: false,
+  doctor_name_sign_check: false,
+  prescription_date_check: false,
+  medicine_data_check: false,
+  dose_check: false,
+  administration_route_check: false,
+  drug_interaction_check: false,
+  duplication_check: false,
+  contraindication_check: false,
+  allergy_check: false,
+  final_patient_check: false,
+  final_medicine_check: false,
+  final_dose_check: false,
+  final_time_check: false,
+  final_route_check: false,
+  pio_name_check: false,
+  pio_usage_check: false,
+  pio_benefit_check: false,
+  pio_storage_check: false,
+  pio_other_check: false,
+});
+
+const formatRupiah = (value: number) =>
+  new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number.isFinite(value) ? value : 0);
-};
 
-const getUnitPrice = (item: any): number => {
-  return Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
-};
+const getUnitPrice = (item: any): number =>
+  Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
 
 export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProps) {
   const { toast } = useToast();
@@ -66,30 +120,76 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [existingReview, setExistingReview] = useState<PrescriptionReview | null>(null);
-  const [hasDecided, setHasDecided] = useState(false);
-  const [showAllReviewItems, setShowAllReviewItems] = useState(false);
+  const [initialModalOpen, setInitialModalOpen] = useState(false);
+  const [finalModalOpen, setFinalModalOpen] = useState(false);
+  const [reviewForm, setReviewForm] = useState<ReviewFormState>(createDefaultForm());
 
-  const [reviewForm, setReviewForm] = useState({
-    drug_interaction_check: false,
-    dose_check: false,
-    duplication_check: false,
-    allergy_check: false,
-    contraindication_check: false,
-    indication_check: false,
-    is_approved: false,
-    notes: "",
-    warnings: "",
-    suggestion: "",
-    requires_doctor_confirmation: false,
-  });
+  const canReview = hasPermission("pharmacy.review");
+  const activeItems = selectedOrder?.items?.filter((item) => item.status !== "cancelled") || [];
+  const grandTotal = activeItems.reduce(
+    (total, item) => total + getUnitPrice(item) * Number(item.quantity || 0),
+    0,
+  );
+  const patient =
+    selectedOrder?.source_visit?.registration?.patient || selectedOrder?.registration?.patient;
+
+  const initialReviewCompleted = existingReview?.initial_review_completed || false;
+  const finalReviewCompleted = existingReview?.final_review_completed || false;
+
+  const initialLocked =
+    readOnly ||
+    initialReviewCompleted ||
+    selectedOrder?.status === "reviewed" ||
+    selectedOrder?.status === "preparing" ||
+    selectedOrder?.status === "partial" ||
+    selectedOrder?.status === "ready" ||
+    selectedOrder?.status === "delivered" ||
+    selectedOrder?.status === "completed";
+  const finalLocked =
+    readOnly || selectedOrder?.status === "delivered" || selectedOrder?.status === "completed";
+
+  const initialChecklistCompleted = useMemo(
+    () =>
+      reviewForm.patient_identity_check &&
+      reviewForm.doctor_name_sign_check &&
+      reviewForm.prescription_date_check &&
+      reviewForm.medicine_data_check &&
+      reviewForm.dose_check &&
+      reviewForm.administration_route_check &&
+      reviewForm.drug_interaction_check &&
+      reviewForm.duplication_check &&
+      reviewForm.contraindication_check &&
+      reviewForm.allergy_check,
+    [reviewForm],
+  );
+
+  const finalVerificationCompleted = useMemo(
+    () =>
+      reviewForm.final_patient_check &&
+      reviewForm.final_medicine_check &&
+      reviewForm.final_dose_check &&
+      reviewForm.final_time_check &&
+      reviewForm.final_route_check,
+    [reviewForm],
+  );
+
+  const pioCompleted = useMemo(
+    () =>
+      reviewForm.pio_name_check ||
+      reviewForm.pio_usage_check ||
+      reviewForm.pio_benefit_check ||
+      reviewForm.pio_storage_check ||
+      reviewForm.pio_other_check,
+    [reviewForm],
+  );
 
   useEffect(() => {
-    loadOrders();
+    void loadOrders();
   }, [visitId]);
 
   useEffect(() => {
     const handleRefreshOrders = () => {
-      loadOrders({
+      void loadOrders({
         silent: true,
         preferredOrderId: selectedOrder?.id,
       });
@@ -97,7 +197,6 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
     window.addEventListener("refresh-final-visit", handleRefreshOrders);
     window.addEventListener("refresh-print-options", handleRefreshOrders);
-
     return () => {
       window.removeEventListener("refresh-final-visit", handleRefreshOrders);
       window.removeEventListener("refresh-print-options", handleRefreshOrders);
@@ -105,27 +204,80 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   }, [visitId, selectedOrder?.id]);
 
   useEffect(() => {
-    if (selectedOrder) {
-      loadReview(selectedOrder.id);
-    }
+    if (!selectedOrder) return;
+    void loadReview(selectedOrder.id);
   }, [selectedOrder]);
+
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== "prescription-review") return;
+      customEvent.detail.handled = true;
+
+      if (!selectedOrder) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Tidak ada order obat yang dapat ditelaah.",
+        });
+        return;
+      }
+
+      if (!initialReviewCompleted) {
+        setInitialModalOpen(true);
+        return;
+      }
+
+      setFinalModalOpen(true);
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [selectedOrder, toast, initialReviewCompleted]);
+
+  useEffect(() => {
+    const handleReviewRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ mode?: "initial" | "final" }>;
+      const mode = customEvent.detail?.mode || "initial";
+      if (mode === "final" && initialReviewCompleted) {
+        setFinalModalOpen(true);
+        return;
+      }
+      setInitialModalOpen(true);
+    };
+
+    window.addEventListener(PHARMACY_REVIEW_REQUEST_EVENT, handleReviewRequest as EventListener);
+    return () => {
+      window.removeEventListener(
+        PHARMACY_REVIEW_REQUEST_EVENT,
+        handleReviewRequest as EventListener,
+      );
+    };
+  }, [initialReviewCompleted]);
 
   const loadOrders = async (options?: { silent?: boolean; preferredOrderId?: number }) => {
     if (!options?.silent) {
       setLoading(true);
     }
-
     try {
       const res = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const data = res.data || [];
       setOrders(data);
-      if (data.length > 0) {
-        const nextSelectedOrder =
-          data.find((order) => order.id === options?.preferredOrderId) || data[0];
-        setSelectedOrder(nextSelectedOrder);
-      } else {
+      if (data.length === 0) {
         setSelectedOrder(null);
+        setExistingReview(null);
+        setReviewForm(createDefaultForm());
+        return;
       }
+      const nextSelectedOrder =
+        data.find((order) => order.id === options?.preferredOrderId) || data[0];
+      setSelectedOrder(nextSelectedOrder);
     } catch (error) {
       console.error("Error loading orders:", error);
       toast({
@@ -144,180 +296,254 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
     try {
       const res = await medicineOrdersApi.getReview(orderId);
       const review = res.data;
-
-      // Check if review exists (has id) or is just empty placeholder
       if (review && review.id) {
         setExistingReview(review);
-        setHasDecided(true);
         setReviewForm({
-          drug_interaction_check: review.drug_interaction_check || false,
+          patient_identity_check: review.patient_identity_check || false,
+          doctor_name_sign_check: review.doctor_name_sign_check || false,
+          prescription_date_check: review.prescription_date_check || false,
+          medicine_data_check: review.medicine_data_check || false,
           dose_check: review.dose_check || false,
+          administration_route_check: review.administration_route_check || false,
+          drug_interaction_check: review.drug_interaction_check || false,
           duplication_check: review.duplication_check || false,
-          allergy_check: review.allergy_check || false,
           contraindication_check: review.contraindication_check || false,
-          indication_check: review.indication_check || false,
-          is_approved: review.is_approved !== false,
-          notes: review.notes || "",
-          warnings: review.warnings || "",
-          suggestion: review.suggestion || "",
-          requires_doctor_confirmation: review.requires_doctor_confirmation || false,
+          allergy_check: review.allergy_check || false,
+          final_patient_check: review.final_patient_check || false,
+          final_medicine_check: review.final_medicine_check || false,
+          final_dose_check: review.final_dose_check || false,
+          final_time_check: review.final_time_check || false,
+          final_route_check: review.final_route_check || false,
+          pio_name_check: review.pio_name_check || false,
+          pio_usage_check: review.pio_usage_check || false,
+          pio_benefit_check: review.pio_benefit_check || false,
+          pio_storage_check: review.pio_storage_check || false,
+          pio_other_check: review.pio_other_check || false,
         });
       } else {
-        // No existing review
         setExistingReview(null);
-        setHasDecided(false);
-        setReviewForm({
-          drug_interaction_check: false,
-          dose_check: false,
-          duplication_check: false,
-          allergy_check: false,
-          contraindication_check: false,
-          indication_check: false,
-          is_approved: false,
-          notes: "",
-          warnings: "",
-          suggestion: "",
-          requires_doctor_confirmation: false,
-        });
+        setReviewForm(createDefaultForm());
       }
     } catch {
-      // Error loading review
       setExistingReview(null);
-      setHasDecided(false);
-      setReviewForm({
-        drug_interaction_check: false,
-        dose_check: false,
-        duplication_check: false,
-        allergy_check: false,
-        contraindication_check: false,
-        indication_check: false,
-        is_approved: false,
-        notes: "",
-        warnings: "",
-        suggestion: "",
-        requires_doctor_confirmation: false,
-      });
+      setReviewForm(createDefaultForm());
     }
   };
 
-  const canReview = hasPermission("pharmacy.review");
-
-  // Check if order is already reviewed
-  const isAlreadyReviewed = selectedOrder?.status === "reviewed" ||
-    selectedOrder?.status === "preparing" ||
-    selectedOrder?.status === "ready" ||
-    selectedOrder?.status === "delivered" ||
-    selectedOrder?.status === "completed";
-
-  // Check if already approved (has existing review with is_approved = true)
-  const isAlreadyApproved = existingReview?.is_approved === true;
-
-  // Check if all checklist items are checked
-  const allChecklistCompleted =
-    reviewForm.drug_interaction_check &&
-    reviewForm.dose_check &&
-    reviewForm.duplication_check &&
-    reviewForm.allergy_check &&
-    reviewForm.contraindication_check &&
-    reviewForm.indication_check;
-
-  // Can only approve if all checklist is completed, not already reviewed, and not already approved
-  const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved;
-
-  const submitReview = async () => {
-    if (!selectedOrder || submitting || readOnly || !canReview) return;
-    if (isAlreadyApproved) {
-      toast({
-        title: "Info",
-        description: "Telaah resep sudah disetujui.",
-      });
-      return;
-    }
-    if (isAlreadyReviewed && !existingReview) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Resep sudah ditelaah dan tidak dapat diubah.",
-      });
-      return;
-    }
-    if (!hasDecided) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Pilih keputusan telaah terlebih dahulu.",
-      });
-      return;
-    }
-    if (reviewForm.is_approved && !canApprove) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Lengkapi semua checklist untuk menyetujui resep.",
-      });
-      return;
-    }
+  const submitReview = async (
+    payload: Parameters<typeof medicineOrdersApi.submitReview>[1],
+    successDescription: string,
+  ) => {
+    if (!selectedOrder || submitting || readOnly || !canReview) return false;
 
     setSubmitting(true);
     try {
-      await medicineOrdersApi.submitReview(selectedOrder.id, reviewForm);
+      await medicineOrdersApi.submitReview(selectedOrder.id, payload);
       toast({
         title: "Berhasil",
-        description: reviewForm.is_approved
-          ? "Telaah resep disetujui"
-          : "Telaah resep tidak disetujui",
+        description: successDescription,
       });
-      loadOrders();
+      await loadOrders({ preferredOrderId: selectedOrder.id });
+      await loadReview(selectedOrder.id);
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+      return true;
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
         description: error.response?.data?.error || "Gagal menyimpan telaah resep",
       });
+      return false;
     } finally {
       setSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    const handleFooterAction = (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        tabId: string;
-        action: "save" | "final";
-        handled: boolean;
-      }>;
-      if (customEvent.detail?.tabId !== "prescription-review") return;
-      customEvent.detail.handled = true;
-      void submitReview();
-    };
+  const handleSubmitInitialReview = async () => {
+    if (!initialChecklistCompleted) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Semua checklist Telaah Awal wajib dicentang.",
+      });
+      return;
+    }
 
-    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
-    return () => {
-      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
-    };
-  }, [
-    selectedOrder,
-    submitting,
-    readOnly,
-    canReview,
-    isAlreadyApproved,
-    isAlreadyReviewed,
-    existingReview,
-    hasDecided,
-    reviewForm,
-    canApprove,
-  ]);
+    const success = await submitReview(
+      {
+        patient_identity_check: reviewForm.patient_identity_check,
+        doctor_name_sign_check: reviewForm.doctor_name_sign_check,
+        prescription_date_check: reviewForm.prescription_date_check,
+        medicine_data_check: reviewForm.medicine_data_check,
+        dose_check: reviewForm.dose_check,
+        administration_route_check: reviewForm.administration_route_check,
+        drug_interaction_check: reviewForm.drug_interaction_check,
+        duplication_check: reviewForm.duplication_check,
+        contraindication_check: reviewForm.contraindication_check,
+        allergy_check: reviewForm.allergy_check,
+        is_approved: true,
+      },
+      "Telaah Awal berhasil disimpan.",
+    );
+    if (success) {
+      setInitialModalOpen(false);
+    }
+  };
+
+  const handleSubmitFinalReview = async () => {
+    if (!initialReviewCompleted) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Telaah akhir hanya bisa diisi setelah telaah awal selesai.",
+      });
+      return;
+    }
+    if (!finalVerificationCompleted) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Lengkapi semua checklist Verifikasi Akhir.",
+      });
+      return;
+    }
+    if (!pioCompleted) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Checklist PIO minimal 1 item wajib dipilih.",
+      });
+      return;
+    }
+
+    const success = await submitReview(
+      {
+        final_patient_check: reviewForm.final_patient_check,
+        final_medicine_check: reviewForm.final_medicine_check,
+        final_dose_check: reviewForm.final_dose_check,
+        final_time_check: reviewForm.final_time_check,
+        final_route_check: reviewForm.final_route_check,
+        pio_name_check: reviewForm.pio_name_check,
+        pio_usage_check: reviewForm.pio_usage_check,
+        pio_benefit_check: reviewForm.pio_benefit_check,
+        pio_storage_check: reviewForm.pio_storage_check,
+        pio_other_check: reviewForm.pio_other_check,
+      },
+      "Telaah Akhir berhasil disimpan.",
+    );
+    if (success) {
+      setFinalModalOpen(false);
+    }
+  };
+
+  const setAllInitialChecklist = (checked: boolean) => {
+    setReviewForm((prev) => ({
+      ...prev,
+      patient_identity_check: checked,
+      doctor_name_sign_check: checked,
+      prescription_date_check: checked,
+      medicine_data_check: checked,
+      dose_check: checked,
+      administration_route_check: checked,
+      drug_interaction_check: checked,
+      duplication_check: checked,
+      contraindication_check: checked,
+      allergy_check: checked,
+    }));
+  };
+
+  const setAllFinalChecklist = (checked: boolean) => {
+    setReviewForm((prev) => ({
+      ...prev,
+      final_patient_check: checked,
+      final_medicine_check: checked,
+      final_dose_check: checked,
+      final_time_check: checked,
+      final_route_check: checked,
+      pio_name_check: checked,
+      pio_usage_check: checked,
+      pio_benefit_check: checked,
+      pio_storage_check: checked,
+      pio_other_check: checked,
+    }));
+  };
+
+  const renderMedicineListPanel = () => (
+    <div className="flex min-h-0 flex-col rounded border border-border/70 bg-background">
+      <div className="flex items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          List Obat ({activeItems.length})
+        </p>
+        <Badge
+          variant={ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.variant || "secondary"}
+          className="h-5 px-1.5 py-0 text-[10px]"
+        >
+          {ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.label || selectedOrder?.status}
+        </Badge>
+      </div>
+
+      <div className="overflow-auto">
+        <table className="w-full table-fixed text-xs">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="w-[35%] px-2 py-1.5 text-left font-medium">Obat</th>
+              <th className="w-[25%] px-2 py-1.5 text-left font-medium">Aturan</th>
+              <th className="w-[12%] px-2 py-1.5 text-right font-medium">Jumlah</th>
+              <th className="w-[14%] px-2 py-1.5 text-right font-medium">Harga</th>
+              <th className="w-[14%] px-2 py-1.5 text-right font-medium">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeItems.map((item, index) => {
+              const unitPrice = getUnitPrice(item);
+              const subtotal = unitPrice * Number(item.quantity || 0);
+              return (
+                <tr key={item.id || index} className="border-b align-top last:border-0">
+                  <td className="px-2 py-1.5">
+                    <p className="break-words font-medium">{item.medicine?.name || "Obat"}</p>
+                    <p className="break-words text-[11px] text-muted-foreground">
+                      {item.medicine?.generic_name || "-"}
+                    </p>
+                    <p className="mt-1 break-words text-[11px] text-muted-foreground">
+                      {item.instructions || item.notes || "-"}
+                    </p>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <p className="break-words text-[11px]">{item.dosage || "-"}</p>
+                    <p className="break-words text-[11px] text-muted-foreground">
+                      {item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
+                    {item.quantity} {item.unit}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
+                    {formatRupiah(unitPrice)}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
+                    {formatRupiah(subtotal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-auto border-t bg-primary/5 px-3 py-2 text-right">
+        <p className="text-xs text-muted-foreground">Grand Total</p>
+        <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div>
-        <div className="p-4">
-          <div className="flex items-center justify-center py-8 gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-muted-foreground">Memuat data...</span>
-          </div>
+      <div className="p-4">
+        <div className="flex items-center justify-center gap-2 py-8">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-muted-foreground">Memuat data...</span>
         </div>
       </div>
     );
@@ -325,393 +551,246 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
   if (orders.length === 0) {
     return (
-      <div>
-        <div className="p-4">
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Pill className="h-12 w-12 mb-4 opacity-50" />
-            <p>Tidak ada order obat untuk visit ini</p>
-          </div>
+      <div className="p-4">
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <Pill className="mb-4 h-12 w-12 opacity-50" />
+          <p>Tidak ada order obat untuk visit ini</p>
         </div>
       </div>
     );
   }
 
-  const patient = selectedOrder?.source_visit?.registration?.patient;
-  const reviewDecision = hasDecided
-    ? reviewForm.is_approved
-      ? "approved"
-      : "rejected"
-    : "";
-  const activeItems = selectedOrder?.items?.filter((i) => i.status !== "cancelled") || [];
-  const displayedReviewItems = showAllReviewItems ? activeItems : activeItems.slice(0, 8);
-  const grandTotal = activeItems.reduce((total, item) => {
-    return total + getUnitPrice(item) * Number(item.quantity || 0);
-  }, 0);
-
   return (
-    <div className="pharmacy-no-sticky-head">
-      <div className="space-y-4">
-        {/* Order Selection if multiple */}
-        {orders.length > 1 && (
-          <div className="border border-border/70 bg-background mb-4">
-            <div className="p-3">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-                <Label className="text-sm font-semibold">Pilih Order</Label>
-                <Select
-                  value={selectedOrder?.id ? String(selectedOrder.id) : ""}
-                  onValueChange={(value) => {
-                    const nextOrder = orders.find((order) => String(order.id) === value);
-                    if (nextOrder) setSelectedOrder(nextOrder);
-                  }}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Pilih order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {orders.map((order) => (
-                      <SelectItem key={order.id} value={String(order.id)}>
-                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedOrder && (
-                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                  </Badge>
-                )}
+    <div className="space-y-4">
+      {orders.length > 1 && (
+        <div className="border border-border/70 bg-background p-3">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+            <Label className="text-sm font-semibold">Pilih Order</Label>
+            <Select
+              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+              onValueChange={(value) => {
+                const nextOrder = orders.find((order) => String(order.id) === value);
+                if (nextOrder) setSelectedOrder(nextOrder);
+              }}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue placeholder="Pilih order" />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={String(order.id)}>
+                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrder && (
+              <Badge
+                variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}
+                className="w-fit"
+              >
+                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="border border-dashed bg-background p-8">
+        <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-center">
+          <FileCheck className="h-10 w-10 text-muted-foreground" />
+          {!initialReviewCompleted ? (
+            <>
+              <p className="text-base font-semibold">Telaah Awal belum diselesaikan</p>
+              <p className="text-sm text-muted-foreground">
+                Checklist Telaah Awal wajib diselesaikan dahulu sebelum proses farmasi berikutnya.
+              </p>
+              <Button
+                size="sm"
+                className="rounded-none"
+                onClick={() => setInitialModalOpen(true)}
+                disabled={readOnly || !canReview}
+              >
+                Buka Modal Telaah Awal
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-semibold">
+                Telaah Awal selesai{finalReviewCompleted ? " dan Telaah Akhir sudah lengkap" : ""}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {!finalReviewCompleted
+                  ? "Gunakan tombol footer atau tombol berikut untuk lanjut Telaah Akhir."
+                  : "Data telaah sudah lengkap, Anda tetap bisa membuka modal untuk melihat detail."}
+              </p>
+              <Button
+                size="sm"
+                className="rounded-none"
+                onClick={() => setFinalModalOpen(true)}
+                disabled={readOnly || !canReview}
+              >
+                Buka Modal Telaah Akhir
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={initialModalOpen} onOpenChange={setInitialModalOpen}>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[96vw] 2xl:max-w-[1400px] max-h-[94vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Telaah Awal Resep</DialogTitle>
+            <DialogDescription>
+              Lengkapi checklist Telaah Awal sebelum melanjutkan proses farmasi.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid min-h-0 grid-cols-3 gap-4">
+            <div className="col-span-2 min-h-0 max-h-[62vh] min-w-0">
+              {renderMedicineListPanel()}
+            </div>
+            <div className="col-span-1 space-y-3 rounded border border-border/60 p-3 max-h-[62vh] overflow-y-auto min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Checklist Telaah Awal</p>
+              <div className="rounded border border-border/60 bg-muted/20 p-2 text-xs">
+                <p><span className="text-muted-foreground">Nama Pasien:</span> {patient?.nama_lengkap || "-"}</p>
+                <p><span className="text-muted-foreground">No. RM:</span> {patient?.no_rm || "-"}</p>
+                <p><span className="text-muted-foreground">Order:</span> {selectedOrder?.order_number || "-"}</p>
+                <p><span className="text-muted-foreground">Dokter:</span> {selectedOrder?.prescriber?.nama_lengkap || "-"}</p>
               </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 rounded-none px-2 text-xs"
+                  onClick={() => setAllInitialChecklist(!initialChecklistCompleted)}
+                  disabled={initialLocked || !canReview}
+                >
+                  {initialChecklistCompleted ? "Hapus Semua" : "Checklist Semua"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.patient_identity_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, patient_identity_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Lengkap Identitas Pasien</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.doctor_name_sign_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, doctor_name_sign_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Lengkap Nama & Paraf Dokter</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.prescription_date_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, prescription_date_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Tanggal Resep</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.medicine_data_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, medicine_data_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Nama Obat, Bentuk & Kekuatan Sediaan</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.dose_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, dose_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Dosis & Jumlah Obat</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.administration_route_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, administration_route_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Cara Pemakaian</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.drug_interaction_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, drug_interaction_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Interaksi Obat</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.duplication_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, duplication_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Duplikasi</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.contraindication_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, contraindication_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Kontra Indikasi</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.allergy_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, allergy_check: v === true }))} disabled={initialLocked} /><Label className="text-xs">Alergi / Reaksi Obat Tidak Diinginkan</Label></div>
+              </div>
+              {/* {!initialChecklistCompleted && !initialLocked && (
+                <p className="rounded bg-amber-50 p-2 text-sm text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                  Semua checklist Telaah Awal wajib dicentang.
+                </p>
+              )} */}
             </div>
           </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" className="rounded-none" onClick={() => setInitialModalOpen(false)}>
+              Tutup
+            </Button>
+            <Button type="button" className="rounded-none" onClick={handleSubmitInitialReview} disabled={submitting || initialLocked || !canReview}>
+              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Simpan Telaah Awal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={finalModalOpen} onOpenChange={setFinalModalOpen}>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[96vw] 2xl:max-w-[1400px] max-h-[94vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Telaah Akhir</DialogTitle>
+            <DialogDescription>
+              Lengkapi Verifikasi Akhir dan PIO sebelum obat diserahkan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid min-h-0 grid-cols-3 gap-4">
+            <div className="col-span-2 min-h-0 max-h-[62vh] min-w-0">
+              {renderMedicineListPanel()}
+            </div>
+            <div className="col-span-1 space-y-3 rounded border border-border/60 p-3 max-h-[62vh] overflow-y-auto min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Checklist Telaah Akhir</p>
+              <div className="rounded border border-border/60 bg-muted/20 p-2 text-xs">
+                <p><span className="text-muted-foreground">Nama Pasien:</span> {patient?.nama_lengkap || "-"}</p>
+                <p><span className="text-muted-foreground">No. RM:</span> {patient?.no_rm || "-"}</p>
+                <p><span className="text-muted-foreground">Order:</span> {selectedOrder?.order_number || "-"}</p>
+                <p><span className="text-muted-foreground">Dokter:</span> {selectedOrder?.prescriber?.nama_lengkap || "-"}</p>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 rounded-none px-2 text-xs"
+                  onClick={() => setAllFinalChecklist(!(finalVerificationCompleted && pioCompleted))}
+                  disabled={finalLocked || !canReview || !initialReviewCompleted}
+                >
+                  {finalVerificationCompleted && pioCompleted ? "Hapus Semua" : "Checklist Semua"}
+                </Button>
+              </div>
+              <div className="text-xs font-medium text-muted-foreground">Verifikasi Akhir</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.final_patient_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, final_patient_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Benar Pasien</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.final_medicine_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, final_medicine_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Benar Obat</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.final_dose_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, final_dose_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Benar Dosis</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.final_time_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, final_time_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Benar Waktu Pemberian</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.final_route_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, final_route_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Benar Rute Pemberian</Label></div>
+              </div>
+
+              <div className="pt-2 text-xs font-medium text-muted-foreground">PIO</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.pio_name_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, pio_name_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Nama Obat</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.pio_usage_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, pio_usage_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Cara Pakai</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.pio_benefit_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, pio_benefit_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Kegunaan</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.pio_storage_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, pio_storage_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Penyimpanan</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={reviewForm.pio_other_check} onCheckedChange={(v) => setReviewForm((p) => ({ ...p, pio_other_check: v === true }))} disabled={finalLocked || !initialReviewCompleted} /><Label className="text-xs">Lain-lain</Label></div>
+              </div>
+
+              {initialReviewCompleted && (!finalVerificationCompleted || !pioCompleted) && !finalLocked && (
+                <div className="flex items-center gap-2 rounded bg-blue-50 p-2 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  <Clock className="h-4 w-4" />
+                  <span>Lengkapi Verifikasi Akhir (semua) dan checklist PIO (minimal 1).</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" className="rounded-none" onClick={() => setFinalModalOpen(false)}>
+              Tutup
+            </Button>
+            <Button type="button" className="rounded-none" onClick={handleSubmitFinalReview} disabled={submitting || finalLocked || !canReview || !initialReviewCompleted}>
+              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Simpan Telaah Akhir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.variant || "secondary"}>
+          {ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.label || selectedOrder?.status}
+        </Badge>
+        {initialReviewCompleted && (
+          <Badge variant="outline">
+            <CheckCircle2 className="mr-1 h-3 w-3" />
+            Telaah Awal Selesai
+          </Badge>
         )}
-
-        {selectedOrder && (
-          <>
-            {/* Order Items Table */}
-            <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
-                <span className="flex items-center gap-2">
-                  <Pill className="h-3 w-3" />
-                  Daftar Obat ({activeItems.length} item)
-                </span>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[260px] sm:items-end">
-                  {activeItems.length > 8 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 py-0 text-[10px]"
-                      onClick={() => setShowAllReviewItems((prev) => !prev)}
-                    >
-                      {showAllReviewItems ? "Ringkas" : `Lihat Semua (${activeItems.length})`}
-                    </Button>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
-                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                    </Badge>
-                    <OrderDetailInfoButton
-                      title="Detail Order Farmasi"
-                      tooltip="Lihat detail order farmasi"
-                      className="h-6 w-6 rounded-md"
-                    >
-                      <table className="w-full table-fixed text-xs">
-                        <tbody>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
-                            <td className="py-1.5 font-medium break-words">
-                              <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                            </td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Diagnosis</td>
-                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 align-top text-muted-foreground">Ruang Asal</td>
-                            <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 align-top text-muted-foreground">Waktu Order</td>
-                            <td className="py-1.5 font-medium break-words">
-                              {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="py-1.5 align-top text-muted-foreground">Prioritas</td>
-                            <td className="py-1.5">
-                              <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                                {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                              </Badge>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </OrderDetailInfoButton>
-                  </div>
-                </div>
-              </div>
-              <div className="p-0">
-                <table className="w-full table-fixed text-xs">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="py-1.5 px-2 text-left font-medium w-[40%]">Obat</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[18%]">Aturan</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[16%]">Cara Pakai</th>
-                      <th className="py-1.5 px-2 text-right font-medium w-[11%]">Jumlah</th>
-                      <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[15%]">Harga</th>
-                      <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedReviewItems.map((item, index) => {
-                      const unitPrice = getUnitPrice(item);
-                      const subtotal = unitPrice * Number(item.quantity || 0);
-
-                      return (
-                        <tr key={item.id || index} className="border-b last:border-0 align-top">
-                          <td className="py-1.5 px-2">
-                            <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
-                            <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
-                          </td>
-                          <td className="py-1.5 px-2 hidden lg:table-cell">
-                            <p className="text-[11px] break-words">{item.dosage || "-"}</p>
-                            <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}</p>
-                          </td>
-                          <td className="py-1.5 px-2 hidden md:table-cell text-[11px] break-words">{item.instructions || item.notes || "-"}</td>
-                          <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{item.quantity} {item.unit}</td>
-                          <td className="py-1.5 px-2 text-right font-medium hidden sm:table-cell whitespace-nowrap">{formatRupiah(unitPrice)}</td>
-                          <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(subtotal)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-end">
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Grand Total</p>
-                  <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Review Form */}
-            <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <span className="flex items-center gap-2">
-                  <FileCheck className="h-3 w-3" />
-                  Formulir Telaah Resep
-                </span>
-                {existingReview && (
-                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">
-                    <Clock className="h-3 w-3 mr-1" />
-                    Sudah ditelaah
-                  </Badge>
-                )}
-              </div>
-              <div className="p-3 space-y-4">
-                {/* Checklist Items */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="drug_interaction"
-                      checked={reviewForm.drug_interaction_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, drug_interaction_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="drug_interaction" className="text-xs">
-                      Cek Interaksi Obat
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="dose_check"
-                      checked={reviewForm.dose_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, dose_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="dose_check" className="text-xs">
-                      Cek Dosis
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="duplication_check"
-                      checked={reviewForm.duplication_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, duplication_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="duplication_check" className="text-xs">
-                      Cek Duplikasi
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="allergy_check"
-                      checked={reviewForm.allergy_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, allergy_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="allergy_check" className="text-xs">
-                      Cek Alergi
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="contraindication_check"
-                      checked={reviewForm.contraindication_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, contraindication_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="contraindication_check" className="text-xs">
-                      Cek Kontraindikasi
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="indication_check"
-                      checked={reviewForm.indication_check}
-                      onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, indication_check: checked as boolean })
-                      }
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                    <Label htmlFor="indication_check" className="text-xs">
-                      Cek Indikasi
-                    </Label>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="warnings" className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                      Peringatan (jika ada)
-                    </Label>
-                    <Textarea
-                      id="warnings"
-                      placeholder="Catatan peringatan untuk pasien..."
-                      value={reviewForm.warnings}
-                      onChange={(e) => setReviewForm({ ...reviewForm, warnings: e.target.value })}
-                      rows={3}
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="suggestion">Saran untuk Dokter (jika perlu)</Label>
-                    <Textarea
-                      id="suggestion"
-                      placeholder="Saran perubahan resep untuk dokter..."
-                      value={reviewForm.suggestion}
-                      onChange={(e) => setReviewForm({ ...reviewForm, suggestion: e.target.value })}
-                      rows={3}
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Catatan Tambahan</Label>
-                    <Textarea
-                      id="notes"
-                      placeholder="Catatan lainnya..."
-                      value={reviewForm.notes}
-                      onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
-                      rows={3}
-                      disabled={readOnly || isAlreadyReviewed}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Approval */}
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="requires_confirmation"
-                        checked={reviewForm.requires_doctor_confirmation}
-                        onCheckedChange={(checked) =>
-                          setReviewForm({ ...reviewForm, requires_doctor_confirmation: checked })
-                        }
-                        disabled={!canReview}
-                      />
-                      <Label htmlFor="requires_confirmation" className="text-sm">
-                        Perlu konfirmasi dokter
-                      </Label>
-                    </div>
-                  </div>
-
-                  {!allChecklistCompleted && !isAlreadyReviewed && (
-                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-950 p-2 rounded">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Lengkapi semua checklist untuk dapat menyetujui resep</span>
-                    </div>
-                  )}
-
-                  {isAlreadyReviewed && (
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-2 rounded">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>Resep sudah ditelaah dan disetujui</span>
-                    </div>
-                  )}
-
-                  {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved && (
-                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
-                      <Clock className="h-4 w-4" />
-                      <span>Pilih keputusan, lalu tekan Simpan di footer</span>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="review-decision">Keputusan Telaah</Label>
-                    <Select
-                      value={reviewDecision}
-                      onValueChange={(value) => {
-                        setHasDecided(true);
-                        setReviewForm((prev) => ({
-                          ...prev,
-                          is_approved: value === "approved",
-                        }));
-                      }}
-                      disabled={!canReview || isAlreadyReviewed || isAlreadyApproved || submitting || readOnly}
-                    >
-                      <SelectTrigger id="review-decision">
-                        <SelectValue placeholder="Pilih keputusan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="approved" disabled={!allChecklistCompleted}>
-                          Setuju
-                        </SelectItem>
-                        <SelectItem value="rejected">Tidak Setuju</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
-        )}      </div>
+        {finalReviewCompleted && (
+          <Badge variant="outline">
+            <CheckCircle2 className="mr-1 h-3 w-3" />
+            Telaah Akhir Selesai
+          </Badge>
+        )}
+      </div>
     </div>
   );
 }

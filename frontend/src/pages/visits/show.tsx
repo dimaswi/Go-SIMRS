@@ -94,6 +94,14 @@ const EDIT_TAB_IDS = new Set([
 const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet", "discharge-planning"]);
 const INLINE_PRIMARY_ACTION_REGEX = /(simpan|save|perbarui|update|kirim|send|selesaikan|submit)/i;
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
+const PHARMACY_LOCKABLE_TAB_IDS = [
+  "prescription-edit",
+  "medicine-dispense",
+  "medicine-return",
+  "apotek-online",
+  "pharmacy-final",
+];
 
 const shouldUseFooterActionForTab = (tabId: string) =>
   !ADMIN_TAB_IDS.has(tabId) && !EDIT_TAB_IDS.has(tabId);
@@ -117,6 +125,8 @@ export default function VisitShow() {
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
+  const [lockedPharmacyTabIds, setLockedPharmacyTabIds] = useState<string[]>([]);
+  const [pharmacyTabLockReason, setPharmacyTabLockReason] = useState<string>("");
   const [tabIndicators, setTabIndicators] = useState<Record<string, string>>({});
   const [tabSavedStates, setTabSavedStates] = useState<Record<string, boolean>>({});
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
@@ -210,9 +220,36 @@ export default function VisitShow() {
     });
     setActiveTab(nextTab);
   };
+
+  const refreshPharmacyTabLock = async (visitId: number) => {
+    try {
+      const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
+      const activeOrders = (ordersRes.data || []).filter((order) => order.status !== "cancelled");
+      const hasPendingInitialReview = activeOrders.some((order) => order.status === "pending");
+      if (hasPendingInitialReview) {
+        setLockedPharmacyTabIds(PHARMACY_LOCKABLE_TAB_IDS);
+        setPharmacyTabLockReason("Tab dikunci sampai Telaah Awal selesai.");
+        setActiveTab((prev) => (PHARMACY_LOCKABLE_TAB_IDS.includes(prev) ? "prescription-review" : prev));
+      } else {
+        setLockedPharmacyTabIds([]);
+        setPharmacyTabLockReason("");
+      }
+    } catch {
+      // keep current lock state on error
+    }
+  };
   
   const triggerActiveTabSave = (): boolean => {
     if (!activeTab) return false;
+    if (isPharmacy && lockedPharmacyTabIds.includes(activeTab)) {
+      handleTabChange("prescription-review");
+      window.dispatchEvent(
+        new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
+          detail: { mode: "initial" },
+        }),
+      );
+      return true;
+    }
 
     const footerActionEvent = new CustomEvent<{
       tabId: string;
@@ -357,6 +394,26 @@ export default function VisitShow() {
     };
   }, [activeTab, scrollStorageKey]);
 
+  useEffect(() => {
+    if (!id || !isPharmacy) {
+      setLockedPharmacyTabIds([]);
+      setPharmacyTabLockReason("");
+      return;
+    }
+    void refreshPharmacyTabLock(Number(id));
+  }, [id, isPharmacy]);
+
+  useEffect(() => {
+    if (!id || !isPharmacy) return;
+    const handleRefresh = () => {
+      void refreshPharmacyTabLock(Number(id));
+    };
+    window.addEventListener("refresh-final-visit", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-final-visit", handleRefresh);
+    };
+  }, [id, isPharmacy]);
+
   const loadVisit = async (silent = false) => {
     if (!silent) {
       setLoading(true);
@@ -381,6 +438,12 @@ export default function VisitShow() {
       // Check if pharmacy visit
       const pharmacy = visitData.visit_type === "pharmacy";
       setIsPharmacy(pharmacy);
+      if (pharmacy) {
+        await refreshPharmacyTabLock(visitData.id);
+      } else {
+        setLockedPharmacyTabIds([]);
+        setPharmacyTabLockReason("");
+      }
 
       // Check if radiology visit
       const radiology = visitData.visit_type === "radiology";
@@ -433,17 +496,17 @@ export default function VisitShow() {
       // Set default active tab based on visit type and permissions (only on first load)
       if (!activeTab) {
         if (pharmacy) {
-          // Pharmacy visit tabs - mulai dari edit resep
-          if (hasPermission("pharmacy.edit")) {
+          // Pharmacy visit tabs - mulai dari telaah resep
+          if (hasPermission("pharmacy.review")) {
+            setActiveTab("prescription-review");
+          } else if (hasPermission("pharmacy.edit")) {
             setActiveTab("prescription-edit");
           } else if (hasPermission("pharmacy.dispense")) {
             setActiveTab("medicine-dispense");
-          } else if (hasPermission("pharmacy.review")) {
-            setActiveTab("prescription-review");
           } else if (hasPermission("pharmacy.return")) {
             setActiveTab("medicine-return");
           } else {
-            setActiveTab("prescription-edit");
+            setActiveTab("prescription-review");
           }
         } else if (radiology) {
           // Radiology visit tabs - default to workstation when no procedure order exists
@@ -1062,6 +1125,37 @@ export default function VisitShow() {
         </p>
       </Card>
     );
+    const renderPharmacyLockMessage = () => (
+      <Card className="mx-auto max-w-2xl border-dashed p-8">
+        <div className="space-y-3 text-center">
+          <p className="text-base font-semibold">Telaah Awal Harus Diselesaikan</p>
+          <p className="text-sm text-muted-foreground">
+            Tab farmasi lain masih dikunci. Silakan selesaikan Telaah Awal terlebih dahulu.
+          </p>
+          <div className="pt-2">
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-none"
+              onClick={() => {
+                handleTabChange("prescription-review");
+                window.dispatchEvent(
+                  new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
+                    detail: { mode: "initial" },
+                  }),
+                );
+              }}
+            >
+              Buka Telaah Awal
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+
+    if (visitIsPharmacy && tab !== "prescription-review" && lockedPharmacyTabIds.includes(tab)) {
+      return renderPharmacyLockMessage();
+    }
 
     switch (tab) {
       case "triage":
@@ -1758,6 +1852,8 @@ export default function VisitShow() {
               <MedicalRecordTabs
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
+                disabledTabIds={isPharmacy ? lockedPharmacyTabIds : []}
+                disabledTabReason={pharmacyTabLockReason}
                 layout="vertical"
                 indicators={tabIndicators}
                 savedStates={tabSavedStates}

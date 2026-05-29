@@ -1054,17 +1054,32 @@ func ReviewPrescription(c *gin.Context) {
 	}
 
 	var input struct {
+		PatientIdentityCheck       bool   `json:"patient_identity_check"`
+		DoctorNameSignCheck        bool   `json:"doctor_name_sign_check"`
+		PrescriptionDateCheck      bool   `json:"prescription_date_check"`
+		MedicineDataCheck          bool   `json:"medicine_data_check"`
 		DrugInteractionCheck       bool   `json:"drug_interaction_check"`
 		DoseCheck                  bool   `json:"dose_check"`
 		DuplicationCheck           bool   `json:"duplication_check"`
 		AllergyCheck               bool   `json:"allergy_check"`
 		ContraindicationCheck      bool   `json:"contraindication_check"`
 		IndicationCheck            bool   `json:"indication_check"`
+		AdministrationRouteCheck   bool   `json:"administration_route_check"`
 		IsApproved                 bool   `json:"is_approved"`
 		Notes                      string `json:"notes"`
 		Warnings                   string `json:"warnings"`
 		Suggestion                 string `json:"suggestion"`
 		RequiresDoctorConfirmation bool   `json:"requires_doctor_confirmation"`
+		FinalPatientCheck          bool   `json:"final_patient_check"`
+		FinalMedicineCheck         bool   `json:"final_medicine_check"`
+		FinalDoseCheck             bool   `json:"final_dose_check"`
+		FinalTimeCheck             bool   `json:"final_time_check"`
+		FinalRouteCheck            bool   `json:"final_route_check"`
+		PIONameCheck               bool   `json:"pio_name_check"`
+		PIOUsageCheck              bool   `json:"pio_usage_check"`
+		PIOBenefitCheck            bool   `json:"pio_benefit_check"`
+		PIOStorageCheck            bool   `json:"pio_storage_check"`
+		PIOOtherCheck              bool   `json:"pio_other_check"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -1099,17 +1114,77 @@ func ReviewPrescription(c *gin.Context) {
 	}
 
 	// Update review fields
+	review.PatientIdentityCheck = input.PatientIdentityCheck
+	review.DoctorNameSignCheck = input.DoctorNameSignCheck
+	review.PrescriptionDateCheck = input.PrescriptionDateCheck
+	review.MedicineDataCheck = input.MedicineDataCheck
 	review.DrugInteractionCheck = input.DrugInteractionCheck
 	review.DoseCheck = input.DoseCheck
 	review.DuplicationCheck = input.DuplicationCheck
 	review.AllergyCheck = input.AllergyCheck
 	review.ContraindicationCheck = input.ContraindicationCheck
 	review.IndicationCheck = input.IndicationCheck
+	review.AdministrationRouteCheck = input.AdministrationRouteCheck
 	review.IsApproved = input.IsApproved
 	review.Notes = input.Notes
 	review.Warnings = input.Warnings
 	review.Suggestion = input.Suggestion
 	review.RequiresDoctorConfirmation = input.RequiresDoctorConfirmation
+	review.FinalPatientCheck = input.FinalPatientCheck
+	review.FinalMedicineCheck = input.FinalMedicineCheck
+	review.FinalDoseCheck = input.FinalDoseCheck
+	review.FinalTimeCheck = input.FinalTimeCheck
+	review.FinalRouteCheck = input.FinalRouteCheck
+	review.PIONameCheck = input.PIONameCheck
+	review.PIOUsageCheck = input.PIOUsageCheck
+	review.PIOBenefitCheck = input.PIOBenefitCheck
+	review.PIOStorageCheck = input.PIOStorageCheck
+	review.PIOOtherCheck = input.PIOOtherCheck
+
+	allInitialChecklist := input.PatientIdentityCheck &&
+		input.DoctorNameSignCheck &&
+		input.PrescriptionDateCheck &&
+		input.MedicineDataCheck &&
+		input.DoseCheck &&
+		input.AdministrationRouteCheck &&
+		input.DrugInteractionCheck &&
+		input.DuplicationCheck &&
+		input.ContraindicationCheck &&
+		input.AllergyCheck
+
+	if input.IsApproved && !allInitialChecklist {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Checklist telaah awal harus lengkap sebelum disetujui"})
+		return
+	}
+
+	now := time.Now()
+	review.InitialReviewCompleted = input.IsApproved && allInitialChecklist
+	if review.InitialReviewCompleted {
+		review.InitialReviewedAt = &now
+	} else {
+		review.InitialReviewedAt = nil
+	}
+
+	finalVerificationCompleted := input.FinalPatientCheck &&
+		input.FinalMedicineCheck &&
+		input.FinalDoseCheck &&
+		input.FinalTimeCheck &&
+		input.FinalRouteCheck
+	pioCompleted := input.PIONameCheck ||
+		input.PIOUsageCheck ||
+		input.PIOBenefitCheck ||
+		input.PIOStorageCheck ||
+		input.PIOOtherCheck
+
+	review.FinalVerificationCompleted = finalVerificationCompleted
+	review.PIOCompleted = pioCompleted
+	review.FinalReviewCompleted = review.InitialReviewCompleted && finalVerificationCompleted && pioCompleted
+	if review.FinalReviewCompleted {
+		review.FinalReviewedAt = &now
+	} else {
+		review.FinalReviewedAt = nil
+	}
 
 	if err := tx.Save(&review).Error; err != nil {
 		tx.Rollback()
@@ -1117,13 +1192,21 @@ func ReviewPrescription(c *gin.Context) {
 		return
 	}
 
-	// Update order status
-	now := time.Now()
+	// Update order status (reviewed only after telaah awal complete)
+	orderStatus := models.OrderStatusPending
+	if review.InitialReviewCompleted {
+		orderStatus = models.OrderStatusReviewed
+	}
 	updates := map[string]interface{}{
-		"status":         models.OrderStatusReviewed,
-		"reviewed_by_id": *user.EmployeeID,
-		"reviewed_at":    now,
-		"review_notes":   input.Notes,
+		"status":       orderStatus,
+		"review_notes": input.Notes,
+	}
+	if review.InitialReviewCompleted {
+		updates["reviewed_by_id"] = *user.EmployeeID
+		updates["reviewed_at"] = now
+	} else {
+		updates["reviewed_by_id"] = nil
+		updates["reviewed_at"] = nil
 	}
 
 	if err := tx.Model(&order).Updates(updates).Error; err != nil {
@@ -1132,13 +1215,23 @@ func ReviewPrescription(c *gin.Context) {
 		return
 	}
 
-	// Update items status to available
-	if err := tx.Model(&models.MedicineOrderItem{}).
-		Where("medicine_order_id = ? AND status = ?", order.ID, models.ItemStatusOrdered).
-		Update("status", models.ItemStatusAvailable).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// Update item statuses based on telaah awal
+	if review.InitialReviewCompleted {
+		if err := tx.Model(&models.MedicineOrderItem{}).
+			Where("medicine_order_id = ? AND status = ?", order.ID, models.ItemStatusOrdered).
+			Update("status", models.ItemStatusAvailable).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		if err := tx.Model(&models.MedicineOrderItem{}).
+			Where("medicine_order_id = ? AND status IN (?, ?)", order.ID, models.ItemStatusAvailable, models.ItemStatusReady).
+			Update("status", models.ItemStatusOrdered).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	tx.Commit()
@@ -1194,6 +1287,21 @@ func DispenseMedicine(c *gin.Context) {
 	// Validate order status
 	if order.Status != models.OrderStatusReviewed && order.Status != models.OrderStatusPreparing && order.Status != models.OrderStatusPartial {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Order must be reviewed before dispensing"})
+		return
+	}
+
+	// Validate final review (Verifikasi Akhir + PIO) completed before dispensing
+	var review models.PrescriptionReview
+	if err := database.DB.Where("medicine_order_id = ?", order.ID).First(&review).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Telaah resep belum tersedia. Lengkapi telaah awal dan telaah akhir terlebih dahulu"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !review.FinalReviewCompleted {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Telaah akhir (Verifikasi Akhir dan PIO) wajib diselesaikan sebelum penyerahan obat"})
 		return
 	}
 
