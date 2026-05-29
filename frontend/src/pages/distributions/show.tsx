@@ -280,14 +280,17 @@ export default function DistributionShow() {
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">
-                        <th className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">No</th>
-                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Kode</th>
-                        <th className="h-9 w-[25%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Exp Date</th>
-                        <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Satuan</th>
-                        <th className="h-9 border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                        <th rowSpan={2} className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">No</th>
+                        <th rowSpan={2} className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Kode</th>
+                        <th rowSpan={2} className="h-9 w-[25%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th rowSpan={2} className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch</th>
+                        <th rowSpan={2} className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Exp Date</th>
+                        <th colSpan={2} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
+                        <th rowSpan={2} className="h-9 border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                      </tr>
+                      <tr className="bg-muted/10">
+                        <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Jumlah</th>
+                        <th className="h-8 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Satuan</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -296,11 +299,11 @@ export default function DistributionShow() {
                           const itemData = item.inventory || item.medicine;
                           return (
                             <tr key={item.id} className="transition-colors hover:bg-muted/5">
-                              <td className="border-b border-r border-border/60 px-2 py-2.5 align-top text-xs text-muted-foreground">{index + 1}</td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top font-mono text-[11px] text-muted-foreground">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-xs text-muted-foreground">{index + 1}</td>
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle font-mono text-[11px] text-muted-foreground">
                                 {itemData?.code || "-"}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                                 <div className="flex items-start gap-2">
                                   {item.inventory_id ? (
                                     <Package className="mt-0.5 h-4 w-4 text-blue-500" />
@@ -313,8 +316,8 @@ export default function DistributionShow() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-foreground">{item.batch_number || "-"}</td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-foreground">
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-[11px] text-foreground">{item.batch_number || "-"}</td>
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-[11px] text-foreground">
                                 {item.expiry_date
                                   ? new Date(item.expiry_date).toLocaleDateString("id-ID", {
                                       day: "2-digit",
@@ -323,13 +326,13 @@ export default function DistributionShow() {
                                     })
                                   : "-"}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-center text-sm font-semibold text-foreground">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-semibold text-foreground">
                                 {item.quantity}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-foreground">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-foreground">
                                 {item.unit || itemData?.unit || "-"}
                               </td>
-                              <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">
                                 {item.notes || "-"}
                               </td>
                             </tr>

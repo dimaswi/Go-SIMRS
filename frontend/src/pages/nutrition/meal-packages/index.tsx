@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DataTable } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { nutritionPackageApi, type NutritionPackage } from "@/lib/api/nutrition";
+import { nutritionMenuApi, nutritionPackageApi, type NutritionPackage } from "@/lib/api/nutrition";
 import { createNutritionPackageColumns } from "./columns";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Loader2 } from "lucide-react";
@@ -17,11 +17,22 @@ export default function NutritionMealPackagesIndex() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pkgToDelete, setPkgToDelete] = useState<number | null>(null);
+  const [dietTypeMap, setDietTypeMap] = useState<Record<string, string>>({});
 
   const loadData = useCallback(async () => {
     try {
-      const res = await nutritionPackageApi.getAll({ limit: 100 });
-      setPackages(res.data.data || []);
+      const [pkgRes, dietRes] = await Promise.all([
+        nutritionPackageApi.getAll({ limit: 100 }),
+        nutritionMenuApi.getDietTypes(),
+      ]);
+      setPackages(pkgRes.data.data || []);
+      const options = dietRes.data?.data || [];
+      setDietTypeMap(
+        options.reduce((acc: Record<string, string>, item: { value: string; label: string }) => {
+          acc[item.value] = item.label;
+          return acc;
+        }, {})
+      );
     } catch {
       toast({ variant: "destructive", title: "Error!", description: "Gagal memuat data paket makanan." });
     } finally {
@@ -55,7 +66,7 @@ export default function NutritionMealPackagesIndex() {
     setDeleteDialogOpen(true);
   };
 
-  const columns = createNutritionPackageColumns({ onView: handleView, onEdit: handleEdit, onDelete: handleDelete });
+  const columns = createNutritionPackageColumns({ onView: handleView, onEdit: handleEdit, onDelete: handleDelete, dietTypeMap });
 
   if (loading) {
     return (

@@ -178,7 +178,7 @@ export interface ScheduleException {
 
 // Request types
 export interface RoomRequest {
-  code: string;
+  code?: string;
   name: string;
   queue_code?: string;
   service_type: string;
@@ -197,7 +197,7 @@ export interface RoomRequest {
 }
 
 export interface RoomUnitRequest {
-  code: string;
+  code?: string;
   name: string;
   floor?: number;
   capacity?: number;

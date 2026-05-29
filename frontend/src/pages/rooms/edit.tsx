@@ -11,7 +11,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { roomsApi, masterDataApi, employeesApi, type MasterData, type Employee } from "@/lib/api";
 import { bpjsApi, type AplicareRefKelasItem } from "@/lib/api/bpjs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Building2, Tag, DollarSign, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, DollarSign, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function RoomEdit() {
@@ -103,7 +103,6 @@ export default function RoomEdit() {
 
     try {
       await roomsApi.update(parseInt(id), {
-        code: formData.code,
         name: formData.name,
         queue_code: formData.queue_code,
         service_type: formData.service_type,
@@ -195,22 +194,14 @@ export default function RoomEdit() {
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="code"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                    Kode Ruangan *
+                  <Label htmlFor="code" className="text-xs font-medium">
+                    Kode Ruangan
                   </Label>
                   <Input
                     id="code"
-                    required
-                    placeholder="Contoh: BIR-ALI"
                     value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    className="h-9 text-sm"
+                    disabled
+                    className="h-9 text-sm bg-muted"
                   />
                 </div>
                 <div className="space-y-2">

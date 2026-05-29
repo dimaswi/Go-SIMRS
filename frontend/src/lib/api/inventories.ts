@@ -9,6 +9,8 @@ export interface Inventory {
   name: string;
   description?: string;
   category: InventoryCategory;
+  item_group: InventoryItemGroup;
+  item_scope: InventoryItemScope;
   unit: string;
   brand?: string;
   model?: string;
@@ -133,6 +135,9 @@ export type InventoryStatus =
   | 'reserved' 
   | 'disposed';
 
+export type InventoryItemGroup = 'bhp' | 'other';
+export type InventoryItemScope = 'unit' | 'pharmacy' | 'both';
+
 // Labels
 export const inventoryCategoryLabels: Record<InventoryCategory, string> = {
   medical: 'Alat Medis',
@@ -161,10 +166,21 @@ export const inventoryStatusLabels: Record<InventoryStatus, string> = {
   disposed: 'Dihapuskan',
 };
 
+export const inventoryItemGroupLabels: Record<InventoryItemGroup, string> = {
+  bhp: 'BHP',
+  other: 'Lainnya',
+};
+
+export const inventoryItemScopeLabels: Record<InventoryItemScope, string> = {
+  unit: 'Unit',
+  pharmacy: 'Farmasi',
+  both: 'Unit & Farmasi',
+};
+
 // API Functions
 export const inventoriesApi = {
   // Master Inventory CRUD
-  getAll: (params?: { page?: number; limit?: number; search?: string; category?: string; is_active?: boolean }) =>
+  getAll: (params?: { page?: number; limit?: number; search?: string; category?: string; is_active?: boolean; item_group?: string; item_scope?: string }) =>
     api.get('/inventories', { params }),
   
   getById: (id: number) => api.get(`/inventories/${id}`),

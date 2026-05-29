@@ -15,7 +15,6 @@ export interface Counter {
 
 export interface CreateCounterInput {
   name: string;
-  code: string;
   description?: string;
   is_active?: boolean;
   display_order?: number;
@@ -24,7 +23,6 @@ export interface CreateCounterInput {
 
 export interface UpdateCounterInput {
   name?: string;
-  code?: string;
   description?: string;
   is_active?: boolean;
   display_order?: number;

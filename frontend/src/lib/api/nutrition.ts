@@ -24,6 +24,74 @@ export interface NutritionMenu {
   unit_price: number;
   is_active: boolean;
   notes?: string;
+  ingredients?: NutritionMenuIngredient[];
+}
+
+export interface NutritionIngredient {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  code: string;
+  name: string;
+  category?: string;
+  default_unit: string;
+  default_weight: number;
+  is_active: boolean;
+  notes?: string;
+}
+
+export interface NutritionMenuIngredient {
+  id?: number;
+  menu_id?: number;
+  ingredient_id: number;
+  ingredient?: NutritionIngredient;
+  weight_per_portion: number;
+  unit: string;
+  notes?: string;
+}
+
+export interface NutritionIngredientInvoiceItem {
+  id?: number;
+  invoice_id?: number;
+  ingredient_id: number;
+  ingredient?: NutritionIngredient;
+  quantity: number;
+  unit: string; // satuan kemasan
+  unit_weight: number; // berat/isi per kemasan
+  weight_unit: string; // satuan berat/isi
+  total_weight: number; // quantity * unit_weight
+  unit_price: number;
+  line_total: number;
+  notes?: string;
+}
+
+export interface NutritionIngredientInvoice {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  code: string;
+  invoice_number: string;
+  invoice_date: string;
+  supplier_name?: string;
+  received_by_id?: number;
+  received_by?: any;
+  total_amount: number;
+  notes?: string;
+  items?: NutritionIngredientInvoiceItem[];
+}
+
+export interface NutritionIngredientInvoiceInput {
+  invoice_number: string;
+  invoice_date: string; // YYYY-MM-DD
+  supplier_name?: string;
+  notes?: string;
+  items: {
+    ingredient_id: number;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+    notes?: string;
+  }[];
 }
 
 export interface NutritionPackageItem {
@@ -120,6 +188,15 @@ export const nutritionCategoryColors: Record<string, string> = {
   lainnya: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
 };
 
+export const nutritionIngredientUnitLabels: Record<string, string> = {
+  gram: 'Gram',
+  ml: 'Mililiter',
+  pcs: 'Pcs',
+  buah: 'Buah',
+  sendok_makan: 'Sendok Makan',
+  sendok_teh: 'Sendok Teh',
+};
+
 // API
 
 export const nutritionMenuApi = {
@@ -144,8 +221,48 @@ export const nutritionMenuApi = {
   getDietTypes: () =>
     api.get('/nutrition/diet-types'),
 
+  createDietType: (data: { name: string; code?: string; description?: string }) =>
+    api.post('/nutrition/diet-types', data),
+
   getMealTimes: () =>
     api.get('/nutrition/meal-times'),
+
+  getIngredientUnits: () =>
+    api.get('/nutrition/ingredient-units'),
+};
+
+export const nutritionIngredientApi = {
+  getAll: (params?: { page?: number; limit?: number; search?: string; category?: string; is_active?: string }) =>
+    api.get('/nutrition/ingredients', { params }),
+
+  getById: (id: number) =>
+    api.get(`/nutrition/ingredients/${id}`),
+
+  create: (data: Partial<NutritionIngredient>) =>
+    api.post('/nutrition/ingredients', data),
+
+  update: (id: number, data: Partial<NutritionIngredient>) =>
+    api.put(`/nutrition/ingredients/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete(`/nutrition/ingredients/${id}`),
+};
+
+export const nutritionIngredientInvoiceApi = {
+  getAll: (params?: { page?: number; limit?: number; search?: string; start_date?: string; end_date?: string }) =>
+    api.get('/nutrition/invoices', { params }),
+
+  getById: (id: number) =>
+    api.get(`/nutrition/invoices/${id}`),
+
+  create: (data: NutritionIngredientInvoiceInput) =>
+    api.post('/nutrition/invoices', data),
+
+  update: (id: number, data: NutritionIngredientInvoiceInput) =>
+    api.put(`/nutrition/invoices/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete(`/nutrition/invoices/${id}`),
 };
 
 export const nutritionPackageApi = {
@@ -219,6 +336,26 @@ export interface CreateNutritionOrderInput {
   }[];
 }
 
+export interface NutritionIngredientUsageRow {
+  ingredient_id: number;
+  ingredient_code: string;
+  ingredient_name: string;
+  ingredient_category?: string;
+  unit: string;
+  total_usage: number;
+}
+
+export interface NutritionIngredientUsageSummary {
+  rows: number;
+  statuses: string[];
+  start_date: string;
+  end_date: string;
+  meal_time?: string;
+  diet_type?: string;
+  room_name?: string;
+  generated_at: string;
+}
+
 export const nutritionOrderStatusLabels: Record<string, string> = {
   draft: 'Draft',
   confirmed: 'Dikonfirmasi',
@@ -253,4 +390,9 @@ export const nutritionOrderApi = {
 
   getKitchenDashboard: (date?: string) =>
     api.get('/nutrition/kitchen', { params: { date } }),
+};
+
+export const nutritionReportApi = {
+  getIngredientUsage: (params?: { start_date?: string; end_date?: string; status?: string; meal_time?: string; diet_type?: string; room_name?: string }) =>
+    api.get('/nutrition/reports/ingredient-usage', { params }),
 };

@@ -34,7 +34,7 @@ export interface Supplier {
 }
 
 export interface SupplierFormData {
-  code: string;
+  code?: string;
   name: string;
   address?: string;
   phone?: string;

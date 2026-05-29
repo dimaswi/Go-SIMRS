@@ -522,7 +522,7 @@ export function DiagnosisForm({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label className="text-xs">Status Klinis</Label>
-              <Combobox
+              <Combobox allowCustomValue
                 options={clinicalStatusOptions}
                 value={diagnosis.clinical_status || "active"}
                 onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "clinical_status", value)}
@@ -533,7 +533,7 @@ export function DiagnosisForm({
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Status Verifikasi</Label>
-              <Combobox
+              <Combobox allowCustomValue
                 options={verificationStatusOptions}
                 value={diagnosis.verification_status || "confirmed"}
                 onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "verification_status", value)}
@@ -544,7 +544,7 @@ export function DiagnosisForm({
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Keparahan</Label>
-              <Combobox
+              <Combobox allowCustomValue
                 options={severityOptions}
                 value={diagnosis.severity || ""}
                 onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "severity", value)}
@@ -776,3 +776,4 @@ export function DiagnosisForm({
     </div>
   );
 }
+

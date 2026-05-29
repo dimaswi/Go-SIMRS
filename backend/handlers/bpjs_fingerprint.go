@@ -124,6 +124,7 @@ func LaunchBPJSFingerprintApp(c *gin.Context) {
 func buildBPJSFingerprintLaunchScript(executablePath, username, password, bpjsCardNumber string, autoSubmit bool) string {
 	usernameKeys := escapeSendKeys(username)
 	passwordKeys := escapeSendKeys(password)
+	workingDirectory := filepath.Dir(executablePath)
 	submitLine := ""
 	if autoSubmit {
 		submitLine = "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')"
@@ -137,33 +138,74 @@ Start-Sleep -Milliseconds 5000
 
 	return fmt.Sprintf(`$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class BPJSWindowHelper {
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")]
+  public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@
 $wshell = New-Object -ComObject WScript.Shell
-$process = Start-Process -FilePath %s -PassThru
+$launchStartedAt = Get-Date
+$processName = [System.IO.Path]::GetFileNameWithoutExtension(%s)
+$process = Start-Process -FilePath %s -WorkingDirectory %s -WindowStyle Normal -PassThru
+$targetProcess = $null
 $activated = $false
 for ($i = 0; $i -lt 40; $i++) {
   Start-Sleep -Milliseconds 250
-  if ($process.HasExited) {
-    throw 'Aplikasi sidik jari tertutup sebelum jendela siap digunakan.'
+  try {
+    $process.Refresh()
+  } catch {}
+  $candidates = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
+    try {
+      $_.StartTime -ge $launchStartedAt.AddSeconds(-3)
+    } catch {
+      $false
+    }
+  } | Sort-Object StartTime)
+  if ($candidates.Count -gt 0) {
+    foreach ($candidate in $candidates) {
+      try {
+        if ($candidate.MainWindowHandle -ne 0) {
+          $targetProcess = $candidate
+          break
+        }
+      } catch {}
+    }
   }
-  $process.Refresh()
-  if ($process.MainWindowHandle -ne 0) {
-    if ($wshell.AppActivate($process.Id)) {
+  if (-not $targetProcess -and -not $process.HasExited -and $process.MainWindowHandle -ne 0) {
+    $targetProcess = $process
+  }
+  if ($targetProcess -and $targetProcess.MainWindowHandle -ne 0) {
+    [BPJSWindowHelper]::ShowWindowAsync($targetProcess.MainWindowHandle, 9) | Out-Null
+    Start-Sleep -Milliseconds 200
+    [BPJSWindowHelper]::SetForegroundWindow($targetProcess.MainWindowHandle) | Out-Null
+    if ($wshell.AppActivate($targetProcess.Id)) {
       $activated = $true
       break
     }
+  }
+  if ($process.HasExited -and -not $targetProcess) {
+    throw 'Aplikasi sidik jari tertutup sebelum jendela siap digunakan.'
   }
 }
 if (-not $activated) {
   throw 'Jendela aplikasi sidik jari tidak ditemukan. Pastikan backend berjalan pada desktop Windows yang sama dengan pengguna.'
 }
 Start-Sleep -Milliseconds 3000
+[BPJSWindowHelper]::ShowWindowAsync($targetProcess.MainWindowHandle, 9) | Out-Null
+Start-Sleep -Milliseconds 200
+[BPJSWindowHelper]::SetForegroundWindow($targetProcess.MainWindowHandle) | Out-Null
 [System.Windows.Forms.SendKeys]::SendWait(%s)
 [System.Windows.Forms.SendKeys]::SendWait('{TAB}')
 Start-Sleep -Milliseconds 500
 [System.Windows.Forms.SendKeys]::SendWait(%s)
 %s
 %s
-`, quotePowerShellString(executablePath), quotePowerShellString(usernameKeys), quotePowerShellString(passwordKeys), submitLine, bpjsCardNumberBlock)
+`, quotePowerShellString(executablePath), quotePowerShellString(executablePath), quotePowerShellString(workingDirectory), quotePowerShellString(usernameKeys), quotePowerShellString(passwordKeys), submitLine, bpjsCardNumberBlock)
 }
 
 func quotePowerShellString(value string) string {

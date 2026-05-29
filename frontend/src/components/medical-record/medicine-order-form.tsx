@@ -1547,11 +1547,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                     <div className="space-y-1">
                                       <Label>Frekuensi</Label>
-                                      <Combobox
+                                      <Combobox allowCustomValue
                                         options={frequencyOptions.map((option) => ({ value: option, label: option }))}
                                         value={racikanDraft.frequency}
                                         onValueChange={(value) => handleUpdateRacikanDraft("frequency", value)}
-                                        allowCustomValue
                                         placeholder="Pilih frekuensi"
                                         searchPlaceholder="Cari frekuensi..."
                                         emptyText="Frekuensi tidak ditemukan"
@@ -1560,11 +1559,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                     </div>
                                     <div className="space-y-1 md:col-span-1 xl:col-span-2">
                                       <Label>Cara Pakai</Label>
-                                      <Combobox
+                                      <Combobox allowCustomValue
                                         options={instructionOptions}
                                         value={racikanDraft.instructions}
                                         onValueChange={(value) => handleUpdateRacikanDraft("instructions", value)}
-                                        allowCustomValue
                                         placeholder="Pilih cara pakai"
                                         searchPlaceholder="Cari cara pakai..."
                                         emptyText="Cara pakai tidak ditemukan"
@@ -1933,7 +1931,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                               />
                                             </td>
                                             <td className="py-2 px-2">
-                                              <Combobox
+                                              <Combobox allowCustomValue
                                                 options={instructionOptions}
                                                 value={item.instructions}
                                                 onValueChange={(value) => handleUpdateTemplateItemField(index, "instructions", value)}
@@ -2328,11 +2326,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               </div>
                               <div className="space-y-1">
                                 <Label>Frekuensi</Label>
-                                <Combobox
+                                <Combobox allowCustomValue
                                   options={frequencyOptions.map((option) => ({ value: option, label: option }))}
                                   value={editingItemDraft.frequency}
                                   onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, frequency: value }) : prev)}
-                                  allowCustomValue
                                   placeholder="Pilih frekuensi"
                                   searchPlaceholder="Cari frekuensi..."
                                   emptyText="Frekuensi tidak ditemukan"
@@ -2341,11 +2338,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               </div>
                               <div className="space-y-1">
                                 <Label>Cara Pakai</Label>
-                                <Combobox
+                                <Combobox allowCustomValue
                                   options={instructionOptions}
                                   value={editingItemDraft.instructions}
                                   onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, instructions: value }) : prev)}
-                                  allowCustomValue
                                   placeholder="Pilih cara pakai"
                                   searchPlaceholder="Cari cara pakai..."
                                   emptyText="Cara pakai tidak ditemukan"
@@ -2459,11 +2455,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                 <div className="space-y-1">
                                   <Label>Frekuensi</Label>
-                                  <Combobox
+                                  <Combobox allowCustomValue
                                     options={frequencyOptions.map((option) => ({ value: option, label: option }))}
                                     value={editingRacikanMeta.frequency}
                                     onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, frequency: value }))}
-                                    allowCustomValue
                                     placeholder="Pilih frekuensi"
                                     searchPlaceholder="Cari frekuensi..."
                                     emptyText="Frekuensi tidak ditemukan"
@@ -2472,11 +2467,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                 </div>
                                 <div className="space-y-1 md:col-span-1 xl:col-span-2">
                                   <Label>Cara Pakai</Label>
-                                  <Combobox
+                                  <Combobox allowCustomValue
                                     options={instructionOptions}
                                     value={editingRacikanMeta.instructions}
                                     onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value }))}
-                                    allowCustomValue
                                     placeholder="Pilih cara pakai"
                                     searchPlaceholder="Cari cara pakai..."
                                     emptyText="Cara pakai tidak ditemukan"
@@ -2666,3 +2660,5 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     </div>
   );
 }
+
+

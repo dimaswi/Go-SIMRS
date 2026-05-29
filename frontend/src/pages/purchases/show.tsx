@@ -527,6 +527,22 @@ export default function PurchaseShow() {
                           const itemCode = item.inventory?.code || item.medicine?.code;
                           const received = item.quantity_received || 0;
                           const isComplete = received >= item.quantity_ordered;
+                          const factor = Math.max(1, Number(item.conversion_factor || 1));
+                          const hasLargeUnit = !!item.unit_large && factor > 1;
+                          const orderedLabel = hasLargeUnit
+                            ? `${item.quantity_large_ordered || 0} ${item.unit_large} + ${item.quantity_small_ordered || 0} ${item.unit_small || item.unit}`
+                            : `${item.quantity_ordered} ${item.unit}`;
+                          const receivedLarge = hasLargeUnit ? Math.floor(received / factor) : 0;
+                          const receivedSmall = hasLargeUnit ? (received % factor) : 0;
+                          const receivedLabel = hasLargeUnit
+                            ? `${receivedLarge} ${item.unit_large} + ${receivedSmall} ${item.unit_small || item.unit}`
+                            : `${received} ${item.unit}`;
+                          const remaining = Math.max(item.quantity_ordered - received, 0);
+                          const remainingLarge = hasLargeUnit ? Math.floor(remaining / factor) : 0;
+                          const remainingSmall = hasLargeUnit ? (remaining % factor) : 0;
+                          const remainingLabel = hasLargeUnit
+                            ? `${remainingLarge} ${item.unit_large} + ${remainingSmall} ${item.unit_small || item.unit}`
+                            : `${remaining} ${item.unit}`;
 
                           return (
                             <tr key={item.id} className="align-top transition-colors hover:bg-muted/10">
@@ -536,7 +552,10 @@ export default function PurchaseShow() {
                                   {itemCode ? (
                                     <p className="font-mono text-[11px] leading-4 text-muted-foreground">{itemCode}</p>
                                   ) : null}
-                                  <p className="text-[11px] leading-4 text-muted-foreground">Satuan: {item.unit}</p>
+                                  <p className="text-[11px] leading-4 text-muted-foreground">
+                                    Satuan: {item.unit}
+                                    {hasLargeUnit ? ` (besar: ${item.unit_large} x${factor})` : ""}
+                                  </p>
                                   {item.notes ? (
                                     <p className="line-clamp-2 pt-0.5 text-[11px] leading-4 text-muted-foreground">{item.notes}</p>
                                   ) : null}
@@ -544,9 +563,9 @@ export default function PurchaseShow() {
                               </td>
                               <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
                                 <div className="space-y-0.5 text-[11px] leading-4 text-muted-foreground">
-                                  <p>Dipesan: <span className="font-medium text-foreground">{item.quantity_ordered} {item.unit}</span></p>
-                                  <p>Diterima: <span className={isComplete ? "font-medium text-emerald-700" : "font-medium text-amber-700"}>{received}</span></p>
-                                  <p>Sisa: <span className="font-medium text-foreground">{Math.max(item.quantity_ordered - received, 0)}</span></p>
+                                  <p>Dipesan: <span className="font-medium text-foreground">{orderedLabel}</span></p>
+                                  <p>Diterima: <span className={isComplete ? "font-medium text-emerald-700" : "font-medium text-amber-700"}>{receivedLabel}</span></p>
+                                  <p>Sisa: <span className="font-medium text-foreground">{remainingLabel}</span></p>
                                   <p>Batch: <span className="font-medium text-foreground">{item.batch_number || "-"}</span></p>
                                   <p>Exp: <span className="font-medium text-foreground">{formatInputDate(item.expiry_date)}</span></p>
                                 </div>

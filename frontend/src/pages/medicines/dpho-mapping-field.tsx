@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
 import { bpjsApi, type BPJSApotekDPHOItem } from "@/lib/api/bpjs";
 import { Database, Loader2, Search, Unlink2 } from "lucide-react";
@@ -33,7 +33,7 @@ function normalizeDPHOList(payload: unknown): BPJSApotekDPHOItem[] {
   return [];
 }
 
-function getStringValue(item: BPJSApotekDPHOItem, keys: string[]) {
+function getRawStringValue(item: BPJSApotekDPHOItem, keys: string[]) {
   for (const key of keys) {
     const value = item[key];
     if (typeof value === "string" && value.trim() !== "") {
@@ -42,6 +42,11 @@ function getStringValue(item: BPJSApotekDPHOItem, keys: string[]) {
   }
 
   return "-";
+}
+
+function getStringValue(item: BPJSApotekDPHOItem, keys: string[]) {
+  const value = getRawStringValue(item, keys);
+  return value === "-" ? "" : value;
 }
 
 function isTruthyFlag(value: unknown) {
@@ -60,6 +65,17 @@ function isTruthyFlag(value: unknown) {
   return false;
 }
 
+type NormalizedDPHOItem = {
+  source: BPJSApotekDPHOItem;
+  kodeObat: string;
+  namaObat: string;
+  generik: string;
+  prb: unknown;
+  kronis: unknown;
+  kemo: unknown;
+  searchableText: string;
+};
+
 export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disabled = false }: DPHOMappingFieldProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -67,6 +83,7 @@ export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disa
   const [items, setItems] = useState<BPJSApotekDPHOItem[]>([]);
   const [search, setSearch] = useState("");
   const [warning, setWarning] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open || items.length > 0 || loading) {
@@ -94,17 +111,132 @@ export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disa
     fetchDPHO();
   }, [items.length, loading, open, toast]);
 
-  const filteredItems = useMemo(() => {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [open]);
+
+  const normalizedItems = useMemo<NormalizedDPHOItem[]>(() => {
+    return items.map((item) => ({
+      source: item,
+      kodeObat:
+        getStringValue(item, ["kodeobat", "kode_obat", "kodeObat", "kdobat", "kd_obat"]) ||
+        "Tidak ada kode",
+      namaObat:
+        getStringValue(item, ["namaobat", "nama_obat", "namaObat", "nmobat", "nm_obat"]) ||
+        "Tidak ada nama",
+      generik: getStringValue(item, ["generik", "nama_generik", "nm_generik"]),
+      prb: item.prb ?? item.isprb ?? item.is_prb,
+      kronis: item.kronis ?? item.iskronis ?? item.is_kronis,
+      kemo: item.kemo ?? item.iskemo ?? item.is_kemo,
+      searchableText: [
+        getStringValue(item, ["kodeobat", "kode_obat", "kodeObat", "kdobat", "kd_obat"]),
+        getStringValue(item, ["namaobat", "nama_obat", "namaObat", "nmobat", "nm_obat"]),
+        getStringValue(item, ["generik", "nama_generik", "nm_generik"]),
+      ]
+        .join(" ")
+        .toLowerCase(),
+    }));
+  }, [items]);
+
+  const filteredCount = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) {
-      return items;
+      return normalizedItems.length;
     }
 
-    return items.filter((item) => {
-      const searchableText = [item.kodeobat, item.namaobat, item.generik].join(" ").toLowerCase();
-      return searchableText.includes(keyword);
-    });
-  }, [items, search]);
+    return normalizedItems.filter((item) => item.searchableText.includes(keyword)).length;
+  }, [normalizedItems, search]);
+
+  const columns = useMemo<ColumnDef<NormalizedDPHOItem>[]>(
+    () => [
+      {
+        accessorKey: "kodeObat",
+        header: "Kode",
+        cell: ({ row }) => <span className="font-mono text-xs">{row.original.kodeObat}</span>,
+      },
+      {
+        accessorKey: "namaObat",
+        header: "Nama Obat",
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <p className="text-sm font-medium leading-5">{row.original.namaObat}</p>
+            <p className="text-xs text-muted-foreground">{row.original.generik || "-"}</p>
+          </div>
+        ),
+      },
+      {
+        id: "prb",
+        header: "Obat PRB",
+        cell: ({ row }) => (
+          <div className="text-center">
+            <Checkbox checked={isTruthyFlag(row.original.prb)} disabled />
+          </div>
+        ),
+      },
+      {
+        id: "kronis",
+        header: "Obat Kronis",
+        cell: ({ row }) => (
+          <div className="text-center">
+            <Checkbox checked={isTruthyFlag(row.original.kronis)} disabled />
+          </div>
+        ),
+      },
+      {
+        id: "kemo",
+        header: "Obat Kemo",
+        cell: ({ row }) => (
+          <div className="text-center">
+            <Checkbox checked={isTruthyFlag(row.original.kemo)} disabled />
+          </div>
+        ),
+      },
+      {
+        id: "tgl_tayang",
+        header: "Tgl Tayang",
+        cell: ({ row }) => getRawStringValue(row.original.source, ["tgltayang", "tgl_tayang", "tglTayang"]),
+      },
+      {
+        id: "tgl_mulai",
+        header: "Tgl Mulai",
+        cell: ({ row }) => getRawStringValue(row.original.source, ["tglmulai", "tgl_mulai", "tglMulai"]),
+      },
+      {
+        id: "tgl_akhir",
+        header: "Tgl Akhir",
+        cell: ({ row }) => getRawStringValue(row.original.source, ["tglakhir", "tgl_akhir", "tglAkhir"]),
+      },
+      {
+        id: "stok",
+        header: "Stok",
+        cell: ({ row }) => getRawStringValue(row.original.source, ["stok"]),
+      },
+      {
+        id: "aksi",
+        header: "Aksi",
+        cell: ({ row }) => (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              onChange({ code: row.original.kodeObat, name: row.original.namaObat });
+              setOpen(false);
+            }}
+          >
+            Pilih
+          </Button>
+        ),
+      },
+    ],
+    [onChange]
+  );
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -142,18 +274,19 @@ export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disa
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-7xl">
-          <DialogHeader>
+        <DialogContent className="max-h-[92vh] max-w-7xl overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Mapping Obat ke Referensi DPHO</DialogTitle>
             <DialogDescription>
               Data DPHO dimuat penuh dari BPJS lalu difilter di modal ini agar pencarian tetap cepat walau respons BPJS tidak berbasis parameter.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4 px-6 pb-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex-1">
                 <Input
+                  ref={searchInputRef}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Cari kode obat, nama obat, atau generik DPHO..."
@@ -161,7 +294,9 @@ export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disa
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                {loading ? "Memuat DPHO..." : `${filteredItems.length} dari ${items.length} obat DPHO`}
+                {loading
+                  ? "Memuat DPHO..."
+                  : `${filteredCount} dari ${items.length} obat DPHO (hasil dari data yang sudah di-fetch)`}
               </p>
             </div>
 
@@ -171,71 +306,21 @@ export function DPHOMappingField({ valueCode, valueName, onChange, onClear, disa
               </div>
             ) : null}
 
-            <ScrollArea className="h-[520px] rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[130px]">Kode</TableHead>
-                    <TableHead className="min-w-[260px]">Nama Obat</TableHead>
-                    <TableHead className="w-[90px] text-center">Obat PRB</TableHead>
-                    <TableHead className="w-[100px] text-center">Obat Kronis</TableHead>
-                    <TableHead className="w-[90px] text-center">Obat Kemo</TableHead>
-                    <TableHead className="w-[110px]">Tgl Tayang</TableHead>
-                    <TableHead className="w-[110px]">Tgl Mulai</TableHead>
-                    <TableHead className="w-[110px]">Tgl Akhir</TableHead>
-                    <TableHead className="w-[100px]">Stok</TableHead>
-                    <TableHead className="w-[90px]">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center">
-                        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredItems.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
-                        Data DPHO tidak ditemukan.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.kodeobat}>
-                        <TableCell className="font-mono text-xs">{item.kodeobat}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium leading-5">{item.namaobat}</p>
-                            <p className="text-xs text-muted-foreground">{item.generik || "-"}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center"><Checkbox checked={isTruthyFlag(item.prb)} disabled /></TableCell>
-                        <TableCell className="text-center"><Checkbox checked={isTruthyFlag(item.kronis)} disabled /></TableCell>
-                        <TableCell className="text-center"><Checkbox checked={isTruthyFlag(item.kemo)} disabled /></TableCell>
-                        <TableCell>{getStringValue(item, ["tgltayang", "tgl_tayang", "tglTayang"])}</TableCell>
-                        <TableCell>{getStringValue(item, ["tglmulai", "tgl_mulai", "tglMulai"])}</TableCell>
-                        <TableCell>{getStringValue(item, ["tglakhir", "tgl_akhir", "tglAkhir"])}</TableCell>
-                        <TableCell>{getStringValue(item, ["stok"])}</TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              onChange({ code: item.kodeobat, name: item.namaobat });
-                              setOpen(false);
-                            }}
-                          >
-                            Pilih
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+            {loading ? (
+              <div className="rounded-md border py-10">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={normalizedItems}
+                showSearch={false}
+                pageSize={20}
+                tableId="dpho-mapping-modal"
+                globalFilterValue={search}
+                onGlobalFilterValueChange={setSearch}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

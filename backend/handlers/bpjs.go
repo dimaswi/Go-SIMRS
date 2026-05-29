@@ -441,11 +441,17 @@ func CreateBPJSDoctorMapping(c *gin.Context) {
 		input.DoctorScheduleID = nil
 	}
 
-	// Check duplicate: same poli + employee + kode dokter
+	// Check duplicate: same poli + employee + kode dokter + hari + jam
 	var existing models.BPJSDoctorMapping
-	if err := database.DB.Where("poli_mapping_id = ? AND employee_id = ? AND kode_dokter_bpjs = ?",
-		input.PoliMappingID, input.EmployeeID, input.KodeDokterBPJS).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Mapping dokter dengan kode BPJS yang sama sudah ada"})
+	if err := database.DB.Where(
+		"poli_mapping_id = ? AND employee_id = ? AND kode_dokter_bpjs = ? AND jadwal_hari = ? AND jam_praktek = ?",
+		input.PoliMappingID,
+		input.EmployeeID,
+		input.KodeDokterBPJS,
+		input.JadwalHari,
+		input.JamPraktek,
+	).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mapping dokter dengan kombinasi dokter, hari, dan jam yang sama sudah ada"})
 		return
 	}
 
@@ -504,6 +510,20 @@ func UpdateBPJSDoctorMapping(c *gin.Context) {
 	}
 	if input.IsActive != nil {
 		mapping.IsActive = *input.IsActive
+	}
+
+	var duplicate models.BPJSDoctorMapping
+	if err := database.DB.Where(
+		"poli_mapping_id = ? AND employee_id = ? AND kode_dokter_bpjs = ? AND jadwal_hari = ? AND jam_praktek = ? AND id <> ?",
+		mapping.PoliMappingID,
+		mapping.EmployeeID,
+		mapping.KodeDokterBPJS,
+		mapping.JadwalHari,
+		mapping.JamPraktek,
+		mapping.ID,
+	).First(&duplicate).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mapping dokter dengan kombinasi dokter, hari, dan jam yang sama sudah ada"})
+		return
 	}
 
 	if err := database.DB.Save(&mapping).Error; err != nil {

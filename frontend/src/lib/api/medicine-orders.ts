@@ -31,6 +31,10 @@ export interface MedicineOrderItem {
     code: string;
     unit: string;
     category: string;
+    dpho_kode_obat?: string;
+    dpho_nama_obat?: string;
+    // Fallback legacy field (if any endpoint still uses old naming)
+    bpjs_kode_obat?: string;
   };
   item_type?: string;
   racikan_group?: string;

@@ -130,11 +130,11 @@ export default function SupplierEdit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.code || !formData.name) {
+    if (!formData.name) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Kode dan Nama supplier wajib diisi.",
+        description: "Nama supplier wajib diisi.",
       });
       return;
     }
@@ -195,7 +195,7 @@ export default function SupplierEdit() {
 
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <SummaryCue label="Review Cepat" description="Cek ulang identitas dan kode supplier sebelum menyimpan perubahan." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Review Cepat" description="Cek ulang identitas supplier sebelum menyimpan perubahan." tone="from-background via-background to-sky-50/40" />
           <SummaryCue label="Relasi Bisnis" description="Pastikan data PIC dan rekening tetap sesuai untuk transaksi berikutnya." tone="from-background via-background to-emerald-50/40" />
           <SummaryCue label="Kontrol Status" description="Status aktif dan catatan internal menjaga supplier tetap terdokumentasi." tone="from-background via-background to-amber-50/50" />
         </div>
@@ -206,16 +206,8 @@ export default function SupplierEdit() {
           <SectionPanel icon={Building2} title="Informasi Dasar" description="Identitas utama supplier dan kanal komunikasi dasar.">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="code">
-                    Kode Supplier <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="code"
-                    name="code"
-                    placeholder="SUP-001"
-                    value={formData.code}
-                    onChange={handleChange}
-                  />
+                  <Label>Kode Supplier</Label>
+                  <Input value={formData.code || "-"} disabled className="bg-muted" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">

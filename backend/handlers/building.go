@@ -99,7 +99,6 @@ func GetBuilding(c *gin.Context) {
 // CreateBuilding creates a new building
 func CreateBuilding(c *gin.Context) {
 	var input struct {
-		Code        string `json:"code" binding:"required"`
 		Name        string `json:"name" binding:"required"`
 		TotalFloors int    `json:"total_floors"`
 		Description string `json:"description"`
@@ -115,15 +114,14 @@ func CreateBuilding(c *gin.Context) {
 		return
 	}
 
-	// Check unique code
-	var existing models.Building
-	if err := database.DB.Where("code = ?", input.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode gedung sudah digunakan"})
+	code, err := generateDateCode(&models.Building{}, "BLD")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode gedung otomatis"})
 		return
 	}
 
 	building := models.Building{
-		Code:        input.Code,
+		Code:        code,
 		Name:        input.Name,
 		TotalFloors: input.TotalFloors,
 		Description: input.Description,
@@ -167,7 +165,6 @@ func UpdateBuilding(c *gin.Context) {
 	}
 
 	var input struct {
-		Code        string `json:"code"`
 		Name        string `json:"name"`
 		TotalFloors int    `json:"total_floors"`
 		Description string `json:"description"`
@@ -182,16 +179,6 @@ func UpdateBuilding(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Check unique code if changed
-	if input.Code != "" && input.Code != building.Code {
-		var existing models.Building
-		if err := database.DB.Where("code = ? AND id != ?", input.Code, building.ID).First(&existing).Error; err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode gedung sudah digunakan"})
-			return
-		}
-		building.Code = input.Code
 	}
 
 	if input.Name != "" {

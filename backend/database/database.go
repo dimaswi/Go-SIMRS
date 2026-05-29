@@ -295,6 +295,7 @@ func Migrate() error {
 		&models.MedicalRecordEditLog{},
 		&models.FallRiskAssessment{}, // Resiko Jatuh
 		&models.O2UsageRecord{},      // Penggunaan Oksigen
+		&models.VisitBHPUsage{},      // Penggunaan BHP per kunjungan
 		&models.Notification{}, &models.UserTabPreference{},
 		&models.EKlaimLocalLog{}, // E-Klaim Local Communication Logs
 		// Digital Signatures & Audit Trail
@@ -303,11 +304,15 @@ func Migrate() error {
 		&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
 		&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
 		// Nutrition/Gizi Management
-		&models.NutritionMenu{},        // Master Menu Makanan
-		&models.NutritionPackage{},     // Master Paket Makanan
-		&models.NutritionPackageItem{}, // Item Paket Makanan
-		&models.NutritionOrder{},       // Order Gizi Pasien
-		&models.NutritionOrderItem{},   // Item Order Gizi
+		&models.NutritionIngredient{},            // Master Bahan Gizi
+		&models.NutritionIngredientInvoice{},     // Faktur Bahan Gizi
+		&models.NutritionIngredientInvoiceItem{}, // Item Faktur Bahan Gizi
+		&models.NutritionMenu{},                  // Master Menu Makanan
+		&models.NutritionMenuIngredient{},        // Komposisi bahan per menu
+		&models.NutritionPackage{},               // Master Paket Makanan
+		&models.NutritionPackageItem{},           // Item Paket Makanan
+		&models.NutritionOrder{},                 // Order Gizi Pasien
+		&models.NutritionOrderItem{},             // Item Order Gizi
 	)
 
 	if err != nil {
@@ -347,6 +352,7 @@ func Migrate() error {
 			&models.FluidBalance{},         // Fluid Balance
 			&models.NursingCare{},          // Nursing Care
 			&models.FallRiskAssessment{},   // Fall Risk
+			&models.VisitBHPUsage{},        // Penggunaan BHP
 			&models.BedTransfer{},          // Bed Transfer/Mutation
 			// Digital Signatures & Audit Trail
 			&models.SignatureLog{},            // Signature Activity Logs
@@ -354,11 +360,13 @@ func Migrate() error {
 			&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
 			&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
 			// Nutrition/Gizi Management
-			&models.NutritionMenu{},        // Master Menu Makanan
-			&models.NutritionPackage{},     // Master Paket Makanan
-			&models.NutritionPackageItem{}, // Item Paket Makanan
-			&models.NutritionOrder{},       // Order Gizi Pasien
-			&models.NutritionOrderItem{},   // Item Order Gizi
+			&models.NutritionIngredient{},     // Master Bahan Gizi
+			&models.NutritionMenu{},           // Master Menu Makanan
+			&models.NutritionMenuIngredient{}, // Komposisi bahan per menu
+			&models.NutritionPackage{},        // Master Paket Makanan
+			&models.NutritionPackageItem{},    // Item Paket Makanan
+			&models.NutritionOrder{},          // Order Gizi Pasien
+			&models.NutritionOrderItem{},      // Item Order Gizi
 		)
 
 		if err != nil {

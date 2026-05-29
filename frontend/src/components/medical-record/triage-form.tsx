@@ -546,7 +546,7 @@ export function TriageForm({
                   <Label htmlFor="arrival_mode" className="text-sm font-semibold">
                     Moda Kedatangan <span className="text-destructive">*</span>
                   </Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={arrivalModeOptions}
                     value={formData.arrival_mode}
                     onValueChange={(value) => handleChange("arrival_mode", value)}
@@ -635,7 +635,7 @@ export function TriageForm({
             <div className="space-y-5 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={airwayOptions}
                     value={formData.airway}
                     onValueChange={(value) => handleChange("airway", value)}
@@ -659,7 +659,7 @@ export function TriageForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="breathing" className="text-sm font-semibold">Breathing (Pernapasan)</Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={breathingOptions}
                     value={formData.breathing}
                     onValueChange={(value) => handleChange("breathing", value)}
@@ -683,7 +683,7 @@ export function TriageForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="circulation" className="text-sm font-semibold">Circulation (Sirkulasi)</Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={circulationOptions}
                     value={formData.circulation}
                     onValueChange={(value) => handleChange("circulation", value)}
@@ -830,7 +830,7 @@ export function TriageForm({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="pain_location" className="text-xs">Lokasi Nyeri</Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={painLocationOptions}
                         value={formData.pain_location || ""}
                         onValueChange={(value) => handleChange("pain_location", value)}
@@ -1050,3 +1050,4 @@ export function TriageForm({
     </div>
   );
 }
+

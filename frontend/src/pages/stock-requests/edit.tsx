@@ -425,18 +425,21 @@ export default function StockRequestEdit() {
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">
-                        <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
-                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty</th>
-                        <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
-                        <th className="h-9 w-[14%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                        <th rowSpan={2} className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th rowSpan={2} className="h-9 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
+                        <th colSpan={2} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
+                        <th rowSpan={2} className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                        <th rowSpan={2} className="h-9 w-[14%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                      </tr>
+                      <tr className="bg-muted/10">
+                        <th className="h-8 w-[16%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Stok</th>
+                        <th className="h-8 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Diminta</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item) => (
                         <tr key={item.id} className="transition-colors hover:bg-muted/10">
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                             <div className="flex items-start gap-2">
                               {item.inventory_id ? (
                                 <Package className="mt-0.5 h-4 w-4 text-blue-500" />
@@ -449,21 +452,21 @@ export default function StockRequestEdit() {
                               </div>
                             </div>
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                          <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center">
                             <Badge variant="outline" className="text-[10px]">
                               {item.inventory_id ? "Inventaris" : "Obat"}
                             </Badge>
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                          <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">
                             {item.current_stock}
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                          <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">
                             {item.quantity_requested}
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                          <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">
                             {item.unit}
                           </td>
-                          <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                          <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">
                             {item.notes || "-"}
                           </td>
                         </tr>

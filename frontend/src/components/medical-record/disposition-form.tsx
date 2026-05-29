@@ -750,10 +750,9 @@ export function DispositionForm({
   };
 
   // Wrapper to also update follow_up_date when Surat Kontrol is created
-  const handleSuratKontrolCreated = (skData: SuratKontrolResponse) => {
+  const handleSuratKontrolCreated = (skData: SuratKontrolResponse | null) => {
     setSuratKontrolResult(skData);
-    // Sync follow_up_date from BPJS Surat Kontrol
-    if (skData.tglRencanaKontrol) {
+    if (skData?.tglRencanaKontrol) {
       setFormData(prev => ({ ...prev, follow_up_date: skData.tglRencanaKontrol }));
     }
   };

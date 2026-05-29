@@ -11,8 +11,11 @@ import {
 import { MoreHorizontal, Eye, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import type { 
   Inventory, 
-  InventoryCategory
+  InventoryCategory,
+  InventoryItemGroup,
+  InventoryItemScope,
 } from "@/lib/api/inventories";
+import { inventoryItemGroupLabels, inventoryItemScopeLabels } from "@/lib/api/inventories";
 
 interface ColumnOptions {
   onView: (id: number) => void;
@@ -41,6 +44,17 @@ const categoryLabels: Record<InventoryCategory, string> = {
   furniture: 'Furniture',
   electronic: 'Elektronik',
   infrastructure: 'Infrastruktur',
+};
+
+const itemGroupColors: Record<InventoryItemGroup, string> = {
+  bhp: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  other: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+};
+
+const itemScopeColors: Record<InventoryItemScope, string> = {
+  unit: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
+  pharmacy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  both: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200",
 };
 
 export function createInventoryColumns(options: ColumnOptions): ColumnDef<Inventory>[] {
@@ -104,6 +118,30 @@ export function createInventoryColumns(options: ColumnOptions): ColumnDef<Invent
         return (
           <Badge className={categoryColors[category] || 'bg-gray-100 text-gray-800'}>
             {categoryLabels[category] || category}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "item_group",
+      header: "Kelompok",
+      cell: ({ row }) => {
+        const group = row.getValue("item_group") as InventoryItemGroup;
+        return (
+          <Badge className={itemGroupColors[group] || "bg-gray-100 text-gray-800"}>
+            {inventoryItemGroupLabels[group] || group}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "item_scope",
+      header: "Pengelola",
+      cell: ({ row }) => {
+        const scope = row.getValue("item_scope") as InventoryItemScope;
+        return (
+          <Badge className={itemScopeColors[scope] || "bg-gray-100 text-gray-800"}>
+            {inventoryItemScopeLabels[scope] || scope}
           </Badge>
         );
       },

@@ -81,6 +81,9 @@ type NutritionMenu struct {
 	// Status
 	IsActive bool   `gorm:"default:true" json:"is_active"`
 	Notes    string `gorm:"type:text" json:"notes,omitempty"`
+
+	// Relations
+	Ingredients []NutritionMenuIngredient `gorm:"foreignKey:MenuID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"ingredients,omitempty"`
 }
 
 func (NutritionMenu) TableName() string {
@@ -254,4 +257,114 @@ var NutritionMealTimeLabels = map[string]string{
 	NutritionMealSnackSore:  "Snack Sore",
 	NutritionMealSore:       "Makan Sore",
 	NutritionMealSnackMalam: "Snack Malam",
+}
+
+// Nutrition Ingredient Unit Constants
+const (
+	NutritionIngredientUnitGram        = "gram"
+	NutritionIngredientUnitMl          = "ml"
+	NutritionIngredientUnitPcs         = "pcs"
+	NutritionIngredientUnitBuah        = "buah"
+	NutritionIngredientUnitSendokMakan = "sendok_makan"
+	NutritionIngredientUnitSendokTeh   = "sendok_teh"
+)
+
+var NutritionIngredientUnitLabels = map[string]string{
+	NutritionIngredientUnitGram:        "Gram",
+	NutritionIngredientUnitMl:          "Mililiter",
+	NutritionIngredientUnitPcs:         "Pcs",
+	NutritionIngredientUnitBuah:        "Buah",
+	NutritionIngredientUnitSendokMakan: "Sendok Makan",
+	NutritionIngredientUnitSendokTeh:   "Sendok Teh",
+}
+
+// NutritionIngredient represents master ingredient data for nutrition menus.
+type NutritionIngredient struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	Code          string  `gorm:"not null;uniqueIndex;size:20" json:"code"`            // Kode bahan (BAH-001)
+	Name          string  `gorm:"not null;size:200;index" json:"name"`                 // Nama bahan
+	Category      string  `gorm:"size:100;index" json:"category,omitempty"`            // Kelompok bahan (sayur, lauk, bumbu, dll)
+	DefaultUnit   string  `gorm:"not null;size:30;default:'gram'" json:"default_unit"` // Satuan default berat/isi
+	DefaultWeight float64 `gorm:"type:decimal(12,2);default:0" json:"default_weight"`  // Berat/isi default per 1 kemasan
+	IsActive      bool    `gorm:"default:true" json:"is_active"`
+	Notes         string  `gorm:"type:text" json:"notes,omitempty"`
+}
+
+func (NutritionIngredient) TableName() string {
+	return "nutrition_ingredients"
+}
+
+// NutritionMenuIngredient stores ingredient composition for one menu portion.
+type NutritionMenuIngredient struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	MenuID uint `gorm:"not null;index:idx_menu_ingredient" json:"menu_id"`
+
+	IngredientID uint                 `gorm:"not null;index:idx_menu_ingredient" json:"ingredient_id"`
+	Ingredient   *NutritionIngredient `gorm:"foreignKey:IngredientID" json:"ingredient,omitempty"`
+
+	WeightPerPortion float64 `gorm:"type:decimal(10,2);default:0" json:"weight_per_portion"` // Berat per 1 porsi
+	Unit             string  `gorm:"not null;size:30;default:'gram'" json:"unit"`            // Satuan berat/jumlah
+	Notes            string  `gorm:"type:text" json:"notes,omitempty"`
+}
+
+func (NutritionMenuIngredient) TableName() string {
+	return "nutrition_menu_ingredients"
+}
+
+// NutritionIngredientInvoice represents ingredient purchase invoice input in nutrition module.
+// Tidak mempengaruhi stok, hanya pencatatan faktur bahan.
+type NutritionIngredientInvoice struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	Code          string                           `gorm:"not null;uniqueIndex;size:20" json:"code"`             // Kode internal faktur (NFIyyyyMMddxxx)
+	InvoiceNumber string                           `gorm:"not null;size:100;index" json:"invoice_number"`        // Nomor faktur vendor
+	InvoiceDate   time.Time                        `gorm:"not null;index" json:"invoice_date"`                   // Tanggal faktur
+	SupplierName  string                           `gorm:"size:200;index" json:"supplier_name,omitempty"`        // Nama supplier
+	ReceivedByID  *uint                            `gorm:"index" json:"received_by_id,omitempty"`                // Petugas input/terima
+	ReceivedBy    *Employee                        `gorm:"foreignKey:ReceivedByID" json:"received_by,omitempty"` // Relasi petugas
+	TotalAmount   float64                          `gorm:"type:decimal(15,2);default:0" json:"total_amount"`     // Total nominal faktur (computed)
+	Notes         string                           `gorm:"type:text" json:"notes,omitempty"`
+	Items         []NutritionIngredientInvoiceItem `gorm:"foreignKey:InvoiceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"items,omitempty"`
+}
+
+func (NutritionIngredientInvoice) TableName() string {
+	return "nutrition_ingredient_invoices"
+}
+
+// NutritionIngredientInvoiceItem stores ingredient lines in one nutrition invoice.
+type NutritionIngredientInvoiceItem struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	InvoiceID uint                        `gorm:"not null;index:idx_nutrition_invoice_ingredient" json:"invoice_id"`
+	Invoice   *NutritionIngredientInvoice `gorm:"foreignKey:InvoiceID" json:"-"`
+
+	IngredientID uint                 `gorm:"not null;index:idx_nutrition_invoice_ingredient" json:"ingredient_id"`
+	Ingredient   *NutritionIngredient `gorm:"foreignKey:IngredientID" json:"ingredient,omitempty"`
+
+	Quantity    float64 `gorm:"type:decimal(12,2);default:0" json:"quantity"`       // Jumlah kemasan
+	Unit        string  `gorm:"not null;size:30;default:'kemasan'" json:"unit"`     // Satuan kemasan (kemasan/pcs/bungkus)
+	UnitWeight  float64 `gorm:"type:decimal(12,2);default:0" json:"unit_weight"`    // Berat/isi per kemasan (snapshot master)
+	WeightUnit  string  `gorm:"not null;size:30;default:'gram'" json:"weight_unit"` // Satuan berat/isi
+	TotalWeight float64 `gorm:"type:decimal(12,2);default:0" json:"total_weight"`   // quantity * unit_weight
+	UnitPrice   float64 `gorm:"type:decimal(15,2);default:0" json:"unit_price"`     // Harga per kemasan
+	LineTotal   float64 `gorm:"type:decimal(15,2);default:0" json:"line_total"`     // quantity * unit_price
+	Notes       string  `gorm:"type:text" json:"notes,omitempty"`
+}
+
+func (NutritionIngredientInvoiceItem) TableName() string {
+	return "nutrition_ingredient_invoice_items"
 }

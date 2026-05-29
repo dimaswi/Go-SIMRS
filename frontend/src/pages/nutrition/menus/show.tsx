@@ -2,9 +2,9 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { nutritionMenuApi, type NutritionMenu, nutritionCategoryLabels, nutritionCategoryColors, nutritionDietTypeLabels } from "@/lib/api/nutrition";
+import { nutritionMenuApi, type NutritionMenu, nutritionCategoryLabels, nutritionCategoryColors, nutritionIngredientUnitLabels } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat, Plus } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -41,16 +41,11 @@ export default function NutritionMenuShow() {
     );
   }
 
-  let dietTypes: string[] = [];
-  if (menu.diet_types) {
-    try { dietTypes = JSON.parse(menu.diet_types); } catch { dietTypes = []; }
-  }
-
   return (
     <PageShell>
       <PageHeader
         title={menu.name}
-        description="Tinjau detail menu gizi, kandungan nutrisi per porsi, kecocokan diet, dan status operasionalnya dalam format yang sama dengan halaman master lain."
+        description="Tinjau detail menu gizi, kandungan nutrisi per porsi, komposisi bahan, dan status operasionalnya dalam format yang sama dengan halaman master lain."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/menus")}>
@@ -130,16 +125,28 @@ export default function NutritionMenuShow() {
         </NutritionSectionPanel>
       </div>
 
-      {/* Diet Types */}
-      {dietTypes.length > 0 && (
-        <NutritionSectionPanel title="Jenis Diet yang Cocok" description="Daftar diet yang direkomendasikan untuk menu ini agar pemilihan paket lebih tepat.">
-          <div className="flex flex-wrap gap-2">
-            {dietTypes.map((dt) => (
-              <Badge key={dt} variant="outline">{nutritionDietTypeLabels[dt] || dt}</Badge>
+      <NutritionSectionPanel icon={Plus} title="Komposisi Bahan per Porsi" description="Daftar bahan baku yang digunakan untuk 1 porsi menu ini.">
+        {menu.ingredients && menu.ingredients.length > 0 ? (
+          <div className="space-y-2">
+            {menu.ingredients.map((item, index) => (
+              <div key={item.id || `${item.ingredient_id}-${index}`} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium">{item.ingredient?.name || `Bahan #${item.ingredient_id}`}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.ingredient?.code || "-"}{item.notes ? ` • ${item.notes}` : ""}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold">{item.weight_per_portion} {nutritionIngredientUnitLabels[item.unit] || item.unit}</div>
+                  <div className="text-xs text-muted-foreground">per porsi</div>
+                </div>
+              </div>
             ))}
           </div>
-        </NutritionSectionPanel>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">Belum ada komposisi bahan untuk menu ini.</p>
+        )}
+      </NutritionSectionPanel>
 
       {menu.notes && (
         <NutritionSectionPanel title="Catatan" description="Keterangan operasional tambahan dari tim gizi untuk menu ini.">

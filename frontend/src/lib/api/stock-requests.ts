@@ -7,6 +7,7 @@ export interface StockRequest {
   updated_at: string;
   request_number: string;
   request_type: 'inventory' | 'medicine';
+  request_mode: StockRequestMode;
   from_room_id: number;
   from_room?: Room;
   to_room_id: number;
@@ -26,6 +27,11 @@ export interface StockRequest {
   reason?: string;
   rejection_reason?: string;
   notes?: string;
+  receipt_number?: string;
+  receipt_date?: string;
+  receipt_file_url?: string;
+  supplier_name?: string;
+  total_amount?: number;
   items: StockRequestItem[];
   approval_histories?: StockRequestApproval[];
 }
@@ -58,6 +64,8 @@ export interface StockRequestApprovalItem {
     code: string;
     name: string;
     unit: string;
+    unit_large?: string;
+    large_to_small_factor?: number;
   };
   quantity_approved: number;
   unit: string;
@@ -159,6 +167,8 @@ export type StockRequestStatus =
   | 'completed' 
   | 'cancelled';
 
+export type StockRequestMode = 'depo' | 'self_purchase';
+
 // Status Labels
 export const stockRequestStatusLabels: Record<StockRequestStatus, string> = {
   draft: 'Draft',
@@ -182,6 +192,11 @@ export const requestTypeLabels: Record<string, string> = {
   medicine: 'Obat/Farmasi',
 };
 
+export const requestModeLabels: Record<StockRequestMode, string> = {
+  depo: 'Permintaan ke Depo',
+  self_purchase: 'Beli Sendiri',
+};
+
 // API Functions
 export const stockRequestsApi = {
   // List all stock requests
@@ -189,6 +204,7 @@ export const stockRequestsApi = {
     page?: number;
     limit?: number;
     request_type?: string;
+    request_mode?: StockRequestMode;
     status?: string;
     from_room_id?: number;
     to_room_id?: number;
@@ -200,12 +216,18 @@ export const stockRequestsApi = {
   // Create new stock request
   create: (data: {
     request_type: 'inventory' | 'medicine';
+    request_mode: StockRequestMode;
     from_room_id: number;
-    to_room_id: number;
+    to_room_id?: number;
     priority?: string;
     required_date?: string;
     reason?: string;
     notes?: string;
+    receipt_number?: string;
+    receipt_date?: string;
+    receipt_file_url?: string;
+    supplier_name?: string;
+    total_amount?: number;
     items: {
       inventory_id?: number;
       medicine_id?: number;
@@ -221,6 +243,11 @@ export const stockRequestsApi = {
     required_date?: string;
     reason?: string;
     notes?: string;
+    receipt_number?: string;
+    receipt_date?: string;
+    receipt_file_url?: string;
+    supplier_name?: string;
+    total_amount?: number;
   }) => api.put(`/stock-requests/${id}`, data),
 
   // Delete stock request (only draft/pending/cancelled)
@@ -375,7 +402,14 @@ export interface PurchaseItem {
     unit: string;
   };
   quantity_ordered: number;
+  quantity_large_ordered?: number;
+  quantity_small_ordered?: number;
   quantity_received: number;
+  quantity_large_received?: number;
+  quantity_small_received?: number;
+  unit_large?: string;
+  unit_small?: string;
+  conversion_factor?: number;
   unit_price: number;
   discount_percent: number;
   discount_amount: number;
@@ -442,6 +476,11 @@ export const purchasesApi = {
       inventory_id?: number;
       medicine_id?: number;
       quantity_ordered: number;
+      quantity_large?: number;
+      quantity_small?: number;
+      unit_large?: string;
+      unit_small?: string;
+      conversion_factor?: number;
       unit_price: number;
       discount_percent?: number;
       discount_amount?: number;
@@ -468,6 +507,11 @@ export const purchasesApi = {
       inventory_id?: number;
       medicine_id?: number;
       quantity_ordered: number;
+      quantity_large?: number;
+      quantity_small?: number;
+      unit_large?: string;
+      unit_small?: string;
+      conversion_factor?: number;
       unit_price: number;
       discount_percent?: number;
       discount_amount?: number;
@@ -490,6 +534,8 @@ export const purchasesApi = {
     items: {
       id: number;
       quantity_received: number;
+      quantity_large_received?: number;
+      quantity_small_received?: number;
       batch_number?: string;
       expiry_date?: string;
     }[];

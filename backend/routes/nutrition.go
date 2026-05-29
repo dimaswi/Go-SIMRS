@@ -12,7 +12,9 @@ func setupNutritionRoutes(rg *gin.RouterGroup) {
 		// Reference data (categories, diet types, meal times)
 		nutrition.GET("/categories", handlers.GetNutritionMenuCategories)
 		nutrition.GET("/diet-types", handlers.GetNutritionDietTypes)
+		nutrition.POST("/diet-types", handlers.CreateNutritionDietType)
 		nutrition.GET("/meal-times", handlers.GetNutritionMealTimes)
+		nutrition.GET("/ingredient-units", handlers.GetNutritionIngredientUnits)
 
 		// Master Menu Makanan
 		menus := nutrition.Group("/menus")
@@ -22,6 +24,26 @@ func setupNutritionRoutes(rg *gin.RouterGroup) {
 			menus.POST("", handlers.CreateNutritionMenu)
 			menus.PUT("/:id", handlers.UpdateNutritionMenu)
 			menus.DELETE("/:id", handlers.DeleteNutritionMenu)
+		}
+
+		// Master Bahan Gizi
+		ingredients := nutrition.Group("/ingredients")
+		{
+			ingredients.GET("", handlers.GetNutritionIngredients)
+			ingredients.GET("/:id", handlers.GetNutritionIngredient)
+			ingredients.POST("", handlers.CreateNutritionIngredient)
+			ingredients.PUT("/:id", handlers.UpdateNutritionIngredient)
+			ingredients.DELETE("/:id", handlers.DeleteNutritionIngredient)
+		}
+
+		// Input Faktur Bahan Gizi (tanpa stok)
+		invoices := nutrition.Group("/invoices")
+		{
+			invoices.GET("", handlers.GetNutritionIngredientInvoices)
+			invoices.GET("/:id", handlers.GetNutritionIngredientInvoice)
+			invoices.POST("", handlers.CreateNutritionIngredientInvoice)
+			invoices.PUT("/:id", handlers.UpdateNutritionIngredientInvoice)
+			invoices.DELETE("/:id", handlers.DeleteNutritionIngredientInvoice)
 		}
 
 		// Master Paket Makanan
@@ -46,5 +68,8 @@ func setupNutritionRoutes(rg *gin.RouterGroup) {
 
 		// Kitchen Dashboard
 		nutrition.GET("/kitchen", handlers.GetKitchenDashboard)
+
+		// Nutrition Reports
+		nutrition.GET("/reports/ingredient-usage", handlers.GetNutritionIngredientUsageReport)
 	}
 }

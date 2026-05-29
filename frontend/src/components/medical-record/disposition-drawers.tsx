@@ -28,7 +28,6 @@ import {
   Ambulance,
   Hospital,
   FileText,
-  ClipboardList,
   ExternalLink,
   Send,
   QrCode,
@@ -42,6 +41,7 @@ import {
   BPJS_FIELD_CLASS,
   BPJS_FOOTER_CLASS,
   BPJS_PANEL_CLASS,
+  BPJS_SECTION_CLASS,
   BPJSSectionHeader,
   BPJSStatePanel,
   BPJS_SHEET_FONT_FAMILY,
@@ -135,8 +135,8 @@ interface FollowUpRegData {
   patient_name?: string;
 }
 
-const DISPOSITION_SHEET_CLASS = "flex w-full flex-col p-0 sm:w-[78vw] sm:max-w-[1180px] xl:w-[72vw]";
-const DISPOSITION_BODY_CLASS = "mx-auto flex max-w-[900px] flex-col gap-5 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none";
+const DISPOSITION_SHEET_CLASS = "flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]";
+const DISPOSITION_BODY_CLASS = "mx-auto flex w-full max-w-[1320px] flex-col gap-5 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none";
 const DISPOSITION_TEXTAREA_CLASS = "min-h-[96px] resize-y";
 const DISPOSITION_HELP_CLASS = "text-xs leading-relaxed text-muted-foreground";
 
@@ -213,30 +213,10 @@ function DispositionSheetShell({
   footer,
   children,
 }: DispositionSheetShellProps) {
-  const railContent = (
-    <div className={cn(BPJS_PANEL_CLASS, "overflow-hidden bg-muted/10")}>
-      <div className="border-b border-border/70 px-4 py-3">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-          Workflow Rail
-        </div>
-        <div className="mt-2 text-sm font-semibold text-foreground">{railTitle}</div>
-      </div>
-      <div className="space-y-4 px-4 py-4">
-        <div className={DISPOSITION_HELP_CLASS}>{railDescription}</div>
-        {railStatus ? <div>{railStatus}</div> : null}
-        <div className="space-y-2">
-          {railPoints.map((point, index) => (
-            <div key={`${metaLabel}-${index}`} className="flex items-start gap-3 border-l border-border/70 pl-3">
-              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-none border border-border/70 bg-background text-[10px] font-semibold text-foreground/70">
-                {index + 1}
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">{point}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  void railTitle;
+  void railDescription;
+  void railPoints;
+  void railStatus;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -250,13 +230,8 @@ function DispositionSheetShell({
         />
 
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-[272px] shrink-0 border-r border-border/70 bg-muted/10 px-4 py-4 xl:block">
-            {railContent}
-          </aside>
-
           <ScrollArea className="flex-1">
-            <div className="space-y-4 p-4 sm:p-5 xl:p-6">
-              <div className="xl:hidden">{railContent}</div>
+            <div className="px-4">
               <div className={DISPOSITION_BODY_CLASS}>{children}</div>
             </div>
           </ScrollArea>
@@ -310,8 +285,8 @@ interface SelectionCardGridProps {
 function SelectionCardGrid({ value, onChange, options, columns = 3, disabled = false }: SelectionCardGridProps) {
   const gridClass = {
     2: "grid-cols-1 md:grid-cols-2",
-    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-    4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
+    3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+    4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
   }[columns];
 
   const toneClass: Record<SelectionCardTone, { selected: string; icon: string }> = {
@@ -395,7 +370,7 @@ interface DischargeDrawerProps {
   } | null;
   visitId: number;
   suratKontrolResult: SuratKontrolResponse | null;
-  setSuratKontrolResult: (data: SuratKontrolResponse) => void;
+  setSuratKontrolResult: (data: SuratKontrolResponse | null) => void;
   // Options
   dischargeConditionOptions: { value: string; label: string }[];
   // Surat Kontrol Type Selection
@@ -434,6 +409,8 @@ export function DischargeDrawer({
   
   // Show SIMRS follow-up form after BPJS Surat Kontrol is created
   const showBPJSFollowUpSync = !isAPS && kontrolType === "bpjs" && !!suratKontrolResult;
+  const selectedFollowUpDoctor =
+    availableDoctors.find((doctor) => doctor.employee_id === formData.follow_up_doctor_id)?.employee_name || "";
 
   const footer = (
     <div className="flex w-full justify-end gap-3">
@@ -485,41 +462,47 @@ export function DischargeDrawer({
       footer={footer}
     >
             {!isAPS && (
-              <DispositionSection
-                eyebrow="Mode Kontrol"
-                title="Pilih Jalur Kontrol"
-                description="Gunakan pilihan yang benar-benar bisa dijalankan untuk pasien ini. Mode yang tidak siap akan dibuat tidak aktif agar proses pemulangan lebih aman."
-              >
-                <SelectionCardGrid
-                  value={kontrolType}
-                  onChange={(value) => setKontrolType(value as "none" | "simrs" | "bpjs")}
-                  disabled={isDisabled}
-                  options={[
-                    {
-                      value: "none",
-                      title: "Tanpa Kontrol",
-                      description: "Pemulangan selesai tanpa jadwal kunjungan ulang.",
-                      tone: "neutral",
-                    },
-                    {
-                      value: "simrs",
-                      title: "Kontrol SIMRS",
-                      description: "Jadwalkan kontrol umum atau non-BPJS langsung di SIMRS.",
-                      icon: <Calendar className="h-4 w-4" />,
-                      tone: "blue",
-                    },
-                    {
-                      value: "bpjs",
-                      title: "Kontrol BPJS",
-                      description: "Buat surat kontrol melalui VClaim untuk pasien BPJS.",
-                      icon: <Calendar className="h-4 w-4" />,
-                      tone: "green",
-                      disabled: !patientNoBpjs,
-                      note: !patientNoBpjs ? "Nomor BPJS belum tersedia pada data pasien." : undefined,
-                    },
-                  ]}
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader
+                  eyebrow="Mode Kontrol"
+                  title="Pilih Jalur Kontrol"
                 />
-              </DispositionSection>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kontrolType === "none" ? "default" : "outline"}
+                    className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                    onClick={() => setKontrolType("none")}
+                    disabled={isDisabled}
+                  >
+                    Tanpa Kontrol
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kontrolType === "simrs" ? "default" : "outline"}
+                    className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                    onClick={() => setKontrolType("simrs")}
+                    disabled={isDisabled}
+                  >
+                    Kontrol SIMRS
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kontrolType === "bpjs" ? "default" : "outline"}
+                    className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                    onClick={() => setKontrolType("bpjs")}
+                    disabled={isDisabled || !patientNoBpjs}
+                  >
+                    Kontrol BPJS
+                  </Button>
+                </div>
+                {!patientNoBpjs ? (
+                  <p className="text-xs text-muted-foreground">Nomor BPJS belum tersedia pada data pasien.</p>
+                ) : null}
+              </div>
             )}
 
             {isAPS && (
@@ -543,6 +526,7 @@ export function DischargeDrawer({
                     isDisabled={isDisabled}
                     existingSuratKontrol={suratKontrolResult}
                     onSuratKontrolCreated={(skData) => setSuratKontrolResult(skData)}
+                    onSuratKontrolCleared={() => setSuratKontrolResult(null)}
                   />
                 ) : (
                   <Alert className="bg-amber-50 border-amber-200">
@@ -564,7 +548,7 @@ export function DischargeDrawer({
 
             {/* SIMRS Follow Up Form - shown after BPJS Surat Kontrol is created */}
             {showBPJSFollowUpSync && (
-              <div className="rounded-lg border-2 border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
+              <div className="rounded-none border border-blue-300 bg-blue-50/40 p-4 space-y-4">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                   <Calendar className="h-4 w-4" />
                   <span className="font-semibold text-sm">Sinkronisasi Jadwal Kontrol SIMRS</span>
@@ -574,7 +558,7 @@ export function DischargeDrawer({
                   Surat Kontrol BPJS harus terhubung dengan jadwal kontrol SIMRS. 
                   Pilih poli dan dokter di SIMRS untuk membuat jadwal kontrol.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
                     <Label className="text-sm">
                       Tanggal Kontrol (dari BPJS)
@@ -607,9 +591,13 @@ export function DischargeDrawer({
                       disabled={isDisabled}
                     />
                   </div>
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="text-sm">Dokter Terpilih</Label>
+                    <Input value={selectedFollowUpDoctor || "-"} readOnly className={BPJS_FIELD_CLASS} />
+                  </div>
 
                   {/* Doctor Selection */}
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-4">
                     <Label className="text-sm">Dokter SIMRS <span className="text-destructive">*</span></Label>
                     {loadingDoctors ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
@@ -631,7 +619,7 @@ export function DischargeDrawer({
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         {availableDoctors.map((doctor) => (
                           <button
                             key={doctor.employee_id}
@@ -639,7 +627,7 @@ export function DischargeDrawer({
                             onClick={() => onFormChange("follow_up_doctor_id", doctor.employee_id)}
                             disabled={isDisabled}
                             className={cn(
-                              "p-3 rounded-lg border-2 text-left transition-all",
+                              "p-3 rounded-none border-2 text-left transition-all",
                               formData.follow_up_doctor_id === doctor.employee_id
                                 ? "border-primary bg-primary/10 ring-2 ring-primary/20"
                                 : "border-muted hover:border-primary/50 hover:bg-muted/30"
@@ -660,12 +648,12 @@ export function DischargeDrawer({
 
             {/* Follow Up Form */}
             {showFollowUpFields && (
-              <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
+              <div className="rounded-none border border-blue-300 bg-blue-50/30 p-4 space-y-4">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                   <Calendar className="h-4 w-4" />
                   <span className="font-semibold text-sm">Jadwal Kontrol</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
                     <Label htmlFor="follow_up_date_drawer" className="text-sm">
                       Tanggal Kontrol <span className="text-destructive">*</span>
@@ -697,9 +685,13 @@ export function DischargeDrawer({
                       disabled={isDisabled}
                     />
                   </div>
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="text-sm">Dokter Terpilih</Label>
+                    <Input value={selectedFollowUpDoctor || "-"} readOnly className={BPJS_FIELD_CLASS} />
+                  </div>
 
                   {/* Doctor Selection */}
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-4">
                     <Label className="text-sm">Dokter <span className="text-destructive">*</span></Label>
                     {loadingDoctors ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
@@ -721,7 +713,7 @@ export function DischargeDrawer({
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         {availableDoctors.map((doctor) => (
                           <button
                             key={doctor.employee_id}
@@ -729,7 +721,7 @@ export function DischargeDrawer({
                             onClick={() => onFormChange("follow_up_doctor_id", doctor.employee_id)}
                             disabled={isDisabled}
                             className={cn(
-                              "p-3 rounded-lg border-2 text-left transition-all",
+                              "p-3 rounded-none border-2 text-left transition-all",
                               formData.follow_up_doctor_id === doctor.employee_id
                                 ? "border-primary bg-primary/10 ring-2 ring-primary/20"
                                 : "border-muted hover:border-primary/50 hover:bg-muted/30"
@@ -745,14 +737,14 @@ export function DischargeDrawer({
                     )}
                   </div>
 
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-2">
                     <Label htmlFor="follow_up_instruction_drawer" className="text-sm">Instruksi Kontrol</Label>
                     <Textarea
                       id="follow_up_instruction_drawer"
                       placeholder="Rencana pemeriksaan/tindakan saat kontrol..."
                       value={formData.follow_up_instruction}
                       onChange={(e) => onFormChange("follow_up_instruction", e.target.value)}
-                      className="min-h-[80px] resize-none bg-background"
+                      className="min-h-[64px] resize-none bg-background"
                       disabled={isDisabled}
                     />
                   </div>
@@ -1639,62 +1631,68 @@ export function ReferralDrawer({
       ) : undefined}
       footer={footer}
     >
-            <DispositionSection
-              eyebrow="Mode Rujukan"
-              title="Pilih Jalur Rujukan"
-              description="Setiap mode memiliki dokumen dan validasi sendiri. Pilihan dibuat eksplisit agar petugas tidak salah jalur saat memulangkan pasien."
-            >
-              <SelectionCardGrid
-                value={referralMode}
-                onChange={(value) => onFormChange("referral_mode", value)}
-                disabled={isDisabled}
-                columns={4}
-                options={[
-                  {
-                    value: "manual",
-                    title: "Manual SIMRS",
-                    description: "Rujukan internal tanpa bridging BPJS.",
-                    tone: "amber",
-                  },
-                  {
-                    value: "bpjs_v1",
-                    title: "BPJS V1",
-                    description: "Pakai alur VClaim versi 1 untuk rujukan reguler.",
-                    tone: "blue",
-                  },
-                  {
-                    value: "bpjs_v2",
-                    title: "BPJS V2",
-                    description: "Pakai alur VClaim versi 2 dengan rencana kunjungan.",
-                    tone: "green",
-                  },
-                  {
-                    value: "bpjs_khusus",
-                    title: "BPJS Khusus",
-                    description: "Buat rujukan kasus atau prosedur khusus BPJS.",
-                    tone: "rose",
-                  },
-                ]}
+            <div className={BPJS_SECTION_CLASS}>
+              <BPJSSectionHeader
+                eyebrow="Mode Rujukan"
+                title="Pilih Jalur Rujukan"
               />
-            </DispositionSection>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={referralMode === "manual" ? "default" : "outline"}
+                  className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                  onClick={() => onFormChange("referral_mode", "manual")}
+                  disabled={isDisabled}
+                >
+                  Manual SIMRS
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={referralMode === "bpjs_v1" ? "default" : "outline"}
+                  className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                  onClick={() => onFormChange("referral_mode", "bpjs_v1")}
+                  disabled={isDisabled}
+                >
+                  BPJS V1
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={referralMode === "bpjs_v2" ? "default" : "outline"}
+                  className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                  onClick={() => onFormChange("referral_mode", "bpjs_v2")}
+                  disabled={isDisabled}
+                >
+                  BPJS V2
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={referralMode === "bpjs_khusus" ? "default" : "outline"}
+                  className="h-8 w-full justify-start rounded-none border-border/70 px-3 text-xs"
+                  onClick={() => onFormChange("referral_mode", "bpjs_khusus")}
+                  disabled={isDisabled}
+                >
+                  BPJS Khusus
+                </Button>
+              </div>
+            </div>
 
             {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2" || referralMode === "bpjs_khusus") && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <AlertTitle className="text-blue-700">Rujukan BPJS VClaim</AlertTitle>
-                <AlertDescription className="text-blue-700">
-                  Pisahkan rujukan sesuai mode. Gunakan tombol simpan rujukan BPJS sebelum menyimpan disposisi pulang.
-                </AlertDescription>
-              </Alert>
+              <BPJSStatePanel
+                tone="success"
+                title="Rujukan BPJS VClaim"
+                description="Pisahkan rujukan sesuai mode. Gunakan tombol simpan rujukan BPJS sebelum menyimpan disposisi pulang."
+              />
             )}
 
             {referralMode === "manual" && (
-            <div className="rounded-lg border bg-amber-50/40 dark:bg-amber-950/20 p-4 space-y-4">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                <Ambulance className="h-4 w-4" />
-                <span className="font-semibold text-sm">Rujukan Manual SIMRS</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="rounded-none border border-border/70 bg-amber-50/30 p-4 space-y-4 [&_label]:text-xs [&_label]:uppercase [&_label]:tracking-[0.14em] [&_input]:h-10 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none">
+              <BPJSSectionHeader eyebrow="Manual" title="Rujukan SIMRS" />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">
                   Fasilitas Tujuan Rujukan <span className="text-destructive">*</span>
                 </Label>
@@ -1705,7 +1703,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Spesialis Tujuan</Label>
                 <Input
                   placeholder="Contoh: Sp.PD, Sp.JP, Sp.B, dll"
@@ -1714,7 +1712,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Alamat Fasilitas</Label>
                 <Input
                   placeholder="Alamat lengkap fasilitas tujuan"
@@ -1723,7 +1721,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Telepon Fasilitas</Label>
                 <Input
                   placeholder="Nomor telepon fasilitas"
@@ -1732,7 +1730,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Urgensi Rujukan</Label>
                   <Combobox
                   options={[
@@ -1749,7 +1747,7 @@ export function ReferralDrawer({
                     className={BPJS_FIELD_CLASS}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-2">
                 <Label className="text-sm">
                   Alasan Rujukan <span className="text-destructive">*</span>
                 </Label>
@@ -1761,7 +1759,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-2">
                 <Label className="text-sm">Diagnosis / Ringkasan Klinis</Label>
                 <Textarea
                   placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
@@ -1771,7 +1769,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-2">
                 <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
                 <Textarea
                   placeholder="Terapi dan tindakan yang sudah dilakukan..."
@@ -1781,7 +1779,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-2">
                 <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
                 <Textarea
                   placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
@@ -1791,7 +1789,7 @@ export function ReferralDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-2">
                 <Label className="text-sm">Catatan Tambahan untuk RS Tujuan</Label>
                 <Textarea
                   placeholder="Catatan tambahan yang perlu diketahui RS tujuan..."
@@ -1806,14 +1804,14 @@ export function ReferralDrawer({
             )}
 
             {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2") && (
-              <div className="rounded-lg border-2 border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
-                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                  <Send className="h-4 w-4" />
-                  <span className="font-semibold text-sm">Rujukan BPJS {referralMode === "bpjs_v1" ? "V1" : "V2"}</span>
-                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">WAJIB BPJS</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+              <div className="rounded-none border border-blue-300 bg-blue-50/40 p-4 space-y-4 [&_label]:text-xs [&_label]:uppercase [&_label]:tracking-[0.14em] [&_input]:h-10 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none">
+                <BPJSSectionHeader
+                  eyebrow="Bridging"
+                  title={`Rujukan BPJS ${referralMode === "bpjs_v1" ? "V1" : "V2"}`}
+                  action={<span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-none">WAJIB BPJS</span>}
+                />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Nomor SEP</Label>
                     <Input
                       value={formData.referral_no_sep || activeSEP?.no_sep || ""}
@@ -1822,11 +1820,11 @@ export function ReferralDrawer({
                       placeholder="Nomor SEP"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Nomor Rujukan</Label>
                     <Input value={formData.referral_no_rujukan || ""} onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)} disabled={isDisabled} placeholder="Terisi setelah create" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Tanggal Rujukan</Label>
                     <Input
                       type="date"
@@ -1836,7 +1834,7 @@ export function ReferralDrawer({
                     />
                   </div>
                   {referralMode === "bpjs_v2" && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 lg:col-span-2">
                       <Label className="text-sm">Tgl Rencana Kunjungan</Label>
                       <Input
                         type="date"
@@ -1847,10 +1845,10 @@ export function ReferralDrawer({
                     </div>
                   )}
 
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-4">
                     <div className="flex items-center justify-between gap-2">
                       <Label className="text-sm">PPK Dirujuk</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setPpkDialogOpen(true)} disabled={isDisabled}>
+                      <Button type="button" variant="outline" size="sm" className="rounded-none border-border/70" onClick={() => setPpkDialogOpen(true)} disabled={isDisabled}>
                         <Plus className="h-4 w-4 mr-1" /> Tambah PPK
                       </Button>
                     </div>
@@ -1870,7 +1868,7 @@ export function ReferralDrawer({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Jenis Pelayanan</Label>
                     <Combobox
                       options={[{ value: "1", label: "Rawat Inap" }, { value: "2", label: "Rawat Jalan" }]}
@@ -1883,7 +1881,7 @@ export function ReferralDrawer({
                       className={BPJS_FIELD_CLASS}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Tipe Rujukan</Label>
                     <Combobox
                       options={[{ value: "0", label: "Penuh" }, { value: "1", label: "Partial" }, { value: "2", label: "Rujuk Balik" }]}
@@ -1897,7 +1895,7 @@ export function ReferralDrawer({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Kode Diagnosa Rujukan</Label>
                     <div className="flex gap-2">
                       <Input
@@ -1911,6 +1909,7 @@ export function ReferralDrawer({
                       <Button
                         type="button"
                         variant="outline"
+                        className="h-10 w-10 rounded-none border-border/70 px-0"
                         onClick={() => setDiagnosaModalOpen(true)}
                         disabled={isDisabled}
                       >
@@ -1919,7 +1918,7 @@ export function ReferralDrawer({
                     </div>
                     <p className="text-xs text-muted-foreground">Sumber data: master ICD-10 SIMRS.</p>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Kode Poli Rujukan</Label>
                     <div className="flex gap-2">
                       <Input
@@ -1933,6 +1932,7 @@ export function ReferralDrawer({
                       <Button
                         type="button"
                         variant="outline"
+                        className="h-10 w-10 rounded-none border-border/70 px-0"
                         onClick={() => setPoliModalOpen(true)}
                         disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
                       >
@@ -1943,38 +1943,39 @@ export function ReferralDrawer({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm">Catatan Rujukan</Label>
-                  <Textarea
-                    value={formData.referral_reason}
-                    onChange={(e) => onFormChange("referral_reason", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
-                    placeholder="Catatan klinis rujukan"
-                    disabled={isDisabled}
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" onClick={createOrUpdateBPJSReferral} disabled={isDisabled || bpjsSubmitting}>
-                    {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                    {formData.referral_no_rujukan ? "Update Rujukan BPJS" : "Buat Rujukan BPJS"}
-                  </Button>
-                  <Button type="button" variant="destructive" onClick={deleteReferral} disabled={isDisabled || bpjsSubmitting || !formData.referral_no_rujukan}>
-                    Hapus Rujukan BPJS
-                  </Button>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                    <Label className="text-sm">Catatan Rujukan</Label>
+                    <Textarea
+                      value={formData.referral_reason}
+                      onChange={(e) => onFormChange("referral_reason", e.target.value)}
+                      className={DISPOSITION_TEXTAREA_CLASS}
+                      placeholder="Catatan klinis rujukan"
+                      disabled={isDisabled}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2 md:col-span-2 lg:col-span-2">
+                    <Button type="button" className="rounded-none" onClick={createOrUpdateBPJSReferral} disabled={isDisabled || bpjsSubmitting}>
+                      {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      {formData.referral_no_rujukan ? "Update Rujukan BPJS" : "Buat Rujukan BPJS"}
+                    </Button>
+                    <Button type="button" variant="destructive" className="rounded-none" onClick={deleteReferral} disabled={isDisabled || bpjsSubmitting || !formData.referral_no_rujukan}>
+                      Hapus Rujukan BPJS
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
             {referralMode === "bpjs_khusus" && (
-              <div className="rounded-lg border-2 border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 p-4 space-y-4">
-                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
-                  <Send className="h-4 w-4" />
-                  <span className="font-semibold text-sm">Rujukan Khusus BPJS</span>
-                  <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">KHUSUS</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
+              <div className="rounded-none border border-purple-300 bg-purple-50/40 p-4 space-y-4 [&_label]:text-xs [&_label]:uppercase [&_label]:tracking-[0.14em] [&_input]:h-10 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none">
+                <BPJSSectionHeader
+                  eyebrow="Bridging"
+                  title="Rujukan Khusus BPJS"
+                  action={<span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-none">KHUSUS</span>}
+                />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Nomor Rujukan Dasar</Label>
                     <Input
                       value={formData.referral_no_rujukan || ""}
@@ -1983,7 +1984,7 @@ export function ReferralDrawer({
                       placeholder="No rujukan dari V1/V2"
                     />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Kode Diagnosis Khusus</Label>
                     <Input
                       value={formData.referral_khusus_diagnosa_codes || ""}
@@ -1992,7 +1993,7 @@ export function ReferralDrawer({
                       placeholder="Pisahkan dengan koma, contoh: primer;Z49.1,sekunder;I10"
                     />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">Kode Prosedur Khusus</Label>
                     <Input
                       value={formData.referral_khusus_procedure_codes || ""}
@@ -2001,7 +2002,7 @@ export function ReferralDrawer({
                       placeholder="Pisahkan dengan koma, contoh: 95.04,89.12"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 lg:col-span-2">
                     <Label className="text-sm">ID Rujukan Khusus</Label>
                     <Input
                       value={formData.referral_khusus_id || bpjsReferral?.khusus_id_rujukan || ""}
@@ -2013,13 +2014,14 @@ export function ReferralDrawer({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" onClick={createRujukanKhusus} disabled={isDisabled || bpjsSubmitting}>
+                  <Button type="button" className="rounded-none" onClick={createRujukanKhusus} disabled={isDisabled || bpjsSubmitting}>
                     {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Buat Rujukan Khusus
                   </Button>
                   <Button
                     type="button"
                     variant="destructive"
+                    className="rounded-none"
                     onClick={deleteRujukanKhusus}
                     disabled={isDisabled || bpjsSubmitting || !formData.referral_khusus_id || !formData.referral_no_rujukan}
                   >
@@ -2030,40 +2032,39 @@ export function ReferralDrawer({
             )}
 
             {(referralMode !== "manual") && (
-              <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-primary" />
-                  <Label className="text-sm font-semibold">Ringkasan Klinis Rujukan</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Ringkasan Klinis</Label>
-                  <Textarea
-                    placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
-                    value={formData.referral_diagnosis}
-                    onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
-                    disabled={isDisabled}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
-                  <Textarea
-                    placeholder="Terapi dan tindakan yang sudah dilakukan..."
-                    value={formData.referral_therapy}
-                    onChange={(e) => onFormChange("referral_therapy", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
-                    disabled={isDisabled}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
-                  <Textarea
-                    placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
-                    value={formData.referral_lab_result}
-                    onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
-                    disabled={isDisabled}
-                  />
+              <div className="rounded-none border border-border/70 bg-muted/10 p-4 space-y-4 [&_label]:text-xs [&_label]:uppercase [&_label]:tracking-[0.14em] [&_input]:h-10 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none">
+                <BPJSSectionHeader eyebrow="Clinical" title="Ringkasan Klinis Rujukan" />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-4">
+                    <Label className="text-sm">Ringkasan Klinis</Label>
+                    <Textarea
+                      placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
+                      value={formData.referral_diagnosis}
+                      onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
+                      className={DISPOSITION_TEXTAREA_CLASS}
+                      disabled={isDisabled}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                    <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
+                    <Textarea
+                      placeholder="Terapi dan tindakan yang sudah dilakukan..."
+                      value={formData.referral_therapy}
+                      onChange={(e) => onFormChange("referral_therapy", e.target.value)}
+                      className={DISPOSITION_TEXTAREA_CLASS}
+                      disabled={isDisabled}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2 lg:col-span-2">
+                    <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
+                    <Textarea
+                      placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
+                      value={formData.referral_lab_result}
+                      onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
+                      className={DISPOSITION_TEXTAREA_CLASS}
+                      disabled={isDisabled}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -2198,8 +2199,8 @@ export function DeathDrawer({
                 Untuk detail lengkap surat kematian (penyebab ICD-10, saksi, dll), silakan buka tab <strong>"Surat Kematian"</strong> di menu sebelah kiri.
               </AlertDescription>
             </Alert>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Waktu Kematian</Label>
                 <Input
                   type="datetime-local"
@@ -2208,7 +2209,7 @@ export function DeathDrawer({
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-2 lg:col-span-4">
                 <Label className="text-sm">Penyebab Kematian</Label>
                 <Textarea
                   placeholder="Penyebab kematian pasien..."
@@ -2405,3 +2406,5 @@ export function OutpatientTransferDrawer({
     </DispositionSheetShell>
   );
 }
+
+

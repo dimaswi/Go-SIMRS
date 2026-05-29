@@ -15,6 +15,20 @@ import (
 // INVENTORY HANDLERS
 // ==========================================
 
+func resolveInventoryCurrentStock(inventoryID uint, fallback int) int {
+	var total int64
+	database.DB.Model(&models.RoomInventory{}).
+		Where("inventory_id = ?", inventoryID).
+		Select("COALESCE(SUM(quantity), 0)").
+		Scan(&total)
+
+	if total > 0 {
+		return int(total)
+	}
+
+	return fallback
+}
+
 // GetInventories returns all inventories with pagination and search
 func GetInventories(c *gin.Context) {
 	var inventories []models.Inventory
@@ -26,6 +40,8 @@ func GetInventories(c *gin.Context) {
 	search := c.Query("search")
 	category := c.Query("category")
 	isActive := c.Query("is_active")
+	itemScope := strings.TrimSpace(c.Query("item_scope"))
+	itemGroup := strings.TrimSpace(c.Query("item_group"))
 
 	offset := (page - 1) * limit
 
@@ -45,6 +61,27 @@ func GetInventories(c *gin.Context) {
 		query = query.Where("category = ?", category)
 	}
 
+	// Apply item_scope filter (supports comma-separated values)
+	if itemScope != "" {
+		scopes := make([]string, 0)
+		for _, scope := range strings.Split(itemScope, ",") {
+			scope = strings.TrimSpace(scope)
+			if scope != "" {
+				scopes = append(scopes, scope)
+			}
+		}
+		if len(scopes) == 1 {
+			query = query.Where("item_scope = ?", scopes[0])
+		} else if len(scopes) > 1 {
+			query = query.Where("item_scope IN ?", scopes)
+		}
+	}
+
+	// Apply item_group filter
+	if itemGroup != "" {
+		query = query.Where("item_group = ?", itemGroup)
+	}
+
 	// Apply is_active filter
 	if isActive != "" {
 		query = query.Where("is_active = ?", isActive == "true")
@@ -57,6 +94,10 @@ func GetInventories(c *gin.Context) {
 	if err := query.Order("name ASC").Offset(offset).Limit(limit).Find(&inventories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventories"})
 		return
+	}
+	for i := range inventories {
+		inventories[i].CurrentStock = resolveInventoryCurrentStock(inventories[i].ID, inventories[i].CurrentStock)
+		inventories[i].TotalValue = float64(inventories[i].CurrentStock) * inventories[i].Price
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -79,6 +120,8 @@ func GetInventory(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Inventory not found"})
 		return
 	}
+	inventory.CurrentStock = resolveInventoryCurrentStock(inventory.ID, inventory.CurrentStock)
+	inventory.TotalValue = float64(inventory.CurrentStock) * inventory.Price
 
 	c.JSON(http.StatusOK, gin.H{"data": inventory})
 }
@@ -92,20 +135,34 @@ func CreateInventory(c *gin.Context) {
 	}
 
 	// Validate required fields
-	if input.Code == "" || input.Name == "" || input.Category == "" || input.Unit == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Code, Name, Category, and Unit are required"})
+	if input.Name == "" || input.Category == "" || input.Unit == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name, Category, and Unit are required"})
+		return
+	}
+	if input.ItemGroup != "" && input.ItemGroup != models.InventoryItemGroupBHP && input.ItemGroup != models.InventoryItemGroupOther {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "item_group must be bhp or other"})
+		return
+	}
+	if input.ItemScope != "" && input.ItemScope != models.InventoryItemScopeUnit && input.ItemScope != models.InventoryItemScopePharmacy && input.ItemScope != models.InventoryItemScopeBoth {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "item_scope must be unit, pharmacy, or both"})
 		return
 	}
 
-	// Check for duplicate code
-	var existing models.Inventory
-	if err := database.DB.Where("code = ?", input.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Inventory with this code already exists"})
+	code, err := generateDateCode(&models.Inventory{}, "INV")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate inventory code"})
 		return
 	}
+	input.Code = code
 
 	// TotalValue will be calculated based on room stocks when needed
 	input.TotalValue = 0
+	if strings.TrimSpace(string(input.ItemScope)) == "" {
+		input.ItemScope = models.InventoryItemScopeBoth
+	}
+	if strings.TrimSpace(string(input.ItemGroup)) == "" {
+		input.ItemGroup = models.InventoryItemGroupOther
+	}
 
 	if err := database.DB.Create(&input).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create inventory: " + err.Error()})
@@ -133,22 +190,22 @@ func UpdateInventory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Check for duplicate code (exclude current)
-	if input.Code != inventory.Code {
-		var existing models.Inventory
-		if err := database.DB.Where("code = ? AND id != ?", input.Code, id).First(&existing).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Inventory with this code already exists"})
-			return
-		}
+	if input.ItemGroup != "" && input.ItemGroup != models.InventoryItemGroupBHP && input.ItemGroup != models.InventoryItemGroupOther {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "item_group must be bhp or other"})
+		return
+	}
+	if input.ItemScope != "" && input.ItemScope != models.InventoryItemScopeUnit && input.ItemScope != models.InventoryItemScopePharmacy && input.ItemScope != models.InventoryItemScopeBoth {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "item_scope must be unit, pharmacy, or both"})
+		return
 	}
 
 	// Update fields (stock is managed per room, not here)
 	updates := map[string]interface{}{
-		"code":           input.Code,
 		"name":           input.Name,
 		"description":    input.Description,
 		"category":       input.Category,
+		"item_group":     input.ItemGroup,
+		"item_scope":     input.ItemScope,
 		"unit":           input.Unit,
 		"brand":          input.Brand,
 		"model":          input.Model,

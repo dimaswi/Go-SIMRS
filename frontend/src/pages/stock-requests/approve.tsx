@@ -20,6 +20,7 @@ import {
   stockRequestStatusLabels,
   priorityLabels,
   requestTypeLabels,
+  requestModeLabels,
 } from "@/lib/api/stock-requests";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
@@ -127,6 +128,9 @@ export default function StockRequestApprove() {
       const approvalItems: ApprovalItem[] = (data.items || []).map((item) => {
         const itemData = item.inventory || item.medicine;
         const quantityRemainingRequest = Math.max(0, item.quantity_requested - item.quantity_approved);
+        const maxApproval = data.request_mode === "self_purchase"
+          ? quantityRemainingRequest
+          : Math.min(quantityRemainingRequest, itemData?.current_stock || 0);
         return {
           id: item.id,
           inventory_id: item.inventory_id,
@@ -138,7 +142,7 @@ export default function StockRequestApprove() {
           quantity_requested: item.quantity_requested,
           quantity_already_approved: item.quantity_approved,
           quantity_remaining_request: quantityRemainingRequest,
-          quantity_approved: Math.min(quantityRemainingRequest, itemData?.current_stock || 0),
+          quantity_approved: maxApproval,
         };
       });
       setItems(approvalItems);
@@ -163,7 +167,15 @@ export default function StockRequestApprove() {
     setItems(
       items.map((item) =>
         item.id === itemId
-          ? { ...item, quantity_approved: Math.min(Math.max(0, quantity), Math.min(item.quantity_remaining_request, item.current_stock)) }
+          ? {
+            ...item,
+            quantity_approved: Math.min(
+              Math.max(0, quantity),
+              request?.request_mode === "self_purchase"
+                ? item.quantity_remaining_request
+                : Math.min(item.quantity_remaining_request, item.current_stock)
+            ),
+          }
           : item
       )
     );
@@ -173,7 +185,9 @@ export default function StockRequestApprove() {
     setItems(
       items.map((item) => ({
         ...item,
-        quantity_approved: Math.min(item.quantity_remaining_request, item.current_stock),
+        quantity_approved: request?.request_mode === "self_purchase"
+          ? item.quantity_remaining_request
+          : Math.min(item.quantity_remaining_request, item.current_stock),
       }))
     );
   };
@@ -299,7 +313,7 @@ export default function StockRequestApprove() {
   const totalApproveNow = items.reduce((sum, item) => sum + item.quantity_approved, 0);
   const totalAfterApprove = totalAlreadyApproved + totalApproveNow;
   const fullyCoveredCount = items.filter((item) => item.current_stock >= item.quantity_remaining_request).length;
-  const requestModeLabel = request.status === "partial" ? "Persetujuan Lanjutan" : "Persetujuan Awal";
+  const approvalStageLabel = request.status === "partial" ? "Persetujuan Lanjutan" : "Persetujuan Awal";
 
   return (
     <PageShell className="lg:overflow-hidden">
@@ -337,11 +351,15 @@ export default function StockRequestApprove() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Mode</div>
-                    <div className="mt-1 text-sm font-semibold text-foreground">{requestModeLabel}</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{approvalStageLabel}</div>
                   </div>
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Prioritas</div>
                     <div className="mt-1 text-sm font-semibold text-foreground">{priorityLabels[request.priority]}</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-cyan-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Jenis Permintaan</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{requestModeLabels[request.request_mode] || request.request_mode}</div>
                   </div>
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Sudah Approved</div>
@@ -473,23 +491,28 @@ export default function StockRequestApprove() {
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">
-                        <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                        <th className="h-9 w-[12%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Diminta</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sudah</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Approve</th>
-                        <th className="h-9 w-[16%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                        <th rowSpan={2} className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th rowSpan={2} className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                        <th colSpan={4} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
+                        <th rowSpan={2} className="h-9 w-[16%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                      </tr>
+                      <tr className="bg-muted/10">
+                        <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Stok</th>
+                        <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Diminta</th>
+                        <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Sudah</th>
+                        <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Approve</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item) => {
-                        const maxApproved = Math.min(item.quantity_remaining_request, item.current_stock);
-                        const stockEnough = item.current_stock >= item.quantity_remaining_request;
+                        const maxApproved = request.request_mode === "self_purchase"
+                          ? item.quantity_remaining_request
+                          : Math.min(item.quantity_remaining_request, item.current_stock);
+                        const stockEnough = request.request_mode === "self_purchase" || item.current_stock >= item.quantity_remaining_request;
                         const totalAfterItemApproval = item.quantity_already_approved + item.quantity_approved;
                         return (
                           <tr key={item.id} className="transition-colors hover:bg-muted/10">
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                            <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                               <div className="flex items-start gap-2">
                                 {item.inventory_id ? (
                                   <Package className="mt-0.5 h-4 w-4 text-blue-500" />
@@ -502,10 +525,10 @@ export default function StockRequestApprove() {
                                 </div>
                               </div>
                             </td>
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                            <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">
                               {item.unit}
                             </td>
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                            <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center">
                               <Badge
                                 variant="outline"
                                 className={stockEnough ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}
@@ -513,13 +536,13 @@ export default function StockRequestApprove() {
                                 {item.current_stock}
                               </Badge>
                             </td>
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                            <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">
                               {item.quantity_requested}
                             </td>
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                            <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">
                               {item.quantity_already_approved}
                             </td>
-                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                            <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle">
                               <div className="space-y-1">
                                 <Input
                                   type="number"
@@ -532,7 +555,7 @@ export default function StockRequestApprove() {
                                 <p className="text-[11px] text-muted-foreground">Maks. {maxApproved} dari sisa {item.quantity_remaining_request}</p>
                               </div>
                             </td>
-                            <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                            <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">
                               {item.quantity_remaining_request === 0 ? (
                                 <span className="text-emerald-600">Sudah penuh</span>
                               ) : item.quantity_approved === 0 ? (

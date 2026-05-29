@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
@@ -225,7 +226,7 @@ func calculateAge(birthDate time.Time) int {
 
 // CreateRoomRequest represents the request to create a room
 type CreateRoomRequest struct {
-	Code          string  `json:"code" binding:"required"`
+	Code          string  `json:"code"`
 	Name          string  `json:"name" binding:"required"`
 	QueueCode     string  `json:"queue_code"`
 	ServiceType   string  `json:"service_type" binding:"required"`
@@ -250,14 +251,14 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
-	// Check if code already exists
-	var existing models.Room
-	if err := database.DB.Where("code = ?", req.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode ruangan sudah digunakan"})
+	code, err := generateDateCode(&models.Room{}, "ROM")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode ruangan otomatis"})
 		return
 	}
 
 	// Check if queue_code already exists (if provided)
+	var existing models.Room
 	if req.QueueCode != "" {
 		if err := database.DB.Where("queue_code = ?", req.QueueCode).First(&existing).Error; err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode antrean sudah digunakan oleh ruangan lain"})
@@ -280,7 +281,7 @@ func CreateRoom(c *gin.Context) {
 	}
 
 	room := models.Room{
-		Code:          req.Code,
+		Code:          code,
 		Name:          req.Name,
 		QueueCode:     req.QueueCode,
 		ServiceType:   req.ServiceType,
@@ -310,7 +311,7 @@ func CreateRoom(c *gin.Context) {
 
 // UpdateRoomRequest represents the request to update a room
 type UpdateRoomRequest struct {
-	Code          string  `json:"code" binding:"required"`
+	Code          string  `json:"code"`
 	Name          string  `json:"name" binding:"required"`
 	QueueCode     string  `json:"queue_code"`
 	ServiceType   string  `json:"service_type" binding:"required"`
@@ -343,14 +344,8 @@ func UpdateRoom(c *gin.Context) {
 		return
 	}
 
-	// Check if code already exists (excluding current room)
-	var existing models.Room
-	if err := database.DB.Where("code = ? AND id != ?", req.Code, id).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode ruangan sudah digunakan"})
-		return
-	}
-
 	// Check if queue_code already exists (excluding current room, if provided)
+	var existing models.Room
 	if req.QueueCode != "" {
 		if err := database.DB.Where("queue_code = ? AND id != ?", req.QueueCode, id).First(&existing).Error; err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode antrean sudah digunakan oleh ruangan lain"})
@@ -372,7 +367,6 @@ func UpdateRoom(c *gin.Context) {
 		totalFloors = 1
 	}
 
-	room.Code = req.Code
 	room.Name = req.Name
 	room.QueueCode = req.QueueCode
 	room.ServiceType = req.ServiceType
@@ -472,7 +466,7 @@ func GetRoomUnit(c *gin.Context) {
 
 // CreateRoomUnitRequest represents the request to create a room unit
 type CreateRoomUnitRequest struct {
-	Code     string `json:"code" binding:"required"`
+	Code     string `json:"code"`
 	Name     string `json:"name" binding:"required"`
 	Floor    int    `json:"floor"`
 	Capacity int    `json:"capacity"`
@@ -511,10 +505,15 @@ func CreateRoomUnit(c *gin.Context) {
 		return
 	}
 
-	// Check if code already exists in this room
-	var existing models.RoomUnit
-	if err := database.DB.Where("room_id = ? AND code = ?", roomID, req.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode kamar sudah digunakan di ruangan ini"})
+	prefix := fmt.Sprintf("RMU%04d-", roomID)
+	code, err := generateSequentialCode(
+		&models.RoomUnit{},
+		prefix,
+		3,
+		func(db *gorm.DB) *gorm.DB { return db.Where("room_id = ?", roomID) },
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode kamar otomatis"})
 		return
 	}
 
@@ -525,7 +524,7 @@ func CreateRoomUnit(c *gin.Context) {
 
 	unit := models.RoomUnit{
 		RoomID:   uint(roomID),
-		Code:     req.Code,
+		Code:     code,
 		Name:     req.Name,
 		Floor:    floor,
 		Capacity: capacity,
@@ -543,7 +542,7 @@ func CreateRoomUnit(c *gin.Context) {
 
 // UpdateRoomUnitRequest represents the request to update a room unit
 type UpdateRoomUnitRequest struct {
-	Code     string `json:"code" binding:"required"`
+	Code     string `json:"code"`
 	Name     string `json:"name" binding:"required"`
 	Floor    int    `json:"floor"`
 	Capacity int    `json:"capacity"`
@@ -585,13 +584,6 @@ func UpdateRoomUnit(c *gin.Context) {
 		return
 	}
 
-	// Check if code already exists in this room (excluding current unit)
-	var existing models.RoomUnit
-	if err := database.DB.Where("room_id = ? AND code = ? AND id != ?", roomID, req.Code, unitID).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode kamar sudah digunakan di ruangan ini"})
-		return
-	}
-
 	// Check capacity - cannot be less than current bed count
 	var bedCount int64
 	database.DB.Model(&models.Bed{}).Where("room_unit_id = ?", unitID).Count(&bedCount)
@@ -605,7 +597,6 @@ func UpdateRoomUnit(c *gin.Context) {
 		capacity = 1
 	}
 
-	unit.Code = req.Code
 	unit.Name = req.Name
 	unit.Floor = floor
 	unit.Capacity = capacity

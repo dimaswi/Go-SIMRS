@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   nutritionPackageApi,
-  nutritionDietTypeLabels,
+  nutritionMenuApi,
   nutritionMealTimeLabels,
   nutritionCategoryLabels,
   type NutritionPackage,
@@ -21,11 +21,28 @@ export default function NutritionMealPackageShow() {
   const { toast } = useToast();
   const [pkg, setPkg] = useState<NutritionPackage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dietTypeMap, setDietTypeMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setPageTitle("Detail Paket Makanan");
     loadPackage();
+    loadDietTypes();
   }, [id]);
+
+  const loadDietTypes = async () => {
+    try {
+      const res = await nutritionMenuApi.getDietTypes();
+      const options = res.data?.data || [];
+      setDietTypeMap(
+        options.reduce((acc: Record<string, string>, item: { value: string; label: string }) => {
+          acc[item.value] = item.label;
+          return acc;
+        }, {})
+      );
+    } catch {
+      setDietTypeMap({});
+    }
+  };
 
   const loadPackage = async () => {
     try {
@@ -46,9 +63,6 @@ export default function NutritionMealPackageShow() {
       </div>
     );
   }
-
-  const fmt = (v: number) =>
-    new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(v);
 
   return (
     <PageShell>
@@ -77,9 +91,9 @@ export default function NutritionMealPackageShow() {
 
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <NutritionSummaryCue label="Jenis Diet" description={nutritionDietTypeLabels[pkg.diet_type] || pkg.diet_type} tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Jenis Diet" description={dietTypeMap[pkg.diet_type] || pkg.diet_type} tone="from-background via-background to-emerald-50/50" />
           <NutritionSummaryCue label="Waktu Makan" description={nutritionMealTimeLabels[pkg.meal_time] || pkg.meal_time} tone="from-background via-background to-sky-50/40" />
-          <NutritionSummaryCue label="Harga Paket" description={pkg.price > 0 ? fmt(pkg.price) : "Belum diisi"} tone="from-background via-background to-amber-50/50" />
+          <NutritionSummaryCue label="Status Paket" description={pkg.is_active ? "Aktif" : "Nonaktif"} tone="from-background via-background to-amber-50/50" />
         </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
@@ -88,15 +102,11 @@ export default function NutritionMealPackageShow() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Jenis Diet</span>
-              <Badge variant="outline">{nutritionDietTypeLabels[pkg.diet_type] || pkg.diet_type}</Badge>
+              <Badge variant="outline">{dietTypeMap[pkg.diet_type] || pkg.diet_type}</Badge>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Waktu Makan</span>
               <Badge variant="secondary">{nutritionMealTimeLabels[pkg.meal_time] || pkg.meal_time}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Harga</span>
-              <span className="font-medium">{pkg.price > 0 ? fmt(pkg.price) : "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status</span>

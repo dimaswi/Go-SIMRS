@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -23,6 +22,9 @@ import {
   Hospital,
   UserCheck,
   Pill,
+  Pencil,
+  Trash2,
+  Unlink2,
 } from "lucide-react";
 import {
   vclaimApi,
@@ -33,6 +35,13 @@ import {
   type PRBFormData,
 } from "@/lib/api/vclaim";
 import { PoliDokterSelector } from "@/components/sep/poli-dokter-selector";
+import {
+  BPJS_FIELD_CLASS,
+  BPJS_PANEL_CLASS,
+  BPJSSectionHeader,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "@/components/sep/bpjs-sheet-chrome";
 
 // PRB status options
 const PRB_STATUS_OPTIONS = [
@@ -134,6 +143,7 @@ interface BPJSControlSectionProps {
   // Surat Kontrol specific
   existingSuratKontrol?: SuratKontrolResponse | null;
   onSuratKontrolCreated?: (skData: SuratKontrolResponse) => void;
+  onSuratKontrolCleared?: () => void;
 }
 
 export function BPJSControlSection({
@@ -146,6 +156,7 @@ export function BPJSControlSection({
   onSPRICreated,
   existingSuratKontrol,
   onSuratKontrolCreated,
+  onSuratKontrolCleared,
 }: BPJSControlSectionProps) {
   const { toast } = useToast();
   const isRawatInap = dispositionType === "rawat_inap";
@@ -180,6 +191,17 @@ export function BPJSControlSection({
   // Result state
   const [spriResult, setSPRIResult] = useState<VClaimSPRIResponse | null>(existingSPRI || null);
   const [suratKontrolResult, setSuratKontrolResult] = useState<SuratKontrolResponse | null>(existingSuratKontrol || null);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [deletingExisting, setDeletingExisting] = useState(false);
+  const [unlinkingExisting, setUnlinkingExisting] = useState(false);
+
+  useEffect(() => {
+    setSPRIResult(existingSPRI || null);
+  }, [existingSPRI]);
+
+  useEffect(() => {
+    setSuratKontrolResult(existingSuratKontrol || null);
+  }, [existingSuratKontrol]);
 
   // Check peserta saat pertama kali toggle on
   // For SPRI, we can check peserta even without SEP
@@ -251,6 +273,79 @@ export function BPJSControlSection({
     }));
   };
 
+  const startEditSuratKontrol = async () => {
+    if (!suratKontrolResult) return;
+    try {
+      const localRes = await vclaimApi.getSuratKontrolLocal(suratKontrolResult.noSuratKontrol);
+      const local = localRes.data.data;
+      setTglRencanaKontrol(local.tgl_rencana_kontrol || suratKontrolResult.tglRencanaKontrol || defaultTanggalKontrol);
+      setKodePoli(local.kode_poli || "");
+      setNamaPoli(local.nama_poli || "");
+      setKodeDokter(local.kode_dokter || "");
+      setNamaDokter(local.nama_dokter || suratKontrolResult.namaDokter || "");
+      setWantsBPJSControl(true);
+      setIsEditingExisting(true);
+    } catch (err: any) {
+      toast({
+        title: "Gagal membuka mode edit",
+        description: err?.response?.data?.error || err?.message || "Detail Surat Kontrol lokal tidak ditemukan.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteSuratKontrol = async () => {
+    if (!suratKontrolResult?.noSuratKontrol) return;
+    if (!window.confirm(`Hapus Surat Kontrol BPJS ${suratKontrolResult.noSuratKontrol}?`)) return;
+
+    setDeletingExisting(true);
+    try {
+      await vclaimApi.deleteSuratKontrol(suratKontrolResult.noSuratKontrol);
+      setSuratKontrolResult(null);
+      setIsEditingExisting(false);
+      setWantsBPJSControl(true);
+      onSuratKontrolCleared?.();
+      toast({
+        title: "Berhasil",
+        description: "Surat Kontrol BPJS berhasil dihapus.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Gagal menghapus Surat Kontrol",
+        description: err?.response?.data?.error || err?.message || "Terjadi kesalahan saat menghapus Surat Kontrol.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingExisting(false);
+    }
+  };
+
+  const handleUnlinkSuratKontrol = async () => {
+    if (!suratKontrolResult?.noSuratKontrol) return;
+    if (!window.confirm(`Unlink Surat Kontrol lokal ${suratKontrolResult.noSuratKontrol}? Data BPJS tidak akan dihapus.`)) return;
+
+    setUnlinkingExisting(true);
+    try {
+      await vclaimApi.deleteSuratKontrolLocal(suratKontrolResult.noSuratKontrol);
+      setSuratKontrolResult(null);
+      setIsEditingExisting(false);
+      setWantsBPJSControl(true);
+      onSuratKontrolCleared?.();
+      toast({
+        title: "Berhasil",
+        description: "Surat Kontrol berhasil di-unlink dari sistem lokal.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Gagal unlink Surat Kontrol",
+        description: err?.response?.data?.error || err?.message || "Terjadi kesalahan saat unlink Surat Kontrol.",
+        variant: "destructive",
+      });
+    } finally {
+      setUnlinkingExisting(false);
+    }
+  };
+
   // Submit function
   const handleSubmit = async () => {
     // For SPRI, we only need patient with no_bpjs (SEP is optional)
@@ -309,6 +404,27 @@ export function BPJSControlSection({
           });
         }
       } else {
+        if (suratKontrolResult && isEditingExisting) {
+          const res = await vclaimApi.updateSuratKontrol(suratKontrolResult.noSuratKontrol, {
+            kode_dokter: kodeDokter,
+            nama_dokter: namaDokter,
+            poli_kontrol: kodePoli,
+            nama_poli: namaPoli,
+            tgl_rencana_kontrol: tglRencanaKontrol,
+          });
+
+          if (res.data.data) {
+            setSuratKontrolResult(res.data.data);
+            onSuratKontrolCreated?.(res.data.data);
+            setIsEditingExisting(false);
+            toast({
+              title: "Surat Kontrol Berhasil Diperbarui",
+              description: `No. Surat Kontrol: ${res.data.data.noSuratKontrol}`,
+            });
+          }
+          return;
+        }
+
         // Create Surat Kontrol - requires SEP
         const res = await vclaimApi.createSuratKontrol({
           no_sep: activeSEP!.no_sep,
@@ -361,147 +477,191 @@ export function BPJSControlSection({
   const hasResult = isRawatInap ? !!spriResult : !!suratKontrolResult;
 
   return (
-    <div className={`rounded-lg border-2 p-4 space-y-4 ${
+    <div className={`rounded-none border border-border/70 p-4 space-y-4 ${
       isRawatInap 
-        ? "border-blue-300 bg-blue-50" 
-        : "border-green-300 bg-green-50"
+        ? "bg-blue-50/40" 
+        : "bg-emerald-50/40"
     }`}>
-      {/* Header with Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className={`flex items-center gap-2 ${isRawatInap ? "text-blue-700" : "text-green-700"}`}>
-          {isRawatInap ? <Hospital className="h-5 w-5" /> : <FileCheck className="h-5 w-5" />}
-          <span className="font-semibold">
-            {isRawatInap ? "SPRI (Surat Perintah Rawat Inap)" : "Surat Kontrol BPJS"}
-          </span>
-        </div>
-        
-        {hasResult ? (
-          <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 font-medium ${
-            isRawatInap ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-          }`}>
-            <CheckCircle2 className="h-3 w-3" />
-            {isRawatInap ? spriResult?.noSPRI : suratKontrolResult?.noSuratKontrol}
-          </span>
-        ) : (
+      {/* Header with Toggle / Summary */}
+      <div className={`${BPJS_PANEL_CLASS} ${hasResult ? "p-3" : "p-3"}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
+          <div className={`flex items-center gap-2 ${isRawatInap ? "text-blue-700" : "text-emerald-700"}`}>
+            {isRawatInap ? <Hospital className="h-4 w-4" /> : <FileCheck className="h-4 w-4" />}
+            <span className="text-sm font-semibold uppercase tracking-[0.15em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+              {isRawatInap ? "SPRI BPJS" : "SURAT KONTROL BPJS"}
+            </span>
+          </div>
+
           <div className="flex items-center gap-2">
-            <Label htmlFor="wants-bpjs" className="text-sm text-muted-foreground">
-              {wantsBPJSControl ? "Ya" : "Tidak"}
+            {!isRawatInap && suratKontrolResult ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 rounded-none"
+                  onClick={startEditSuratKontrol}
+                  disabled={isDisabled || deletingExisting || unlinkingExisting}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 rounded-none text-destructive"
+                  onClick={handleDeleteSuratKontrol}
+                  disabled={isDisabled || deletingExisting || unlinkingExisting}
+                >
+                  {deletingExisting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 rounded-none"
+                  onClick={handleUnlinkSuratKontrol}
+                  disabled={isDisabled || deletingExisting || unlinkingExisting}
+                >
+                  {unlinkingExisting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink2 className="h-3.5 w-3.5" />}
+                </Button>
+              </>
+            ) : null}
+            {hasResult ? (
+              <Badge
+                variant="outline"
+                className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.18em]"
+                style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
+              >
+                {isRawatInap ? spriResult?.noSPRI : suratKontrolResult?.noSuratKontrol}
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+
+        {hasResult ? (
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              {activeSEP ? (
+                <>
+                  <div className="rounded-none border border-border/70 bg-background/80 px-3 py-2 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                      No. SEP
+                    </div>
+                    <div className="mt-1 font-mono text-sm text-foreground">{activeSEP.no_sep || "-"}</div>
+                  </div>
+                  <div className="rounded-none border border-border/70 bg-background/80 px-3 py-2 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                      No. Kartu
+                    </div>
+                    <div className="mt-1 font-mono text-sm text-foreground">{activeSEP.no_kartu || "-"}</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-none border border-border/70 bg-background/80 px-3 py-2 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                      Nama Pasien
+                    </div>
+                    <div className="mt-1 text-sm text-foreground">{patient?.nama_lengkap || "-"}</div>
+                  </div>
+                  <div className="rounded-none border border-border/70 bg-background/80 px-3 py-2 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                      No. Kartu BPJS
+                    </div>
+                    <div className="mt-1 font-mono text-sm text-foreground">{patient?.no_bpjs || "-"}</div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="rounded-none border border-emerald-200 bg-emerald-50/70 px-3 py-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>{isRawatInap ? "SPRI" : "Surat Kontrol"} Berhasil Dibuat</span>
+              </div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+                {isRawatInap && spriResult ? (
+                  <>
+                    <div>No. SPRI: <strong>{spriResult.noSPRI}</strong></div>
+                    <div>Tanggal Kontrol: <strong>{spriResult.tglRencanaKontrol}</strong></div>
+                    <div>Dokter: <strong>{spriResult.namaDokter}</strong></div>
+                    <div>Diagnosa: <strong>{spriResult.namaDiagnosa || "-"}</strong></div>
+                  </>
+                ) : suratKontrolResult ? (
+                  <>
+                    <div>No. Surat Kontrol: <strong>{suratKontrolResult.noSuratKontrol}</strong></div>
+                    <div>Tanggal Kontrol: <strong>{suratKontrolResult.tglRencanaKontrol}</strong></div>
+                    <div>Dokter: <strong>{suratKontrolResult.namaDokter}</strong></div>
+                    <div>Diagnosa: <strong>{suratKontrolResult.namaDiagnosa || "-"}</strong></div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <Label htmlFor="wants-bpjs" className="text-xs uppercase tracking-[0.2em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+              Gunakan Bridging
             </Label>
-            <Switch
-              id="wants-bpjs"
-              checked={wantsBPJSControl}
-              onCheckedChange={setWantsBPJSControl}
-              disabled={isDisabled}
-            />
+            <div className="flex items-center gap-2">
+              <Badge variant={wantsBPJSControl ? "default" : "secondary"} className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
+                {wantsBPJSControl ? "Aktif" : "Nonaktif"}
+              </Badge>
+              <Switch
+                id="wants-bpjs"
+                checked={wantsBPJSControl}
+                onCheckedChange={setWantsBPJSControl}
+                disabled={isDisabled}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* SEP Info - show SEP data if available, otherwise show BPJS number for SPRI */}
-      <div className={`rounded-lg p-3 border ${
-        isRawatInap ? "bg-white/60 border-blue-200" : "bg-white/60 border-green-200"
-      }`}>
-        <div className={`text-xs font-medium mb-2 ${isRawatInap ? "text-blue-600" : "text-green-600"}`}>
-          {activeSEP ? "Data SEP Aktif" : "Data BPJS Pasien"}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-          {activeSEP ? (
-            <>
-              <div>
-                <span className="text-xs text-muted-foreground">No. SEP</span>
-                <p className="font-medium">{activeSEP.no_sep}</p>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">No. Kartu</span>
-                <p className="font-medium">{activeSEP.no_kartu}</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <span className="text-xs text-muted-foreground">Nama Pasien</span>
-                <p className="font-medium">{patient?.nama_lengkap}</p>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">No. Kartu BPJS</span>
-                <p className="font-medium">{patient?.no_bpjs}</p>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Result Display */}
-      {hasResult && (
-        <Alert className={isRawatInap ? "bg-blue-100 border-blue-300" : "bg-green-100 border-green-300"}>
-          <CheckCircle2 className={`h-4 w-4 ${isRawatInap ? "text-blue-600" : "text-green-600"}`} />
-          <AlertTitle className={isRawatInap ? "text-blue-700" : "text-green-700"}>
-            {isRawatInap ? "SPRI" : "Surat Kontrol"} Berhasil Dibuat
-          </AlertTitle>
-          <AlertDescription className={isRawatInap ? "text-blue-700" : "text-green-700"}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm">
-              {isRawatInap && spriResult ? (
-                <>
-                  <div>No. SPRI: <strong>{spriResult.noSPRI}</strong></div>
-                  <div>Tanggal Kontrol: <strong>{spriResult.tglRencanaKontrol}</strong></div>
-                  <div>Dokter: <strong>{spriResult.namaDokter}</strong></div>
-                  <div>Diagnosa: <strong>{spriResult.namaDiagnosa || "-"}</strong></div>
-                </>
-              ) : suratKontrolResult ? (
-                <>
-                  <div>No. Surat Kontrol: <strong>{suratKontrolResult.noSuratKontrol}</strong></div>
-                  <div>Tanggal Kontrol: <strong>{suratKontrolResult.tglRencanaKontrol}</strong></div>
-                  <div>Dokter: <strong>{suratKontrolResult.namaDokter}</strong></div>
-                  <div>Diagnosa: <strong>{suratKontrolResult.namaDiagnosa || "-"}</strong></div>
-                </>
-              ) : null}
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Form - only show if toggle is on and no result yet */}
-      {wantsBPJSControl && !hasResult && (
-        <div className="space-y-4">
+      {wantsBPJSControl && (!hasResult || isEditingExisting) && (
+        <div className="space-y-5">
+          <BPJSSectionHeader
+            eyebrow="Bridging"
+            title={isRawatInap ? "Form SPRI" : isEditingExisting ? "Edit Surat Kontrol" : "Form Surat Kontrol"}
+          />
           {/* Kepesertaan Check */}
           {checkingPeserta ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Mengecek kepesertaan...</span>
-            </div>
+            <BPJSStatePanel
+              icon={<Loader2 className="h-4 w-4 animate-spin" />}
+              title="Mengecek Kepesertaan"
+              description="Sistem sedang memvalidasi status peserta BPJS."
+            />
           ) : pesertaError ? (
-            <Alert variant="destructive">
-              <XCircle className="h-4 w-4" />
-              <AlertDescription>{pesertaError}</AlertDescription>
-            </Alert>
+            <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Kepesertaan bermasalah" description={pesertaError} />
           ) : peserta ? (
-            <Alert className={isRawatInap ? "bg-blue-100 border-blue-200" : "bg-green-100 border-green-200"}>
-              <UserCheck className={`h-4 w-4 ${isRawatInap ? "text-blue-600" : "text-green-600"}`} />
-              <AlertDescription className={isRawatInap ? "text-blue-700" : "text-green-700"}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    <strong>{peserta.nama}</strong> - {peserta.noKartu}
-                  </span>
-                  <Badge variant="default" className={`text-xs ${isRawatInap ? "bg-blue-600" : "bg-green-600"}`}>
-                    {peserta.statusPeserta?.keterangan}
+            <BPJSStatePanel
+              tone="success"
+              icon={<UserCheck className="h-4 w-4 text-emerald-600" />}
+              title={
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>{peserta.nama} - {peserta.noKartu}</span>
+                  <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.16em]">
+                    {peserta.statusPeserta?.keterangan || "Aktif"}
                   </Badge>
                 </div>
-              </AlertDescription>
-            </Alert>
+              }
+            />
           ) : null}
 
           {/* Version Switch - Only for Surat Kontrol */}
           {!isRawatInap && (
-            <div className="flex items-center gap-4 p-3 bg-white/60 rounded-lg border border-green-200">
-              <Label className="text-sm font-medium">Versi API:</Label>
+            <div className={`${BPJS_PANEL_CLASS} flex items-center gap-4 p-3`}>
+              <Label className="text-xs font-medium uppercase tracking-[0.2em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Versi API</Label>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => { setVersion("v1"); setIsPRB(false); }}
-                  className={`px-3 py-1.5 text-xs rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${
                     version === "v1" 
-                      ? "bg-green-600 text-white" 
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "border-emerald-600 bg-emerald-600 text-white" 
+                      : "border-border/70 bg-muted/20 text-foreground hover:bg-muted/40"
                   }`}
                   disabled={isDisabled}
                 >
@@ -510,10 +670,10 @@ export function BPJSControlSection({
                 <button
                   type="button"
                   onClick={() => setVersion("v2")}
-                  className={`px-3 py-1.5 text-xs rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${
                     version === "v2" 
-                      ? "bg-green-600 text-white" 
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "border-emerald-600 bg-emerald-600 text-white" 
+                      : "border-border/70 bg-muted/20 text-foreground hover:bg-muted/40"
                   }`}
                   disabled={isDisabled}
                 >
@@ -524,21 +684,23 @@ export function BPJSControlSection({
           )}
 
           {/* Date, Poli, Dokter */}
-          <div className="space-y-4">
+          <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
             {/* Tanggal Kontrol */}
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5" />
-                Tanggal {isRawatInap ? "Rawat Inap" : "Rencana Kontrol"}
-              </Label>
-              <Input
-                type="date"
-                value={tglRencanaKontrol}
-                onChange={(e) => setTglRencanaKontrol(e.target.value)}
-                min={format(new Date(), "yyyy-MM-dd")}
-                disabled={isDisabled}
-                className="bg-white"
-              />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2 lg:col-span-2">
+                <Label className="text-sm flex items-center gap-1 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                  <Calendar className="h-3.5 w-3.5" />
+                  Tanggal {isRawatInap ? "Rawat Inap" : "Rencana Kontrol"}
+                </Label>
+                <Input
+                  type="date"
+                  value={tglRencanaKontrol}
+                  onChange={(e) => setTglRencanaKontrol(e.target.value)}
+                  min={format(new Date(), "yyyy-MM-dd")}
+                  disabled={isDisabled}
+                  className={BPJS_FIELD_CLASS}
+                />
+              </div>
             </div>
 
             {/* Poli & Dokter Selector with Tabs */}
@@ -569,11 +731,11 @@ export function BPJSControlSection({
 
           {/* PRB Section - Only for Surat Kontrol v2 */}
           {!isRawatInap && version === "v2" && (
-            <div className="space-y-4 p-4 bg-white/60 rounded-lg border border-green-200">
+            <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Pill className="h-4 w-4 text-green-600" />
-                  <Label className="text-sm font-medium">Program Rujuk Balik (PRB)</Label>
+                  <Label className="text-sm font-medium uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Program Rujuk Balik (PRB)</Label>
                 </div>
                 <Switch
                   checked={isPRB}
@@ -586,9 +748,9 @@ export function BPJSControlSection({
                 <div className="space-y-4">
                   {/* Status PRB */}
                   <div className="space-y-2">
-                    <Label className="text-sm">Jenis Penyakit PRB</Label>
+                    <Label className="text-sm uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Jenis Penyakit PRB</Label>
                     <Select value={kdStatusPRB} onValueChange={setKdStatusPRB} disabled={isDisabled}>
-                      <SelectTrigger className="bg-white">
+                      <SelectTrigger className={BPJS_FIELD_CLASS}>
                         <SelectValue placeholder="Pilih jenis penyakit..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -603,7 +765,7 @@ export function BPJSControlSection({
 
                   {/* PRB Fields based on selected status */}
                   {kdStatusPRB && PRB_FIELDS[kdStatusPRB] && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                       {PRB_FIELDS[kdStatusPRB].map((field) => (
                         <div key={field.key} className="space-y-1">
                           <Label className="text-xs">{field.label}</Label>
@@ -627,7 +789,7 @@ export function BPJSControlSection({
                               value={(dataPRB[field.key] as number) || ""}
                               onChange={(e) => handlePRBFieldChange(field.key, parseFloat(e.target.value))}
                               placeholder={`${field.min} - ${field.max}`}
-                              className="bg-white h-8 text-sm"
+                              className={BPJS_FIELD_CLASS}
                               disabled={isDisabled}
                             />
                           )}
@@ -645,7 +807,7 @@ export function BPJSControlSection({
             type="button"
             onClick={handleSubmit}
             disabled={loading || isDisabled || !kodePoli || !kodeDokter}
-            className={`w-full ${isRawatInap ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}`}
+            className={`w-full rounded-none ${isRawatInap ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}`}
           >
             {loading ? (
               <>
@@ -664,12 +826,12 @@ export function BPJSControlSection({
 
       {/* Info text when toggle is off */}
       {!wantsBPJSControl && !hasResult && (
-        <p className={`text-sm ${isRawatInap ? "text-blue-600" : "text-green-600"}`}>
-          {isRawatInap 
-            ? "Aktifkan untuk membuat SPRI (wajib untuk rawat inap BPJS)"
-            : "Aktifkan jika ingin membuat surat kontrol BPJS untuk kunjungan ulang"
-          }
-        </p>
+        <BPJSStatePanel
+          title={isRawatInap ? "SPRI belum diaktifkan" : "Surat kontrol belum diaktifkan"}
+          description={isRawatInap
+            ? "Aktifkan bridging untuk membuat SPRI (wajib pada rawat inap BPJS)."
+            : "Aktifkan bridging jika ingin membuat surat kontrol BPJS untuk kunjungan ulang."}
+        />
       )}
 
       {/* Search modals are now managed inside PoliDokterSelector */}

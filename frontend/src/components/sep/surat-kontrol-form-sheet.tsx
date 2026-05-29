@@ -449,7 +449,7 @@ export function SuratKontrolFormSheet({
                       </div>
                     }
                     extra={
-                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
                         <span>NIK: {peserta.nik}</span>
                         <span>Kelas Hak: {peserta.hakKelas?.keterangan}</span>
                         <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>

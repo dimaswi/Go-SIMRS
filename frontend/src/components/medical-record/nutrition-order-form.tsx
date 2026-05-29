@@ -322,7 +322,16 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                         <div className="text-xs space-y-1">
                           {order.items.map((item) => (
                             <div key={item.id} className="flex flex-wrap items-center justify-between gap-2">
-                              <span>{item.menu?.name || `Menu #${item.menu_id}`}</span>
+                              <div>
+                                <span>{item.menu?.name || `Menu #${item.menu_id}`}</span>
+                                {item.menu?.ingredients && item.menu.ingredients.length > 0 && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {item.menu.ingredients
+                                      .map((ing) => `${ing.ingredient?.name || `#${ing.ingredient_id}`} ${ing.weight_per_portion} ${ing.unit}`)
+                                      .join(", ")}
+                                  </div>
+                                )}
+                              </div>
                               <span className="text-muted-foreground">x{item.quantity}</span>
                             </div>
                           ))}
@@ -367,11 +376,11 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Waktu Makan *</Label>
-                <Combobox options={mealTimeOptions} value={mealTime} onValueChange={setMealTime} placeholder="Pilih..." />
+                <Combobox allowCustomValue options={mealTimeOptions} value={mealTime} onValueChange={setMealTime} placeholder="Pilih..." />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Jenis Diet *</Label>
-                <Combobox options={dietTypeOptions} value={dietType} onValueChange={setDietType} placeholder="Pilih..." />
+                <Combobox allowCustomValue options={dietTypeOptions} value={dietType} onValueChange={setDietType} placeholder="Pilih..." />
               </div>
             </div>
 
@@ -553,3 +562,4 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
     </div>
   );
 }
+

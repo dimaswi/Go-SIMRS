@@ -43,6 +43,12 @@ interface PoliDokterSelectorProps {
   dokterBPJSMinSearch?: number;
   poliModalTitle?: string;
   dokterModalTitle?: string;
+  poliFieldLabel?: string;
+  dokterFieldLabel?: string;
+  poliInputPlaceholder?: string;
+  dokterInputPlaceholder?: string;
+  dokterInputPlaceholderDisabled?: string;
+  dokterHint?: string;
   /** Compact mode for inline sections (bpjs-control-section) */
   compact?: boolean;
 }
@@ -62,6 +68,12 @@ export function PoliDokterSelector({
   dokterBPJSMinSearch = 1,
   poliModalTitle = "Cari Poli Kontrol BPJS",
   dokterModalTitle = "Cari Dokter Kontrol BPJS",
+  poliFieldLabel = "Poli Kontrol",
+  dokterFieldLabel = "Dokter Kontrol",
+  poliInputPlaceholder = "Pilih poli kontrol",
+  dokterInputPlaceholder = "Pilih dokter kontrol",
+  dokterInputPlaceholderDisabled = "Pilih poli & tanggal dulu",
+  dokterHint = "Pilih poli dan tanggal kontrol terlebih dahulu untuk mencari dokter",
   compact = false,
 }: PoliDokterSelectorProps) {
   const { toast } = useToast();
@@ -193,8 +205,8 @@ export function PoliDokterSelector({
 
   // BPJS API fields (compact)
   const BpjsFieldsCompact = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="space-y-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-2 lg:col-span-2">
         <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-1" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
           <Building2 className="h-3.5 w-3.5" />
           Poli Tujuan
@@ -218,7 +230,7 @@ export function PoliDokterSelector({
           </Button>
         </div>
       </div>
-      <div className="space-y-2 md:col-span-2">
+      <div className="space-y-2 lg:col-span-2">
         <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-1" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
           <Stethoscope className="h-3.5 w-3.5" />
           Dokter
@@ -266,8 +278,8 @@ export function PoliDokterSelector({
       );
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2 lg:col-span-2">
           <Label className="text-sm flex items-center gap-1">
             <Building2 className="h-3.5 w-3.5" />
             Poli Tujuan
@@ -283,7 +295,7 @@ export function PoliDokterSelector({
             loading={loadingMappings}
           />
         </div>
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2 lg:col-span-2">
           <Label className="text-sm flex items-center gap-1">
             <Stethoscope className="h-3.5 w-3.5" />
             Dokter
@@ -360,12 +372,12 @@ export function PoliDokterSelector({
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                Poli Kontrol <span className="text-destructive">*</span>
+                {poliFieldLabel} <span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
-                  placeholder="Pilih poli kontrol"
+                  placeholder={poliInputPlaceholder}
                   readOnly
                   className={`${BPJS_FIELD_CLASS} bg-muted/20 cursor-pointer`}
                   onClick={() => !disabled && setPoliModalOpen(true)}
@@ -386,12 +398,12 @@ export function PoliDokterSelector({
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                 <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                Dokter Kontrol <span className="text-destructive">*</span>
+                {dokterFieldLabel} <span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={namaDokter ? `${kodeDokter} - ${namaDokter}` : ""}
-                  placeholder={kodePoli && tglRencanaKontrol ? "Pilih dokter kontrol" : "Pilih poli & tanggal dulu"}
+                  placeholder={kodePoli && tglRencanaKontrol ? dokterInputPlaceholder : dokterInputPlaceholderDisabled}
                   readOnly
                   className={`${BPJS_FIELD_CLASS} bg-muted/20 cursor-pointer`}
                   onClick={() => !disabled && kodePoli && tglRencanaKontrol && setDokterModalOpen(true)}
@@ -408,7 +420,7 @@ export function PoliDokterSelector({
               </div>
               {(!kodePoli || !tglRencanaKontrol) && (
                 <p className="text-xs text-amber-600">
-                  Pilih poli dan tanggal kontrol terlebih dahulu untuk mencari dokter
+                  {dokterHint}
                 </p>
               )}
             </div>
@@ -437,7 +449,7 @@ export function PoliDokterSelector({
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <Building2 className="h-4 w-4 text-muted-foreground" />
-                    Poli Kontrol <span className="text-destructive">*</span>
+                    {poliFieldLabel} <span className="text-destructive">*</span>
                   </Label>
                   <Combobox
                     options={poliOptions}
@@ -461,7 +473,7 @@ export function PoliDokterSelector({
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                    Dokter Kontrol <span className="text-destructive">*</span>
+                    {dokterFieldLabel} <span className="text-destructive">*</span>
                   </Label>
                   <Combobox
                     options={dokterOptions}

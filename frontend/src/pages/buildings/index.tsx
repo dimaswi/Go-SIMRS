@@ -37,7 +37,6 @@ const DEFAULT_COLORS = [
 ];
 
 interface BuildingFormData {
-  code: string;
   name: string;
   total_floors: number;
   description: string;
@@ -46,7 +45,6 @@ interface BuildingFormData {
 }
 
 const emptyForm: BuildingFormData = {
-  code: "",
   name: "",
   total_floors: 1,
   description: "",
@@ -98,7 +96,6 @@ export default function BuildingsPage() {
   const openEdit = (b: Building) => {
     setEditingId(b.id);
     setForm({
-      code: b.code,
       name: b.name,
       total_floors: b.total_floors,
       description: b.description || "",
@@ -109,8 +106,8 @@ export default function BuildingsPage() {
   };
 
   const handleSave = async () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      toast({ variant: "destructive", title: "Validasi", description: "Kode dan nama gedung wajib diisi" });
+    if (!form.name.trim()) {
+      toast({ variant: "destructive", title: "Validasi", description: "Nama gedung wajib diisi" });
       return;
     }
 
@@ -303,16 +300,7 @@ export default function BuildingsPage() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Kode Gedung *</Label>
-                <Input
-                  id="code"
-                  placeholder="GD-01"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                />
-              </div>
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="total_floors">Jumlah Lantai</Label>
                 <Input

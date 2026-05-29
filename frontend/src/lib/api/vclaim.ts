@@ -921,6 +921,9 @@ export const vclaimApi = {
   deleteSuratKontrol: (noSuratKontrol: string) =>
     api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`),
 
+  deleteSuratKontrolLocal: (noSuratKontrol: string) =>
+    api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}/local`),
+
   updateSuratKontrol: (noSuratKontrol: string, data: { kode_dokter: string; nama_dokter: string; poli_kontrol: string; nama_poli: string; tgl_rencana_kontrol: string }) =>
     api.put<{ data: SuratKontrolResponse; message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`, data),
 
@@ -932,6 +935,9 @@ export const vclaimApi = {
 
   getSuratKontrolList: (params?: { patient_id?: number; visit_id?: number; status?: string; tgl_terbit_from?: string; tgl_terbit_to?: string; tgl_kontrol_from?: string; tgl_kontrol_to?: string; search?: string; limit?: number }) =>
     api.get<{ data: SuratKontrolLocal[] }>('/bpjs/vclaim/surat-kontrol/list', { params }),
+
+  getSuratKontrolLocal: (noSuratKontrol: string) =>
+    api.get<{ data: SuratKontrolLocal }>(`/bpjs/vclaim/surat-kontrol/local/${noSuratKontrol}`),
 
   // Get Surat Kontrol Detail from BPJS by No Surat Kontrol
   getSuratKontrolDetail: (noSuratKontrol: string) =>

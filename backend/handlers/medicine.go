@@ -588,17 +588,26 @@ func CreateMedicine(c *gin.Context) {
 	}
 
 	// Validate required fields
-	if input.Code == "" || input.Name == "" || input.Category == "" || input.Form == "" || input.Unit == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Code, Name, Category, Form, and Unit are required"})
+	if input.Name == "" || input.Category == "" || input.Form == "" || input.Unit == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name, Category, Form, and Unit are required"})
 		return
 	}
 
-	// Check for duplicate code
-	var existing models.Medicine
-	if err := database.DB.Where("code = ?", input.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Medicine with this code already exists"})
+	input.Unit = strings.TrimSpace(input.Unit)
+	input.UnitLarge = strings.TrimSpace(input.UnitLarge)
+	if input.LargeToSmallFactor < 1 {
+		input.LargeToSmallFactor = 1
+	}
+	if input.UnitLarge == "" {
+		input.LargeToSmallFactor = 1
+	}
+
+	code, err := generateDateCode(&models.Medicine{}, "MED")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate medicine code"})
 		return
 	}
+	input.Code = code
 
 	// Set default values
 	if input.Type == "" {
@@ -630,25 +639,25 @@ func UpdateMedicine(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate code (if code is being changed)
-	if input.Code != medicine.Code {
-		var existing models.Medicine
-		if err := database.DB.Where("code = ? AND id != ?", input.Code, id).First(&existing).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Medicine with this code already exists"})
-			return
-		}
-	}
-
 	updates := map[string]interface{}{
-		"code":             input.Code,
-		"name":             input.Name,
-		"generic_name":     input.GenericName,
-		"description":      input.Description,
-		"category":         input.Category,
-		"type":             input.Type,
-		"form":             input.Form,
-		"strength":         input.Strength,
-		"unit":             input.Unit,
+		"name":         input.Name,
+		"generic_name": input.GenericName,
+		"description":  input.Description,
+		"category":     input.Category,
+		"type":         input.Type,
+		"form":         input.Form,
+		"strength":     input.Strength,
+		"unit":         strings.TrimSpace(input.Unit),
+		"unit_large":   strings.TrimSpace(input.UnitLarge),
+		"large_to_small_factor": func() int {
+			if strings.TrimSpace(input.UnitLarge) == "" {
+				return 1
+			}
+			if input.LargeToSmallFactor < 1 {
+				return 1
+			}
+			return input.LargeToSmallFactor
+		}(),
 		"manufacturer":     input.Manufacturer,
 		"min_stock":        input.MinStock,
 		"max_stock":        input.MaxStock,

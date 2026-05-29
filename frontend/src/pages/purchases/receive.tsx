@@ -87,6 +87,8 @@ const formSchema = z.object({
       id: z.number(),
       selected: z.boolean(),
       quantity_received: z.number().min(0, "Jumlah tidak valid"),
+      quantity_large_received: z.number().min(0, "Jumlah besar tidak valid").optional(),
+      quantity_small_received: z.number().min(0, "Jumlah kecil tidak valid").optional(),
       batch_number: z.string().optional(),
       expiry_date: z.string().optional(),
       // Original data for display
@@ -94,6 +96,9 @@ const formSchema = z.object({
       item_code: z.string().optional(),
       item_type: z.enum(["medicine", "inventory"]),
       unit: z.string(),
+      unit_large: z.string().optional(),
+      unit_small: z.string().optional(),
+      conversion_factor: z.number().min(1).optional(),
       quantity_ordered: z.number(),
       already_received: z.number(),
       remaining: z.number(),
@@ -149,6 +154,9 @@ export default function PurchaseReceive() {
           data.items.map((item: PurchaseItem) => {
             const remaining =
               item.quantity_ordered - (item.quantity_received || 0);
+            const factor = Math.max(1, Number(item.conversion_factor || 1));
+            const remainingLarge = Math.floor(remaining / factor);
+            const remainingSmall = remaining % factor;
             const itemName =
               item.inventory?.name || item.medicine?.name || "Unknown";
             const itemCode = item.inventory?.code || item.medicine?.code;
@@ -164,6 +172,11 @@ export default function PurchaseReceive() {
               item_code: itemCode || "",
               item_type: itemType as "medicine" | "inventory",
               unit: item.unit || "pcs",
+              unit_large: item.unit_large || "",
+              unit_small: item.unit_small || item.unit || "pcs",
+              conversion_factor: factor,
+              quantity_large_received: remainingLarge,
+              quantity_small_received: remainingSmall,
               quantity_ordered: item.quantity_ordered,
               already_received: item.quantity_received || 0,
               remaining: remaining,
@@ -248,9 +261,20 @@ export default function PurchaseReceive() {
   const onSubmit = async (values: FormValues) => {
     if (!id) return;
 
+    const resolveItemReceiveQty = (item: FormValues["items"][number]) => {
+      const factor = Math.max(1, Number(item.conversion_factor || 1));
+      const hasLargeUnit = item.item_type === "medicine" && !!item.unit_large && factor > 1;
+      if (hasLargeUnit) {
+        const qtyLarge = Math.max(0, Number(item.quantity_large_received || 0));
+        const qtySmall = Math.max(0, Number(item.quantity_small_received || 0));
+        return (qtyLarge * factor) + qtySmall;
+      }
+      return Math.max(0, Number(item.quantity_received || 0));
+    };
+
     // Filter only selected items with quantity > 0
     const itemsToReceive = values.items.filter(
-      (item) => item.selected && item.quantity_received > 0
+      (item) => item.selected && resolveItemReceiveQty(item) > 0
     );
 
     if (itemsToReceive.length === 0) {
@@ -266,7 +290,9 @@ export default function PurchaseReceive() {
     try {
       const cleanedItems = itemsToReceive.map((item) => ({
         id: item.id,
-        quantity_received: item.quantity_received,
+        quantity_received: resolveItemReceiveQty(item),
+        quantity_large_received: item.item_type === "medicine" ? Math.max(0, Number(item.quantity_large_received || 0)) : undefined,
+        quantity_small_received: item.item_type === "medicine" ? Math.max(0, Number(item.quantity_small_received || 0)) : undefined,
         batch_number: item.batch_number || undefined,
         expiry_date: item.expiry_date || undefined,
       }));
@@ -290,6 +316,18 @@ export default function PurchaseReceive() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resolveDisplayReceived = (item?: FormValues["items"][number]) => {
+    if (!item) return 0;
+    const factor = Math.max(1, Number(item.conversion_factor || 1));
+    const hasLargeUnit = item.item_type === "medicine" && !!item.unit_large && factor > 1;
+    if (hasLargeUnit) {
+      const qtyLarge = Math.max(0, Number(item.quantity_large_received || 0));
+      const qtySmall = Math.max(0, Number(item.quantity_small_received || 0));
+      return (qtyLarge * factor) + qtySmall;
+    }
+    return Math.max(0, Number(item.quantity_received || 0));
   };
 
   // Calculate stats
@@ -629,11 +667,16 @@ export default function PurchaseReceive() {
                               </td>
                               <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
                                 <div className="space-y-1 rounded-md bg-muted/15 px-2.5 py-2 text-[11px] leading-4">
-                                  <p className="text-muted-foreground">Dipesan: <span className="font-medium text-foreground">{item?.quantity_ordered} {item?.unit}</span></p>
+                                  <p className="text-muted-foreground">Dipesan: <span className="font-medium text-foreground">{item?.quantity_ordered} {item?.unit_small || item?.unit}</span></p>
                                   <p className="text-muted-foreground">Diterima: <span className="font-medium text-foreground">{item?.already_received}</span></p>
                                   <p className={cn("font-medium", isComplete ? "text-emerald-700" : "text-amber-700")}>
                                     Sisa: {item?.remaining}
                                   </p>
+                                  {item?.item_type === "medicine" && item?.unit_large && (item?.conversion_factor || 1) > 1 ? (
+                                    <p className="text-muted-foreground">
+                                      Konversi: 1 {item.unit_large} = {item.conversion_factor} {item.unit_small || item.unit}
+                                    </p>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
@@ -643,24 +686,82 @@ export default function PurchaseReceive() {
                                   </div>
                                 ) : isSelected ? (
                                   <div className="grid gap-2 sm:grid-cols-2">
-                                    <FormField
-                                      control={form.control}
-                                      name={`items.${index}.quantity_received`}
-                                      render={({ field: qtyField }) => (
-                                        <FormItem className="space-y-1">
-                                          <FormLabel>Qty Diterima</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              type="number"
-                                              min={0}
-                                              max={item?.remaining}
-                                              {...qtyField}
-                                              onChange={(e) => qtyField.onChange(parseInt(e.target.value) || 0)}
-                                            />
-                                          </FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
+                                    {isMedicine && item?.unit_large && (item?.conversion_factor || 1) > 1 ? (
+                                      <>
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.quantity_large_received`}
+                                          render={({ field: qtyLargeField }) => (
+                                            <FormItem className="space-y-1">
+                                              <FormLabel>Qty Besar ({item.unit_large})</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  value={qtyLargeField.value ?? 0}
+                                                  onChange={(e) => {
+                                                    const nextLarge = Math.max(0, parseInt(e.target.value) || 0);
+                                                    const factor = Math.max(1, Number(item?.conversion_factor || 1));
+                                                    const smallPath = `items.${index}.quantity_small_received` as const;
+                                                    const currentSmall = Math.max(0, Number(form.getValues(smallPath) || 0));
+                                                    const nextTotal = (nextLarge * factor) + currentSmall;
+                                                    form.setValue(`items.${index}.quantity_large_received`, nextLarge);
+                                                    form.setValue(`items.${index}.quantity_received`, Math.min(item?.remaining || 0, nextTotal));
+                                                  }}
+                                                />
+                                              </FormControl>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.quantity_small_received`}
+                                          render={({ field: qtySmallField }) => (
+                                            <FormItem className="space-y-1">
+                                              <FormLabel>Qty Kecil ({item.unit_small || item.unit})</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  value={qtySmallField.value ?? 0}
+                                                  onChange={(e) => {
+                                                    const nextSmall = Math.max(0, parseInt(e.target.value) || 0);
+                                                    const factor = Math.max(1, Number(item?.conversion_factor || 1));
+                                                    const largePath = `items.${index}.quantity_large_received` as const;
+                                                    const currentLarge = Math.max(0, Number(form.getValues(largePath) || 0));
+                                                    const nextTotal = (currentLarge * factor) + nextSmall;
+                                                    form.setValue(`items.${index}.quantity_small_received`, nextSmall);
+                                                    form.setValue(`items.${index}.quantity_received`, Math.min(item?.remaining || 0, nextTotal));
+                                                  }}
+                                                />
+                                              </FormControl>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <div className="sm:col-span-2 rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+                                          Total diterima sesi ini: <span className="font-semibold text-foreground">{resolveDisplayReceived(item)}</span> {item?.unit_small || item?.unit}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <FormField
+                                        control={form.control}
+                                        name={`items.${index}.quantity_received`}
+                                        render={({ field: qtyField }) => (
+                                          <FormItem className="space-y-1">
+                                            <FormLabel>Qty Diterima</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                type="number"
+                                                min={0}
+                                                max={item?.remaining}
+                                                {...qtyField}
+                                                onChange={(e) => qtyField.onChange(parseInt(e.target.value) || 0)}
+                                              />
+                                            </FormControl>
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
 
                                     {isMedicine ? (
                                       <>

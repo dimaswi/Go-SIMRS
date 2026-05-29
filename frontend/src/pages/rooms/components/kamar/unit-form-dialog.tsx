@@ -37,7 +37,6 @@ export function UnitFormDialog({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    code: "",
     name: "",
     floor: 1,
     capacity: 1,
@@ -50,7 +49,6 @@ export function UnitFormDialog({
   useEffect(() => {
     if (unit) {
       setFormData({
-        code: unit.code,
         name: unit.name,
         floor: unit.floor || 1,
         capacity: unit.capacity || 1,
@@ -59,7 +57,6 @@ export function UnitFormDialog({
       });
     } else {
       setFormData({
-        code: "",
         name: "",
         floor: 1,
         capacity: 1,
@@ -121,14 +118,8 @@ export function UnitFormDialog({
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="code">Kode Kamar *</Label>
-                <Input
-                  id="code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="Contoh: BIR ALI 1"
-                  required
-                />
+                <Label>Kode Kamar</Label>
+                <Input value={isEdit ? unit?.code || "-" : "Otomatis dibuat sistem saat simpan"} disabled className="bg-muted" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Nama Kamar *</Label>

@@ -700,7 +700,16 @@ export default function KitchenDashboardPage() {
                                         <tbody>
                                           {menuItems.map((item: any, idx: number) => (
                                             <tr key={item.id || idx} className={idx < menuItems.length - 1 ? "border-b" : ""}>
-                                              <td className="px-3 py-1.5 font-medium">{item.menu?.name || "-"}</td>
+                                              <td className="px-3 py-1.5">
+                                                <div className="font-medium">{item.menu?.name || "-"}</div>
+                                                {item.menu?.ingredients?.length > 0 && (
+                                                  <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                                    {item.menu.ingredients
+                                                      .map((ing: any) => `${ing.ingredient?.name || `#${ing.ingredient_id}`} ${ing.weight_per_portion} ${ing.unit}`)
+                                                      .join(", ")}
+                                                  </div>
+                                                )}
+                                              </td>
                                               <td className="px-3 py-1.5 text-muted-foreground">{nutritionCategoryLabels[item.menu?.category] || item.menu?.category || "-"}</td>
                                               <td className="px-3 py-1.5 text-center">{item.quantity}</td>
                                               <td className="px-3 py-1.5 text-right text-muted-foreground">{item.menu?.calories ? `${Math.round(item.menu.calories * item.quantity)} kkal` : "-"}</td>

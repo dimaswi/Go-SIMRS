@@ -14,7 +14,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
-import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, bhpUsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
 import { TriageForm } from "@/components/medical-record/triage-form";
@@ -42,6 +42,7 @@ import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form
 import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
 import { FallRiskForm } from "@/components/medical-record/fall-risk-form";
 import { O2UsageForm } from "@/components/medical-record/o2-usage-form";
+import { BHPUsageForm } from "@/components/medical-record/bhp-usage-form";
 import { DischargePlanningForm } from "@/components/medical-record/discharge-planning-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
 import { UnitTransferForm } from "@/components/medical-record/unit-transfer-form";
@@ -724,6 +725,7 @@ export default function VisitShow() {
       { key: "nursing-care", fetch: () => nursingCareApi.getAll(visitId) },
       { key: "fall-risk", fetch: () => fallRiskApi.getAll(visitId) },
       { key: "o2-usage", fetch: () => o2UsageApi.getAll(visitId) },
+      { key: "bhp-usage", fetch: () => bhpUsageApi.getAll(visitId) },
       { key: "fluid-balance", fetch: () => fluidBalanceApi.getAll(visitId) },
     ];
     await Promise.allSettled(
@@ -1047,6 +1049,8 @@ export default function VisitShow() {
 
     // Helper: Check if current visit is a support visit (pharmacy, radiology, lab, consultation order, surgery)
     const isSupportVisit = visitIsPharmacy || visitIsRadiology || visitIsLaboratory || visitIsConsultation || visitIsSurgery;
+    const isBHPEnabledVisit = !visitIsPharmacy && !visitIsConsultation && !visitIsSurgery;
+    const hasBHPPermission = hasPermission("medical_records.procedure") || hasPermission("procedure_orders.perform");
     const allowsInpatientOrEmergencyCare = isInpatient || isEmergency;
     
     // Helper: Render message for wrong visit type
@@ -1178,6 +1182,20 @@ export default function VisitShow() {
           );
         }
         return <ProcedureForm key={`procedure-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+      case "bhp-usage":
+        if (!isBHPEnabledVisit) {
+          return renderWrongVisitTypeMessage("Rawat Jalan / Rawat Inap / UGD / Laboratorium / Radiologi");
+        }
+        if (!hasBHPPermission) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Penggunaan BHP
+              </p>
+            </Card>
+          );
+        }
+        return <BHPUsageForm key={`bhp-usage-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
         // CPPT for inpatient and emergency visits
         if (!allowsInpatientOrEmergencyCare) {

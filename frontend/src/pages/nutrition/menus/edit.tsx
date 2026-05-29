@@ -6,12 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { nutritionMenuApi, nutritionCategoryLabels, nutritionDietTypeLabels } from "@/lib/api/nutrition";
+import { nutritionMenuApi, nutritionIngredientApi, nutritionCategoryLabels, nutritionIngredientUnitLabels, type NutritionIngredient } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, UtensilsCrossed, Tag, DollarSign, FileText, Flame, Beef, Droplets, Wheat } from "lucide-react";
+import { ArrowLeft, Loader2, UtensilsCrossed, Tag, DollarSign, FileText, Flame, Beef, Droplets, Wheat, Plus, Trash2 } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
+
+interface MenuIngredientInput {
+  ingredient_id: number;
+  weight_per_portion: number;
+  unit: string;
+  notes: string;
+}
 
 export default function NutritionMenuEdit() {
   const navigate = useNavigate();
@@ -19,16 +26,18 @@ export default function NutritionMenuEdit() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [ingredientsMaster, setIngredientsMaster] = useState<NutritionIngredient[]>([]);
+  const [ingredients, setIngredients] = useState<MenuIngredientInput[]>([]);
 
   const categoryOptions: ComboboxOption[] = Object.entries(nutritionCategoryLabels).map(([value, label]) => ({ value, label }));
-  const dietTypeOptions: ComboboxOption[] = Object.entries(nutritionDietTypeLabels).map(([value, label]) => ({ value, label }));
+  const ingredientOptions: ComboboxOption[] = ingredientsMaster.map((item) => ({ value: String(item.id), label: `${item.name} (${item.code})` }));
+  const unitOptions: ComboboxOption[] = Object.entries(nutritionIngredientUnitLabels).map(([value, label]) => ({ value, label }));
 
   const [formData, setFormData] = useState({
     code: "",
     name: "",
     description: "",
     category: "",
-    diet_types: [] as string[],
     calories: 0,
     protein: 0,
     fat: 0,
@@ -43,23 +52,28 @@ export default function NutritionMenuEdit() {
 
   useEffect(() => {
     setPageTitle("Edit Menu Makanan");
+    loadIngredientMaster();
     loadMenu();
   }, [id]);
+
+  const loadIngredientMaster = async () => {
+    try {
+      const res = await nutritionIngredientApi.getAll({ limit: 500, is_active: "true" });
+      setIngredientsMaster(res.data.data || []);
+    } catch {
+      setIngredientsMaster([]);
+    }
+  };
 
   const loadMenu = async () => {
     try {
       const res = await nutritionMenuApi.getById(Number(id));
       const menu = res.data.data;
-      let dietTypes: string[] = [];
-      if (menu.diet_types) {
-        try { dietTypes = JSON.parse(menu.diet_types); } catch { dietTypes = []; }
-      }
       setFormData({
         code: menu.code || "",
         name: menu.name || "",
         description: menu.description || "",
         category: menu.category || "",
-        diet_types: dietTypes,
         calories: menu.calories || 0,
         protein: menu.protein || 0,
         fat: menu.fat || 0,
@@ -71,12 +85,31 @@ export default function NutritionMenuEdit() {
         is_active: menu.is_active ?? true,
         notes: menu.notes || "",
       });
+      const ingredientRows = (menu.ingredients || []).map((item: any) => ({
+        ingredient_id: item.ingredient_id || 0,
+        weight_per_portion: item.weight_per_portion || 0,
+        unit: item.unit || item.ingredient?.default_unit || "gram",
+        notes: item.notes || "",
+      }));
+      setIngredients(ingredientRows);
     } catch {
       toast({ variant: "destructive", title: "Error!", description: "Gagal memuat data menu." });
       navigate("/nutrition/menus");
     } finally {
       setLoadingData(false);
     }
+  };
+
+  const addIngredient = () => {
+    setIngredients((prev) => [...prev, { ingredient_id: 0, weight_per_portion: 0, unit: "gram", notes: "" }]);
+  };
+
+  const removeIngredient = (index: number) => {
+    setIngredients((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateIngredient = (index: number, patch: Partial<MenuIngredientInput>) => {
+    setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,9 +120,19 @@ export default function NutritionMenuEdit() {
     }
     setLoading(true);
     try {
+      const filteredIngredients = ingredients
+        .filter((item) => item.ingredient_id > 0)
+        .map((item) => ({
+          ingredient_id: item.ingredient_id,
+          weight_per_portion: item.weight_per_portion || 0,
+          unit: item.unit || "gram",
+          notes: item.notes || "",
+        }));
+
       const payload = {
         ...formData,
-        diet_types: formData.diet_types.length > 0 ? JSON.stringify(formData.diet_types) : "",
+        diet_types: "",
+        ingredients: filteredIngredients,
       };
       await nutritionMenuApi.update(Number(id), payload);
       toast({ variant: "success", title: "Berhasil!", description: "Menu makanan berhasil diperbarui." });
@@ -117,7 +160,7 @@ export default function NutritionMenuEdit() {
     <PageShell>
       <PageHeader
         title="Edit Menu Makanan"
-        description={`Perbarui menu gizi ${formData.name || ""} agar identitas, kecocokan diet, dan nilai gizinya tetap sinkron dengan operasional layanan.`}
+        description={`Perbarui menu gizi ${formData.name || ""} agar identitas dan nilai gizinya tetap sinkron dengan operasional layanan.`}
         icon={UtensilsCrossed}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +177,7 @@ export default function NutritionMenuEdit() {
       >
         <div className="flex flex-wrap gap-2 pb-3">
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode menu read only</div>
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Diet cocok tetap multi-pilih</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Komposisi bahan tetap terhubung</div>
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status operasional menu</div>
         </div>
       </PageHeader>
@@ -142,14 +185,14 @@ export default function NutritionMenuEdit() {
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
           <NutritionSummaryCue label="Menu Aktif" description="Pastikan nama, kategori, dan ukuran porsi tetap sesuai dengan menu yang disajikan." tone="from-background via-background to-emerald-50/50" />
-          <NutritionSummaryCue label="Diet dan Gizi" description="Perubahan kecocokan diet dan nutrisi akan memengaruhi paket makanan serta order gizi terkait." tone="from-background via-background to-sky-50/40" />
+          <NutritionSummaryCue label="Bahan dan Gizi" description="Perubahan komposisi bahan dan nutrisi akan memengaruhi paket makanan serta order gizi terkait." tone="from-background via-background to-sky-50/40" />
           <NutritionSummaryCue label="Harga dan Status" description="Jaga harga porsi dan status aktif agar daftar menu yang dipilih petugas tetap relevan." tone="from-background via-background to-amber-50/50" />
         </div>
 
         <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
       <form id="nutrition-menu-edit-form" onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
-        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Menu" description="Perbarui identitas menu, kategori layanan, ukuran porsi, dan kecocokan diet pasien.">
+        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Menu" description="Perbarui identitas menu, kategori layanan, dan ukuran porsi.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="code"><Tag className="inline h-3 w-3 mr-1" />Kode Menu</Label>
@@ -166,28 +209,6 @@ export default function NutritionMenuEdit() {
             <div className="space-y-2">
               <Label>Ukuran Porsi</Label>
               <Input value={formData.serving_size} onChange={(e) => setFormData({ ...formData, serving_size: e.target.value })} placeholder="Contoh: 1 porsi, 200ml" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Jenis Diet yang Cocok</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {dietTypeOptions.map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.diet_types.includes(opt.value)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFormData({ ...formData, diet_types: [...formData.diet_types, opt.value] });
-                      } else {
-                        setFormData({ ...formData, diet_types: formData.diet_types.filter((d) => d !== opt.value) });
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  {opt.label}
-                </label>
-              ))}
             </div>
           </div>
           <div className="space-y-2">
@@ -224,6 +245,71 @@ export default function NutritionMenuEdit() {
               <Input type="number" step="0.01" min="0" value={formData.sodium || ""} onChange={(e) => setFormData({ ...formData, sodium: parseFloat(e.target.value) || 0 })} />
             </div>
           </div>
+        </NutritionSectionPanel>
+
+        <NutritionSectionPanel icon={Plus} title="Komposisi Bahan per Porsi" description="Kelola bahan baku yang digunakan untuk 1 porsi menu.">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Komposisi ini digunakan untuk perhitungan total pemakaian bahan pada laporan.</p>
+            <Button type="button" variant="outline" size="sm" onClick={addIngredient}>
+              <Plus className="h-4 w-4" />
+              Tambah Bahan
+            </Button>
+          </div>
+
+          {ingredients.length === 0 ? (
+            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              Belum ada bahan pada menu ini.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {ingredients.map((item, idx) => {
+                const selected = ingredientsMaster.find((ing) => ing.id === item.ingredient_id);
+                return (
+                  <div key={`${idx}-${item.ingredient_id}`} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-12">
+                    <div className="md:col-span-5">
+                      <Label className="text-xs">Bahan</Label>
+                      <Combobox
+                        options={ingredientOptions}
+                        value={item.ingredient_id ? String(item.ingredient_id) : ""}
+                        onValueChange={(value) => {
+                          const ingredientId = Number(value);
+                          const selectedIngredient = ingredientsMaster.find((ing) => ing.id === ingredientId);
+                          updateIngredient(idx, {
+                            ingredient_id: ingredientId,
+                            unit: selectedIngredient?.default_unit || item.unit || "gram",
+                          });
+                        }}
+                        placeholder="Pilih bahan..."
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Berat/Jumlah</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.weight_per_portion || ""}
+                        onChange={(e) => updateIngredient(idx, { weight_per_portion: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Satuan</Label>
+                      <Combobox options={unitOptions} value={item.unit} onValueChange={(value) => updateIngredient(idx, { unit: value })} placeholder="Satuan..." />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Catatan</Label>
+                      <Input value={item.notes} onChange={(e) => updateIngredient(idx, { notes: e.target.value })} placeholder={selected ? `Default ${selected.default_unit}` : "Opsional"} />
+                    </div>
+                    <div className="md:col-span-1 flex items-end justify-end">
+                      <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeIngredient(idx)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </NutritionSectionPanel>
 
         {/* Price & Status */}

@@ -26,7 +26,6 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { usePermission } from "@/hooks/usePermission";
 
 const counterSchema = z.object({
-  code: z.string().min(1, "Kode wajib diisi").max(10, "Kode maksimal 10 karakter"),
   name: z.string().min(1, "Nama loket wajib diisi"),
   description: z.string().optional().or(z.literal("")),
   location: z.string().optional().or(z.literal("")),
@@ -49,7 +48,6 @@ export default function CounterEdit() {
   const form = useForm<CounterFormData>({
     resolver: zodResolver(counterSchema),
     defaultValues: {
-      code: "",
       name: "",
       description: "",
       location: "",
@@ -69,7 +67,6 @@ export default function CounterEdit() {
     try {
       const data = await counterApi.getCounter(Number(id));
       form.reset({
-        code: data.code,
         name: data.name,
         description: data.description || "",
         location: data.location || "",
@@ -181,20 +178,6 @@ export default function CounterEdit() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 [&_input]:h-9">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FormField
-                  control={form.control}
-                  name="code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kode Loket</FormLabel>
-                      <FormControl>
-                        <Input placeholder="L001" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <FormField
                   control={form.control}
                   name="name"

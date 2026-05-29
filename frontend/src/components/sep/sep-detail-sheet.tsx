@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { printApi } from "@/lib/api/print";
 import { vclaimApi } from "@/lib/api/vclaim";
 import { useToast } from "@/hooks/use-toast";
 import type { SEPLocal } from "@/lib/api/vclaim";
@@ -28,6 +30,7 @@ import {
   Save,
   X,
   Search,
+  Printer,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -48,7 +51,6 @@ import {
   BPJSSectionHeader,
   BPJSSheetHero,
   BPJSStatePanel,
-  BPJS_SHEET_MONO_FAMILY,
 } from "./bpjs-sheet-chrome";
 
 interface SEPDetailSheetProps {
@@ -71,6 +73,7 @@ export function SEPDetailSheet({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   // Search modal states
   const [poliModalOpen, setPoliModalOpen] = useState(false);
@@ -229,6 +232,23 @@ export function SEPDetailSheet({
     }
   };
 
+  const handlePrint = async () => {
+    if (!sep?.id) return;
+
+    setPrinting(true);
+    try {
+      await printApi.sep(sep.id);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak SEP",
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
@@ -266,16 +286,16 @@ export function SEPDetailSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto p-0 sm:w-[80vw] sm:max-w-[80vw]">
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Detail SEP"
-            description={<span className="font-mono text-xs">{sep.no_sep}</span>}
+            description={<span className="font-mono text-sm">{sep.no_sep}</span>}
             icon={ShieldCheck}
             meta={getStatusBadge(sep.status)}
           />
 
-          <div className="space-y-6 p-6">
+          <div className="flex-1 overflow-y-auto p-6">
 
           {/* Status Warning for Deleted SEP */}
           {sep.status === "deleted" && (
@@ -289,97 +309,85 @@ export function SEPDetailSheet({
 
           {!isEditing ? (
             /* Detail View */
-            <div className="space-y-6">
-              {/* SEP Info */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="SEP" title="Informasi SEP" />
-                <BPJSInfoGrid
-                  columns={4}
-                  items={[
-                    { label: "No. SEP", value: sep.no_sep, mono: true },
-                    { label: "Tanggal SEP", value: sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-" },
-                    { label: "Jenis Pelayanan", value: getJenisPelayanan(sep.jns_pelayanan) },
-                    { label: "Kelas Rawat", value: getKelasRawat(sep.kls_rawat_hak) },
-                  ]}
-                />
-              </div>
-
-              {/* Peserta Info */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
-                <BPJSInfoGrid
-                  columns={4}
-                  items={[
-                    { label: "No. Kartu BPJS", value: sep.no_kartu, mono: true },
-                    { label: "Nama Peserta", value: sep.nama_pasien },
-                    { label: "No. RM", value: sep.no_mr, mono: true },
-                    { label: "NIK", value: sep.nik || "-", mono: true },
-                  ]}
-                />
-              </div>
-
-              {/* Rujukan Info */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Source" title="Rujukan" />
-                <BPJSInfoGrid
-                  columns={4}
-                  items={[
-                    { label: "No. Rujukan", value: sep.no_rujukan || "-", mono: true },
-                    { label: "Tanggal Rujukan", value: sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-" },
-                    { label: "Faskes Perujuk", value: sep.nama_rujukan || sep.ppk_rujukan || "-", span: 2 },
-                  ]}
-                />
-              </div>
-
-              {/* Pelayanan Info */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Service" title="Pelayanan" />
-                <BPJSInfoGrid
-                  columns={4}
-                  items={[
-                    { label: "Poli Tujuan", value: <>{sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}</>, span: 2 },
-                    { label: "Dokter DPJP", value: <>{sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}</>, span: 2 },
-                    { label: "Diagnosa Awal", value: <>{sep.nama_diagnosa || sep.diag_awal || "-"}{sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}</>, span: 4 },
-                  ]}
-                />
-              </div>
-
-              {sep.catatan && (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="space-y-6">
                 <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Notes" title="Catatan" />
-                  <div className="border border-border/70 bg-muted/10 p-4 text-sm leading-relaxed text-foreground">{sep.catatan}</div>
+                  <BPJSSectionHeader eyebrow="SEP" title="Informasi SEP" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "No. SEP", value: sep.no_sep, mono: true },
+                      { label: "Tanggal SEP", value: sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-" },
+                      { label: "Jenis Pelayanan", value: getJenisPelayanan(sep.jns_pelayanan) },
+                      { label: "Kelas Rawat", value: getKelasRawat(sep.kls_rawat_hak) },
+                    ]}
+                  />
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              {sep.status === "active" && (
-                <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
-                  <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(true)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit SEP
-                  </Button>
-                  <Button variant="destructive" className="rounded-none" onClick={() => setDeleteDialogOpen(true)}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Hapus SEP
-                  </Button>
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "No. Kartu BPJS", value: sep.no_kartu, mono: true, span: 2 },
+                      { label: "Nama Peserta", value: sep.nama_pasien, span: 2 },
+                      { label: "No. RM", value: sep.no_mr, mono: true },
+                      { label: "NIK", value: sep.nik || "-", mono: true },
+                    ]}
+                  />
                 </div>
-              )}
+
+                {sep.catatan && (
+                  <div className={BPJS_SECTION_CLASS}>
+                    <BPJSSectionHeader eyebrow="Notes" title="Catatan" />
+                    <div className="border border-border/70 bg-muted/10 p-4 text-base leading-relaxed text-foreground">{sep.catatan}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Source" title="Rujukan" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "No. Rujukan", value: sep.no_rujukan || "-", mono: true },
+                      { label: "Tanggal Rujukan", value: sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-" },
+                      { label: "Faskes Perujuk", value: sep.nama_rujukan || sep.ppk_rujukan || "-", span: 2 },
+                    ]}
+                  />
+                </div>
+
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Service" title="Pelayanan" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "Poli Tujuan", value: <>{sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}</>, span: 2 },
+                      { label: "Dokter DPJP", value: <>{sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}</>, span: 2 },
+                      { label: "Diagnosa Awal", value: <>{sep.nama_diagnosa || sep.diag_awal || "-"}{sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}</>, span: 2 },
+                    ]}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             /* Edit View - dengan Search Modal seperti Create SEP */
-            <div className="space-y-6">
-              <BPJSSectionHeader eyebrow="Edit" title="Ubah Data SEP" />
+            <div className="grid gap-6 xl:grid-cols-2 [&_label]:text-sm [&_label]:font-medium">
+              <div className="xl:col-span-2">
+                <BPJSSectionHeader eyebrow="Edit" title="Ubah Data SEP" />
+              </div>
 
               {/* Kelas Rawat */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="grid grid-cols-3 gap-4">
+              <div className={`${BPJS_SECTION_CLASS} xl:col-span-2`}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Naik Kelas</Label>
                   <Select
                     value={editForm.kls_rawat_naik || "none"}
                     onValueChange={(value) => setEditForm({ ...editForm, kls_rawat_naik: value, pembiayaan: value === "none" ? "" : editForm.pembiayaan })}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Tidak Naik</SelectItem>
                       <SelectItem value="1">VVIP</SelectItem>
@@ -400,7 +408,7 @@ export function SEPDetailSheet({
                     onValueChange={(value) => setEditForm({ ...editForm, pembiayaan: value })}
                     disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">-</SelectItem>
                       <SelectItem value="1">Pribadi</SelectItem>
@@ -409,13 +417,14 @@ export function SEPDetailSheet({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Penanggung Jawab</Label>
                   <Input
                     value={editForm.penanggung_jawab}
                     onChange={(e) => setEditForm({ ...editForm, penanggung_jawab: e.target.value })}
                     placeholder="Nama penanggung jawab"
                     disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
+                    className={BPJS_COMPACT_FIELD_CLASS}
                   />
                 </div>
               </div>
@@ -454,7 +463,7 @@ export function SEPDetailSheet({
                     <Search className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
+                <p className="text-sm text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
               </div>
               </div>
 
@@ -478,11 +487,11 @@ export function SEPDetailSheet({
 
               {/* Informasi Tambahan */}
               <div className={BPJS_SECTION_CLASS}>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Poli Eksekutif</Label>
                   <Select value={editForm.poli_eksekutif} onValueChange={(value) => setEditForm({ ...editForm, poli_eksekutif: value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Tidak</SelectItem>
                       <SelectItem value="1">Ya</SelectItem>
@@ -492,7 +501,7 @@ export function SEPDetailSheet({
                 <div className="space-y-2">
                   <Label>COB</Label>
                   <Select value={editForm.cob} onValueChange={(value) => setEditForm({ ...editForm, cob: value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Tidak</SelectItem>
                       <SelectItem value="1">Ya</SelectItem>
@@ -502,7 +511,7 @@ export function SEPDetailSheet({
                 <div className="space-y-2">
                   <Label>Katarak</Label>
                   <Select value={editForm.katarak} onValueChange={(value) => setEditForm({ ...editForm, katarak: value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Tidak</SelectItem>
                       <SelectItem value="1">Ya</SelectItem>
@@ -512,7 +521,7 @@ export function SEPDetailSheet({
                 <div className="space-y-2">
                   <Label>Lakalantas</Label>
                   <Select value={editForm.laka_lantas} onValueChange={(value) => setEditForm({ ...editForm, laka_lantas: value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Bukan KLL</SelectItem>
                       <SelectItem value="1">KLL & Bukan KK</SelectItem>
@@ -538,7 +547,7 @@ export function SEPDetailSheet({
               </div>
 
               {/* Catatan */}
-              <div className={BPJS_SECTION_CLASS}>
+              <div className={`${BPJS_SECTION_CLASS} xl:col-span-2`}>
               <div className="space-y-2">
                 <Label>Catatan</Label>
                 <Textarea
@@ -551,20 +560,63 @@ export function SEPDetailSheet({
               </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
-                <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(false)} disabled={updating}>
-                  <X className="h-4 w-4 mr-2" />
-                  Batal
-                </Button>
-                <Button className="rounded-none" onClick={handleUpdate} disabled={updating}>
-                  {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                  Simpan
-                </Button>
-              </div>
             </div>
           )}
           </div>
+
+          <SheetFooter className={`${BPJS_FOOTER_CLASS} sticky bottom-0 z-20 bg-background/95 backdrop-blur`}>
+            <div className="flex w-full items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none border-border/70"
+                onClick={handlePrint}
+                disabled={printing || updating || deleting}
+              >
+                {printing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                Cetak SEP
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {!isEditing ? (
+                  <>
+                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => onOpenChange(false)}>
+                      Tutup
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-border/70"
+                      onClick={() => setIsEditing(true)}
+                      disabled={sep.status !== "active"}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit SEP
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="rounded-none"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      disabled={sep.status !== "active" || deleting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Hapus SEP
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(false)} disabled={updating}>
+                      <X className="mr-2 h-4 w-4" />
+                      Batal
+                    </Button>
+                    <Button className="rounded-none" onClick={handleUpdate} disabled={updating}>
+                      {updating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Simpan
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 

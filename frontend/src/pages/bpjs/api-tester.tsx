@@ -23,13 +23,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Send,
   Copy,
   CheckCircle,
   XCircle,
-  Stethoscope,
   RefreshCw,
   Eye,
   Database,

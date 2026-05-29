@@ -15,6 +15,7 @@ import {
   stockRequestStatusLabels,
   priorityLabels,
   requestTypeLabels,
+  requestModeLabels,
 } from "@/lib/api/stock-requests";
 
 interface ColumnOptions {
@@ -84,6 +85,15 @@ export function createStockRequestColumns(options: ColumnOptions): ColumnDef<Sto
       ),
     },
     {
+      accessorKey: "request_mode",
+      header: "Mode",
+      cell: ({ row }) => (
+        <Badge variant="outline">
+          {requestModeLabels[row.getValue("request_mode") as "depo" | "self_purchase"] || row.getValue("request_mode")}
+        </Badge>
+      ),
+    },
+    {
       accessorKey: "from_room",
       header: "Dari Ruangan",
       cell: ({ row }) => row.original.from_room?.name || "-",
@@ -91,7 +101,7 @@ export function createStockRequestColumns(options: ColumnOptions): ColumnDef<Sto
     {
       accessorKey: "to_room",
       header: "Ke Ruangan",
-      cell: ({ row }) => row.original.to_room?.name || "-",
+      cell: ({ row }) => row.original.request_mode === "depo" ? (row.original.to_room?.name || "-") : "Unit Sendiri",
     },
     {
       accessorKey: "priority",

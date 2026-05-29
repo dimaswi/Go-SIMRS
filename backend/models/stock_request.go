@@ -40,15 +40,22 @@ const (
 	RequestTypeMedicine  = "medicine"
 )
 
+// Request Mode Constants
+const (
+	RequestModeDepo         = "depo"
+	RequestModeSelfPurchase = "self_purchase"
+)
+
 // StockRequest represents a request for inventory/medicine from one room to another (e.g., from ward to pharmacy depot)
 type StockRequest struct {
 	ID                uint                   `gorm:"primarykey" json:"id"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
 	DeletedAt         gorm.DeletedAt         `gorm:"index" json:"-"`
-	RequestNumber     string                 `gorm:"uniqueIndex;size:50;not null" json:"request_number"` // Format: REQ-INV-2024-0001 or REQ-MED-2024-0001
-	RequestType       string                 `gorm:"size:20;not null" json:"request_type"`               // inventory, medicine
-	FromRoomID        uint                   `gorm:"not null;index" json:"from_room_id"`                 // Ruangan yang meminta
+	RequestNumber     string                 `gorm:"uniqueIndex;size:50;not null" json:"request_number"`        // Format: REQ-INV-2024-0001 or REQ-MED-2024-0001
+	RequestType       string                 `gorm:"size:20;not null" json:"request_type"`                      // inventory, medicine
+	RequestMode       string                 `gorm:"size:20;not null;default:'depo';index" json:"request_mode"` // depo, self_purchase
+	FromRoomID        uint                   `gorm:"not null;index" json:"from_room_id"`                        // Ruangan yang meminta
 	FromRoom          *Room                  `gorm:"foreignKey:FromRoomID" json:"from_room,omitempty"`
 	ToRoomID          uint                   `gorm:"not null;index" json:"to_room_id"` // Depo Farmasi / Gudang tujuan
 	ToRoom            *Room                  `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
@@ -64,10 +71,15 @@ type StockRequest struct {
 	ApprovedBy        *User                  `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
 	CompletedByID     *uint                  `gorm:"index" json:"completed_by_id"`
 	CompletedBy       *User                  `gorm:"foreignKey:CompletedByID" json:"completed_by,omitempty"`
-	Reason            string                 `gorm:"type:text" json:"reason"`                // Alasan permintaan
-	RejectionReason   string                 `gorm:"type:text" json:"rejection_reason"`      // Alasan penolakan
-	Notes             string                 `gorm:"type:text" json:"notes"`                 // Catatan tambahan
-	Items             []StockRequestItem     `gorm:"foreignKey:StockRequestID" json:"items"` // Detail item yang diminta
+	Reason            string                 `gorm:"type:text" json:"reason"`                          // Alasan permintaan
+	RejectionReason   string                 `gorm:"type:text" json:"rejection_reason"`                // Alasan penolakan
+	Notes             string                 `gorm:"type:text" json:"notes"`                           // Catatan tambahan
+	ReceiptNumber     string                 `gorm:"size:120" json:"receipt_number"`                   // Nomor struk (wajib untuk self_purchase)
+	ReceiptDate       *time.Time             `json:"receipt_date,omitempty"`                           // Tanggal struk
+	ReceiptFileURL    string                 `gorm:"size:255" json:"receipt_file_url"`                 // URL/file struk (opsional)
+	SupplierName      string                 `gorm:"size:200" json:"supplier_name"`                    // Nama vendor pembelian mandiri
+	TotalAmount       float64                `gorm:"type:decimal(15,2);default:0" json:"total_amount"` // Total belanja mandiri
+	Items             []StockRequestItem     `gorm:"foreignKey:StockRequestID" json:"items"`           // Detail item yang diminta
 	ApprovalHistories []StockRequestApproval `gorm:"foreignKey:StockRequestID" json:"approval_histories,omitempty"`
 }
 
@@ -266,28 +278,35 @@ func (PurchasePayment) TableName() string {
 
 // PurchaseItem represents an item in a purchase order
 type PurchaseItem struct {
-	ID               uint           `gorm:"primarykey" json:"id"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
-	PurchaseID       uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"purchase_id"`
-	Purchase         *Purchase      `gorm:"foreignKey:PurchaseID" json:"-"`
-	InventoryID      *uint          `gorm:"index" json:"inventory_id,omitempty"`
-	Inventory        *Inventory     `gorm:"foreignKey:InventoryID" json:"inventory,omitempty"`
-	MedicineID       *uint          `gorm:"index" json:"medicine_id,omitempty"`
-	Medicine         *Medicine      `gorm:"foreignKey:MedicineID" json:"medicine,omitempty"`
-	QuantityOrdered  int            `gorm:"not null" json:"quantity_ordered"`
-	QuantityReceived int            `gorm:"default:0" json:"quantity_received"`
-	Unit             string         `gorm:"size:30" json:"unit"`
-	UnitPrice        float64        `gorm:"type:decimal(15,2);default:0" json:"unit_price"`
-	DiscountPercent  float64        `gorm:"type:decimal(7,2);default:0" json:"discount_percent"`
-	DiscountAmount   float64        `gorm:"type:decimal(15,2);default:0" json:"discount_amount"`
-	TaxPercent       float64        `gorm:"type:decimal(7,2);default:0" json:"tax_percent"`
-	TaxAmount        float64        `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`
-	TotalPrice       float64        `gorm:"type:decimal(15,2);default:0" json:"total_price"`
-	BatchNumber      string         `gorm:"size:50" json:"batch_number,omitempty"`
-	ExpiryDate       *time.Time     `json:"expiry_date,omitempty"`
-	Notes            string         `gorm:"type:text" json:"notes"`
+	ID                    uint           `gorm:"primarykey" json:"id"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	DeletedAt             gorm.DeletedAt `gorm:"index" json:"-"`
+	PurchaseID            uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"purchase_id"`
+	Purchase              *Purchase      `gorm:"foreignKey:PurchaseID" json:"-"`
+	InventoryID           *uint          `gorm:"index" json:"inventory_id,omitempty"`
+	Inventory             *Inventory     `gorm:"foreignKey:InventoryID" json:"inventory,omitempty"`
+	MedicineID            *uint          `gorm:"index" json:"medicine_id,omitempty"`
+	Medicine              *Medicine      `gorm:"foreignKey:MedicineID" json:"medicine,omitempty"`
+	QuantityLargeOrdered  int            `gorm:"not null;default:0" json:"quantity_large_ordered"`
+	QuantitySmallOrdered  int            `gorm:"not null;default:0" json:"quantity_small_ordered"`
+	QuantityOrdered       int            `gorm:"not null" json:"quantity_ordered"`
+	QuantityLargeReceived int            `gorm:"not null;default:0" json:"quantity_large_received"`
+	QuantitySmallReceived int            `gorm:"not null;default:0" json:"quantity_small_received"`
+	QuantityReceived      int            `gorm:"default:0" json:"quantity_received"`
+	UnitLarge             string         `gorm:"size:30" json:"unit_large"`
+	UnitSmall             string         `gorm:"size:30" json:"unit_small"`
+	ConversionFactor      int            `gorm:"not null;default:1" json:"conversion_factor"`
+	Unit                  string         `gorm:"size:30" json:"unit"`
+	UnitPrice             float64        `gorm:"type:decimal(15,2);default:0" json:"unit_price"`
+	DiscountPercent       float64        `gorm:"type:decimal(7,2);default:0" json:"discount_percent"`
+	DiscountAmount        float64        `gorm:"type:decimal(15,2);default:0" json:"discount_amount"`
+	TaxPercent            float64        `gorm:"type:decimal(7,2);default:0" json:"tax_percent"`
+	TaxAmount             float64        `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`
+	TotalPrice            float64        `gorm:"type:decimal(15,2);default:0" json:"total_price"`
+	BatchNumber           string         `gorm:"size:50" json:"batch_number,omitempty"`
+	ExpiryDate            *time.Time     `json:"expiry_date,omitempty"`
+	Notes                 string         `gorm:"type:text" json:"notes"`
 }
 
 // TableName sets the table name for PurchaseItem

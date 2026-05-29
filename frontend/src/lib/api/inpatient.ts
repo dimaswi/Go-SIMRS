@@ -510,6 +510,80 @@ export const o2UsageApi = {
 };
 
 // ===========================================================================
+// BHP USAGE (Penggunaan BHP Ruangan/Unit)
+// ===========================================================================
+
+export interface BHPUsageRecord {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  room_id: number;
+  inventory_id: number;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  subtotal: number;
+  used_at: string;
+  notes?: string;
+  inventory?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+    price: number;
+  };
+  created_by_id?: number;
+  created_by?: {
+    id: number;
+    full_name: string;
+  };
+  updated_by_id?: number;
+  updated_by?: {
+    id: number;
+    full_name: string;
+  };
+}
+
+export interface BHPUsageAvailableItem {
+  room_inventory_id: number;
+  inventory_id: number;
+  code: string;
+  name: string;
+  unit: string;
+  price: number;
+  current_stock: number;
+}
+
+export interface SaveBHPUsageInput {
+  inventory_id: number;
+  quantity: number;
+  unit_price?: number;
+  used_at?: string;
+  notes?: string;
+}
+
+export const bhpUsageApi = {
+  getAll: (visitId: number) =>
+    api.get<{ data: BHPUsageRecord[] }>(`/visits/${visitId}/bhp-usage`),
+
+  getOne: (visitId: number, usageId: number) =>
+    api.get<{ data: BHPUsageRecord }>(`/visits/${visitId}/bhp-usage/${usageId}`),
+
+  getAvailableItems: (visitId: number) =>
+    api.get<{ data: BHPUsageAvailableItem[] }>(`/visits/${visitId}/bhp-usage/available-items`),
+
+  create: (visitId: number, data: SaveBHPUsageInput) =>
+    api.post<{ data: BHPUsageRecord }>(`/visits/${visitId}/bhp-usage`, data),
+
+  update: (visitId: number, usageId: number, data: SaveBHPUsageInput) =>
+    api.put<{ data: BHPUsageRecord }>(`/visits/${visitId}/bhp-usage/${usageId}`, data),
+
+  delete: (visitId: number, usageId: number) =>
+    api.delete(`/visits/${visitId}/bhp-usage/${usageId}`),
+};
+
+// ===========================================================================
 // NURSING CARE CONSTANTS
 // ===========================================================================
 

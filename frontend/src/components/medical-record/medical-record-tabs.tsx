@@ -143,6 +143,13 @@ export function MedicalRecordTabs({
       permission: "procedure_orders.perform",
       section: "radiology",
     },
+    {
+      id: "bhp-usage",
+      label: "Penggunaan BHP",
+      icon: <Package />,
+      permission: "procedure_orders.perform",
+      section: "radiology",
+    },
   ];
 
   // Tabs for laboratory visits
@@ -158,6 +165,13 @@ export function MedicalRecordTabs({
       id: "laboratory-workstation",
       label: "Pengerjaan Laboratorium",
       icon: <TestTube />,
+      permission: "procedure_orders.perform",
+      section: "laboratory",
+    },
+    {
+      id: "bhp-usage",
+      label: "Penggunaan BHP",
+      icon: <Package />,
       permission: "procedure_orders.perform",
       section: "laboratory",
     },
@@ -259,6 +273,13 @@ export function MedicalRecordTabs({
       permission: "medical_records.procedure",
       section: "care",
     }] : []),
+    {
+      id: "bhp-usage",
+      label: "Penggunaan BHP",
+      icon: <Package />,
+      permission: "medical_records.procedure",
+      section: "care",
+    },
     {
       id: "laboratory-order",
       label: "Order Lab",

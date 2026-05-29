@@ -19,6 +19,21 @@ const (
 	InventoryCategoryInfrastructure InventoryCategory = "infrastructure" // Infrastruktur
 )
 
+type InventoryItemGroup string
+
+const (
+	InventoryItemGroupBHP   InventoryItemGroup = "bhp"
+	InventoryItemGroupOther InventoryItemGroup = "other"
+)
+
+type InventoryItemScope string
+
+const (
+	InventoryItemScopeUnit     InventoryItemScope = "unit"
+	InventoryItemScopePharmacy InventoryItemScope = "pharmacy"
+	InventoryItemScopeBoth     InventoryItemScope = "both"
+)
+
 // InventoryCondition represents the condition of an inventory item
 type InventoryCondition string
 
@@ -50,13 +65,15 @@ type Inventory struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Basic Information
-	Code        string            `gorm:"not null;uniqueIndex;size:50" json:"code"` // Kode Barang (unique)
-	Name        string            `gorm:"not null;size:200" json:"name"`            // Nama Barang
-	Description string            `gorm:"type:text" json:"description"`             // Deskripsi
-	Category    InventoryCategory `gorm:"not null;size:50" json:"category"`         // Kategori
-	Unit        string            `gorm:"not null;size:50" json:"unit"`             // Satuan (pcs, unit, set, box, etc)
-	Brand       string            `gorm:"size:100" json:"brand"`                    // Merek
-	Model       string            `gorm:"size:100" json:"model"`                    // Model/Tipe
+	Code        string             `gorm:"not null;uniqueIndex;size:50" json:"code"`                 // Kode Barang (unique)
+	Name        string             `gorm:"not null;size:200" json:"name"`                            // Nama Barang
+	Description string             `gorm:"type:text" json:"description"`                             // Deskripsi
+	Category    InventoryCategory  `gorm:"not null;size:50" json:"category"`                         // Kategori
+	ItemGroup   InventoryItemGroup `gorm:"not null;size:20;default:'other';index" json:"item_group"` // bhp, other
+	ItemScope   InventoryItemScope `gorm:"not null;size:20;default:'both';index" json:"item_scope"`  // unit, pharmacy, both
+	Unit        string             `gorm:"not null;size:50" json:"unit"`                             // Satuan (pcs, unit, set, box, etc)
+	Brand       string             `gorm:"size:100" json:"brand"`                                    // Merek
+	Model       string             `gorm:"size:100" json:"model"`                                    // Model/Tipe
 
 	// Inventory Details (stok aktual ada di RoomInventory per ruangan)
 	MinStock     int     `gorm:"default:0" json:"min_stock"`                      // Stok Minimum Global (untuk alert)

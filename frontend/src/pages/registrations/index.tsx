@@ -33,9 +33,14 @@ import {
   Eye,
   SlidersHorizontal,
   XCircle,
+  X,
   ArrowRight,
   ExternalLink,
   ShieldCheck,
+  Printer,
+  Pencil,
+  Trash2,
+  Save,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -65,11 +70,12 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetFooter } from "@/components/ui/sheet";
 import { api } from "@/lib/api/client";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import {
+  BPJS_FOOTER_CLASS,
   BPJSInfoGrid,
   BPJS_SECTION_CLASS,
   BPJSSectionHeader,
@@ -215,6 +221,18 @@ export default function RegistrationIndex() {
   const [sepRanapPatient, setSepRanapPatient] = useState<Patient | null>(null);
   const [spriDetailData, setSpriDetailData] = useState<SPRILocal | null>(null);
   const [spriDetailOpen, setSpriDetailOpen] = useState(false);
+  const [spriIsEditing, setSpriIsEditing] = useState(false);
+  const [spriUpdating, setSpriUpdating] = useState(false);
+  const [spriDeleting, setSpriDeleting] = useState(false);
+  const [spriPrinting, setSpriPrinting] = useState(false);
+  const [spriDeleteDialogOpen, setSpriDeleteDialogOpen] = useState(false);
+  const [spriEditForm, setSpriEditForm] = useState({
+    tgl_rencana_kontrol: "",
+    kode_poli: "",
+    nama_poli: "",
+    kode_dokter: "",
+    nama_dokter: "",
+  });
   const [sepDetailData, setSepDetailData] = useState<SEPLocal | null>(null);
   const [sepDetailOpen, setSepDetailOpen] = useState(false);
   const [sepDetailRegId, setSepDetailRegId] = useState<number | null>(null);
@@ -786,6 +804,137 @@ export default function RegistrationIndex() {
         title: "Error",
         description: error.response?.data?.error || "Gagal memuat detail SEP",
       });
+    }
+  };
+
+  useEffect(() => {
+    if (!spriDetailOpen || !spriDetailData) {
+      setSpriIsEditing(false);
+      return;
+    }
+    setSpriIsEditing(false);
+    setSpriEditForm({
+      tgl_rencana_kontrol: spriDetailData.tgl_rencana_kontrol || "",
+      kode_poli: spriDetailData.kode_poli || "",
+      nama_poli: spriDetailData.nama_poli || "",
+      kode_dokter: spriDetailData.kode_dokter || "",
+      nama_dokter: spriDetailData.nama_dokter || "",
+    });
+  }, [spriDetailOpen, spriDetailData]);
+
+  const handlePrintSPRI = async () => {
+    if (!spriDetailData?.id) return;
+    setSpriPrinting(true);
+    try {
+      await printApi.spri(spriDetailData.id);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak SPRI",
+      });
+    } finally {
+      setSpriPrinting(false);
+    }
+  };
+
+  const handleUpdateSPRI = async () => {
+    if (!spriDetailData?.no_spri) return;
+    if (!spriEditForm.tgl_rencana_kontrol || !spriEditForm.kode_poli || !spriEditForm.kode_dokter) {
+      toast({
+        variant: "destructive",
+        title: "Field belum lengkap",
+        description: "Tanggal, poli, dan dokter wajib diisi.",
+      });
+      return;
+    }
+
+    setSpriUpdating(true);
+    try {
+      await vclaimApi.updateSPRI(spriDetailData.no_spri, {
+        tgl_rencana_kontrol: spriEditForm.tgl_rencana_kontrol,
+        poli_kontrol: spriEditForm.kode_poli,
+        nama_poli: spriEditForm.nama_poli || spriEditForm.kode_poli,
+        kode_dokter: spriEditForm.kode_dokter,
+        nama_dokter: spriEditForm.nama_dokter || spriEditForm.kode_dokter,
+      });
+
+      let refreshedData: SPRILocal | null = null;
+      if ((spriDetailData.registration_id || 0) > 0) {
+        try {
+          const refreshed = await vclaimApi.getSPRIByRegistration(spriDetailData.registration_id || 0);
+          refreshedData = refreshed.data?.data || null;
+        } catch {
+          // fallback below
+        }
+      }
+      if (!refreshedData && (spriDetailData.visit_id || 0) > 0) {
+        try {
+          const refreshed = await vclaimApi.getSPRIByVisit(spriDetailData.visit_id || 0);
+          refreshedData = refreshed.data?.data || null;
+        } catch {
+          // fallback below
+        }
+      }
+      setSpriDetailData(
+        refreshedData || {
+          ...spriDetailData,
+          tgl_rencana_kontrol: spriEditForm.tgl_rencana_kontrol,
+          kode_poli: spriEditForm.kode_poli,
+          nama_poli: spriEditForm.nama_poli || spriEditForm.kode_poli,
+          kode_dokter: spriEditForm.kode_dokter,
+          nama_dokter: spriEditForm.nama_dokter || spriEditForm.kode_dokter,
+        },
+      );
+      setSpriIsEditing(false);
+      toast({
+        title: "Berhasil",
+        description: "SPRI berhasil diupdate.",
+      });
+      loadData();
+      loadAllRegistrations();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mengupdate SPRI",
+      });
+    } finally {
+      setSpriUpdating(false);
+    }
+  };
+
+  const handleDeleteSPRI = async () => {
+    if (!spriDetailData?.no_spri) return;
+    setSpriDeleting(true);
+    try {
+      await vclaimApi.deleteSPRI(spriDetailData.no_spri);
+      const regId = spriDetailData.registration_id || 0;
+      if (regId) {
+        setSpriMap((prev) => {
+          const next = new Map(prev);
+          next.delete(regId);
+          return next;
+        });
+      }
+      setSpriDeleteDialogOpen(false);
+      setSpriDetailOpen(false);
+      setSpriDetailData(null);
+      setSpriIsEditing(false);
+      toast({
+        title: "Berhasil",
+        description: "SPRI berhasil dihapus.",
+      });
+      loadData();
+      loadAllRegistrations();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menghapus SPRI",
+      });
+    } finally {
+      setSpriDeleting(false);
     }
   };
 
@@ -1674,17 +1823,27 @@ export default function RegistrationIndex() {
         </DialogContent>
       </Dialog>
 
-      <Sheet open={spriDetailOpen} onOpenChange={(open) => { setSpriDetailOpen(open); if (!open) setSpriDetailData(null); }}>
-        <SheetContent className="w-[80vw] max-w-[80vw] overflow-y-auto p-0 sm:w-[80vw] sm:max-w-[80vw]">
+      <Sheet
+        open={spriDetailOpen}
+        onOpenChange={(open) => {
+          setSpriDetailOpen(open);
+          if (!open) {
+            setSpriDetailData(null);
+            setSpriIsEditing(false);
+            setSpriDeleteDialogOpen(false);
+          }
+        }}
+      >
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
             title="Detail SPRI"
-            description={<span className="font-mono text-xs">{spriDetailData?.no_spri || "-"}</span>}
+            description={<span className="font-mono text-sm">{spriDetailData?.no_spri || "-"}</span>}
             icon={ShieldCheck}
             meta={getSpriStatusBadge(spriDetailData?.status)}
           />
 
-          <div className="space-y-6 p-6">
+          <div className="flex-1 overflow-y-auto p-6">
             {spriDetailData?.status === "cancelled" && (
               <BPJSStatePanel
                 tone="danger"
@@ -1693,84 +1852,214 @@ export default function RegistrationIndex() {
               />
             )}
 
-            <div className={BPJS_SECTION_CLASS}>
-              <BPJSSectionHeader eyebrow="SPRI" title="Informasi Dokumen" />
-              <BPJSInfoGrid
-                columns={4}
-                items={[
-                  { label: "No. SPRI", value: spriDetailData?.no_spri || "-", mono: true, span: 2 },
-                  { label: "Status", value: spriDetailData?.status || "-" },
-                  { label: "Sumber", value: spriDetailData?.is_bpjs ? "BPJS" : "Lokal" },
-                  {
-                    label: "Tgl Rencana Kontrol",
-                    value: spriDetailData?.tgl_rencana_kontrol
-                      ? format(new Date(spriDetailData.tgl_rencana_kontrol), "dd MMM yyyy", { locale: idLocale })
-                      : "-",
-                  },
-                  { label: "User Buat", value: spriDetailData?.user_buat || "-" },
-                  {
-                    label: "Dibuat",
-                    value: spriDetailData?.created_at
-                      ? format(new Date(spriDetailData.created_at), "dd MMM yyyy HH:mm", { locale: idLocale })
-                      : "-",
-                  },
-                  {
-                    label: "Diupdate",
-                    value: spriDetailData?.updated_at
-                      ? format(new Date(spriDetailData.updated_at), "dd MMM yyyy HH:mm", { locale: idLocale })
-                      : "-",
-                  },
-                ]}
-              />
-            </div>
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              <div className="space-y-6">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="SPRI" title="Informasi Dokumen" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "No. SPRI", value: spriDetailData?.no_spri || "-", mono: true, span: 2 },
+                      { label: "Status", value: spriDetailData?.status || "-" },
+                      { label: "Sumber", value: spriDetailData?.is_bpjs ? "BPJS" : "Lokal" },
+                      {
+                        label: "Tgl Rencana Kontrol",
+                        value: spriDetailData?.tgl_rencana_kontrol
+                          ? format(new Date(spriDetailData.tgl_rencana_kontrol), "dd MMM yyyy", { locale: idLocale })
+                          : "-",
+                      },
+                      { label: "User Buat", value: spriDetailData?.user_buat || "-" },
+                      {
+                        label: "Dibuat",
+                        value: spriDetailData?.created_at
+                          ? format(new Date(spriDetailData.created_at), "dd MMM yyyy HH:mm", { locale: idLocale })
+                          : "-",
+                      },
+                      {
+                        label: "Diupdate",
+                        value: spriDetailData?.updated_at
+                          ? format(new Date(spriDetailData.updated_at), "dd MMM yyyy HH:mm", { locale: idLocale })
+                          : "-",
+                      },
+                    ]}
+                  />
+                </div>
 
-            <div className={BPJS_SECTION_CLASS}>
-              <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
-              <BPJSInfoGrid
-                columns={4}
-                items={[
-                  { label: "Nama Peserta", value: spriDetailData?.nama || "-", span: 2 },
-                  { label: "No. Kartu BPJS", value: spriDetailData?.no_kartu || "-", mono: true, span: 2 },
-                  { label: "Jenis Kelamin", value: spriDetailData?.kelamin || "-" },
-                  { label: "Tgl Lahir", value: spriDetailData?.tgl_lahir || "-" },
-                  { label: "Patient ID", value: spriDetailData?.patient_id ? String(spriDetailData.patient_id) : "-", mono: true },
-                  { label: "Registration ID", value: spriDetailData?.registration_id ? String(spriDetailData.registration_id) : "-", mono: true },
-                ]}
-              />
-            </div>
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
+                  <BPJSInfoGrid
+                    columns={2}
+                    items={[
+                      { label: "Nama Peserta", value: spriDetailData?.nama || "-", span: 2 },
+                      { label: "No. Kartu BPJS", value: spriDetailData?.no_kartu || "-", mono: true, span: 2 },
+                      { label: "Jenis Kelamin", value: spriDetailData?.kelamin || "-" },
+                      { label: "Tgl Lahir", value: spriDetailData?.tgl_lahir || "-" },
+                      { label: "Patient ID", value: spriDetailData?.patient_id ? String(spriDetailData.patient_id) : "-", mono: true },
+                      { label: "Registration ID", value: spriDetailData?.registration_id ? String(spriDetailData.registration_id) : "-", mono: true },
+                    ]}
+                  />
+                </div>
+              </div>
 
-            <div className={BPJS_SECTION_CLASS}>
-              <BPJSSectionHeader eyebrow="Control Plan" title="Rencana Kontrol" />
-              <BPJSInfoGrid
-                columns={4}
-                items={[
-                  {
-                    label: "Poli Kontrol",
-                    value: (
-                      <>
-                        {spriDetailData?.nama_poli || "-"}
-                        {spriDetailData?.kode_poli ? ` (${spriDetailData.kode_poli})` : ""}
-                      </>
-                    ),
-                    span: 2,
-                  },
-                  {
-                    label: "Dokter DPJP",
-                    value: (
-                      <>
-                        {spriDetailData?.nama_dokter || "-"}
-                        {spriDetailData?.kode_dokter ? ` (${spriDetailData.kode_dokter})` : ""}
-                      </>
-                    ),
-                    span: 2,
-                  },
-                  { label: "Diagnosa", value: spriDetailData?.nama_diagnosa || "-", span: 4 },
-                ]}
-              />
+              <div className="space-y-6">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Control Plan" title="Rencana Kontrol" />
+                  {spriIsEditing ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Tanggal Perintah Rawat Inap</p>
+                        <Input
+                          type="date"
+                          value={spriEditForm.tgl_rencana_kontrol}
+                          onChange={(event) => setSpriEditForm((prev) => ({ ...prev, tgl_rencana_kontrol: event.target.value }))}
+                          className="h-10 rounded-none border-border/70 text-base"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Diagnosa</p>
+                        <Input value={spriDetailData?.nama_diagnosa || "-"} disabled className="h-10 rounded-none border-border/70 text-base" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Kode Poli</p>
+                        <Input
+                          value={spriEditForm.kode_poli}
+                          onChange={(event) => setSpriEditForm((prev) => ({ ...prev, kode_poli: event.target.value }))}
+                          className="h-10 rounded-none border-border/70 text-base"
+                          placeholder="Masukkan kode poli"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Nama Poli</p>
+                        <Input
+                          value={spriEditForm.nama_poli}
+                          onChange={(event) => setSpriEditForm((prev) => ({ ...prev, nama_poli: event.target.value }))}
+                          className="h-10 rounded-none border-border/70 text-base"
+                          placeholder="Masukkan nama poli"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Kode Dokter</p>
+                        <Input
+                          value={spriEditForm.kode_dokter}
+                          onChange={(event) => setSpriEditForm((prev) => ({ ...prev, kode_dokter: event.target.value }))}
+                          className="h-10 rounded-none border-border/70 text-base"
+                          placeholder="Masukkan kode dokter"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm text-muted-foreground">Nama Dokter</p>
+                        <Input
+                          value={spriEditForm.nama_dokter}
+                          onChange={(event) => setSpriEditForm((prev) => ({ ...prev, nama_dokter: event.target.value }))}
+                          className="h-10 rounded-none border-border/70 text-base"
+                          placeholder="Masukkan nama dokter"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <BPJSInfoGrid
+                      columns={2}
+                      items={[
+                        {
+                          label: "Poli Kontrol",
+                          value: (
+                            <>
+                              {spriDetailData?.nama_poli || "-"}
+                              {spriDetailData?.kode_poli ? ` (${spriDetailData.kode_poli})` : ""}
+                            </>
+                          ),
+                          span: 2,
+                        },
+                        {
+                          label: "Dokter DPJP",
+                          value: (
+                            <>
+                              {spriDetailData?.nama_dokter || "-"}
+                              {spriDetailData?.kode_dokter ? ` (${spriDetailData.kode_dokter})` : ""}
+                            </>
+                          ),
+                          span: 2,
+                        },
+                        { label: "Diagnosa", value: spriDetailData?.nama_diagnosa || "-", span: 2 },
+                      ]}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
+
+          <SheetFooter className={`${BPJS_FOOTER_CLASS} sticky bottom-0 z-20 bg-background/95 backdrop-blur`}>
+            <div className="flex w-full items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none border-border/70"
+                onClick={handlePrintSPRI}
+                disabled={!spriDetailData?.id || spriPrinting || spriUpdating || spriDeleting}
+              >
+                {spriPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                Cetak SPRI
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {!spriIsEditing ? (
+                  <>
+                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => setSpriDetailOpen(false)}>
+                      Tutup
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-border/70"
+                      onClick={() => setSpriIsEditing(true)}
+                      disabled={spriDetailData?.status === "cancelled" || spriDeleting}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit SPRI
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="rounded-none"
+                      onClick={() => setSpriDeleteDialogOpen(true)}
+                      disabled={spriDetailData?.status === "cancelled" || spriDeleting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Hapus SPRI
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="rounded-none border-border/70"
+                      onClick={() => setSpriIsEditing(false)}
+                      disabled={spriUpdating}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Batal
+                    </Button>
+                    <Button className="rounded-none" onClick={handleUpdateSPRI} disabled={spriUpdating}>
+                      {spriUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Simpan
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <ConfirmDialog
+        open={spriDeleteDialogOpen}
+        onOpenChange={setSpriDeleteDialogOpen}
+        onConfirm={handleDeleteSPRI}
+        title="Hapus SPRI?"
+        description={`SPRI ${spriDetailData?.no_spri || ""} akan dihapus dari BPJS dan ditandai batal secara lokal.`}
+        confirmText={spriDeleting ? "Menghapus..." : "Hapus SPRI"}
+        cancelText="Batal"
+        variant="destructive"
+      />
 
       <SEPDetailSheet
         open={sepDetailOpen}

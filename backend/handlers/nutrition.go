@@ -11,7 +11,82 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+const nutritionDietTypeMasterCategory = "nutrition_diet_type"
+
+type NutritionDietTypeInput struct {
+	Name        string `json:"name" binding:"required"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
+
+func normalizeDietTypeCode(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		" ", "_",
+		"-", "_",
+		"/", "_",
+		"\\", "_",
+		".", "_",
+		",", "_",
+	)
+	value = replacer.Replace(value)
+	for strings.Contains(value, "__") {
+		value = strings.ReplaceAll(value, "__", "_")
+	}
+	return strings.Trim(value, "_")
+}
+
+func fetchNutritionDietTypeOptions() ([]map[string]string, error) {
+	var entries []models.MasterData
+	if err := database.DB.
+		Where("category = ? AND is_active = ?", nutritionDietTypeMasterCategory, true).
+		Order("sort_order ASC, name ASC").
+		Find(&entries).Error; err != nil {
+		return nil, err
+	}
+
+	options := make([]map[string]string, 0)
+	for _, entry := range entries {
+		code := strings.TrimSpace(entry.Code)
+		name := strings.TrimSpace(entry.Name)
+		if code == "" || name == "" {
+			continue
+		}
+		options = append(options, map[string]string{"value": code, "label": name})
+	}
+
+	if len(options) > 0 {
+		return options, nil
+	}
+
+	for value, label := range models.NutritionDietTypeLabels {
+		options = append(options, map[string]string{"value": value, "label": label})
+	}
+	return options, nil
+}
+
+func isValidNutritionDietType(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	if _, ok := models.NutritionDietTypeLabels[value]; ok {
+		return true
+	}
+
+	var count int64
+	database.DB.Model(&models.MasterData{}).
+		Where("category = ? AND is_active = ? AND code = ?", nutritionDietTypeMasterCategory, true, value).
+		Count(&count)
+
+	return count > 0
+}
 
 // ==========================================
 // NUTRITION MENU HANDLERS (Master Menu Makanan)
@@ -28,11 +103,73 @@ func GetNutritionMenuCategories(c *gin.Context) {
 
 // GetNutritionDietTypes returns available diet types
 func GetNutritionDietTypes(c *gin.Context) {
-	var result []map[string]string
-	for value, label := range models.NutritionDietTypeLabels {
-		result = append(result, map[string]string{"value": value, "label": label})
+	result, err := fetchNutritionDietTypeOptions()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat master jenis diet"})
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// CreateNutritionDietType creates one diet type entry in master data.
+func CreateNutritionDietType(c *gin.Context) {
+	var input NutritionDietTypeInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nama jenis diet wajib diisi"})
+		return
+	}
+
+	code := normalizeDietTypeCode(input.Code)
+	if code == "" {
+		code = normalizeDietTypeCode(name)
+	}
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode jenis diet tidak valid"})
+		return
+	}
+
+	var exists int64
+	database.DB.Model(&models.MasterData{}).
+		Where("category = ? AND code = ?", nutritionDietTypeMasterCategory, code).
+		Count(&exists)
+	if exists > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Kode jenis diet sudah digunakan"})
+		return
+	}
+
+	var maxSort int
+	database.DB.Model(&models.MasterData{}).
+		Where("category = ?", nutritionDietTypeMasterCategory).
+		Select("COALESCE(MAX(sort_order), 0)").
+		Scan(&maxSort)
+
+	record := models.MasterData{
+		Category:    models.MasterDataCategory(nutritionDietTypeMasterCategory),
+		Code:        code,
+		Name:        name,
+		Description: strings.TrimSpace(input.Description),
+		SortOrder:   maxSort + 10,
+		IsActive:    true,
+		IsDefault:   false,
+	}
+	if err := database.DB.Create(&record).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menambahkan jenis diet"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"data": map[string]string{
+			"value": record.Code,
+			"label": record.Name,
+		},
+		"message": "Jenis diet berhasil ditambahkan",
+	})
 }
 
 // GetNutritionMealTimes returns available meal times
@@ -42,6 +179,618 @@ func GetNutritionMealTimes(c *gin.Context) {
 		result = append(result, map[string]string{"value": value, "label": label})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// GetNutritionIngredientUnits returns available ingredient units
+func GetNutritionIngredientUnits(c *gin.Context) {
+	var result []map[string]string
+	for value, label := range models.NutritionIngredientUnitLabels {
+		result = append(result, map[string]string{"value": value, "label": label})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+type NutritionMenuIngredientInput struct {
+	IngredientID     uint    `json:"ingredient_id" binding:"required"`
+	WeightPerPortion float64 `json:"weight_per_portion"`
+	Unit             string  `json:"unit"`
+	Notes            string  `json:"notes"`
+}
+
+type NutritionMenuInput struct {
+	Code         string                         `json:"code"`
+	Name         string                         `json:"name" binding:"required"`
+	Description  string                         `json:"description"`
+	Category     string                         `json:"category" binding:"required"`
+	DietTypes    string                         `json:"diet_types"`
+	Calories     float64                        `json:"calories"`
+	Protein      float64                        `json:"protein"`
+	Fat          float64                        `json:"fat"`
+	Carbohydrate float64                        `json:"carbohydrate"`
+	Fiber        float64                        `json:"fiber"`
+	Sodium       float64                        `json:"sodium"`
+	ServingSize  string                         `json:"serving_size"`
+	UnitPrice    float64                        `json:"unit_price"`
+	IsActive     bool                           `json:"is_active"`
+	Notes        string                         `json:"notes"`
+	Ingredients  []NutritionMenuIngredientInput `json:"ingredients"`
+}
+
+type NutritionIngredientInput struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name" binding:"required"`
+	Category      string  `json:"category"`
+	DefaultUnit   string  `json:"default_unit"`
+	DefaultWeight float64 `json:"default_weight"`
+	IsActive      bool    `json:"is_active"`
+	Notes         string  `json:"notes"`
+}
+
+type NutritionIngredientInvoiceItemInput struct {
+	IngredientID uint    `json:"ingredient_id" binding:"required"`
+	Quantity     float64 `json:"quantity"`
+	Unit         string  `json:"unit"`
+	UnitPrice    float64 `json:"unit_price"`
+	Notes        string  `json:"notes"`
+}
+
+type NutritionIngredientInvoiceInput struct {
+	InvoiceNumber string                                `json:"invoice_number" binding:"required"`
+	InvoiceDate   string                                `json:"invoice_date" binding:"required"` // YYYY-MM-DD
+	SupplierName  string                                `json:"supplier_name"`
+	Notes         string                                `json:"notes"`
+	Items         []NutritionIngredientInvoiceItemInput `json:"items"`
+}
+
+func normalizeNutritionIngredientUnit(unit string, fallback string) string {
+	unit = strings.TrimSpace(unit)
+	if unit == "" {
+		unit = strings.TrimSpace(fallback)
+	}
+	if unit == "" {
+		unit = models.NutritionIngredientUnitGram
+	}
+	return unit
+}
+
+func validateNutritionDietTypesJSON(value string) error {
+	if value == "" {
+		return nil
+	}
+	var dietTypes []string
+	if err := json.Unmarshal([]byte(value), &dietTypes); err != nil {
+		return fmt.Errorf("format diet types tidak valid (harus JSON array)")
+	}
+	return nil
+}
+
+func replaceNutritionMenuIngredients(tx *gorm.DB, menuID uint, ingredients []NutritionMenuIngredientInput) error {
+	if err := tx.Where("menu_id = ?", menuID).Delete(&models.NutritionMenuIngredient{}).Error; err != nil {
+		return fmt.Errorf("gagal menghapus komposisi bahan lama")
+	}
+
+	if len(ingredients) == 0 {
+		return nil
+	}
+
+	usedIngredient := map[uint]bool{}
+	for _, input := range ingredients {
+		if input.IngredientID == 0 {
+			return fmt.Errorf("ingredient_id wajib diisi")
+		}
+		if usedIngredient[input.IngredientID] {
+			return fmt.Errorf("bahan tidak boleh duplikat dalam satu menu")
+		}
+		usedIngredient[input.IngredientID] = true
+
+		if input.WeightPerPortion < 0 {
+			return fmt.Errorf("berat bahan per porsi tidak boleh negatif")
+		}
+
+		var ingredient models.NutritionIngredient
+		if err := tx.First(&ingredient, input.IngredientID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return fmt.Errorf("bahan ID %d tidak ditemukan", input.IngredientID)
+			}
+			return fmt.Errorf("gagal memvalidasi bahan")
+		}
+
+		unit := normalizeNutritionIngredientUnit(input.Unit, ingredient.DefaultUnit)
+		if _, ok := models.NutritionIngredientUnitLabels[unit]; !ok {
+			return fmt.Errorf("satuan bahan tidak valid: %s", unit)
+		}
+
+		record := models.NutritionMenuIngredient{
+			MenuID:           menuID,
+			IngredientID:     input.IngredientID,
+			WeightPerPortion: input.WeightPerPortion,
+			Unit:             unit,
+			Notes:            input.Notes,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return fmt.Errorf("gagal menyimpan komposisi bahan")
+		}
+	}
+
+	return nil
+}
+
+// ==========================================
+// NUTRITION INGREDIENT HANDLERS (Master Bahan)
+// ==========================================
+
+// GetNutritionIngredients returns all ingredients with pagination and filters
+func GetNutritionIngredients(c *gin.Context) {
+	var ingredients []models.NutritionIngredient
+	var total int64
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	search := c.Query("search")
+	category := c.Query("category")
+	isActive := c.Query("is_active")
+
+	offset := (page - 1) * limit
+	query := database.DB.Model(&models.NutritionIngredient{})
+
+	if search != "" {
+		searchPattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where("LOWER(code) LIKE ? OR LOWER(name) LIKE ?", searchPattern, searchPattern)
+	}
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if isActive != "" {
+		query = query.Where("is_active = ?", isActive == "true")
+	}
+
+	query.Count(&total)
+	if err := query.Order("name ASC").Offset(offset).Limit(limit).Find(&ingredients).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data bahan gizi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  ingredients,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+// GetNutritionIngredient returns a single ingredient
+func GetNutritionIngredient(c *gin.Context) {
+	id := c.Param("id")
+
+	var ingredient models.NutritionIngredient
+	if err := database.DB.First(&ingredient, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bahan gizi tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": ingredient})
+}
+
+// CreateNutritionIngredient creates a new ingredient
+func CreateNutritionIngredient(c *gin.Context) {
+	var input NutritionIngredientInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	code, err := generateDateCode(&models.NutritionIngredient{}, "BAH")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode bahan otomatis"})
+		return
+	}
+
+	defaultUnit := normalizeNutritionIngredientUnit(input.DefaultUnit, models.NutritionIngredientUnitGram)
+	if _, ok := models.NutritionIngredientUnitLabels[defaultUnit]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Satuan bahan tidak valid"})
+		return
+	}
+	if input.DefaultWeight < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Berat default tidak boleh negatif"})
+		return
+	}
+
+	record := models.NutritionIngredient{
+		Code:          code,
+		Name:          strings.TrimSpace(input.Name),
+		Category:      strings.TrimSpace(input.Category),
+		DefaultUnit:   defaultUnit,
+		DefaultWeight: input.DefaultWeight,
+		IsActive:      input.IsActive,
+		Notes:         input.Notes,
+	}
+
+	if err := database.DB.Create(&record).Error; err != nil {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Kode bahan sudah digunakan"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan bahan gizi"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": record, "message": "Bahan gizi berhasil ditambahkan"})
+}
+
+// UpdateNutritionIngredient updates ingredient data
+func UpdateNutritionIngredient(c *gin.Context) {
+	id := c.Param("id")
+
+	var ingredient models.NutritionIngredient
+	if err := database.DB.First(&ingredient, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bahan gizi tidak ditemukan"})
+		return
+	}
+
+	var input NutritionIngredientInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	defaultUnit := normalizeNutritionIngredientUnit(input.DefaultUnit, ingredient.DefaultUnit)
+	if _, ok := models.NutritionIngredientUnitLabels[defaultUnit]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Satuan bahan tidak valid"})
+		return
+	}
+	if input.DefaultWeight < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Berat default tidak boleh negatif"})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"name":           strings.TrimSpace(input.Name),
+		"category":       strings.TrimSpace(input.Category),
+		"default_unit":   defaultUnit,
+		"default_weight": input.DefaultWeight,
+		"is_active":      input.IsActive,
+		"notes":          input.Notes,
+	}
+	if err := database.DB.Model(&ingredient).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate bahan gizi"})
+		return
+	}
+
+	database.DB.First(&ingredient, id)
+	c.JSON(http.StatusOK, gin.H{"data": ingredient, "message": "Bahan gizi berhasil diupdate"})
+}
+
+// DeleteNutritionIngredient soft-deletes ingredient
+func DeleteNutritionIngredient(c *gin.Context) {
+	id := c.Param("id")
+
+	var ingredient models.NutritionIngredient
+	if err := database.DB.First(&ingredient, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bahan gizi tidak ditemukan"})
+		return
+	}
+
+	var usageCount int64
+	database.DB.Model(&models.NutritionMenuIngredient{}).Where("ingredient_id = ?", ingredient.ID).Count(&usageCount)
+	if usageCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bahan ini masih dipakai pada komposisi menu."})
+		return
+	}
+
+	if err := database.DB.Delete(&ingredient).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus bahan gizi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Bahan gizi berhasil dihapus"})
+}
+
+func replaceNutritionIngredientInvoiceItems(tx *gorm.DB, invoiceID uint, items []NutritionIngredientInvoiceItemInput) (float64, error) {
+	if err := tx.Where("invoice_id = ?", invoiceID).Delete(&models.NutritionIngredientInvoiceItem{}).Error; err != nil {
+		return 0, fmt.Errorf("gagal menghapus item faktur lama")
+	}
+
+	if len(items) == 0 {
+		return 0, fmt.Errorf("minimal 1 item bahan wajib diisi")
+	}
+
+	usedIngredient := map[uint]bool{}
+	totalAmount := 0.0
+
+	for _, input := range items {
+		if input.IngredientID == 0 {
+			return 0, fmt.Errorf("ingredient_id wajib diisi")
+		}
+		if usedIngredient[input.IngredientID] {
+			return 0, fmt.Errorf("bahan tidak boleh duplikat dalam satu faktur")
+		}
+		usedIngredient[input.IngredientID] = true
+
+		if input.Quantity <= 0 {
+			return 0, fmt.Errorf("jumlah bahan harus lebih dari 0")
+		}
+		if input.UnitPrice < 0 {
+			return 0, fmt.Errorf("harga satuan tidak boleh negatif")
+		}
+
+		var ingredient models.NutritionIngredient
+		if err := tx.First(&ingredient, input.IngredientID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return 0, fmt.Errorf("bahan ID %d tidak ditemukan", input.IngredientID)
+			}
+			return 0, fmt.Errorf("gagal memvalidasi bahan")
+		}
+
+		unit := strings.TrimSpace(input.Unit)
+		if unit == "" {
+			unit = "kemasan"
+		}
+		unitWeight := ingredient.DefaultWeight
+		weightUnit := normalizeNutritionIngredientUnit(ingredient.DefaultUnit, models.NutritionIngredientUnitGram)
+		if _, ok := models.NutritionIngredientUnitLabels[unit]; !ok {
+			if unit != "kemasan" && unit != "pcs" && unit != "bungkus" && unit != "pack" && unit != "box" {
+				return 0, fmt.Errorf("satuan kemasan tidak valid: %s", unit)
+			}
+		}
+
+		lineTotal := input.Quantity * input.UnitPrice
+		totalWeight := input.Quantity * unitWeight
+		record := models.NutritionIngredientInvoiceItem{
+			InvoiceID:    invoiceID,
+			IngredientID: input.IngredientID,
+			Quantity:     input.Quantity,
+			Unit:         unit,
+			UnitWeight:   unitWeight,
+			WeightUnit:   weightUnit,
+			TotalWeight:  totalWeight,
+			UnitPrice:    input.UnitPrice,
+			LineTotal:    lineTotal,
+			Notes:        strings.TrimSpace(input.Notes),
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return 0, fmt.Errorf("gagal menyimpan item faktur")
+		}
+		totalAmount += lineTotal
+	}
+
+	return totalAmount, nil
+}
+
+// ==========================================
+// NUTRITION INGREDIENT INVOICE HANDLERS (Input Faktur Bahan)
+// ==========================================
+
+// GetNutritionIngredientInvoices returns all ingredient invoices with pagination and search.
+func GetNutritionIngredientInvoices(c *gin.Context) {
+	var invoices []models.NutritionIngredientInvoice
+	var total int64
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	search := strings.TrimSpace(c.Query("search"))
+	startDate := strings.TrimSpace(c.Query("start_date"))
+	endDate := strings.TrimSpace(c.Query("end_date"))
+
+	offset := (page - 1) * limit
+	query := database.DB.Model(&models.NutritionIngredientInvoice{})
+
+	if search != "" {
+		searchPattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(code) LIKE ? OR LOWER(invoice_number) LIKE ? OR LOWER(supplier_name) LIKE ?",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+	if startDate != "" {
+		if _, err := time.Parse("2006-01-02", startDate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format start_date tidak valid (YYYY-MM-DD)"})
+			return
+		}
+		query = query.Where("DATE(invoice_date) >= ?", startDate)
+	}
+	if endDate != "" {
+		if _, err := time.Parse("2006-01-02", endDate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format end_date tidak valid (YYYY-MM-DD)"})
+			return
+		}
+		query = query.Where("DATE(invoice_date) <= ?", endDate)
+	}
+
+	query.Count(&total)
+	if err := query.
+		Preload("ReceivedBy").
+		Preload("Items").
+		Order("invoice_date DESC, created_at DESC").
+		Offset(offset).Limit(limit).
+		Find(&invoices).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data faktur bahan gizi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  invoices,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+// GetNutritionIngredientInvoice returns a single ingredient invoice.
+func GetNutritionIngredientInvoice(c *gin.Context) {
+	id := c.Param("id")
+
+	var invoice models.NutritionIngredientInvoice
+	if err := database.DB.
+		Preload("ReceivedBy").
+		Preload("Items.Ingredient").
+		First(&invoice, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Faktur bahan gizi tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": invoice})
+}
+
+// CreateNutritionIngredientInvoice creates a new ingredient invoice entry.
+func CreateNutritionIngredientInvoice(c *gin.Context) {
+	var input NutritionIngredientInvoiceInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	invoiceNumber := strings.TrimSpace(input.InvoiceNumber)
+	if invoiceNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor faktur wajib diisi"})
+		return
+	}
+
+	invoiceDate, err := time.Parse("2006-01-02", input.InvoiceDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal faktur tidak valid (YYYY-MM-DD)"})
+		return
+	}
+
+	code, err := generateDateCode(&models.NutritionIngredientInvoice{}, "NFI")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode faktur otomatis"})
+		return
+	}
+
+	var receivedByID *uint
+	if userID, exists := c.Get("userID"); exists {
+		if uid, ok := userID.(uint); ok {
+			var emp models.Employee
+			if err := database.DB.Where("user_id = ?", uid).First(&emp).Error; err == nil {
+				receivedByID = &emp.ID
+			}
+		}
+	}
+
+	tx := database.DB.Begin()
+	invoice := models.NutritionIngredientInvoice{
+		Code:          code,
+		InvoiceNumber: invoiceNumber,
+		InvoiceDate:   invoiceDate,
+		SupplierName:  strings.TrimSpace(input.SupplierName),
+		ReceivedByID:  receivedByID,
+		Notes:         strings.TrimSpace(input.Notes),
+		TotalAmount:   0,
+	}
+
+	if err := tx.Create(&invoice).Error; err != nil {
+		tx.Rollback()
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Kode faktur internal sudah digunakan"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan faktur bahan gizi"})
+		return
+	}
+
+	totalAmount, err := replaceNutritionIngredientInvoiceItems(tx, invoice.ID, input.Items)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := tx.Model(&invoice).Update("total_amount", totalAmount).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghitung total faktur"})
+		return
+	}
+
+	tx.Commit()
+
+	database.DB.Preload("ReceivedBy").Preload("Items.Ingredient").First(&invoice, invoice.ID)
+	c.JSON(http.StatusCreated, gin.H{"data": invoice, "message": "Faktur bahan gizi berhasil ditambahkan"})
+}
+
+// UpdateNutritionIngredientInvoice updates ingredient invoice and items.
+func UpdateNutritionIngredientInvoice(c *gin.Context) {
+	id := c.Param("id")
+
+	var invoice models.NutritionIngredientInvoice
+	if err := database.DB.First(&invoice, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Faktur bahan gizi tidak ditemukan"})
+		return
+	}
+
+	var input NutritionIngredientInvoiceInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	invoiceNumber := strings.TrimSpace(input.InvoiceNumber)
+	if invoiceNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor faktur wajib diisi"})
+		return
+	}
+
+	invoiceDate, err := time.Parse("2006-01-02", input.InvoiceDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal faktur tidak valid (YYYY-MM-DD)"})
+		return
+	}
+
+	tx := database.DB.Begin()
+	updates := map[string]interface{}{
+		"invoice_number": invoiceNumber,
+		"invoice_date":   invoiceDate,
+		"supplier_name":  strings.TrimSpace(input.SupplierName),
+		"notes":          strings.TrimSpace(input.Notes),
+	}
+	if err := tx.Model(&invoice).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate data faktur bahan"})
+		return
+	}
+
+	totalAmount, err := replaceNutritionIngredientInvoiceItems(tx, invoice.ID, input.Items)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := tx.Model(&invoice).Update("total_amount", totalAmount).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghitung total faktur"})
+		return
+	}
+
+	tx.Commit()
+
+	database.DB.Preload("ReceivedBy").Preload("Items.Ingredient").First(&invoice, invoice.ID)
+	c.JSON(http.StatusOK, gin.H{"data": invoice, "message": "Faktur bahan gizi berhasil diupdate"})
+}
+
+// DeleteNutritionIngredientInvoice soft-deletes ingredient invoice and its items.
+func DeleteNutritionIngredientInvoice(c *gin.Context) {
+	id := c.Param("id")
+
+	var invoice models.NutritionIngredientInvoice
+	if err := database.DB.First(&invoice, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Faktur bahan gizi tidak ditemukan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+	if err := tx.Where("invoice_id = ?", invoice.ID).Delete(&models.NutritionIngredientInvoiceItem{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus item faktur"})
+		return
+	}
+	if err := tx.Delete(&invoice).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus faktur bahan"})
+		return
+	}
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Faktur bahan gizi berhasil dihapus"})
 }
 
 // GetNutritionMenus returns all nutrition menus with pagination and search
@@ -80,7 +829,11 @@ func GetNutritionMenus(c *gin.Context) {
 
 	query.Count(&total)
 
-	if err := query.Order("name ASC").Offset(offset).Limit(limit).Find(&menus).Error; err != nil {
+	if err := query.
+		Preload("Ingredients.Ingredient").
+		Order("name ASC").
+		Offset(offset).Limit(limit).
+		Find(&menus).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data menu gizi"})
 		return
 	}
@@ -98,7 +851,9 @@ func GetNutritionMenu(c *gin.Context) {
 	id := c.Param("id")
 
 	var menu models.NutritionMenu
-	if err := database.DB.First(&menu, id).Error; err != nil {
+	if err := database.DB.
+		Preload("Ingredients.Ingredient").
+		First(&menu, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Menu gizi tidak ditemukan"})
 		return
 	}
@@ -108,24 +863,16 @@ func GetNutritionMenu(c *gin.Context) {
 
 // CreateNutritionMenu creates a new nutrition menu
 func CreateNutritionMenu(c *gin.Context) {
-	var input models.NutritionMenu
+	var input NutritionMenuInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Auto-generate code if not provided
-	if input.Code == "" {
-		var lastMenu models.NutritionMenu
-		today := time.Now().Format("0601")
-		prefix := "MNU" + today
-		if err := database.DB.Where("code LIKE ?", prefix+"%").Order("code DESC").First(&lastMenu).Error; err != nil {
-			input.Code = prefix + "001"
-		} else {
-			var lastNum int
-			fmt.Sscanf(lastMenu.Code, prefix+"%d", &lastNum)
-			input.Code = fmt.Sprintf("%s%03d", prefix, lastNum+1)
-		}
+	code, err := generateDateCode(&models.NutritionMenu{}, "MNU")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode menu otomatis"})
+		return
 	}
 
 	// Validate category
@@ -135,15 +882,33 @@ func CreateNutritionMenu(c *gin.Context) {
 	}
 
 	// Validate diet_types JSON
-	if input.DietTypes != "" {
-		var dietTypes []string
-		if err := json.Unmarshal([]byte(input.DietTypes), &dietTypes); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Format diet types tidak valid (harus JSON array)"})
-			return
-		}
+	if err := validateNutritionDietTypesJSON(input.DietTypes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
-	if err := database.DB.Create(&input).Error; err != nil {
+	tx := database.DB.Begin()
+
+	menu := models.NutritionMenu{
+		Code:         code,
+		Name:         strings.TrimSpace(input.Name),
+		Description:  input.Description,
+		Category:     input.Category,
+		DietTypes:    input.DietTypes,
+		Calories:     input.Calories,
+		Protein:      input.Protein,
+		Fat:          input.Fat,
+		Carbohydrate: input.Carbohydrate,
+		Fiber:        input.Fiber,
+		Sodium:       input.Sodium,
+		ServingSize:  input.ServingSize,
+		UnitPrice:    input.UnitPrice,
+		IsActive:     input.IsActive,
+		Notes:        input.Notes,
+	}
+
+	if err := tx.Create(&menu).Error; err != nil {
+		tx.Rollback()
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			c.JSON(http.StatusConflict, gin.H{"error": "Kode menu sudah digunakan"})
 			return
@@ -152,7 +917,16 @@ func CreateNutritionMenu(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": input, "message": "Menu gizi berhasil ditambahkan"})
+	if err := replaceNutritionMenuIngredients(tx, menu.ID, input.Ingredients); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tx.Commit()
+
+	database.DB.Preload("Ingredients.Ingredient").First(&menu, menu.ID)
+	c.JSON(http.StatusCreated, gin.H{"data": menu, "message": "Menu gizi berhasil ditambahkan"})
 }
 
 // UpdateNutritionMenu updates an existing nutrition menu
@@ -165,7 +939,7 @@ func UpdateNutritionMenu(c *gin.Context) {
 		return
 	}
 
-	var input models.NutritionMenu
+	var input NutritionMenuInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -180,17 +954,16 @@ func UpdateNutritionMenu(c *gin.Context) {
 	}
 
 	// Validate diet_types JSON
-	if input.DietTypes != "" {
-		var dietTypes []string
-		if err := json.Unmarshal([]byte(input.DietTypes), &dietTypes); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Format diet types tidak valid (harus JSON array)"})
-			return
-		}
+	if err := validateNutritionDietTypesJSON(input.DietTypes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+
+	tx := database.DB.Begin()
 
 	// Update fields
 	updates := map[string]interface{}{
-		"name":         input.Name,
+		"name":         strings.TrimSpace(input.Name),
 		"description":  input.Description,
 		"category":     input.Category,
 		"diet_types":   input.DietTypes,
@@ -206,21 +979,21 @@ func UpdateNutritionMenu(c *gin.Context) {
 		"notes":        input.Notes,
 	}
 
-	// Only update code if provided and different
-	if input.Code != "" && input.Code != menu.Code {
-		updates["code"] = input.Code
-	}
-
-	if err := database.DB.Model(&menu).Updates(updates).Error; err != nil {
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			c.JSON(http.StatusConflict, gin.H{"error": "Kode menu sudah digunakan"})
-			return
-		}
+	if err := tx.Model(&menu).Updates(updates).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate menu gizi"})
 		return
 	}
 
-	database.DB.First(&menu, id)
+	if err := replaceNutritionMenuIngredients(tx, menu.ID, input.Ingredients); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tx.Commit()
+
+	database.DB.Preload("Ingredients.Ingredient").First(&menu, id)
 	c.JSON(http.StatusOK, gin.H{"data": menu, "message": "Menu gizi berhasil diupdate"})
 }
 
@@ -252,6 +1025,8 @@ func DeleteNutritionMenu(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Menu ini masih digunakan dalam order aktif."})
 		return
 	}
+
+	database.DB.Where("menu_id = ?", menu.ID).Delete(&models.NutritionMenuIngredient{})
 
 	if err := database.DB.Delete(&menu).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus menu gizi"})
@@ -301,7 +1076,7 @@ func GetNutritionPackages(c *gin.Context) {
 	query.Count(&total)
 
 	if err := query.
-		Preload("Items.Menu").
+		Preload("Items.Menu.Ingredients.Ingredient").
 		Order("name ASC").
 		Offset(offset).Limit(limit).
 		Find(&packages).Error; err != nil {
@@ -322,7 +1097,7 @@ func GetNutritionPackage(c *gin.Context) {
 	id := c.Param("id")
 
 	var pkg models.NutritionPackage
-	if err := database.DB.Preload("Items.Menu").First(&pkg, id).Error; err != nil {
+	if err := database.DB.Preload("Items.Menu.Ingredients.Ingredient").First(&pkg, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Paket makanan tidak ditemukan"})
 		return
 	}
@@ -356,7 +1131,7 @@ func CreateNutritionPackage(c *gin.Context) {
 	}
 
 	// Validate diet type
-	if _, ok := models.NutritionDietTypeLabels[input.DietType]; !ok {
+	if !isValidNutritionDietType(input.DietType) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis diet tidak valid"})
 		return
 	}
@@ -367,19 +1142,10 @@ func CreateNutritionPackage(c *gin.Context) {
 		return
 	}
 
-	// Auto-generate code if not provided
-	code := input.Code
-	if code == "" {
-		var lastPkg models.NutritionPackage
-		today := time.Now().Format("0601")
-		prefix := "PKT" + today
-		if err := database.DB.Where("code LIKE ?", prefix+"%").Order("code DESC").First(&lastPkg).Error; err != nil {
-			code = prefix + "001"
-		} else {
-			var lastNum int
-			fmt.Sscanf(lastPkg.Code, prefix+"%d", &lastNum)
-			code = fmt.Sprintf("%s%03d", prefix, lastNum+1)
-		}
+	code, err := generateDateCode(&models.NutritionPackage{}, "PKT")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode paket otomatis"})
+		return
 	}
 
 	tx := database.DB.Begin()
@@ -391,7 +1157,7 @@ func CreateNutritionPackage(c *gin.Context) {
 		Description: input.Description,
 		DietType:    input.DietType,
 		MealTime:    input.MealTime,
-		Price:       input.Price,
+		Price:       0,
 		IsActive:    input.IsActive,
 		Notes:       input.Notes,
 	}
@@ -454,7 +1220,7 @@ func CreateNutritionPackage(c *gin.Context) {
 	tx.Commit()
 
 	// Reload with items
-	database.DB.Preload("Items.Menu").First(&pkg, pkg.ID)
+	database.DB.Preload("Items.Menu.Ingredients.Ingredient").First(&pkg, pkg.ID)
 
 	c.JSON(http.StatusCreated, gin.H{"data": pkg, "message": "Paket makanan berhasil ditambahkan"})
 }
@@ -476,7 +1242,7 @@ func UpdateNutritionPackage(c *gin.Context) {
 	}
 
 	// Validate diet type
-	if _, ok := models.NutritionDietTypeLabels[input.DietType]; !ok {
+	if !isValidNutritionDietType(input.DietType) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis diet tidak valid"})
 		return
 	}
@@ -495,21 +1261,13 @@ func UpdateNutritionPackage(c *gin.Context) {
 		"description": input.Description,
 		"diet_type":   input.DietType,
 		"meal_time":   input.MealTime,
-		"price":       input.Price,
+		"price":       0,
 		"is_active":   input.IsActive,
 		"notes":       input.Notes,
 	}
 
-	if input.Code != "" && input.Code != pkg.Code {
-		updates["code"] = input.Code
-	}
-
 	if err := tx.Model(&pkg).Updates(updates).Error; err != nil {
 		tx.Rollback()
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			c.JSON(http.StatusConflict, gin.H{"error": "Kode paket sudah digunakan"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate paket makanan"})
 		return
 	}
@@ -565,7 +1323,7 @@ func UpdateNutritionPackage(c *gin.Context) {
 
 	tx.Commit()
 
-	database.DB.Preload("Items.Menu").First(&pkg, pkg.ID)
+	database.DB.Preload("Items.Menu.Ingredients.Ingredient").First(&pkg, pkg.ID)
 	c.JSON(http.StatusOK, gin.H{"data": pkg, "message": "Paket makanan berhasil diupdate"})
 }
 
@@ -632,7 +1390,7 @@ func GetNutritionOrders(c *gin.Context) {
 		Preload("Visit.Registration").
 		Preload("Patient").
 		Preload("Package").
-		Preload("Items.Menu").
+		Preload("Items.Menu.Ingredients.Ingredient").
 		Preload("OrderedBy")
 
 	// Filter by visit
@@ -699,7 +1457,7 @@ func GetNutritionOrder(c *gin.Context) {
 		Preload("Visit.Registration").
 		Preload("Patient").
 		Preload("Package").
-		Preload("Items.Menu").
+		Preload("Items.Menu.Ingredients.Ingredient").
 		Preload("OrderedBy").
 		First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Order gizi tidak ditemukan"})
@@ -724,7 +1482,7 @@ func CreateNutritionOrder(c *gin.Context) {
 	}
 
 	// Validate diet type
-	if _, ok := models.NutritionDietTypeLabels[input.DietType]; !ok {
+	if !isValidNutritionDietType(input.DietType) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis diet tidak valid"})
 		return
 	}
@@ -869,7 +1627,7 @@ func CreateNutritionOrder(c *gin.Context) {
 	tx.Commit()
 
 	// Reload with full relations
-	database.DB.Preload("Patient").Preload("Items.Menu").Preload("Package").Preload("OrderedBy").
+	database.DB.Preload("Patient").Preload("Items.Menu.Ingredients.Ingredient").Preload("Package").Preload("OrderedBy").
 		First(&order, order.ID)
 
 	c.JSON(http.StatusCreated, gin.H{"data": order, "message": "Order gizi berhasil dibuat"})
@@ -945,7 +1703,7 @@ func UpdateNutritionOrderStatus(c *gin.Context) {
 		return
 	}
 
-	database.DB.Preload("Patient").Preload("Items.Menu").Preload("Package").Preload("OrderedBy").
+	database.DB.Preload("Patient").Preload("Items.Menu.Ingredients.Ingredient").Preload("Package").Preload("OrderedBy").
 		First(&order, order.ID)
 
 	c.JSON(http.StatusOK, gin.H{"data": order, "message": "Status order berhasil diupdate"})
@@ -984,6 +1742,122 @@ func DeleteNutritionOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Order gizi berhasil dihapus"})
 }
 
+// GetNutritionIngredientUsageReport returns aggregated ingredient usage from nutrition orders.
+func GetNutritionIngredientUsageReport(c *gin.Context) {
+	startDate := strings.TrimSpace(c.Query("start_date"))
+	endDate := strings.TrimSpace(c.Query("end_date"))
+	if startDate == "" {
+		startDate = time.Now().Format("2006-01-02")
+	}
+	if endDate == "" {
+		endDate = startDate
+	}
+
+	if _, err := time.Parse("2006-01-02", startDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format start_date tidak valid (YYYY-MM-DD)"})
+		return
+	}
+	if _, err := time.Parse("2006-01-02", endDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format end_date tidak valid (YYYY-MM-DD)"})
+		return
+	}
+
+	statusParam := strings.TrimSpace(c.Query("status"))
+	statuses := []string{"delivered"}
+	if statusParam != "" {
+		raw := strings.Split(statusParam, ",")
+		statuses = make([]string, 0, len(raw))
+		for _, item := range raw {
+			item = strings.TrimSpace(item)
+			if item != "" {
+				statuses = append(statuses, item)
+			}
+		}
+		if len(statuses) == 0 {
+			statuses = []string{"delivered"}
+		}
+	}
+
+	mealTime := strings.TrimSpace(c.Query("meal_time"))
+	dietType := strings.TrimSpace(c.Query("diet_type"))
+	roomName := strings.TrimSpace(c.Query("room_name"))
+
+	query := database.DB.
+		Table("nutrition_orders AS no").
+		Select(`
+			ni.id AS ingredient_id,
+			ni.code AS ingredient_code,
+			ni.name AS ingredient_name,
+			ni.category AS ingredient_category,
+			nmi.unit AS unit,
+			COALESCE(SUM(noi.quantity * nmi.weight_per_portion), 0) AS total_usage
+		`).
+		Joins("JOIN nutrition_order_items AS noi ON noi.order_id = no.id").
+		Joins("JOIN nutrition_menu_ingredients AS nmi ON nmi.menu_id = noi.menu_id").
+		Joins("JOIN nutrition_ingredients AS ni ON ni.id = nmi.ingredient_id").
+		Where("DATE(no.order_date) BETWEEN ? AND ?", startDate, endDate).
+		Where("no.status IN ?", statuses).
+		Where("no.deleted_at IS NULL").
+		Where("noi.deleted_at IS NULL").
+		Where("nmi.deleted_at IS NULL").
+		Where("ni.deleted_at IS NULL")
+
+	if mealTime != "" {
+		query = query.Where("no.meal_time = ?", mealTime)
+	}
+	if dietType != "" {
+		query = query.Where("no.diet_type = ?", dietType)
+	}
+	if roomName != "" {
+		query = query.Where("LOWER(no.room_name) LIKE ?", "%"+strings.ToLower(roomName)+"%")
+	}
+
+	type ingredientUsageRow struct {
+		IngredientID       uint    `json:"ingredient_id"`
+		IngredientCode     string  `json:"ingredient_code"`
+		IngredientName     string  `json:"ingredient_name"`
+		IngredientCategory string  `json:"ingredient_category"`
+		Unit               string  `json:"unit"`
+		TotalUsage         float64 `json:"total_usage"`
+	}
+
+	var rows []ingredientUsageRow
+	if err := query.
+		Group("ni.id, ni.code, ni.name, ni.category, nmi.unit").
+		Order("ni.name ASC, nmi.unit ASC").
+		Scan(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat laporan penggunaan bahan"})
+		return
+	}
+
+	type reportSummary struct {
+		Rows        int      `json:"rows"`
+		Statuses    []string `json:"statuses"`
+		StartDate   string   `json:"start_date"`
+		EndDate     string   `json:"end_date"`
+		MealTime    string   `json:"meal_time,omitempty"`
+		DietType    string   `json:"diet_type,omitempty"`
+		RoomName    string   `json:"room_name,omitempty"`
+		GeneratedAt string   `json:"generated_at"`
+	}
+
+	summary := reportSummary{
+		Rows:        len(rows),
+		Statuses:    statuses,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		MealTime:    mealTime,
+		DietType:    dietType,
+		RoomName:    roomName,
+		GeneratedAt: time.Now().Format(time.RFC3339),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    rows,
+		"summary": summary,
+	})
+}
+
 // GetKitchenDashboard returns orders grouped for kitchen dashboard
 func GetKitchenDashboard(c *gin.Context) {
 	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
@@ -991,8 +1865,8 @@ func GetKitchenDashboard(c *gin.Context) {
 	var orders []models.NutritionOrder
 	if err := database.DB.
 		Preload("Patient").
-		Preload("Items.Menu").
-		Preload("Package.Items.Menu").
+		Preload("Items.Menu.Ingredients.Ingredient").
+		Preload("Package.Items.Menu.Ingredients.Ingredient").
 		Preload("OrderedBy").
 		Preload("Visit.Room").
 		Preload("Visit.Bed.RoomUnit").

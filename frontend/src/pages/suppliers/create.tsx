@@ -63,7 +63,6 @@ export default function SupplierCreate() {
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<SupplierFormData>({
-    code: "",
     name: "",
     address: "",
     phone: "",
@@ -92,11 +91,11 @@ export default function SupplierCreate() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.code || !formData.name) {
+    if (!formData.name) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Kode dan Nama supplier wajib diisi.",
+        description: "Nama supplier wajib diisi.",
       });
       return;
     }
@@ -149,7 +148,7 @@ export default function SupplierCreate() {
 
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <SummaryCue label="Identitas" description="Isi kode, nama, dan alamat supplier sebagai fondasi master data." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Identitas" description="Kode supplier dibuat otomatis, lalu lengkapi nama dan alamat supplier." tone="from-background via-background to-sky-50/40" />
           <SummaryCue label="Relasi Bisnis" description="Tambahkan PIC dan rekening untuk mempercepat proses pembelian dan pembayaran." tone="from-background via-background to-emerald-50/40" />
           <SummaryCue label="Kontrol Status" description="Catatan dan status aktif membantu menjaga supplier tetap terkelola." tone="from-background via-background to-amber-50/50" />
         </div>
@@ -160,16 +159,8 @@ export default function SupplierCreate() {
           <SectionPanel icon={Building2} title="Informasi Dasar" description="Identitas utama supplier dan kanal komunikasi dasar.">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="code">
-                    Kode Supplier <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="code"
-                    name="code"
-                    placeholder="SUP-001"
-                    value={formData.code}
-                    onChange={handleChange}
-                  />
+                  <Label>Kode Supplier</Label>
+                  <Input value="Otomatis dibuat sistem saat simpan" disabled className="bg-muted" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">

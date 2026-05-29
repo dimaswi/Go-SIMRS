@@ -25,6 +25,8 @@ export interface SelectableItem {
   code: string;
   name: string;
   unit: string;
+  unit_large?: string;
+  large_to_small_factor?: number;
   type: "inventory" | "medicine";
   category?: string;
   current_stock?: number;
@@ -33,6 +35,10 @@ export interface SelectableItem {
 
 export interface SelectedItemWithQty extends SelectableItem {
   quantity: number;
+  quantity_large?: number;
+  quantity_small?: number;
+  unit_small?: string;
+  conversion_factor?: number;
   unit_price?: number;
   discount_percent?: number;
   discount_amount?: number;
@@ -56,6 +62,7 @@ interface ItemPickerDialogProps {
   showStock?: boolean;
   defaultTab?: "inventory" | "medicine" | "all";
   showTabs?: boolean;
+  enableDualUnit?: boolean;
 }
 
 export function ItemPickerDialog({
@@ -71,6 +78,7 @@ export function ItemPickerDialog({
   showStock = true,
   defaultTab = "all",
   showTabs = true,
+  enableDualUnit = false,
 }: ItemPickerDialogProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
@@ -197,7 +205,14 @@ export function ItemPickerDialog({
     return tempSelected.get(`${item.type}_${item.id}`)?.unit_price || 0;
   };
 
+  const getConversionFactor = (item: SelectableItem) => Math.max(1, Number(item.large_to_small_factor || 1));
+  const hasDualUnit = (item: SelectableItem) => enableDualUnit && item.type === "medicine" && !!item.unit_large && getConversionFactor(item) > 1;
+
   const getMaxQuantity = (item: SelectableItem) => {
+    if (!showStock) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
     if (typeof item.current_stock === "number" && item.current_stock > 0) {
       return item.current_stock;
     }
@@ -322,7 +337,7 @@ export function ItemPickerDialog({
                           <th className="h-9 min-w-[96px] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Exp</th>
                         </>
                       ) : null}
-                      <th className="h-9 w-[88px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty</th>
+                      <th className={cn("h-9 border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80", enableDualUnit ? "w-[170px]" : "w-[88px]")}>Qty</th>
                       {showCommercialFields ? (
                         <>
                           <th className="h-9 w-[112px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Harga</th>
@@ -342,9 +357,13 @@ export function ItemPickerDialog({
                       const selected = isSelected(item);
                       const isLastRow = index === filteredItems.length - 1;
                       const maxQuantity = getMaxQuantity(item);
-                      const selectedItem = tempSelected.get(`${item.type}_${item.id}`) || syncPurchaseItemCommercials({
+                      const selectedItem = (tempSelected.get(`${item.type}_${item.id}`) || syncPurchaseItemCommercials({
                         ...item,
                         quantity: 1,
+                        quantity_large: 0,
+                        quantity_small: 0,
+                        unit_small: item.unit,
+                        conversion_factor: getConversionFactor(item),
                         unit_price: item.price || 0,
                         discount_percent: 0,
                         discount_amount: 0,
@@ -353,14 +372,22 @@ export function ItemPickerDialog({
                         batch_number: "",
                         expiry_date: "",
                         notes: "",
-                      });
+                      })) as SelectedItemWithQty;
+                      const dualUnit = hasDualUnit(item);
+                      const factor = getConversionFactor(item);
+                      let qtyLarge = Math.max(0, Number(selectedItem.quantity_large || 0));
+                      let qtySmall = Math.max(0, Number(selectedItem.quantity_small || 0));
+                      if (dualUnit && qtyLarge === 0 && qtySmall === 0 && (selectedItem.quantity || 0) > 0) {
+                        qtyLarge = Math.floor((selectedItem.quantity || 0) / factor);
+                        qtySmall = (selectedItem.quantity || 0) % factor;
+                      }
 
                       return (
                         <tr key={`${item.type}_${item.id}`} className={cn("transition-colors hover:bg-muted/10", selected && "bg-muted/20")}>
-                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                          <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                             <Checkbox checked={selected} onCheckedChange={() => toggleItem(item)} />
                           </td>
-                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                          <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                             <div className="flex items-start gap-2.5">
                               <div className={cn(
                                 "mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border",
@@ -370,7 +397,7 @@ export function ItemPickerDialog({
                               )}>
                                 {item.type === "medicine" ? <Pill className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
                               </div>
-                              <div className="min-w-0 space-y-1">
+                              <div className="min-w-0 space-y-0.5">
                                 <div className="flex items-center gap-2">
                                   <p className="truncate text-sm font-medium leading-tight">{item.name}</p>
                                   {showStock && item.current_stock !== undefined ? (
@@ -387,21 +414,29 @@ export function ItemPickerDialog({
                                     </Badge>
                                   ) : null}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <span className="font-mono">{item.code}</span>
+                                  <span>|</span>
                                   <span>{item.unit}</span>
+                                  {dualUnit ? (
+                                    <>
+                                      <span>|</span>
+                                      <span>{item.unit_large} x{factor}</span>
+                                    </>
+                                  ) : null}
                                   {showPrice && item.price !== undefined ? <span>Default {formatCurrency(item.price)}</span> : null}
                                 </div>
                               </div>
                             </div>
                           </td>
                           {showStock ? (
-                            <td className={cn("border-r border-border/60 px-2 py-2 align-top text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
+                            <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
                               {item.current_stock?.toLocaleString("id-ID") ?? "-"}
                             </td>
                           ) : null}
                           {showCommercialFields ? (
                             <>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   value={selectedItem.batch_number || ""}
                                   disabled={!selected}
@@ -410,7 +445,7 @@ export function ItemPickerDialog({
                                   placeholder="-"
                                 />
                               </td>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="date"
                                   value={selectedItem.expiry_date || ""}
@@ -421,21 +456,85 @@ export function ItemPickerDialog({
                               </td>
                             </>
                           ) : null}
-                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={maxQuantity}
-                              disabled={!selected}
-                              value={selected ? getSelectedQuantity(item) : ""}
-                              onChange={(e) => updateSelectedItem(item, { quantity: Math.min(maxQuantity, Math.max(1, Number(e.target.value) || 1)) })}
-                              className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
-                              placeholder="0"
-                            />
+                          <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
+                            {dualUnit ? (
+                              <div className="space-y-1">
+                                <div className="grid grid-cols-[1fr_1fr] gap-1">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    disabled={!selected}
+                                    value={selected ? qtyLarge : ""}
+                                    onChange={(e) => {
+                                      const rawLarge = Math.max(0, Number(e.target.value) || 0);
+                                      const nextLarge = showStock ? Math.min(Math.floor(maxQuantity / factor), rawLarge) : rawLarge;
+                                      let nextQty = (nextLarge * factor) + qtySmall;
+                                      if (showStock) nextQty = Math.min(maxQuantity, nextQty);
+                                      const nextSmall = showStock ? Math.max(0, nextQty - (nextLarge * factor)) : qtySmall;
+                                      updateSelectedItem(item, {
+                                        quantity_large: nextLarge,
+                                        quantity_small: nextSmall,
+                                        quantity: Math.max(0, nextQty),
+                                        conversion_factor: factor,
+                                        unit_small: item.unit,
+                                      });
+                                    }}
+                                    className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                    placeholder="0"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    disabled={!selected}
+                                    value={selected ? qtySmall : ""}
+                                    onChange={(e) => {
+                                      const rawSmall = Math.max(0, Number(e.target.value) || 0);
+                                      const maxSmall = showStock ? Math.max(0, maxQuantity - (qtyLarge * factor)) : Number.MAX_SAFE_INTEGER;
+                                      const nextSmall = Math.min(rawSmall, maxSmall);
+                                      let nextQty = (qtyLarge * factor) + nextSmall;
+                                      if (showStock) nextQty = Math.min(maxQuantity, nextQty);
+                                      updateSelectedItem(item, {
+                                        quantity_large: qtyLarge,
+                                        quantity_small: nextSmall,
+                                        quantity: Math.max(0, nextQty),
+                                        conversion_factor: factor,
+                                        unit_small: item.unit,
+                                      });
+                                    }}
+                                    className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                    placeholder="0"
+                                  />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-right">
+                                  {item.unit_large} + {item.unit}
+                                  {showStock ? ` | maks ${maxQuantity}` : ""}
+                                </p>
+                              </div>
+                            ) : (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={showStock ? maxQuantity : undefined}
+                                disabled={!selected}
+                                value={selected ? getSelectedQuantity(item) : ""}
+                                onChange={(e) =>
+                                  updateSelectedItem(
+                                    item,
+                                    {
+                                      quantity: showStock
+                                        ? Math.min(maxQuantity, Math.max(1, Number(e.target.value) || 1))
+                                        : Math.max(1, Number(e.target.value) || 1),
+                                    }
+                                  )
+                                }
+                                className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                placeholder="0"
+                              />
+                            )}
                           </td>
                           {showCommercialFields ? (
                             <>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="number"
                                   min={0}
@@ -446,7 +545,7 @@ export function ItemPickerDialog({
                                   placeholder="0"
                                 />
                               </td>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="number"
                                   min={0}
@@ -457,7 +556,7 @@ export function ItemPickerDialog({
                                   placeholder="0"
                                 />
                               </td>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="number"
                                   min={0}
@@ -468,7 +567,7 @@ export function ItemPickerDialog({
                                   placeholder="0"
                                 />
                               </td>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="number"
                                   min={0}
@@ -479,7 +578,7 @@ export function ItemPickerDialog({
                                   placeholder="0"
                                 />
                               </td>
-                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                                 <Input
                                   type="number"
                                   min={0}
@@ -490,12 +589,12 @@ export function ItemPickerDialog({
                                   placeholder="0"
                                 />
                               </td>
-                              <td className={cn("px-2 py-2 text-right text-xs font-semibold", !isLastRow && "border-b border-border/60")}>
+                              <td className={cn("px-2 py-1.5 text-right text-xs font-semibold", !isLastRow && "border-b border-border/60")}>
                                 {selected ? formatCurrency(calculateLineTotal(selectedItem)) : "-"}
                               </td>
                             </>
                           ) : (
-                            <td className={cn("px-2 py-2 align-top text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
+                            <td className={cn("px-2 py-1.5 align-middle text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
                               <div className="space-y-1">
                                 <Badge variant="outline" className="text-[10px]">
                                   {item.type === "inventory" ? "Inventaris" : "Obat"}

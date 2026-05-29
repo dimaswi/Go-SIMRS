@@ -1204,7 +1204,9 @@ export default function PatientSearchShow() {
     },
   }), [expandedRegistrations, visitsByRegistration, loadingVisits, navigate]);
 
-  const handleLaunchFingerprint = useCallback(async () => {
+  const handleLaunchFingerprint = useCallback(async (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    event?.stopPropagation();
     setLaunchingFingerprint(true);
     try {
       const response = await bpjsApi.launchFingerprintApp({

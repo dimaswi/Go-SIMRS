@@ -59,7 +59,6 @@ func GetCounter(c *gin.Context) {
 // CreateCounterInput represents input for creating a counter
 type CreateCounterInput struct {
 	Name         string `json:"name" binding:"required"`
-	Code         string `json:"code" binding:"required"`
 	Description  string `json:"description"`
 	IsActive     *bool  `json:"is_active"`
 	DisplayOrder *int   `json:"display_order"`
@@ -82,16 +81,15 @@ func CreateCounter(c *gin.Context) {
 		return
 	}
 
-	// Check if code already exists
-	var existing models.Counter
-	if err := database.DB.Where("code = ?", input.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode loket sudah digunakan"})
+	code, err := generateDateCode(&models.Counter{}, "CNT")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode loket otomatis"})
 		return
 	}
 
 	counter := models.Counter{
 		Name:        input.Name,
-		Code:        input.Code,
+		Code:        code,
 		Description: input.Description,
 		Location:    input.Location,
 	}
@@ -117,7 +115,6 @@ func CreateCounter(c *gin.Context) {
 // UpdateCounterInput represents input for updating a counter
 type UpdateCounterInput struct {
 	Name         *string `json:"name"`
-	Code         *string `json:"code"`
 	Description  *string `json:"description"`
 	IsActive     *bool   `json:"is_active"`
 	DisplayOrder *int    `json:"display_order"`
@@ -149,22 +146,10 @@ func UpdateCounter(c *gin.Context) {
 		return
 	}
 
-	// Check if code is being changed and already exists
-	if input.Code != nil && *input.Code != counter.Code {
-		var existing models.Counter
-		if err := database.DB.Where("code = ? AND id != ?", *input.Code, id).First(&existing).Error; err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode loket sudah digunakan"})
-			return
-		}
-	}
-
 	updates := make(map[string]interface{})
 
 	if input.Name != nil {
 		updates["name"] = *input.Name
-	}
-	if input.Code != nil {
-		updates["code"] = *input.Code
 	}
 	if input.Description != nil {
 		updates["description"] = *input.Description

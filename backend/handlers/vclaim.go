@@ -3123,6 +3123,55 @@ func VClaimDeleteSuratKontrol(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Surat Kontrol berhasil dihapus"})
 }
 
+// DeleteSuratKontrolLocal melepas assignment surat kontrol lokal tanpa call BPJS.
+func DeleteSuratKontrolLocal(c *gin.Context) {
+	noSuratKontrol := strings.TrimSpace(c.Param("noSuratKontrol"))
+	if noSuratKontrol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor Surat Kontrol wajib diisi"})
+		return
+	}
+
+	var sk models.SuratKontrol
+	if err := database.DB.Where("no_surat_kontrol = ?", noSuratKontrol).First(&sk).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat Kontrol lokal tidak ditemukan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	if err := tx.Model(&models.SuratKontrol{}).
+		Where("no_surat_kontrol = ?", noSuratKontrol).
+		Updates(map[string]interface{}{
+			"status":          "cancelled",
+			"visit_id":        nil,
+			"registration_id": nil,
+			"sep_id":          nil,
+			"updated_at":      time.Now(),
+		}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status Surat Kontrol lokal: " + err.Error()})
+		return
+	}
+
+	if err := tx.Model(&models.SEP{}).
+		Where("no_surat_kontrol = ?", noSuratKontrol).
+		Updates(map[string]interface{}{
+			"no_surat_kontrol": "",
+			"updated_at":       time.Now(),
+		}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal melepas relasi SEP lokal: " + err.Error()})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan perubahan unlink Surat Kontrol: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Surat Kontrol berhasil di-unlink dari sistem lokal"})
+}
+
 // VClaimGetPRBOptions mendapatkan opsi status PRB
 func VClaimGetPRBOptions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": models.PRBStatusOptions})

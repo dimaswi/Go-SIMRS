@@ -5,25 +5,33 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"starter/backend/database"
 	"starter/backend/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ==================== Stock Request Handlers ====================
 
 type CreateStockRequestInput struct {
-	RequestType  string                        `json:"request_type" binding:"required,oneof=inventory medicine"`
-	FromRoomID   uint                          `json:"from_room_id" binding:"required"`
-	ToRoomID     uint                          `json:"to_room_id" binding:"required"`
-	Priority     string                        `json:"priority"`
-	RequiredDate string                        `json:"required_date"`
-	Reason       string                        `json:"reason"`
-	Notes        string                        `json:"notes"`
-	Items        []CreateStockRequestItemInput `json:"items" binding:"required,min=1"`
+	RequestType    string                        `json:"request_type" binding:"required,oneof=inventory medicine"`
+	RequestMode    string                        `json:"request_mode" binding:"omitempty,oneof=depo self_purchase"`
+	FromRoomID     uint                          `json:"from_room_id" binding:"required"`
+	ToRoomID       uint                          `json:"to_room_id"`
+	Priority       string                        `json:"priority"`
+	RequiredDate   string                        `json:"required_date"`
+	Reason         string                        `json:"reason"`
+	Notes          string                        `json:"notes"`
+	ReceiptNumber  string                        `json:"receipt_number"`
+	ReceiptDate    string                        `json:"receipt_date"`
+	ReceiptFileURL string                        `json:"receipt_file_url"`
+	SupplierName   string                        `json:"supplier_name"`
+	TotalAmount    float64                       `json:"total_amount"`
+	Items          []CreateStockRequestItemInput `json:"items" binding:"required,min=1"`
 }
 
 type CreateStockRequestItemInput struct {
@@ -35,10 +43,15 @@ type CreateStockRequestItemInput struct {
 }
 
 type UpdateStockRequestInput struct {
-	Priority     string `json:"priority"`
-	RequiredDate string `json:"required_date"`
-	Reason       string `json:"reason"`
-	Notes        string `json:"notes"`
+	Priority       string   `json:"priority"`
+	RequiredDate   string   `json:"required_date"`
+	Reason         string   `json:"reason"`
+	Notes          string   `json:"notes"`
+	ReceiptNumber  string   `json:"receipt_number"`
+	ReceiptDate    string   `json:"receipt_date"`
+	ReceiptFileURL string   `json:"receipt_file_url"`
+	SupplierName   string   `json:"supplier_name"`
+	TotalAmount    *float64 `json:"total_amount"`
 }
 
 type ApproveStockRequestInput struct {
@@ -82,6 +95,9 @@ func GetStockRequests(c *gin.Context) {
 	// Filters
 	if requestType := c.Query("request_type"); requestType != "" {
 		query = query.Where("request_type = ?", requestType)
+	}
+	if requestMode := c.Query("request_mode"); requestMode != "" {
+		query = query.Where("request_mode = ?", requestMode)
 	}
 	if status := c.Query("status"); status != "" {
 		query = query.Where("status = ?", status)
@@ -218,15 +234,40 @@ func CreateStockRequest(c *gin.Context) {
 		return
 	}
 
+	requestMode := strings.TrimSpace(input.RequestMode)
+	if requestMode == "" {
+		requestMode = models.RequestModeDepo
+	}
+	if requestMode != models.RequestModeDepo && requestMode != models.RequestModeSelfPurchase {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "request_mode must be depo or self_purchase"})
+		return
+	}
+
 	// Validate rooms exist
-	var fromRoom, toRoom models.Room
+	var fromRoom models.Room
 	if err := database.DB.First(&fromRoom, input.FromRoomID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "From room not found"})
 		return
 	}
-	if err := database.DB.First(&toRoom, input.ToRoomID).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "To room not found"})
-		return
+
+	toRoomID := input.ToRoomID
+	var toRoom models.Room
+	if requestMode == models.RequestModeDepo {
+		if toRoomID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "to_room_id wajib diisi untuk permintaan ke depo"})
+			return
+		}
+		if err := database.DB.First(&toRoom, toRoomID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "To room not found"})
+			return
+		}
+	} else {
+		toRoomID = input.FromRoomID
+		toRoom = fromRoom
+		if strings.TrimSpace(input.ReceiptNumber) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor struk wajib diisi untuk pembelian sendiri"})
+			return
+		}
 	}
 
 	// Generate request number
@@ -252,18 +293,38 @@ func CreateStockRequest(c *gin.Context) {
 		requiredDate = &parsedDate
 	}
 
+	// Parse receipt_date
+	var receiptDate *time.Time
+	if strings.TrimSpace(input.ReceiptDate) != "" {
+		parsedDate, err := ParseLocalDate(strings.TrimSpace(input.ReceiptDate))
+		if err != nil {
+			parsedDate, err = time.Parse(time.RFC3339, strings.TrimSpace(input.ReceiptDate))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid receipt_date format"})
+				return
+			}
+		}
+		receiptDate = &parsedDate
+	}
+
 	request := models.StockRequest{
-		RequestNumber: requestNumber,
-		RequestType:   input.RequestType,
-		FromRoomID:    input.FromRoomID,
-		ToRoomID:      input.ToRoomID,
-		Status:        models.RequestStatusDraft,
-		Priority:      priority,
-		RequestDate:   time.Now(),
-		RequiredDate:  requiredDate,
-		RequestedByID: userID.(uint),
-		Reason:        input.Reason,
-		Notes:         input.Notes,
+		RequestNumber:  requestNumber,
+		RequestType:    input.RequestType,
+		RequestMode:    requestMode,
+		FromRoomID:     input.FromRoomID,
+		ToRoomID:       toRoomID,
+		Status:         models.RequestStatusDraft,
+		Priority:       priority,
+		RequestDate:    time.Now(),
+		RequiredDate:   requiredDate,
+		RequestedByID:  userID.(uint),
+		Reason:         input.Reason,
+		Notes:          input.Notes,
+		ReceiptNumber:  strings.TrimSpace(input.ReceiptNumber),
+		ReceiptDate:    receiptDate,
+		ReceiptFileURL: strings.TrimSpace(input.ReceiptFileURL),
+		SupplierName:   strings.TrimSpace(input.SupplierName),
+		TotalAmount:    input.TotalAmount,
 	}
 
 	// Start transaction
@@ -347,8 +408,30 @@ func UpdateStockRequest(c *gin.Context) {
 	if input.Notes != "" {
 		updates["notes"] = input.Notes
 	}
+	if input.ReceiptNumber != "" {
+		updates["receipt_number"] = strings.TrimSpace(input.ReceiptNumber)
+	}
+	if strings.TrimSpace(input.ReceiptDate) != "" {
+		parsedDate, err := ParseLocalDate(strings.TrimSpace(input.ReceiptDate))
+		if err != nil {
+			parsedDate, _ = time.Parse(time.RFC3339, strings.TrimSpace(input.ReceiptDate))
+		}
+		if !parsedDate.IsZero() {
+			updates["receipt_date"] = parsedDate
+		}
+	}
+	if input.ReceiptFileURL != "" {
+		updates["receipt_file_url"] = strings.TrimSpace(input.ReceiptFileURL)
+	}
+	if input.SupplierName != "" {
+		updates["supplier_name"] = strings.TrimSpace(input.SupplierName)
+	}
+	if input.TotalAmount != nil {
+		updates["total_amount"] = *input.TotalAmount
+	}
 
 	database.DB.Model(&request).Updates(updates)
+	database.DB.First(&request, request.ID)
 
 	c.JSON(http.StatusOK, gin.H{"data": request, "message": "Stock request updated successfully"})
 }
@@ -373,6 +456,11 @@ func SubmitStockRequest(c *gin.Context) {
 
 	if request.Status != models.RequestStatusDraft {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only submit draft requests"})
+		return
+	}
+
+	if request.RequestMode == models.RequestModeSelfPurchase && strings.TrimSpace(request.ReceiptNumber) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Permintaan beli sendiri wajib menyertakan nomor struk"})
 		return
 	}
 
@@ -429,6 +517,7 @@ func ApproveStockRequest(c *gin.Context) {
 
 	allApproved := true
 	anyApproved := false
+	approvedNowByItem := make(map[uint]int)
 	for _, approveItem := range input.Items {
 		matched := false
 		for i := range request.Items {
@@ -454,6 +543,7 @@ func ApproveStockRequest(c *gin.Context) {
 				}
 				if approveItem.QuantityApproved > 0 {
 					anyApproved = true
+					approvedNowByItem[request.Items[i].ID] = approveItem.QuantityApproved
 					approval.Items = append(approval.Items, models.StockRequestApprovalItem{
 						StockRequestItemID: request.Items[i].ID,
 						InventoryID:        request.Items[i].InventoryID,
@@ -476,6 +566,44 @@ func ApproveStockRequest(c *gin.Context) {
 		}
 	}
 
+	if request.RequestMode == models.RequestModeSelfPurchase && anyApproved {
+		if strings.TrimSpace(request.ReceiptNumber) == "" {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Permintaan beli sendiri harus memiliki nomor struk sebelum approval"})
+			return
+		}
+
+		receiveRoomID := request.FromRoomID
+		for i := range request.Items {
+			qtyApprovedNow := approvedNowByItem[request.Items[i].ID]
+			if qtyApprovedNow <= 0 {
+				continue
+			}
+
+			if request.Items[i].InventoryID != nil && *request.Items[i].InventoryID > 0 {
+				if err := addSelfPurchaseInventoryStock(tx, receiveRoomID, *request.Items[i].InventoryID, qtyApprovedNow, request.RequestNumber, request.ReceiptNumber, userID.(uint)); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}
+			if request.Items[i].MedicineID != nil && *request.Items[i].MedicineID > 0 {
+				if err := addSelfPurchaseMedicineStock(tx, receiveRoomID, *request.Items[i].MedicineID, qtyApprovedNow, request.RequestNumber, request.ReceiptNumber, userID.(uint)); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}
+
+			request.Items[i].QuantityFulfilled += qtyApprovedNow
+			if err := tx.Save(&request.Items[i]).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fulfilled quantity"})
+				return
+			}
+		}
+	}
+
 	for _, item := range request.Items {
 		if item.QuantityApproved < item.QuantityRequested {
 			allApproved = false
@@ -487,6 +615,8 @@ func ApproveStockRequest(c *gin.Context) {
 	status := models.RequestStatusApproved
 	if !anyApproved {
 		status = request.Status
+	} else if request.RequestMode == models.RequestModeSelfPurchase && allApproved {
+		status = models.RequestStatusCompleted
 	} else if !allApproved {
 		status = models.RequestStatusPartial
 	}
@@ -495,6 +625,9 @@ func ApproveStockRequest(c *gin.Context) {
 	request.Status = status
 	request.ApprovedByID = &approvedByID
 	request.ApprovedDate = &now
+	if status == models.RequestStatusCompleted {
+		request.CompletedDate = &now
+	}
 	if input.Notes != "" {
 		request.Notes = request.Notes + "\n[Approval Notes]: " + input.Notes
 	}
@@ -527,6 +660,104 @@ func itemDisplayName(item models.StockRequestItem) string {
 		return item.Medicine.Name
 	}
 	return fmt.Sprintf("item #%d", item.ID)
+}
+
+func addSelfPurchaseInventoryStock(tx *gorm.DB, roomID, inventoryID uint, quantity int, requestNumber, receiptNumber string, userID uint) error {
+	var roomInventory models.RoomInventory
+	prevStock := 0
+	result := tx.Where("room_id = ? AND inventory_id = ?", roomID, inventoryID).First(&roomInventory)
+	if result.Error != nil {
+		if result.Error != gorm.ErrRecordNotFound {
+			return fmt.Errorf("failed to load room inventory")
+		}
+		roomInventory = models.RoomInventory{
+			RoomID:      roomID,
+			InventoryID: inventoryID,
+			Quantity:    quantity,
+			Notes:       fmt.Sprintf("Pembelian mandiri dari permintaan %s", requestNumber),
+		}
+		if err := tx.Create(&roomInventory).Error; err != nil {
+			return fmt.Errorf("failed to add inventory stock")
+		}
+	} else {
+		prevStock = roomInventory.Quantity
+		roomInventory.Quantity += quantity
+		if err := tx.Save(&roomInventory).Error; err != nil {
+			return fmt.Errorf("failed to update inventory stock")
+		}
+	}
+
+	reference := strings.TrimSpace(receiptNumber)
+	if reference == "" {
+		reference = requestNumber
+	}
+	transaction := models.InventoryTransaction{
+		TransactionType: "self_purchase",
+		InventoryID:     inventoryID,
+		Quantity:        quantity,
+		PreviousStock:   prevStock,
+		CurrentStock:    roomInventory.Quantity,
+		ToRoomID:        &roomID,
+		TransactionDate: time.Now(),
+		ReferenceNumber: reference,
+		Reason:          fmt.Sprintf("Pembelian mandiri %s", requestNumber),
+		Notes:           fmt.Sprintf("Penerimaan pembelian sendiri (struk: %s)", reference),
+		UserID:          userID,
+	}
+	if err := tx.Create(&transaction).Error; err != nil {
+		return fmt.Errorf("failed to save inventory transaction")
+	}
+
+	return nil
+}
+
+func addSelfPurchaseMedicineStock(tx *gorm.DB, roomID, medicineID uint, quantity int, requestNumber, receiptNumber string, userID uint) error {
+	var roomMedicine models.RoomMedicine
+	prevStock := 0
+	result := tx.Where("room_id = ? AND medicine_id = ?", roomID, medicineID).First(&roomMedicine)
+	if result.Error != nil {
+		if result.Error != gorm.ErrRecordNotFound {
+			return fmt.Errorf("failed to load room medicine")
+		}
+		roomMedicine = models.RoomMedicine{
+			RoomID:     roomID,
+			MedicineID: medicineID,
+			Quantity:   quantity,
+			Notes:      fmt.Sprintf("Pembelian mandiri dari permintaan %s", requestNumber),
+		}
+		if err := tx.Create(&roomMedicine).Error; err != nil {
+			return fmt.Errorf("failed to add medicine stock")
+		}
+	} else {
+		prevStock = roomMedicine.Quantity
+		roomMedicine.Quantity += quantity
+		if err := tx.Save(&roomMedicine).Error; err != nil {
+			return fmt.Errorf("failed to update medicine stock")
+		}
+	}
+
+	reference := strings.TrimSpace(receiptNumber)
+	if reference == "" {
+		reference = requestNumber
+	}
+	transaction := models.MedicineTransaction{
+		TransactionType: "self_purchase",
+		MedicineID:      medicineID,
+		Quantity:        quantity,
+		PreviousStock:   prevStock,
+		CurrentStock:    roomMedicine.Quantity,
+		ToRoomID:        &roomID,
+		TransactionDate: time.Now(),
+		ReferenceNumber: reference,
+		Reason:          fmt.Sprintf("Pembelian mandiri %s", requestNumber),
+		Notes:           fmt.Sprintf("Penerimaan pembelian sendiri (struk: %s)", reference),
+		UserID:          userID,
+	}
+	if err := tx.Create(&transaction).Error; err != nil {
+		return fmt.Errorf("failed to save medicine transaction")
+	}
+
+	return nil
 }
 
 // RejectStockRequest godoc
@@ -698,6 +929,9 @@ func GetPendingApprovals(c *gin.Context) {
 
 	if toRoomID := c.Query("to_room_id"); toRoomID != "" {
 		query = query.Where("to_room_id = ?", toRoomID)
+	}
+	if requestMode := c.Query("request_mode"); requestMode != "" {
+		query = query.Where("request_mode = ?", requestMode)
 	}
 
 	query.Order("priority DESC, created_at ASC").Find(&requests)

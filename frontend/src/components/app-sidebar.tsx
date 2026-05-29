@@ -36,6 +36,7 @@ import {
   Map,
   UtensilsCrossed,
   ChefHat,
+  Boxes,
   BarChart3,
   ScrollText,
   CalendarCheck,
@@ -175,6 +176,8 @@ const menuItems: MenuItem[] = [
     icon: UtensilsCrossed,
     submenu: [
       { path: '/nutrition/menus', label: 'Menu Makanan', icon: UtensilsCrossed },
+      { path: '/nutrition/ingredients', label: 'Master Bahan', icon: Boxes },
+      { path: '/nutrition/invoices', label: 'Input Faktur Bahan', icon: Receipt },
       { path: '/nutrition/meal-packages', label: 'Paket Makanan', icon: Package },
       { path: '/nutrition/kitchen', label: 'Dapur', icon: ChefHat },
     ]

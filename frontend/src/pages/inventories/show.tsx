@@ -35,6 +35,8 @@ import {
   inventoryCategoryLabels,
   inventoryConditionLabels,
   inventoryStatusLabels,
+  inventoryItemGroupLabels,
+  inventoryItemScopeLabels,
 } from "@/lib/api/inventories";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
@@ -399,6 +401,16 @@ export default function InventoryShow() {
                         {inventory.is_active ? "Aktif" : "Tidak Aktif"}
                       </Badge>
                     </div>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Kelompok</span>
+                    <span className="text-sm font-medium">{inventoryItemGroupLabels[inventory.item_group] || inventory.item_group}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Pengelola</span>
+                    <span className="text-sm font-medium">{inventoryItemScopeLabels[inventory.item_scope] || inventory.item_scope}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between">

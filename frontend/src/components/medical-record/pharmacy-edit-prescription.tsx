@@ -1903,11 +1903,10 @@ export function PharmacyEditPrescription({
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label>Frekuensi</Label>
-                    <Combobox
+                    <Combobox allowCustomValue
                       options={FREQUENCY_OPTIONS}
                       value={racikanDraft.frequency}
                       onValueChange={(value) => setRacikanDraft((prev) => ({ ...prev, frequency: value }))}
-                      allowCustomValue
                       placeholder="Pilih frekuensi"
                       searchPlaceholder="Cari frekuensi..."
                       emptyText="Frekuensi tidak ditemukan"
@@ -1916,11 +1915,10 @@ export function PharmacyEditPrescription({
                   </div>
                   <div className="space-y-1 md:col-span-1 xl:col-span-2">
                     <Label>Cara Pakai</Label>
-                    <Combobox
+                    <Combobox allowCustomValue
                       options={INSTRUCTION_OPTIONS}
                       value={racikanDraft.instructions}
                       onValueChange={(value) => setRacikanDraft((prev) => ({ ...prev, instructions: value }))}
-                      allowCustomValue
                       placeholder="Pilih cara pakai"
                       searchPlaceholder="Cari cara pakai..."
                       emptyText="Cara pakai tidak ditemukan"
@@ -2146,14 +2144,13 @@ export function PharmacyEditPrescription({
                 </div>
                 <div className="space-y-1">
                   <Label>Frekuensi</Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={FREQUENCY_OPTIONS}
                     value={editingItemRow.frequency}
                     onValueChange={(value) => {
                       if (editingItemRowKey === null) return;
                       updateRowEdit(editingItemRowKey, "frequency", value);
                     }}
-                    allowCustomValue
                     placeholder="Pilih frekuensi"
                     searchPlaceholder="Cari frekuensi..."
                     emptyText="Frekuensi tidak ditemukan"
@@ -2162,14 +2159,13 @@ export function PharmacyEditPrescription({
                 </div>
                 <div className="space-y-1">
                   <Label>Cara Pakai</Label>
-                  <Combobox
+                  <Combobox allowCustomValue
                     options={INSTRUCTION_OPTIONS}
                     value={editingItemRow.instructions}
                     onValueChange={(value) => {
                       if (editingItemRowKey === null) return;
                       updateRowEdit(editingItemRowKey, "instructions", value);
                     }}
-                    allowCustomValue
                     placeholder="Pilih cara pakai"
                     searchPlaceholder="Cari cara pakai..."
                     emptyText="Cara pakai tidak ditemukan"
@@ -2303,11 +2299,10 @@ export function PharmacyEditPrescription({
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label>Frekuensi</Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={FREQUENCY_OPTIONS}
                         value={editingRacikanRow.frequency}
                         onValueChange={(value) => updateRacikanGroupEdit(editingRacikanItems, "frequency", value)}
-                        allowCustomValue
                         placeholder="Pilih frekuensi"
                         searchPlaceholder="Cari frekuensi..."
                         emptyText="Frekuensi tidak ditemukan"
@@ -2316,11 +2311,10 @@ export function PharmacyEditPrescription({
                     </div>
                     <div className="space-y-1 md:col-span-1 xl:col-span-2">
                       <Label>Cara Pakai</Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={INSTRUCTION_OPTIONS}
                         value={editingRacikanRow.instructions}
                         onValueChange={(value) => updateRacikanGroupEdit(editingRacikanItems, "instructions", value)}
-                        allowCustomValue
                         placeholder="Pilih cara pakai"
                         searchPlaceholder="Cari cara pakai..."
                         emptyText="Cara pakai tidak ditemukan"
@@ -2674,3 +2668,5 @@ export function PharmacyEditPrescription({
     </>
   );
 }
+
+

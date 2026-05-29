@@ -96,7 +96,9 @@ export default function BPJSMappingPage() {
   const [expandedPoliIds, setExpandedPoliIds] = useState<number[]>([]);
   const [bpjsPoliOpen, setBpjsPoliOpen] = useState(false);
   const [bpjsPoliQuery, setBpjsPoliQuery] = useState("");
-  const [bpjsDokterOpen, setBpjsDokterOpen] = useState(false);
+  const [bpjsDokterQuery, setBpjsDokterQuery] = useState("");
+  const [doctorSearchDate, setDoctorSearchDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedBPJSDokterKey, setSelectedBPJSDokterKey] = useState("");
 
   const [poliDialogOpen, setPoliDialogOpen] = useState(false);
   const [editingPoli, setEditingPoli] = useState<BPJSPoliMapping | null>(null);
@@ -134,7 +136,7 @@ export default function BPJSMappingPage() {
         bpjsApi.getPoliMappings(),
         bpjsApi.getDoctorMappings(),
         roomsApi.getAll({ limit: 200 }),
-        employeesApi.getAll({ tipe_karyawan: "dokter", limit: 200 }),
+        employeesApi.getAll({ tipe_karyawan: "Dokter", limit: 200 }),
       ]);
 
       setPoliMappings(poliRes.data.data || []);
@@ -204,12 +206,11 @@ export default function BPJSMappingPage() {
     }
   };
 
-  const loadJadwalDokter = async (kodePoli: string) => {
+  const loadJadwalDokter = async (kodePoli: string, tanggal?: string) => {
     if (!kodePoli) return;
     try {
       setLoadingJadwal(true);
-      const today = new Date().toISOString().split("T")[0];
-      const response = await bpjsApi.getJadwalDokter(kodePoli, today);
+      const response = await bpjsApi.getJadwalDokter(kodePoli, tanggal || doctorSearchDate);
       setJadwalDokters(response.data.data || []);
     } catch (error: any) {
       console.error("Failed to load jadwal dokter:", error);
@@ -242,18 +243,18 @@ export default function BPJSMappingPage() {
         (p) => p.id === parseInt(dokterForm.poli_mapping_id)
       );
       if (poliMapping) {
-        loadJadwalDokter(poliMapping.kode_poli_bpjs);
+        loadJadwalDokter(poliMapping.kode_poli_bpjs, doctorSearchDate);
       }
     }
-  }, [dokterForm.poli_mapping_id, poliMappings]);
+  }, [dokterForm.poli_mapping_id, poliMappings, doctorSearchDate]);
 
   useEffect(() => {
-    if (!dokterDialogOpen || !bpjsDokterOpen || jadwalDokters.length > 0 || bpjsDokters.length > 0) {
+    if (!dokterDialogOpen || bpjsDokters.length > 0) {
       return;
     }
 
     loadBPJSDokters();
-  }, [bpjsDokterOpen, bpjsDokters.length, dokterDialogOpen, jadwalDokters.length]);
+  }, [bpjsDokters.length, dokterDialogOpen]);
 
   // ========== POLI HANDLERS ==========
   const resetPoliForm = () => {
@@ -368,6 +369,9 @@ export default function BPJSMappingPage() {
     });
     setEditingDokter(null);
     setJadwalDokters([]);
+    setBpjsDokterQuery("");
+    setSelectedBPJSDokterKey("");
+    setDoctorSearchDate(new Date().toISOString().split("T")[0]);
   };
 
   const handleOpenDokterDialog = (mapping?: BPJSDoctorMapping, poliMapping?: BPJSPoliMapping) => {
@@ -398,12 +402,17 @@ export default function BPJSMappingPage() {
       });
       setEditingDokter(null);
     }
+    setBpjsDokterQuery("");
+    setSelectedBPJSDokterKey(
+      mapping
+        ? `${mapping.kode_dokter_bpjs}::${mapping.jadwal_hari || ""}::${mapping.jam_praktek || ""}`
+        : ""
+    );
+    setDoctorSearchDate(new Date().toISOString().split("T")[0]);
     setDokterDialogOpen(true);
   };
 
-  const handleSelectBPJSDokter = (kodeDokter: string) => {
-    // Try from jadwal first
-    const jadwal = jadwalDokters.find((d) => String(d.kodedokter) === kodeDokter);
+  const handleSelectBPJSDokter = (kodeDokter: string, jadwal?: BPJSJadwalDokter) => {
     if (jadwal) {
       setDokterForm({
         ...dokterForm,
@@ -413,9 +422,9 @@ export default function BPJSMappingPage() {
         jam_praktek: jadwal.jadwal,
         kuota_jkn: jadwal.kapasitaspasien,
       });
+      setSelectedBPJSDokterKey(`${jadwal.kodedokter}::${jadwal.namahari}::${jadwal.jadwal}`);
       return;
     }
-    // Fallback to referensi dokter
     const dokter = bpjsDokters.find((d) => String(d.kodedokter) === kodeDokter);
     if (dokter) {
       setDokterForm({
@@ -423,6 +432,7 @@ export default function BPJSMappingPage() {
         kode_dokter_bpjs: String(dokter.kodedokter),
         nama_dokter_bpjs: dokter.namadokter,
       });
+      setSelectedBPJSDokterKey(`${dokter.kodedokter}`);
     }
   };
 
@@ -521,6 +531,102 @@ export default function BPJSMappingPage() {
     }
     return Array.from(seen.values()).sort((a, b) => a.namadokter.localeCompare(b.namadokter));
   }, [bpjsDokters]);
+
+  const filteredBpjsDoctorRows = useMemo(() => {
+    const query = bpjsDokterQuery.trim().toLowerCase();
+    const rows =
+      jadwalDokters.length > 0
+        ? jadwalDokters.map((dok) => ({
+            key: `${dok.kodedokter}::${dok.namahari}::${dok.jadwal}`,
+            kode_dokter_bpjs: String(dok.kodedokter),
+            nama_dokter_bpjs: dok.namadokter,
+            jadwal_hari: dok.namahari,
+            jam_praktek: dok.jadwal,
+            kuota_jkn: dok.kapasitaspasien,
+            kuota_non_jkn: 0,
+            sumber: "jadwal" as const,
+            raw: dok,
+          }))
+        : uniqueBpjsDokters.map((dok) => ({
+            key: `${dok.kodedokter}`,
+            kode_dokter_bpjs: String(dok.kodedokter),
+            nama_dokter_bpjs: dok.namadokter,
+            jadwal_hari: "",
+            jam_praktek: "",
+            kuota_jkn: 0,
+            kuota_non_jkn: 0,
+            sumber: "referensi" as const,
+            raw: dok,
+          }));
+
+    if (!query) {
+      return rows;
+    }
+
+    return rows.filter((row) =>
+      [
+        row.kode_dokter_bpjs,
+        row.nama_dokter_bpjs,
+        row.jadwal_hari,
+        row.jam_praktek,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [bpjsDokterQuery, jadwalDokters, uniqueBpjsDokters]);
+
+  const practiceDayOptions = useMemo(() => {
+    if (jadwalDokters.length === 0) {
+      const defaultDays = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU", "MINGGU"];
+      if (dokterForm.jadwal_hari && !defaultDays.includes(dokterForm.jadwal_hari.toUpperCase())) {
+        return [dokterForm.jadwal_hari, ...defaultDays];
+      }
+      return defaultDays;
+    }
+
+    const selectedCode = dokterForm.kode_dokter_bpjs;
+    const days = Array.from(
+      new Set(
+        jadwalDokters
+          .filter((row) => String(row.kodedokter) === selectedCode)
+          .map((row) => row.namahari)
+          .filter(Boolean)
+      )
+    );
+
+    if (dokterForm.jadwal_hari && !days.includes(dokterForm.jadwal_hari)) {
+      return [dokterForm.jadwal_hari, ...days];
+    }
+
+    return days;
+  }, [jadwalDokters, dokterForm.kode_dokter_bpjs, dokterForm.jadwal_hari]);
+
+  const practiceTimeOptions = useMemo(() => {
+    if (jadwalDokters.length === 0) {
+      return dokterForm.jam_praktek ? [dokterForm.jam_praktek] : [];
+    }
+
+    const selectedCode = dokterForm.kode_dokter_bpjs;
+    const times = Array.from(
+      new Set(
+        jadwalDokters
+          .filter(
+            (row) =>
+              String(row.kodedokter) === selectedCode &&
+              (!dokterForm.jadwal_hari || row.namahari === dokterForm.jadwal_hari)
+          )
+          .map((row) => row.jadwal)
+          .filter(Boolean)
+      )
+    );
+
+    if (dokterForm.jam_praktek && !times.includes(dokterForm.jam_praktek)) {
+      return [dokterForm.jam_praktek, ...times];
+    }
+
+    return times;
+  }, [jadwalDokters, dokterForm.kode_dokter_bpjs, dokterForm.jadwal_hari, dokterForm.jam_praktek]);
 
   // Hitung poli yang sudah dan belum dimapping
   // Filter rooms yang merupakan poliklinik berdasarkan room_type atau service_type
@@ -970,131 +1076,161 @@ export default function BPJSMappingPage() {
 
       {/* Dokter Dialog */}
       <Dialog open={dokterDialogOpen} onOpenChange={setDokterDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[980px]">
           <DialogHeader>
             <DialogTitle>{editingDokter ? "Edit Mapping Dokter" : "Tambah Mapping Dokter"}</DialogTitle>
             <DialogDescription>Petakan dokter SIMRS dengan kode dokter BPJS</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Poli *</Label>
-              <Select
-                value={dokterForm.poli_mapping_id}
-                onValueChange={(value) => setDokterForm({ ...dokterForm, poli_mapping_id: value })}
-                disabled={!!editingDokter}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih poli..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {poliMappings.filter(p => p.is_active).map((poli) => (
-                    <SelectItem key={poli.id} value={String(poli.id)}>
-                      {poli.room_name} ({poli.kode_poli_bpjs})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Dokter SIMRS *</Label>
-              <Select
-                value={dokterForm.employee_id}
-                onValueChange={(value) => setDokterForm({ ...dokterForm, employee_id: value })}
-                disabled={!!editingDokter}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih dokter..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={String(emp.id)}>
-                      {emp.nama_lengkap} {emp.spesialisasi ? `(${emp.spesialisasi})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-                <Label>
-                  Pilih dari {jadwalDokters.length > 0 ? "Jadwal BPJS" : "Referensi BPJS"} 
-                  ({jadwalDokters.length > 0 ? jadwalDokters.length : uniqueBpjsDokters.length} tersedia)
-                  {(loadingJadwal || loadingDokters) && <Loader2 className="ml-2 h-3 w-3 inline animate-spin" />}
-                </Label>
-                <Popover open={bpjsDokterOpen} onOpenChange={setBpjsDokterOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={bpjsDokterOpen}
-                      className="w-full justify-between font-normal"
-                    >
-                      {dokterForm.kode_dokter_bpjs
-                        ? `${dokterForm.kode_dokter_bpjs} - ${dokterForm.nama_dokter_bpjs}`
-                        : "Cari dokter BPJS..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[450px] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Ketik nama atau kode dokter..." />
-                      <CommandList>
-                        <CommandEmpty>
-                          {loadingDokters
-                            ? "Memuat referensi dokter BPJS..."
-                            : "Dokter tidak ditemukan."}
-                        </CommandEmpty>
-                        <CommandGroup className="max-h-[300px] overflow-y-auto">
-                          {jadwalDokters.length > 0
-                            ? jadwalDokters.map((dok) => (
-                                <CommandItem
-                                  key={dok.kodedokter}
-                                  value={`${dok.kodedokter} ${dok.namadokter}`}
-                                  onSelect={() => {
-                                    handleSelectBPJSDokter(String(dok.kodedokter));
-                                    setBpjsDokterOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      dokterForm.kode_dokter_bpjs === String(dok.kodedokter) ? "opacity-100" : "opacity-0"
-                                    }`}
-                                  />
-                                  <span className="font-mono text-xs mr-2">{dok.kodedokter}</span>
-                                  <span className="truncate">{dok.namadokter} ({dok.namahari}, {dok.jadwal})</span>
-                                </CommandItem>
-                              ))
-                            : uniqueBpjsDokters.map((dok) => (
-                                <CommandItem
-                                  key={dok.kodedokter}
-                                  value={`${dok.kodedokter} ${dok.namadokter}`}
-                                  onSelect={() => {
-                                    handleSelectBPJSDokter(String(dok.kodedokter));
-                                    setBpjsDokterOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      dokterForm.kode_dokter_bpjs === String(dok.kodedokter) ? "opacity-100" : "opacity-0"
-                                    }`}
-                                  />
-                                  <span className="font-mono text-xs mr-2">{dok.kodedokter}</span>
-                                  <span className="truncate">{dok.namadokter}</span>
-                                </CommandItem>
-                              ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {jadwalDokters.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Jika jadwal poli belum tersedia, daftar dokter BPJS akan dimuat otomatis saat dropdown dibuka.
-                  </p>
-                ) : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Poli *</Label>
+                <Select
+                  value={dokterForm.poli_mapping_id}
+                  onValueChange={(value) => setDokterForm({ ...dokterForm, poli_mapping_id: value })}
+                  disabled={!!editingDokter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih poli..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {poliMappings.filter(p => p.is_active).map((poli) => (
+                      <SelectItem key={poli.id} value={String(poli.id)}>
+                        {poli.room_name} ({poli.kode_poli_bpjs})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Dokter SIMRS *</Label>
+                <Select
+                  value={dokterForm.employee_id}
+                  onValueChange={(value) => setDokterForm({ ...dokterForm, employee_id: value })}
+                  disabled={!!editingDokter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih dokter..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={String(emp.id)}>
+                        {emp.nama_lengkap} {emp.spesialisasi ? `(${emp.spesialisasi})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-md border p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="space-y-2 md:w-[220px]">
+                  <Label>Tanggal Cari Jadwal BPJS</Label>
+                  <Input
+                    type="date"
+                    value={doctorSearchDate}
+                    onChange={(e) => setDoctorSearchDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <Label>Cari Dokter BPJS</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={bpjsDokterQuery}
+                      onChange={(e) => setBpjsDokterQuery(e.target.value)}
+                      placeholder="Cari kode, nama, hari, atau jam praktek..."
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const poliMapping = poliMappings.find(
+                      (p) => p.id === parseInt(dokterForm.poli_mapping_id)
+                    );
+                    if (poliMapping) {
+                      loadJadwalDokter(poliMapping.kode_poli_bpjs, doctorSearchDate);
+                    }
+                  }}
+                  disabled={!dokterForm.poli_mapping_id || loadingJadwal}
+                >
+                  {loadingJadwal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Refresh Jadwal
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <div className="font-medium">
+                  Dokter BPJS {jadwalDokters.length > 0 ? "berdasarkan jadwal" : "referensi fallback"}
+                </div>
+                <div className="text-muted-foreground">
+                  {filteredBpjsDoctorRows.length} baris
+                  {(loadingJadwal || loadingDokters) && <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin" />}
+                </div>
+              </div>
+
+              <div className="max-h-[280px] overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead className="w-[48px]">Pilih</TableHead>
+                      <TableHead>Kode</TableHead>
+                      <TableHead>Nama Dokter</TableHead>
+                      <TableHead>Hari</TableHead>
+                      <TableHead>Jam</TableHead>
+                      <TableHead className="text-right">Kuota JKN</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBpjsDoctorRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                          {loadingJadwal || loadingDokters
+                            ? "Memuat dokter BPJS..."
+                            : "Tidak ada dokter BPJS untuk filter yang dipilih."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredBpjsDoctorRows.map((row) => {
+                        const active = selectedBPJSDokterKey === row.key;
+                        return (
+                          <TableRow
+                            key={row.key}
+                            className={cn("cursor-pointer", active && "bg-muted/60")}
+                            onClick={() =>
+                              handleSelectBPJSDokter(
+                                row.kode_dokter_bpjs,
+                                row.sumber === "jadwal" ? (row.raw as BPJSJadwalDokter) : undefined
+                              )
+                            }
+                          >
+                            <TableCell>
+                              <div className={cn("h-4 w-4 rounded-full border", active && "border-primary bg-primary")} />
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{row.kode_dokter_bpjs}</TableCell>
+                            <TableCell>{row.nama_dokter_bpjs}</TableCell>
+                            <TableCell>{row.jadwal_hari || "-"}</TableCell>
+                            <TableCell>{row.jam_praktek || "-"}</TableCell>
+                            <TableCell className="text-right">{row.kuota_jkn || 0}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {jadwalDokters.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Jadwal dokter BPJS belum ditemukan untuk tanggal ini, jadi sistem memakai referensi dokter BPJS sebagai cadangan.
+                </p>
+              ) : null}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1118,19 +1254,65 @@ export default function BPJSMappingPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Hari Praktek</Label>
-                <Input
+                <Select
                   value={dokterForm.jadwal_hari}
-                  onChange={(e) => setDokterForm({ ...dokterForm, jadwal_hari: e.target.value })}
-                  placeholder="Contoh: SENIN, RABU"
-                />
+                  onValueChange={(value) => {
+                    const nextTimeOptions = Array.from(
+                      new Set(
+                        jadwalDokters
+                          .filter(
+                            (row) =>
+                              String(row.kodedokter) === dokterForm.kode_dokter_bpjs &&
+                              row.namahari === value
+                          )
+                          .map((row) => row.jadwal)
+                          .filter(Boolean)
+                      )
+                    );
+                    setDokterForm({
+                      ...dokterForm,
+                      jadwal_hari: value,
+                      jam_praktek: nextTimeOptions.includes(dokterForm.jam_praktek)
+                        ? dokterForm.jam_praktek
+                        : nextTimeOptions[0] || "",
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih hari praktek..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {practiceDayOptions.map((day) => (
+                      <SelectItem key={day} value={day}>
+                        {day}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Jam Praktek</Label>
-                <Input
+                <Select
                   value={dokterForm.jam_praktek}
-                  onChange={(e) => setDokterForm({ ...dokterForm, jam_praktek: e.target.value })}
-                  placeholder="Contoh: 08:00-12:00"
-                />
+                  onValueChange={(value) => setDokterForm({ ...dokterForm, jam_praktek: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih jam praktek..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {practiceTimeOptions.length > 0 ? (
+                      practiceTimeOptions.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="-" disabled>
+                        Belum ada jam praktek
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

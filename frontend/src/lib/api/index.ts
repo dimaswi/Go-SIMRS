@@ -291,6 +291,7 @@ export {
   nursingCareApi,
   fallRiskApi,
   o2UsageApi,
+  bhpUsageApi,
   CPPT_FORMATS,
   CPPT_PROFESSIONS,
   SHIFT_TYPES,
@@ -323,9 +324,12 @@ export type {
   CreateFallRiskAssessmentInput,
   UpdateFallRiskAssessmentInput,
   O2UsageRecord,
+  BHPUsageRecord,
+  BHPUsageAvailableItem,
   StartO2UsageInput,
   StopO2UsageInput,
-  UpdateO2UsageInput
+  UpdateO2UsageInput,
+  SaveBHPUsageInput
 } from './inpatient';
 
 // Billing & Payment

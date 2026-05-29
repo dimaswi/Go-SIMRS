@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { medicinesApi, type MedicineCategory, type MedicineType, type MedicineForm } from "@/lib/api/medicines";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Pill, Tag, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info, ArrowLeft } from "lucide-react";
+import { Loader2, Pill, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info, ArrowLeft } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DPHOMappingField } from "./dpho-mapping-field";
@@ -40,7 +40,6 @@ export default function MedicineCreate() {
   const [unitOptions, setUnitOptions] = useState<ComboboxOption[]>([]);
 
   const [formData, setFormData] = useState({
-    code: "",
     name: "",
     generic_name: "",
     description: "",
@@ -49,6 +48,8 @@ export default function MedicineCreate() {
     form: "" as MedicineForm | "",
     strength: "",
     unit: "",
+    unit_large: "",
+    large_to_small_factor: 1,
     manufacturer: "",
     min_stock: 0,
     max_stock: 100,
@@ -138,7 +139,6 @@ export default function MedicineCreate() {
 
     try {
       await medicinesApi.create({
-        code: formData.code,
         name: formData.name,
         generic_name: formData.generic_name || undefined,
         description: formData.description || undefined,
@@ -147,6 +147,8 @@ export default function MedicineCreate() {
         form: formData.form as MedicineForm,
         strength: formData.strength || undefined,
         unit: formData.unit,
+        unit_large: formData.unit_large || undefined,
+        large_to_small_factor: formData.unit_large ? Math.max(1, Number(formData.large_to_small_factor) || 1) : 1,
         manufacturer: formData.manufacturer || undefined,
         min_stock: formData.min_stock,
         max_stock: formData.max_stock,
@@ -202,7 +204,7 @@ export default function MedicineCreate() {
         }
       >
         <div className="flex flex-wrap gap-2 pb-3">
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode otomatis uppercase</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode otomatis sistem</div>
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">DPHO opsional</div>
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status aktif default</div>
         </div>
@@ -210,7 +212,7 @@ export default function MedicineCreate() {
 
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <SummaryCue label="Identitas" description="Pastikan kode, nama obat, kategori, dan bentuk sediaan terisi lebih dulu." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Identitas" description="Pastikan nama obat, kategori, dan bentuk sediaan terisi lebih dulu." tone="from-background via-background to-sky-50/40" />
           <SummaryCue label="Kontrol Stok" description="Isi harga dan batas stok agar obat langsung siap dipakai di monitoring inventori." tone="from-background via-background to-emerald-50/40" />
           <SummaryCue label="Info Klinis" description="Tambahkan indikasi, kontraindikasi, dan dosis untuk membantu tim farmasi dan dokter." tone="from-background via-background to-amber-50/50" />
         </div>
@@ -231,25 +233,15 @@ export default function MedicineCreate() {
               </div>
             </div>
             <div className="p-3 sm:p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="code"
+                   <Label
+                    htmlFor="generic_name"
                     className="text-xs font-medium flex items-center gap-2"
                   >
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                    Kode Obat *
+                    Kode Obat
                   </Label>
-                  <Input
-                    id="code"
-                    required
-                    placeholder="Contoh: MED-001"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    className="h-9 text-sm"
-                  />
+                  <Input value="Otomatis dibuat sistem saat simpan" disabled className="h-9 text-sm bg-muted" />
                 </div>
                 <div className="space-y-2">
                   <Label
@@ -394,8 +386,47 @@ export default function MedicineCreate() {
                     className="h-9 text-sm"
                   />
                 </div>
-              </div>
-
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="unit_large"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    Satuan Besar
+                  </Label>
+                  <Combobox
+                    options={unitOptions}
+                    value={formData.unit_large}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, unit_large: value })
+                    }
+                    placeholder="Opsional (mis: box/strip)"
+                    searchPlaceholder="Cari satuan besar..."
+                    emptyText="Satuan tidak ditemukan"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="large_to_small_factor" className="text-xs font-medium flex items-center gap-2">
+                    Konversi Besar ke Kecil
+                  </Label>
+                  <Input
+                    id="large_to_small_factor"
+                    type="number"
+                    min={1}
+                    placeholder="Contoh: 10"
+                    value={formData.large_to_small_factor}
+                    onChange={(e) =>
+                      setFormData({ ...formData, large_to_small_factor: Math.max(1, parseInt(e.target.value) || 1) })
+                    }
+                    disabled={!formData.unit_large}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {formData.unit_large
+                      ? `1 ${formData.unit_large} = ${formData.large_to_small_factor} ${formData.unit || "satuan kecil"}`
+                      : "Isi Satuan Besar dulu jika ingin pakai qty besar/kecil."}
+                  </p>
+                </div>
+              </div>  
               <DPHOMappingField
                 valueCode={formData.dpho_kode_obat}
                 valueName={formData.dpho_nama_obat}

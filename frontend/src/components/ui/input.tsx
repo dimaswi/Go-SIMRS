@@ -3,7 +3,34 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, value, onChange, onFocus, onBlur, ...props }, ref) => {
+    const isNumberInput = type === "number"
+    const isControlled = value !== undefined
+    const [draftValue, setDraftValue] = React.useState<string | null>(null)
+
+    const displayValue = isNumberInput && isControlled && draftValue !== null ? draftValue : value
+
+    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (isNumberInput && isControlled) {
+        setDraftValue(event.target.value)
+      }
+      onChange?.(event)
+    }
+
+    const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+      if (isNumberInput && isControlled) {
+        setDraftValue(value === null || value === undefined ? "" : String(value))
+      }
+      onFocus?.(event)
+    }
+
+    const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+      if (isNumberInput && isControlled) {
+        setDraftValue(null)
+      }
+      onBlur?.(event)
+    }
+
     return (
       <input
         type={type}
@@ -12,6 +39,10 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
+        value={displayValue}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         {...props}
       />
     )

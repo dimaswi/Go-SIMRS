@@ -9,8 +9,8 @@ export const BPJS_SHEET_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consol
 export const BPJS_PANEL_CLASS = "rounded-none border border-border/70 bg-background";
 export const BPJS_MUTED_PANEL_CLASS = "rounded-none border border-border/70 bg-muted/10";
 export const BPJS_SECTION_CLASS = "space-y-3 border-b border-dashed border-border/70 pb-5 last:border-b-0 last:pb-0";
-export const BPJS_FIELD_CLASS = "h-10 rounded-none border-border/70 bg-background shadow-none";
-export const BPJS_COMPACT_FIELD_CLASS = "h-9 rounded-none border-border/70 bg-background shadow-none";
+export const BPJS_FIELD_CLASS = "h-10 rounded-none border-border/70 bg-background shadow-none text-[15px]";
+export const BPJS_COMPACT_FIELD_CLASS = "h-9 rounded-none border-border/70 bg-background shadow-none text-[15px]";
 export const BPJS_ICON_BUTTON_CLASS = "h-9 w-9 rounded-none border-border/70 px-0";
 export const BPJS_FOOTER_CLASS = "border-t border-border/70 bg-muted/10 px-4 py-4 sm:px-6";
 
@@ -24,7 +24,7 @@ interface BPJSSheetHeroProps {
 
 export function BPJSSheetHero({ eyebrow, title, description, icon: Icon, meta }: BPJSSheetHeroProps) {
   return (
-    <div className="border-b border-border/70 bg-muted/10 px-6 py-5" style={{ fontFamily: BPJS_SHEET_FONT_FAMILY }}>
+    <div className="border-b border-border/70 bg-muted/10 px-6 py-5 pr-14 sm:pr-16" style={{ fontFamily: BPJS_SHEET_FONT_FAMILY }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
@@ -35,12 +35,12 @@ export function BPJSSheetHero({ eyebrow, title, description, icon: Icon, meta }:
               <Icon className="h-4 w-4 text-foreground/80" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
-              <div className="text-sm text-muted-foreground">{description}</div>
+              <h2 className="text-[19px] font-semibold tracking-tight text-foreground">{title}</h2>
+              <div className="text-[15px] text-muted-foreground">{description}</div>
             </div>
           </div>
         </div>
-        {meta}
+        {meta ? <div className="mr-2 sm:mr-3">{meta}</div> : null}
       </div>
     </div>
   );
@@ -59,7 +59,7 @@ export function BPJSSectionHeader({ eyebrow, title, action }: BPJSSectionHeaderP
         <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
           {eyebrow}
         </div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground/80" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+        <h3 className="text-[15px] font-semibold uppercase tracking-[0.15em] text-foreground/80" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
           {title}
         </h3>
       </div>
@@ -88,13 +88,13 @@ export function BPJSInfoGrid({ items, columns = 2, className }: BPJSInfoGridProp
         {items.map((item) => (
           <div
             key={`${item.label}-${typeof item.value === "string" ? item.value : "content"}`}
-            className="space-y-1 bg-background px-4 py-3"
+            className="space-y-1.5 bg-background px-4 py-3.5"
             style={item.span ? { gridColumn: `span ${item.span} / span ${item.span}` } : undefined}
           >
-            <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
               {item.label}
             </div>
-            <div className={cn("text-sm font-medium text-foreground", item.mono && "font-mono text-xs")}>{item.value}</div>
+            <div className={cn("text-[15px] font-medium leading-relaxed text-foreground", item.mono && "font-mono text-[13px]")}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -130,8 +130,8 @@ export function BPJSStatePanel({
       <div className="flex items-start gap-3">
         {icon ? <div className="mt-0.5 text-foreground/70">{icon}</div> : null}
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="text-sm font-medium text-foreground">{title}</div>
-          {description ? <div className="text-xs leading-relaxed text-muted-foreground">{description}</div> : null}
+          <div className="text-[15px] font-medium text-foreground">{title}</div>
+          {description ? <div className="text-[13px] leading-relaxed text-muted-foreground">{description}</div> : null}
           {extra}
         </div>
       </div>

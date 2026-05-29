@@ -6,14 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
@@ -266,82 +258,84 @@ export default function DistributionEdit() {
         {/* Items */}
         <SectionPanel icon={Package} title="Daftar Item" description="Sesuaikan jumlah, batch, tanggal kedaluwarsa, dan catatan per item distribusi.">
         <div className="space-y-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Kode</TableHead>
-                <TableHead>Nama</TableHead>
-                <TableHead className="text-center">Qty</TableHead>
-                <TableHead>Batch</TableHead>
-                <TableHead>Exp. Date</TableHead>
-                <TableHead>Satuan</TableHead>
-                <TableHead>Catatan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono">{item.code}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {item.inventory_id ? (
-                        <Package className="h-4 w-4 text-blue-500" />
-                      ) : (
-                        <Pill className="h-4 w-4 text-green-500" />
-                      )}
-                      {item.name}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={item.quantity}
-                      onChange={(e) =>
-                        handleItemChange(
-                          item.id,
-                          "quantity",
-                          parseInt(e.target.value) || 0
-                        )
-                      }
-                      className="w-20 text-center"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="Batch..."
-                      value={item.batch_number}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "batch_number", e.target.value)
-                      }
-                      className="w-24"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="date"
-                      value={item.expiry_date}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "expiry_date", e.target.value)
-                      }
-                      className="w-36"
-                    />
-                  </TableCell>
-                  <TableCell>{item.unit}</TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="Catatan..."
-                      value={item.notes}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "notes", e.target.value)
-                      }
-                      className="w-32"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="overflow-hidden border border-border/80 bg-background">
+            <table className="w-full table-fixed border-collapse text-sm">
+              <thead className="bg-background">
+                <tr className="bg-muted/20">
+                  <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Kode</th>
+                  <th className="h-9 w-[24%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Nama</th>
+                  <th className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Qty</th>
+                  <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Batch</th>
+                  <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Exp. Date</th>
+                  <th className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Satuan</th>
+                  <th className="h-9 border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="transition-colors hover:bg-muted/10">
+                    <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle font-mono text-[11px] text-muted-foreground">{item.code}</td>
+                    <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
+                      <div className="flex items-center gap-2">
+                        {item.inventory_id ? (
+                          <Package className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <Pill className="h-4 w-4 text-green-500" />
+                        )}
+                        <span className="text-xs font-medium">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleItemChange(
+                            item.id,
+                            "quantity",
+                            parseInt(e.target.value) || 0
+                          )
+                        }
+                        className="h-8 text-center text-xs"
+                      />
+                    </td>
+                    <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
+                      <Input
+                        placeholder="Batch..."
+                        value={item.batch_number}
+                        onChange={(e) =>
+                          handleItemChange(item.id, "batch_number", e.target.value)
+                        }
+                        className="h-8 text-xs"
+                      />
+                    </td>
+                    <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
+                      <Input
+                        type="date"
+                        value={item.expiry_date}
+                        onChange={(e) =>
+                          handleItemChange(item.id, "expiry_date", e.target.value)
+                        }
+                        className="h-8 text-xs"
+                      />
+                    </td>
+                    <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">{item.unit}</td>
+                    <td className="border-b border-border/60 px-3 py-1.5 align-middle">
+                      <Input
+                        placeholder="Catatan..."
+                        value={item.notes}
+                        onChange={(e) =>
+                          handleItemChange(item.id, "notes", e.target.value)
+                        }
+                        className="h-8 text-xs"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </SectionPanel>
 

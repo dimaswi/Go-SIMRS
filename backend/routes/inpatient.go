@@ -80,5 +80,16 @@ func RegisterInpatientRoutes(r *gin.RouterGroup) {
 			o2.PUT("/:recordId/stop", handlers.StopO2Usage)
 			o2.DELETE("/:recordId", handlers.DeleteO2Usage)
 		}
+
+		// BHP Usage Routes - Penggunaan BHP ruangan/unit
+		bhp := inpatient.Group("/bhp-usage")
+		{
+			bhp.GET("", handlers.GetVisitBHPUsages)
+			bhp.GET("/available-items", handlers.GetVisitBHPAvailableItems)
+			bhp.GET("/:usageId", handlers.GetVisitBHPUsage)
+			bhp.POST("", handlers.CreateVisitBHPUsage)
+			bhp.PUT("/:usageId", handlers.UpdateVisitBHPUsage)
+			bhp.DELETE("/:usageId", handlers.DeleteVisitBHPUsage)
+		}
 	}
 }

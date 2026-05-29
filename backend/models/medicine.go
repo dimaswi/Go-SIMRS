@@ -55,16 +55,18 @@ type Medicine struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Basic Information
-	Code         string           `gorm:"not null;uniqueIndex;size:50" json:"code"`   // Kode Obat (unique)
-	Name         string           `gorm:"not null;size:200" json:"name"`              // Nama Obat
-	GenericName  string           `gorm:"size:200" json:"generic_name"`               // Nama Generik
-	Description  string           `gorm:"type:text" json:"description"`               // Deskripsi
-	Category     MedicineCategory `gorm:"not null;size:50" json:"category"`           // Kategori
-	Type         MedicineType     `gorm:"not null;size:50;default:'otc'" json:"type"` // Jenis/Golongan Obat
-	Form         MedicineForm     `gorm:"not null;size:50" json:"form"`               // Bentuk Sediaan
-	Strength     string           `gorm:"size:100" json:"strength"`                   // Kekuatan/Dosis (e.g., "500mg", "10ml")
-	Unit         string           `gorm:"not null;size:50" json:"unit"`               // Satuan (tablet, kapsul, botol, ampul)
-	Manufacturer string           `gorm:"size:200" json:"manufacturer"`               // Pabrik/Produsen
+	Code               string           `gorm:"not null;uniqueIndex;size:50" json:"code"`        // Kode Obat (unique)
+	Name               string           `gorm:"not null;size:200" json:"name"`                   // Nama Obat
+	GenericName        string           `gorm:"size:200" json:"generic_name"`                    // Nama Generik
+	Description        string           `gorm:"type:text" json:"description"`                    // Deskripsi
+	Category           MedicineCategory `gorm:"not null;size:50" json:"category"`                // Kategori
+	Type               MedicineType     `gorm:"not null;size:50;default:'otc'" json:"type"`      // Jenis/Golongan Obat
+	Form               MedicineForm     `gorm:"not null;size:50" json:"form"`                    // Bentuk Sediaan
+	Strength           string           `gorm:"size:100" json:"strength"`                        // Kekuatan/Dosis (e.g., "500mg", "10ml")
+	Unit               string           `gorm:"not null;size:50" json:"unit"`                    // Satuan kecil/dasar (tablet, kapsul, botol, ampul)
+	UnitLarge          string           `gorm:"size:50" json:"unit_large"`                       // Satuan besar (box, strip, dus)
+	LargeToSmallFactor int              `gorm:"not null;default:1" json:"large_to_small_factor"` // Konversi 1 satuan besar = n satuan kecil
+	Manufacturer       string           `gorm:"size:200" json:"manufacturer"`                    // Pabrik/Produsen
 
 	// Stock Information (stok aktual ada di RoomMedicine per ruangan)
 	MinStock      int     `gorm:"default:0" json:"min_stock"`                         // Stok Minimum Global

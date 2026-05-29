@@ -14,9 +14,13 @@ interface ColumnActions {
   onView: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
+  dietTypeMap?: Record<string, string>;
 }
 
 export function createNutritionPackageColumns(actions: ColumnActions): ColumnDef<NutritionPackage>[] {
+  const resolveDietLabel = (value: string) =>
+    actions.dietTypeMap?.[value] || nutritionDietTypeLabels[value] || value;
+
   return [
     {
       accessorKey: "code",
@@ -39,7 +43,7 @@ export function createNutritionPackageColumns(actions: ColumnActions): ColumnDef
       accessorKey: "diet_type",
       header: "Jenis Diet",
       cell: ({ row }) => (
-        <Badge variant="outline">{nutritionDietTypeLabels[row.original.diet_type] || row.original.diet_type}</Badge>
+        <Badge variant="outline">{resolveDietLabel(row.original.diet_type)}</Badge>
       ),
     },
     {
@@ -65,14 +69,6 @@ export function createNutritionPackageColumns(actions: ColumnActions): ColumnDef
       cell: ({ row }) => (
         <span className="text-sm">{row.original.items?.length || 0} menu</span>
       ),
-    },
-    {
-      accessorKey: "price",
-      header: "Harga",
-      cell: ({ row }) =>
-        row.original.price > 0
-          ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(row.original.price)
-          : "-",
     },
     {
       accessorKey: "is_active",

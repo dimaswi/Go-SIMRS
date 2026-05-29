@@ -88,7 +88,6 @@ func GetAllSuppliers(c *gin.Context) {
 // CreateSupplier creates a new supplier
 func CreateSupplier(c *gin.Context) {
 	var input struct {
-		Code            string `json:"code" binding:"required"`
 		Name            string `json:"name" binding:"required"`
 		Address         string `json:"address"`
 		Phone           string `json:"phone"`
@@ -108,10 +107,9 @@ func CreateSupplier(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate code
-	var existingSupplier models.Supplier
-	if err := database.DB.Where("code = ?", input.Code).First(&existingSupplier).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode supplier sudah digunakan"})
+	code, err := generateDateCode(&models.Supplier{}, "SUP")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kode supplier otomatis"})
 		return
 	}
 
@@ -121,7 +119,7 @@ func CreateSupplier(c *gin.Context) {
 	}
 
 	supplier := models.Supplier{
-		Code:            input.Code,
+		Code:            code,
 		Name:            input.Name,
 		Address:         input.Address,
 		Phone:           input.Phone,
@@ -159,7 +157,6 @@ func UpdateSupplier(c *gin.Context) {
 	}
 
 	var input struct {
-		Code            string `json:"code" binding:"required"`
 		Name            string `json:"name" binding:"required"`
 		Address         string `json:"address"`
 		Phone           string `json:"phone"`
@@ -179,14 +176,6 @@ func UpdateSupplier(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate code (exclude current supplier)
-	var existingSupplier models.Supplier
-	if err := database.DB.Where("code = ? AND id != ?", input.Code, id).First(&existingSupplier).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode supplier sudah digunakan"})
-		return
-	}
-
-	supplier.Code = input.Code
 	supplier.Name = input.Name
 	supplier.Address = input.Address
 	supplier.Phone = input.Phone

@@ -1039,7 +1039,7 @@ export function PhysicalExamForm({
                       <Label htmlFor="general_condition" className="text-sm">
                         Keadaan Umum
                       </Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={getOptions("general_condition")}
                         value={formData.general_condition}
                         onValueChange={(v) =>
@@ -1054,7 +1054,7 @@ export function PhysicalExamForm({
                       <Label htmlFor="consciousness" className="text-sm">
                         Kesadaran
                       </Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={getOptions("consciousness_level")}
                         value={formData.consciousness}
                         onValueChange={(v) => handleChange("consciousness", v)}
@@ -1426,7 +1426,7 @@ export function PhysicalExamForm({
                       <Label htmlFor="pain_location" className="text-xs">
                         Lokasi Nyeri
                       </Label>
-                      <Combobox
+                      <Combobox allowCustomValue
                         options={painLocationOptions}
                         value={formData.pain_location || ""}
                         onValueChange={(value) =>
@@ -2766,3 +2766,4 @@ Kesimpulan: EKG dalam batas normal`}
     </div>
   );
 }
+

@@ -465,8 +465,8 @@ export function BodyMarkerForm({
           {editModalStep === "pick" ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="w-full max-w-lg space-y-6">
-                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Kategori</Label><Combobox options={categoryOptions} value={selectedCategoryId} onValueChange={(v) => setSelectedCategoryId(v || "all")} placeholder="Semua kategori" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" className="h-11" /></div>
-                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Gambar Tubuh</Label><Combobox options={bodyPartOptions} value={selectedImageMasterId} onValueChange={(v) => setSelectedImageMasterId(v || "")} placeholder="Pilih bagian tubuh" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" disabled={filteredImages.length === 0} className="h-11" /></div>
+                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Kategori</Label><Combobox allowCustomValue options={categoryOptions} value={selectedCategoryId} onValueChange={(v) => setSelectedCategoryId(v || "all")} placeholder="Semua kategori" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" className="h-11" /></div>
+                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Gambar Tubuh</Label><Combobox allowCustomValue options={bodyPartOptions} value={selectedImageMasterId} onValueChange={(v) => setSelectedImageMasterId(v || "")} placeholder="Pilih bagian tubuh" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" disabled={filteredImages.length === 0} className="h-11" /></div>
                 <Button type="button" className="w-full h-11" onClick={addImageToItems} disabled={!selectedImageMasterId}><Plus className="mr-2 h-4 w-4" />Pilih & Lanjutkan</Button>
               </div>
             </div>
@@ -514,4 +514,5 @@ export function BodyMarkerForm({
     </>
   );
 }
+
 

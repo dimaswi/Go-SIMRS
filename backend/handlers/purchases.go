@@ -30,18 +30,23 @@ type CreatePurchaseInput struct {
 }
 
 type CreatePurchaseItemInput struct {
-	InventoryID     *uint   `json:"inventory_id"`
-	MedicineID      *uint   `json:"medicine_id"`
-	QuantityOrdered int     `json:"quantity_ordered" binding:"required,min=1"`
-	UnitPrice       float64 `json:"unit_price"`
-	DiscountPercent float64 `json:"discount_percent"`
-	DiscountAmount  float64 `json:"discount_amount"`
-	TaxPercent      float64 `json:"tax_percent"`
-	TaxAmount       float64 `json:"tax_amount"`
-	BatchNumber     string  `json:"batch_number"`
-	ExpiryDate      string  `json:"expiry_date"`
-	Unit            string  `json:"unit"`
-	Notes           string  `json:"notes"`
+	InventoryID      *uint   `json:"inventory_id"`
+	MedicineID       *uint   `json:"medicine_id"`
+	QuantityOrdered  int     `json:"quantity_ordered"`
+	QuantityLarge    *int    `json:"quantity_large"`
+	QuantitySmall    *int    `json:"quantity_small"`
+	UnitLarge        string  `json:"unit_large"`
+	UnitSmall        string  `json:"unit_small"`
+	ConversionFactor int     `json:"conversion_factor"`
+	UnitPrice        float64 `json:"unit_price"`
+	DiscountPercent  float64 `json:"discount_percent"`
+	DiscountAmount   float64 `json:"discount_amount"`
+	TaxPercent       float64 `json:"tax_percent"`
+	TaxAmount        float64 `json:"tax_amount"`
+	BatchNumber      string  `json:"batch_number"`
+	ExpiryDate       string  `json:"expiry_date"`
+	Unit             string  `json:"unit"`
+	Notes            string  `json:"notes"`
 }
 
 type UpdatePurchaseInput struct {
@@ -71,10 +76,12 @@ type RecordPurchasePaymentInput struct {
 }
 
 type ReceivePurchaseItemInput struct {
-	ID               uint   `json:"id" binding:"required"`
-	QuantityReceived int    `json:"quantity_received" binding:"required,min=0"`
-	BatchNumber      string `json:"batch_number"`
-	ExpiryDate       string `json:"expiry_date"`
+	ID                    uint   `json:"id" binding:"required"`
+	QuantityReceived      *int   `json:"quantity_received"`
+	QuantityLargeReceived *int   `json:"quantity_large_received"`
+	QuantitySmallReceived *int   `json:"quantity_small_received"`
+	BatchNumber           string `json:"batch_number"`
+	ExpiryDate            string `json:"expiry_date"`
 }
 
 func parseOptionalLocalDate(s string) (*time.Time, error) {
@@ -189,6 +196,133 @@ func calculatePurchaseItemCommercials(input CreatePurchaseItemInput) (discountPe
 	}
 
 	return discountPercent, discountAmount, taxPercent, taxAmount, totalPrice
+}
+
+type preparedPurchaseItem struct {
+	Input            CreatePurchaseItemInput
+	QuantityOrdered  int
+	QuantityLarge    int
+	QuantitySmall    int
+	UnitLarge        string
+	UnitSmall        string
+	ConversionFactor int
+	Unit             string
+	DiscountPercent  float64
+	DiscountAmount   float64
+	TaxPercent       float64
+	TaxAmount        float64
+	TotalPrice       float64
+	ExpiryDate       *time.Time
+}
+
+func clampNonNegative(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
+func resolvePurchaseItemQuantity(item CreatePurchaseItemInput) (qtyLarge int, qtySmall int) {
+	if item.QuantityLarge != nil || item.QuantitySmall != nil {
+		if item.QuantityLarge != nil {
+			qtyLarge = clampNonNegative(*item.QuantityLarge)
+		}
+		if item.QuantitySmall != nil {
+			qtySmall = clampNonNegative(*item.QuantitySmall)
+		}
+		return qtyLarge, qtySmall
+	}
+
+	qtySmall = clampNonNegative(item.QuantityOrdered)
+	return 0, qtySmall
+}
+
+func preparePurchaseItem(item CreatePurchaseItemInput) (preparedPurchaseItem, error) {
+	prepared := preparedPurchaseItem{
+		Input:            item,
+		UnitLarge:        strings.TrimSpace(item.UnitLarge),
+		UnitSmall:        strings.TrimSpace(item.UnitSmall),
+		Unit:             strings.TrimSpace(item.Unit),
+		ConversionFactor: item.ConversionFactor,
+	}
+
+	if (item.MedicineID == nil || *item.MedicineID == 0) && (item.InventoryID == nil || *item.InventoryID == 0) {
+		return prepared, fmt.Errorf("item pembelian harus memilih obat atau inventaris")
+	}
+
+	if prepared.ConversionFactor < 1 {
+		prepared.ConversionFactor = 1
+	}
+
+	prepared.QuantityLarge, prepared.QuantitySmall = resolvePurchaseItemQuantity(item)
+
+	if item.MedicineID != nil && *item.MedicineID > 0 {
+		var medicine models.Medicine
+		if err := database.DB.Select("id", "unit", "unit_large", "large_to_small_factor").First(&medicine, *item.MedicineID).Error; err != nil {
+			return prepared, fmt.Errorf("obat tidak ditemukan")
+		}
+
+		if prepared.UnitSmall == "" {
+			prepared.UnitSmall = strings.TrimSpace(medicine.Unit)
+		}
+		if prepared.UnitLarge == "" {
+			prepared.UnitLarge = strings.TrimSpace(medicine.UnitLarge)
+		}
+		if item.ConversionFactor < 1 && medicine.LargeToSmallFactor > 1 {
+			prepared.ConversionFactor = medicine.LargeToSmallFactor
+		}
+	} else if item.InventoryID != nil && *item.InventoryID > 0 {
+		var inventory models.Inventory
+		if err := database.DB.Select("id", "unit").First(&inventory, *item.InventoryID).Error; err == nil && prepared.UnitSmall == "" {
+			prepared.UnitSmall = strings.TrimSpace(inventory.Unit)
+		}
+	}
+
+	prepared.QuantityOrdered = (prepared.QuantityLarge * prepared.ConversionFactor) + prepared.QuantitySmall
+	if prepared.QuantityOrdered <= 0 {
+		return prepared, fmt.Errorf("qty item harus lebih dari 0")
+	}
+
+	if prepared.UnitSmall == "" {
+		prepared.UnitSmall = "pcs"
+	}
+	if prepared.Unit == "" {
+		prepared.Unit = prepared.UnitSmall
+	}
+
+	prepared.Input.QuantityOrdered = prepared.QuantityOrdered
+	prepared.DiscountPercent, prepared.DiscountAmount, prepared.TaxPercent, prepared.TaxAmount, prepared.TotalPrice = calculatePurchaseItemCommercials(prepared.Input)
+
+	expiryDate, err := parseOptionalLocalDate(item.ExpiryDate)
+	if err != nil {
+		return prepared, fmt.Errorf("format tanggal kedaluwarsa item tidak valid")
+	}
+	prepared.ExpiryDate = expiryDate
+
+	return prepared, nil
+}
+
+func resolveReceivingQuantity(item models.PurchaseItem, input ReceivePurchaseItemInput) int {
+	if input.QuantityLargeReceived != nil || input.QuantitySmallReceived != nil {
+		qtyLarge := 0
+		qtySmall := 0
+		if input.QuantityLargeReceived != nil {
+			qtyLarge = clampNonNegative(*input.QuantityLargeReceived)
+		}
+		if input.QuantitySmallReceived != nil {
+			qtySmall = clampNonNegative(*input.QuantitySmallReceived)
+		}
+		factor := item.ConversionFactor
+		if factor < 1 {
+			factor = 1
+		}
+		return (qtyLarge * factor) + qtySmall
+	}
+
+	if input.QuantityReceived == nil {
+		return 0
+	}
+	return clampNonNegative(*input.QuantityReceived)
 }
 
 func generatePurchasePaymentNumber() string {
@@ -378,11 +512,17 @@ func CreatePurchase(c *gin.Context) {
 		purchaseType = "medicine"
 	}
 
-	// Calculate total
+	// Normalize items and calculate total
+	preparedItems := make([]preparedPurchaseItem, 0, len(input.Items))
 	var totalAmount float64
-	for _, item := range input.Items {
-		_, _, _, _, lineTotal := calculatePurchaseItemCommercials(item)
-		totalAmount += lineTotal
+	for _, itemInput := range input.Items {
+		prepared, err := preparePurchaseItem(itemInput)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		preparedItems = append(preparedItems, prepared)
+		totalAmount += prepared.TotalPrice
 	}
 
 	now := time.Now()
@@ -418,30 +558,31 @@ func CreatePurchase(c *gin.Context) {
 	}
 
 	// Create items
-	for _, itemInput := range input.Items {
-		discountPercent, discountAmount, taxPercent, taxAmount, totalPrice := calculatePurchaseItemCommercials(itemInput)
-		expiryDate, err := parseOptionalLocalDate(itemInput.ExpiryDate)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal kedaluwarsa item tidak valid"})
-			return
-		}
-
+	for _, prepared := range preparedItems {
+		itemInput := prepared.Input
 		item := models.PurchaseItem{
-			PurchaseID:      purchase.ID,
-			InventoryID:     itemInput.InventoryID,
-			MedicineID:      itemInput.MedicineID,
-			QuantityOrdered: itemInput.QuantityOrdered,
-			Unit:            itemInput.Unit,
-			UnitPrice:       itemInput.UnitPrice,
-			DiscountPercent: discountPercent,
-			DiscountAmount:  discountAmount,
-			TaxPercent:      taxPercent,
-			TaxAmount:       taxAmount,
-			TotalPrice:      totalPrice,
-			BatchNumber:     strings.TrimSpace(itemInput.BatchNumber),
-			ExpiryDate:      expiryDate,
-			Notes:           itemInput.Notes,
+			PurchaseID:            purchase.ID,
+			InventoryID:           itemInput.InventoryID,
+			MedicineID:            itemInput.MedicineID,
+			QuantityLargeOrdered:  prepared.QuantityLarge,
+			QuantitySmallOrdered:  prepared.QuantitySmall,
+			QuantityOrdered:       prepared.QuantityOrdered,
+			QuantityLargeReceived: 0,
+			QuantitySmallReceived: 0,
+			QuantityReceived:      0,
+			UnitLarge:             prepared.UnitLarge,
+			UnitSmall:             prepared.UnitSmall,
+			ConversionFactor:      prepared.ConversionFactor,
+			Unit:                  prepared.Unit,
+			UnitPrice:             itemInput.UnitPrice,
+			DiscountPercent:       prepared.DiscountPercent,
+			DiscountAmount:        prepared.DiscountAmount,
+			TaxPercent:            prepared.TaxPercent,
+			TaxAmount:             prepared.TaxAmount,
+			TotalPrice:            prepared.TotalPrice,
+			BatchNumber:           strings.TrimSpace(itemInput.BatchNumber),
+			ExpiryDate:            prepared.ExpiryDate,
+			Notes:                 itemInput.Notes,
 		}
 		if err := tx.Create(&item).Error; err != nil {
 			tx.Rollback()
@@ -555,28 +696,35 @@ func UpdatePurchase(c *gin.Context) {
 		totalAmount := 0.0
 		normalizedItems = make([]models.PurchaseItem, 0, len(*input.Items))
 		for _, itemInput := range *input.Items {
-			discountPercent, discountAmount, taxPercent, taxAmount, totalPrice := calculatePurchaseItemCommercials(itemInput)
-			expiryDate, err := parseOptionalLocalDate(itemInput.ExpiryDate)
+			prepared, err := preparePurchaseItem(itemInput)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal kedaluwarsa item tidak valid"})
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			totalAmount += totalPrice
+			totalAmount += prepared.TotalPrice
 			normalizedItems = append(normalizedItems, models.PurchaseItem{
-				PurchaseID:      purchase.ID,
-				InventoryID:     itemInput.InventoryID,
-				MedicineID:      itemInput.MedicineID,
-				QuantityOrdered: itemInput.QuantityOrdered,
-				Unit:            itemInput.Unit,
-				UnitPrice:       itemInput.UnitPrice,
-				DiscountPercent: discountPercent,
-				DiscountAmount:  discountAmount,
-				TaxPercent:      taxPercent,
-				TaxAmount:       taxAmount,
-				TotalPrice:      totalPrice,
-				BatchNumber:     strings.TrimSpace(itemInput.BatchNumber),
-				ExpiryDate:      expiryDate,
-				Notes:           itemInput.Notes,
+				PurchaseID:            purchase.ID,
+				InventoryID:           itemInput.InventoryID,
+				MedicineID:            itemInput.MedicineID,
+				QuantityLargeOrdered:  prepared.QuantityLarge,
+				QuantitySmallOrdered:  prepared.QuantitySmall,
+				QuantityOrdered:       prepared.QuantityOrdered,
+				QuantityLargeReceived: 0,
+				QuantitySmallReceived: 0,
+				QuantityReceived:      0,
+				UnitLarge:             prepared.UnitLarge,
+				UnitSmall:             prepared.UnitSmall,
+				ConversionFactor:      prepared.ConversionFactor,
+				Unit:                  prepared.Unit,
+				UnitPrice:             itemInput.UnitPrice,
+				DiscountPercent:       prepared.DiscountPercent,
+				DiscountAmount:        prepared.DiscountAmount,
+				TaxPercent:            prepared.TaxPercent,
+				TaxAmount:             prepared.TaxAmount,
+				TotalPrice:            prepared.TotalPrice,
+				BatchNumber:           strings.TrimSpace(itemInput.BatchNumber),
+				ExpiryDate:            prepared.ExpiryDate,
+				Notes:                 itemInput.Notes,
 			})
 		}
 		purchase.TotalAmount = totalAmount
@@ -806,8 +954,8 @@ func ReceivePurchase(c *gin.Context) {
 			}
 		}
 
-		// Calculate quantity being received this time
-		qtyReceiving := itemInput.QuantityReceived
+		// Calculate quantity being received this time (stored in satuan kecil)
+		qtyReceiving := resolveReceivingQuantity(item, itemInput)
 		newTotalReceived := item.QuantityReceived + qtyReceiving
 		if newTotalReceived > purchaseItem.QuantityOrdered {
 			tx.Rollback()
@@ -816,6 +964,12 @@ func ReceivePurchase(c *gin.Context) {
 		}
 
 		item.QuantityReceived = newTotalReceived
+		factor := item.ConversionFactor
+		if factor < 1 {
+			factor = 1
+		}
+		item.QuantityLargeReceived = newTotalReceived / factor
+		item.QuantitySmallReceived = newTotalReceived % factor
 		if itemInput.BatchNumber != "" {
 			item.BatchNumber = itemInput.BatchNumber
 		}

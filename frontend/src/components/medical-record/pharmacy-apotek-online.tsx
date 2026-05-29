@@ -37,6 +37,85 @@ interface PharmacyApotekOnlineProps {
   readOnly?: boolean;
 }
 
+function asRecord(value: unknown): Record<string, any> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, any>;
+}
+
+function pickString(record: Record<string, any> | null, keys: string[]): string {
+  if (!record) return "";
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function buildLabel(code: string, name: string): string {
+  if (code && name) return `${code} - ${name}`;
+  return code || name || "";
+}
+
+function extractCodeFromLabel(label: string): string {
+  const value = (label || "").trim();
+  if (!value) return "";
+  const [firstPart] = value.split(" - ");
+  return (firstPart || value).trim();
+}
+
+function formatApotekDateTime(input: Date): string {
+  const year = input.getFullYear();
+  const month = String(input.getMonth() + 1).padStart(2, "0");
+  const day = String(input.getDate()).padStart(2, "0");
+  const hour = String(input.getHours()).padStart(2, "0");
+  const minute = String(input.getMinutes()).padStart(2, "0");
+  const second = String(input.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function extractApotekErrorMessage(error: any): string {
+  return String(error?.response?.data?.error || error?.message || "").trim();
+}
+
+function formatNoResep5Digit(input: string): string {
+  const digitsOnly = (input || "").replace(/\D/g, "");
+  if (digitsOnly.length >= 5) return digitsOnly.slice(-5);
+  if (digitsOnly.length > 0) return digitsOnly.padStart(5, "0");
+  return "00000";
+}
+
+function normalizeJenisObatForSimpanResep(input: string): "1" | "2" | "3" {
+  if (input === "1" || input === "2" || input === "3") return input;
+  return "2";
+}
+
+function collectApotekSepCandidates(payload: unknown): Record<string, any>[] {
+  const candidates: Record<string, any>[] = [];
+  const root = asRecord(payload);
+  if (!root) return candidates;
+
+  candidates.push(root);
+
+  const nestedKeys = ["response", "sep", "kunjungan", "data", "detail"];
+  for (const key of nestedKeys) {
+    const nested = asRecord(root[key]);
+    if (nested) candidates.push(nested);
+  }
+
+  const arrayKeys = ["list", "data", "items", "result"];
+  for (const key of arrayKeys) {
+    const arr = root[key];
+    if (Array.isArray(arr) && arr.length > 0) {
+      const first = asRecord(arr[0]);
+      if (first) candidates.push(first);
+    }
+  }
+
+  return candidates;
+}
+
 export function PharmacyApotekOnline({
   visitId,
   readOnly = false,
@@ -45,6 +124,8 @@ export function PharmacyApotekOnline({
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingSJP, setGeneratingSJP] = useState(false);
+  const [deletingResep, setDeletingResep] = useState(false);
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
 
@@ -52,7 +133,7 @@ export function PharmacyApotekOnline({
   // BPJS Apotek State
   const [sepNo, setSepNo] = useState("");
   const [sjpNo, setSjpNo] = useState("");
-  const [jenisObat, setJenisObat] = useState("1"); // 0: Non-DPHO/Umum, 1: PRB, dll
+  const [jenisObat, setJenisObat] = useState("2"); // 0: Non-DPHO/Umum, 1: PRB, 2: Kronis, 3: Kemoterapi
   const [iterasi, setIterasi] = useState("0"); // 0: Non-Iterasi, 1: Iterasi
   const [noResep, setNoResep] = useState("");
   const [tglResep] = useState(new Date().toISOString().slice(0, 10));
@@ -109,19 +190,34 @@ export function PharmacyApotekOnline({
         setNoKartu(bpjsNum);
       }
 
-      const sep = visitData.registration?.sep;
-      
-      if (sep) {
-        if (sep.kode_dpjp && sep.nama_dpjp) {
-          setKdDokter(`${sep.kode_dpjp} - ${sep.nama_dpjp}`);
-        } else if (sep.kode_dpjp) {
-          setKdDokter(sep.kode_dpjp);
-        }
-        
-        if (sep.kode_poli && sep.nama_poli) {
-          setPoliInfo(`${sep.kode_poli} - ${sep.nama_poli}`);
-        } else if (sep.kode_poli) {
-          setPoliInfo(sep.kode_poli);
+      const sep = visitData.sep || visitData.SEP || visitData.registration?.sep || visitData.registration?.SEP;
+      const sepObj = asRecord(sep);
+
+      const sepKodeDokter = pickString(sepObj, ["kode_dpjp", "kodedokter", "kode_dokter"]);
+      const sepNamaDokter = pickString(sepObj, ["nama_dpjp", "namadokter", "nama_dokter"]);
+      const sepKodePoli = pickString(sepObj, ["kode_poli", "kodepoli", "kdpoli"]);
+      const sepNamaPoli = pickString(sepObj, ["nama_poli", "namapoli", "nmpoli", "poli"]);
+      const sepNoKartu = pickString(sepObj, ["no_kartu", "nokartu", "noKartu"]);
+
+      if (sepNoKartu && !bpjsNum) {
+        setNoKartu(sepNoKartu);
+      }
+
+      const dokterLabel = buildLabel(sepKodeDokter, sepNamaDokter);
+      if (dokterLabel) {
+        setKdDokter(dokterLabel);
+      }
+
+      const poliLabel = buildLabel(sepKodePoli, sepNamaPoli);
+      if (poliLabel) {
+        setPoliInfo(poliLabel);
+      } else {
+        const roomLabel = buildLabel(
+          visitData.room?.code ? String(visitData.room.code) : "",
+          visitData.room?.name ? String(visitData.room.name) : ""
+        );
+        if (roomLabel) {
+          setPoliInfo(roomLabel);
         }
       }
 
@@ -211,37 +307,193 @@ export function PharmacyApotekOnline({
     );
   };
 
-  // Mock API Call for checking SEP
+  // Check SEP/kunjungan ke API BPJS Apotek agar detail poli/dokter sinkron
   const handleCheckSEP = async () => {
     if (!sepNo) {
       toast({ variant: "destructive", title: "Error", description: "Nomor SEP kosong" });
       return;
     }
     setSubmitting(true);
-    // Simulate API Call
-    setTimeout(() => {
+    try {
+      const res = await bpjsApi.apotekCariKunjunganBySEP(sepNo.trim());
+      const payload = res.data?.data;
+      const candidates = collectApotekSepCandidates(payload);
+
+      let foundNoKartu = "";
+      let foundKodePoli = "";
+      let foundNamaPoli = "";
+      let foundKodeDokter = "";
+      let foundNamaDokter = "";
+
+      for (const candidate of candidates) {
+        if (!foundNoKartu) {
+          foundNoKartu = pickString(candidate, ["no_kartu", "nokartu", "noKartu", "nomorkartu"]);
+        }
+        if (!foundKodePoli) {
+          foundKodePoli = pickString(candidate, ["kode_poli", "kodepoli", "kdpoli"]);
+        }
+        if (!foundNamaPoli) {
+          foundNamaPoli = pickString(candidate, ["nama_poli", "namapoli", "nmpoli", "poli"]);
+        }
+        if (!foundKodeDokter) {
+          foundKodeDokter = pickString(candidate, ["kode_dpjp", "kode_dokter", "kodedokter", "kddokter"]);
+        }
+        if (!foundNamaDokter) {
+          foundNamaDokter = pickString(candidate, ["nama_dpjp", "nama_dokter", "namadokter", "nmdokter"]);
+        }
+      }
+
+      if (foundNoKartu) {
+        setNoKartu(foundNoKartu);
+      }
+
+      const poliLabel = buildLabel(foundKodePoli, foundNamaPoli);
+      if (poliLabel) {
+        setPoliInfo(poliLabel);
+      }
+
+      const dokterLabel = buildLabel(foundKodeDokter, foundNamaDokter);
+      if (dokterLabel) {
+        setKdDokter(dokterLabel);
+      }
+
+      if (!poliLabel) {
+        toast({
+          title: "Validasi SEP",
+          description: "SEP valid, tetapi data poli belum tersedia dari response BPJS.",
+        });
+      } else {
+        toast({ title: "Validasi SEP", description: "SEP valid dan data poli berhasil dimuat." });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Validasi SEP gagal",
+        description: error.response?.data?.error || "Gagal memvalidasi SEP ke BPJS Apotek.",
+      });
+    } finally {
       setSubmitting(false);
-      toast({ title: "Validasi SEP", description: "SEP Valid di sistem BPJS" });
-    }, 1000);
+    }
   };
 
-  // Mock API Call for Simpan Resep (Generate SJP)
   const handleGenerateSJP = async () => {
     if (!sepNo) {
       toast({ variant: "destructive", title: "Error", description: "Nomor SEP wajib diisi untuk membuat SJP" });
       return;
     }
-    setSubmitting(true);
-    // Simulate API Call
-    setTimeout(() => {
-      setSjpNo("SJP" + Math.floor(Math.random() * 1000000));
-      setSubmitting(false);
-      toast({ title: "Simpan Resep", description: "SJP berhasil digenerate" });
-    }, 1000);
+    if (!poliInfo) {
+      toast({ variant: "destructive", title: "Error", description: "Poli / Unit belum tersedia. Silakan cek SEP terlebih dahulu." });
+      return;
+    }
+
+    setGeneratingSJP(true);
+    try {
+      const now = new Date();
+      let poliCode = extractCodeFromLabel(poliInfo);
+      if (!poliInfo.includes(" - ") && /\s/.test(poliInfo.trim())) {
+        try {
+          const poliRes = await bpjsApi.apotekGetReferensiPoli(poliInfo.trim());
+          const poliData = asRecord(poliRes.data?.data);
+          const rawList = (poliData?.poli || poliData?.list || []) as unknown;
+          const poliList = Array.isArray(rawList) ? rawList.map((it) => asRecord(it)).filter(Boolean) as Record<string, any>[] : [];
+          const exactByName = poliList.find((it) => String(it.nama || "").trim().toLowerCase() === poliInfo.trim().toLowerCase());
+          const firstMatch = exactByName || poliList[0];
+          const fetchedCode = pickString(firstMatch || null, ["kode", "code", "kdpoli"]);
+          if (fetchedCode) {
+            poliCode = fetchedCode;
+          }
+        } catch {
+          // fallback: keep original value if referensi poli tidak tersedia
+        }
+      }
+      const dokterCode = extractCodeFromLabel(kdDokter);
+      const normalizedNoResep = formatNoResep5Digit((noResep || "").trim());
+      const normalizedJenisObat = normalizeJenisObatForSimpanResep(jenisObat);
+
+      const basePayload = {
+        TGLSJP: formatApotekDateTime(now),
+        REFASALSJP: sepNo.trim(),
+        POLIRSP: poliCode,
+        NORESEP: normalizedNoResep,
+        IDUSERSJP: "SIMRS",
+        TGLRSP: `${tglResep} 00:00:00`,
+        TGLPELRSP: `${tglPelayanan} 00:00:00`,
+        KdDokter: dokterCode || "0",
+        iterasi,
+      };
+
+      const res = await bpjsApi.apotekSimpanResep({
+        ...basePayload,
+        KDJNSOBAT: normalizedJenisObat,
+      });
+      const responseData = asRecord(res.data?.data);
+      const wrapperData = asRecord(res.data);
+      const responseMessage = String((wrapperData?.message ?? responseData?.message ?? "").toString());
+      const generatedSjpNo =
+        pickString(responseData, ["noApotik", "noapotik", "nosjp", "noSJP"]) ||
+        pickString(wrapperData, ["noApotik", "noapotik", "nosjp", "noSJP"]) ||
+        (responseMessage.match(/NOSJP[:\s]+([A-Z0-9]+)/i)?.[1] ?? "");
+
+      if (!generatedSjpNo) {
+        throw new Error("SJP tidak ditemukan pada response BPJS");
+      }
+
+      setNoResep(normalizedNoResep);
+      setSjpNo(generatedSjpNo);
+      if (normalizedJenisObat !== jenisObat) {
+        setJenisObat(normalizedJenisObat);
+      }
+      toast({
+        title: "Simpan Resep",
+        description: `SJP berhasil digenerate: ${generatedSjpNo}`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal generate SJP",
+        description: extractApotekErrorMessage(error) || "Terjadi kesalahan API BPJS",
+      });
+    } finally {
+      setGeneratingSJP(false);
+    }
+  };
+
+  const handleHapusResep = async () => {
+    if (!sjpNo) return;
+    const isConfirmed = window.confirm(`Hapus resep BPJS untuk SJP ${sjpNo}?`);
+    if (!isConfirmed) return;
+
+    setDeletingResep(true);
+    try {
+      await bpjsApi.apotekHapusResep({
+        nosjp: sjpNo.trim(),
+        refasalsjp: sepNo.trim(),
+        noresep: formatNoResep5Digit(noResep.trim()),
+      });
+
+      setSjpNo("");
+      setDispenseItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          bpjs_status: "pending",
+          bpjs_msg: "",
+        }))
+      );
+      toast({ title: "Hapus Resep", description: "Resep BPJS berhasil dihapus." });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal hapus resep",
+        description: error.response?.data?.error || "Terjadi kesalahan API BPJS",
+      });
+    } finally {
+      setDeletingResep(false);
+    }
   };
 
   const openKirimModal = (item: any) => {
     setKirimItem(item);
+    const medicineDPHOCode = item.medicine?.dpho_kode_obat || item.medicine?.bpjs_kode_obat || "";
 
     const isRacikan = item.item_type === "racikan" || item.is_racikan;
     const quantity = parseFloat(item.quantity) || 1;
@@ -256,8 +508,8 @@ export function PharmacyApotekOnline({
 
     setKirimForm({
       NOSJP: sjpNo,
-      NORESEP: noResep,
-      KDOBT: item.medicine?.bpjs_kode_obat || "",
+      NORESEP: formatNoResep5Digit(noResep),
+      KDOBT: medicineDPHOCode,
       NMOBAT: item.medicine?.name || item.name || "",
       SIGNA1OBT: signa1,
       SIGNA2OBT: signa2,
@@ -522,15 +774,27 @@ export function PharmacyApotekOnline({
         </div>
 
         <div className="flex flex-wrap items-center gap-4 border-t border-border/70 p-3 sm:p-4 bg-muted/10">
-          <Button
-            onClick={handleGenerateSJP}
-            disabled={submitting || !sepNo || !!sjpNo || readOnly}
-            className="w-[200px] text-xs"
-            variant="outline"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FilePlus className="h-4 w-4 mr-2" />}
-            Generate SJP
-          </Button>
+          {!sjpNo ? (
+            <Button
+              onClick={handleGenerateSJP}
+              disabled={generatingSJP || !sepNo || readOnly}
+              className="w-[200px] text-xs"
+              variant="outline"
+            >
+              {generatingSJP ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FilePlus className="h-4 w-4 mr-2" />}
+              Generate SJP
+            </Button>
+          ) : (
+            <Button
+              onClick={handleHapusResep}
+              disabled={deletingResep || readOnly}
+              className="w-[200px] text-xs"
+              variant="destructive"
+            >
+              {deletingResep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              HAPUS RESEP
+            </Button>
+          )}
           <Button
             onClick={() => setRiwayatOpen(true)}
             className="w-[200px] text-xs"
@@ -578,7 +842,8 @@ export function PharmacyApotekOnline({
                   {dispenseItems.map((item) => {
                     const isSent = item.bpjs_status === "sent";
                     const isFailed = item.bpjs_status === "failed";
-                    const isMapped = !!item.medicine?.bpjs_kode_obat;
+                    const medicineDPHOCode = item.medicine?.dpho_kode_obat || item.medicine?.bpjs_kode_obat || "";
+                    const isMapped = !!medicineDPHOCode;
 
                     return (
                       <React.Fragment key={item.id}>
@@ -590,8 +855,10 @@ export function PharmacyApotekOnline({
                           <td className="py-2 px-2 align-top">
                             {isMapped ? (
                               <div>
-                                <Badge variant="outline" className="mb-1">{item.medicine.bpjs_kode_obat}</Badge>
-                                <p className="text-[11px] text-muted-foreground">Jenis: {item.medicine.bpjs_jenis_obat || "Umum"}</p>
+                                <Badge variant="outline" className="mb-1">{medicineDPHOCode}</Badge>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {item.medicine?.dpho_nama_obat || item.medicine?.name || "-"}
+                                </p>
                               </div>
                             ) : (
                               <Badge variant="destructive" className="text-[10px]">Belum Di-mapping</Badge>
@@ -610,15 +877,23 @@ export function PharmacyApotekOnline({
                                 <XCircle className="h-5 w-5" />
                               </Button>
                             ) : (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => openKirimModal(item)}
-                                disabled={!sjpNo || !isMapped || readOnly}
-                                className="h-7 text-[10px] w-full"
-                              >
-                                <Send className="h-3 w-3 mr-1" /> Kirim
-                              </Button>
+                              <div className="space-y-1">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => openKirimModal(item)}
+                                  disabled={!sjpNo || !isMapped || readOnly}
+                                  className="h-7 text-[10px] w-full"
+                                >
+                                  <Send className="h-3 w-3 mr-1" /> Kirim
+                                </Button>
+                                {!sjpNo && (
+                                  <p className="text-[10px] text-muted-foreground">Generate SJP dulu</p>
+                                )}
+                                {sjpNo && !isMapped && (
+                                  <p className="text-[10px] text-destructive">Obat belum di-mapping DPHO</p>
+                                )}
+                              </div>
                             )}
                           </td>
                         </tr>

@@ -20,6 +20,8 @@ export interface Visit {
   treatment?: string;
   notes?: string;
   registration?: any;
+  sep?: any;
+  SEP?: any;
   room?: any;
   doctor?: any;
   room_queue?: any;

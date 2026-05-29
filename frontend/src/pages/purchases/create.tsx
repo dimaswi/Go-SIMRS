@@ -46,8 +46,20 @@ interface Medicine {
   code: string;
   name: string;
   unit: string;
+  unit_large?: string;
+  large_to_small_factor?: number;
   current_stock: number;
   purchase_price: number;
+}
+
+function resolveOrderedQtySmall(item: SelectedItemWithQty) {
+  const factor = Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1));
+  const qtyLarge = Math.max(0, Number(item.quantity_large || 0));
+  const qtySmall = Math.max(0, Number(item.quantity_small || 0));
+  if (qtyLarge > 0 || qtySmall > 0) {
+    return (qtyLarge * factor) + qtySmall;
+  }
+  return Math.max(1, Number(item.quantity || 0));
 }
 
 export default function PurchaseCreate() {
@@ -115,6 +127,8 @@ export default function PurchaseCreate() {
           code: med.code,
           name: med.name,
           unit: med.unit,
+          unit_large: med.unit_large,
+          large_to_small_factor: med.large_to_small_factor || 1,
           type: "medicine" as const,
           current_stock: med.current_stock,
           price: med.purchase_price || 0,
@@ -150,7 +164,19 @@ export default function PurchaseCreate() {
   };
 
   const handleItemsConfirm = (items: SelectedItemWithQty[]) => {
-    setSelectedItems(items);
+    setSelectedItems(
+      items.map((item) => {
+        if (item.type !== "medicine") return item;
+        const factor = Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1));
+        return {
+          ...item,
+          unit_small: item.unit_small || item.unit,
+          conversion_factor: factor,
+          quantity_large: item.quantity_large ?? 0,
+          quantity_small: item.quantity_small ?? 0,
+        };
+      })
+    );
   };
 
   const handleUpdateItem = (index: number, updates: Partial<SelectedItemWithQty>) => {
@@ -212,7 +238,12 @@ export default function PurchaseCreate() {
         items: selectedItems.map((item) => ({
           inventory_id: item.type === "inventory" ? item.id : undefined,
           medicine_id: item.type === "medicine" ? item.id : undefined,
-          quantity_ordered: item.quantity,
+          quantity_ordered: resolveOrderedQtySmall(item),
+          quantity_large: item.type === "medicine" ? Math.max(0, Number(item.quantity_large || 0)) : undefined,
+          quantity_small: item.type === "medicine" ? Math.max(0, Number(item.quantity_small || 0)) : undefined,
+          unit_large: item.type === "medicine" ? (item.unit_large || undefined) : undefined,
+          unit_small: item.type === "medicine" ? (item.unit_small || item.unit || undefined) : undefined,
+          conversion_factor: item.type === "medicine" ? Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1)) : 1,
           unit_price: item.unit_price || 0,
           discount_percent: item.discount_percent || 0,
           discount_amount: item.discount_amount || 0,
@@ -455,6 +486,8 @@ export default function PurchaseCreate() {
                 onUpdateItem={handleUpdateItem}
                 onRemoveItem={handleRemoveItem}
                 onRemoveMultiple={handleRemoveMultiple}
+                enableDualUnit={true}
+                compactMode={true}
                 showPrice={true}
                 showBatch={true}
                 showExpiry={true}
@@ -492,6 +525,7 @@ export default function PurchaseCreate() {
         showPrice={true}
         showStock={true}
         showTabs={true}
+        enableDualUnit={true}
       />
     </PageShell>
   );

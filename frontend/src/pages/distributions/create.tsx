@@ -583,15 +583,18 @@ export default function DistributionCreate() {
                     <table className="w-full table-fixed border-collapse text-sm">
                       <thead className="sticky top-0 z-10 bg-background">
                         <tr className="bg-muted/20">
-                          <th className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Pilih</th>
-                          <th className="h-9 w-[26%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                          <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
-                          <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Approved</th>
-                          <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Terkirim</th>
-                          <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sisa</th>
-                          <th className="h-9 w-[11%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty Kirim</th>
-                          <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch / Exp</th>
-                          <th className="h-9 w-[10%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                          <th rowSpan={2} className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Pilih</th>
+                          <th rowSpan={2} className="h-9 w-[26%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                          <th rowSpan={2} className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                          <th colSpan={4} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
+                          <th rowSpan={2} className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch / Exp</th>
+                          <th rowSpan={2} className="h-9 w-[10%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                        </tr>
+                        <tr className="bg-muted/10">
+                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Approved</th>
+                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Terkirim</th>
+                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Sisa</th>
+                          <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Qty Kirim</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -600,29 +603,29 @@ export default function DistributionCreate() {
                           const isMedicine = item.item_type === "medicine";
                           return (
                             <tr key={item.id} className={cn("hover:bg-muted/5", item.selected && !isComplete && "bg-primary/5", isComplete && "bg-muted/20") }>
-                              <td className="border-b border-r border-border/60 px-2 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle">
                                 <Checkbox
                                   checked={item.selected}
                                   onCheckedChange={(checked) => handleItemChange(item.id, "selected", checked)}
                                   disabled={isComplete}
                                 />
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                                 <div className="space-y-0.5">
                                   <div className="text-xs font-semibold text-foreground">{item.name}</div>
                                   <div className="font-mono text-[11px] text-muted-foreground">{item.code || "-"}</div>
                                   <div className="text-[11px] text-muted-foreground">{isMedicine ? "Obat" : "Inventaris"}</div>
                                 </div>
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">{item.unit || "-"}</td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">{item.quantity_approved}</td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">{item.quantity_fulfilled}</td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">{item.unit || "-"}</td>
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">{item.quantity_approved}</td>
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">{item.quantity_fulfilled}</td>
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center">
                                 <Badge variant="outline" className={isComplete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
                                   {item.remaining}
                                 </Badge>
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle">
                                 <div className="max-w-[96px]">
                                   <Input
                                     type="number"
@@ -636,7 +639,7 @@ export default function DistributionCreate() {
                                 </div>
                                 <p className="mt-1 text-[10px] text-muted-foreground">Maks. {item.remaining}</p>
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                                 {isMedicine ? (
                                   <div className="grid gap-1.5">
                                     <Input
@@ -658,7 +661,7 @@ export default function DistributionCreate() {
                                   <span className="text-[11px] text-muted-foreground">Tidak wajib</span>
                                 )}
                               </td>
-                              <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">
                                 {isComplete ? (
                                   <span className="text-emerald-600">Terpenuhi</span>
                                 ) : item.selected ? (
@@ -720,23 +723,23 @@ export default function DistributionCreate() {
                     ) : (
                       filteredRequests.map((request) => (
                         <tr key={request.id} className="hover:bg-muted/5">
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                             <div className="space-y-0.5">
                               <div className="font-mono text-sm font-semibold text-foreground">{request.request_number}</div>
                               <div className="text-[11px] text-muted-foreground">{request.items?.length || 0} item total</div>
                             </div>
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                             <Badge className={stockRequestStatusColors[request.status] || "bg-muted text-foreground"}>
                               {stockRequestStatusLabels[request.status]}
                             </Badge>
                           </td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm text-foreground">{request.from_room?.name || "-"}</td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm text-foreground">{request.to_room?.name || "-"}</td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm text-foreground">{priorityLabels[request.priority]}</td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">{getRemainingItemCount(request)}</td>
-                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">{getRemainingQuantity(request)}</td>
-                          <td className="border-b border-border/60 px-3 py-2.5 align-top">
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-sm text-foreground">{request.from_room?.name || "-"}</td>
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-sm text-foreground">{request.to_room?.name || "-"}</td>
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-sm text-foreground">{priorityLabels[request.priority]}</td>
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-sm font-medium text-foreground">{getRemainingItemCount(request)}</td>
+                          <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle text-sm font-medium text-foreground">{getRemainingQuantity(request)}</td>
+                          <td className="border-b border-border/60 px-3 py-1.5 align-middle">
                             <Button type="button" variant="outline" size="sm" className="rounded-none" onClick={() => handleSelectRequest(request)}>
                               Pilih
                             </Button>

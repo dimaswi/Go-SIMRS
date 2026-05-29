@@ -7,11 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   nutritionPackageApi,
   nutritionMenuApi,
-  nutritionDietTypeLabels,
-  nutritionMealTimeLabels,
   nutritionCategoryLabels,
   type NutritionMenu,
   type NutritionPackageInput,
@@ -43,7 +42,6 @@ export default function NutritionMealPackageEdit() {
   const [description, setDescription] = useState("");
   const [dietType, setDietType] = useState("");
   const [mealTime, setMealTime] = useState("");
-  const [price, setPrice] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [notes, setNotes] = useState("");
 
@@ -58,6 +56,13 @@ export default function NutritionMealPackageEdit() {
   // Reference data
   const [dietTypes, setDietTypes] = useState<{ value: string; label: string }[]>([]);
   const [mealTimes, setMealTimes] = useState<{ value: string; label: string }[]>([]);
+  const [dietTypeMap, setDietTypeMap] = useState<Record<string, string>>({});
+
+  const [dietModalOpen, setDietModalOpen] = useState(false);
+  const [dietSaving, setDietSaving] = useState(false);
+  const [newDietName, setNewDietName] = useState("");
+  const [newDietCode, setNewDietCode] = useState("");
+  const [newDietDescription, setNewDietDescription] = useState("");
 
   useEffect(() => {
     setPageTitle("Edit Paket Makanan");
@@ -65,9 +70,76 @@ export default function NutritionMealPackageEdit() {
     loadPackage();
   }, [id]);
 
-  const loadReferenceData = () => {
-    setDietTypes(Object.entries(nutritionDietTypeLabels).map(([v, l]) => ({ value: v, label: l })));
-    setMealTimes(Object.entries(nutritionMealTimeLabels).map(([v, l]) => ({ value: v, label: l })));
+  const loadMenuLookup = async (term: string) => {
+    setSearchLoading(true);
+    try {
+      const params: { search?: string; limit: number; is_active: string } = { limit: 10, is_active: "true" };
+      if (term.trim()) {
+        params.search = term;
+      }
+      const res = await nutritionMenuApi.getAll(params);
+      setMenuResults(res.data.data || []);
+    } catch {
+      setMenuResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const loadReferenceData = async () => {
+    try {
+      const [dietRes, mealRes] = await Promise.all([
+        nutritionMenuApi.getDietTypes(),
+        nutritionMenuApi.getMealTimes(),
+      ]);
+      const dtOptions = dietRes.data?.data || [];
+      const mtOptions = mealRes.data?.data || [];
+      setDietTypes(dtOptions);
+      setMealTimes(mtOptions);
+      setDietTypeMap(
+        dtOptions.reduce((acc: Record<string, string>, item: { value: string; label: string }) => {
+          acc[item.value] = item.label;
+          return acc;
+        }, {})
+      );
+    } catch {
+      setDietTypes([]);
+      setMealTimes([]);
+      setDietTypeMap({});
+    }
+  };
+
+  const handleCreateDietType = async () => {
+    if (!newDietName.trim()) {
+      toast({ variant: "destructive", title: "Error!", description: "Nama jenis diet wajib diisi." });
+      return;
+    }
+    setDietSaving(true);
+    try {
+      const res = await nutritionMenuApi.createDietType({
+        name: newDietName.trim(),
+        code: newDietCode.trim() || undefined,
+        description: newDietDescription.trim() || undefined,
+      });
+      const created = res.data?.data;
+      await loadReferenceData();
+      if (created?.value) {
+        setDietType(created.value);
+      }
+      setDietModalOpen(false);
+      setNewDietName("");
+      setNewDietCode("");
+      setNewDietDescription("");
+      toast({ variant: "success", title: "Berhasil!", description: "Jenis diet berhasil ditambahkan." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: err?.response?.data?.error || "Gagal menambahkan jenis diet.",
+      });
+    } finally {
+      setDietSaving(false);
+    }
   };
 
   const loadPackage = async () => {
@@ -79,7 +151,6 @@ export default function NutritionMealPackageEdit() {
       setDescription(pkg.description || "");
       setDietType(pkg.diet_type);
       setMealTime(pkg.meal_time);
-      setPrice(pkg.price > 0 ? String(pkg.price) : "");
       setIsActive(pkg.is_active);
       setNotes(pkg.notes || "");
 
@@ -103,14 +174,9 @@ export default function NutritionMealPackageEdit() {
 
   // Search menus
   useEffect(() => {
-    if (menuSearch.length < 2) { setMenuResults([]); return; }
+    if (!menuSearch.trim()) { setMenuResults([]); return; }
     const timer = setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const res = await nutritionMenuApi.getAll({ search: menuSearch, limit: 10, is_active: "true" });
-        setMenuResults(res.data.data || []);
-      } catch { /* ignore */ }
-      setSearchLoading(false);
+      await loadMenuLookup(menuSearch);
     }, 300);
     return () => clearTimeout(timer);
   }, [menuSearch]);
@@ -172,7 +238,7 @@ export default function NutritionMealPackageEdit() {
         description,
         diet_type: dietType,
         meal_time: mealTime,
-        price: parseFloat(price) || 0,
+        price: 0,
         is_active: isActive,
         notes,
         items: items.map(i => ({ menu_id: i.menu_id, quantity: i.quantity, notes: i.notes })),
@@ -222,14 +288,14 @@ export default function NutritionMealPackageEdit() {
 
       <PageContent className="flex-none pb-8">
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <NutritionSummaryCue label="Identitas Paket" description="Nama paket, diet, dan waktu makan harus tetap jelas agar distribusi layanan tidak salah." tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Identitas Paket" description={`Diet: ${dietTypeMap[dietType] || "belum dipilih"} • Waktu: ${mealTimes.find((item) => item.value === mealTime)?.label || "belum dipilih"}`} tone="from-background via-background to-emerald-50/50" />
           <NutritionSummaryCue label="Komposisi Menu" description="Perubahan item akan memengaruhi total gizi dan harga layanan paket makanan." tone="from-background via-background to-sky-50/40" />
           <NutritionSummaryCue label="Status Operasional" description="Gunakan status aktif untuk mengendalikan ketersediaan paket di modul gizi." tone="from-background via-background to-amber-50/50" />
         </div>
 
       <form id="nutrition-package-edit-form" onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
         {/* Basic Info */}
-        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Paket" description="Perbarui identitas paket, diet, waktu makan, harga, status aktif, dan deskripsi singkat.">
+        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Paket" description="Perbarui identitas paket, diet, waktu makan, status aktif, dan deskripsi singkat.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
               <Label>Nama Paket *</Label>
@@ -237,15 +303,18 @@ export default function NutritionMealPackageEdit() {
             </div>
             <div className="space-y-2">
               <Label>Jenis Diet *</Label>
-              <Combobox options={dietTypes} value={dietType} onValueChange={setDietType} placeholder="Pilih jenis diet..." />
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Combobox options={dietTypes} value={dietType} onValueChange={setDietType} placeholder="Pilih jenis diet..." />
+                </div>
+                <Button type="button" variant="outline" size="icon" onClick={() => setDietModalOpen(true)} title="Tambah jenis diet">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Waktu Makan *</Label>
               <Combobox options={mealTimes} value={mealTime} onValueChange={setMealTime} placeholder="Pilih waktu makan..." />
-            </div>
-            <div className="space-y-2">
-              <Label>Harga (Rp)</Label>
-              <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <Switch id="is_active" checked={isActive} onCheckedChange={setIsActive} />
@@ -267,6 +336,11 @@ export default function NutritionMealPackageEdit() {
             <Input
               value={menuSearch}
               onChange={(e) => setMenuSearch(e.target.value)}
+              onFocus={() => {
+                if (menuResults.length === 0) {
+                  loadMenuLookup("");
+                }
+              }}
               placeholder="Cari menu untuk ditambahkan..."
               className="pl-9"
             />
@@ -282,7 +356,7 @@ export default function NutritionMealPackageEdit() {
                     <div>
                       <div className="font-medium">{menu.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {nutritionCategoryLabels[menu.category] || menu.category} Â· {menu.calories} kkal
+                        {nutritionCategoryLabels[menu.category] || menu.category} · {menu.calories} kkal
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs">{menu.code}</Badge>
@@ -290,7 +364,7 @@ export default function NutritionMealPackageEdit() {
                 ))}
               </div>
             )}
-            {searchLoading && menuSearch.length >= 2 && (
+            {searchLoading && menuSearch.trim().length >= 1 && (
               <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-3 text-sm text-muted-foreground text-center">
                 <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Mencari...
               </div>
@@ -309,7 +383,7 @@ export default function NutritionMealPackageEdit() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{item.menu?.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {nutritionCategoryLabels[item.menu?.category || ''] || ''} Â· {item.menu?.calories} kkal/porsi
+                      {nutritionCategoryLabels[item.menu?.category || ''] || ''} · {item.menu?.calories} kkal/porsi
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -365,6 +439,38 @@ export default function NutritionMealPackageEdit() {
         </div>
       </form>
       </PageContent>
+
+      <Dialog open={dietModalOpen} onOpenChange={setDietModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tambah Jenis Diet</DialogTitle>
+            <DialogDescription>Jenis diet baru disimpan di master backend dan langsung bisa dipilih pada paket makanan.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Nama Jenis Diet *</Label>
+              <Input value={newDietName} onChange={(e) => setNewDietName(e.target.value)} placeholder="Contoh: Diet Tinggi Serat" />
+            </div>
+            <div className="space-y-2">
+              <Label>Kode (opsional)</Label>
+              <Input value={newDietCode} onChange={(e) => setNewDietCode(e.target.value)} placeholder="Contoh: tinggi_serat" />
+            </div>
+            <div className="space-y-2">
+              <Label>Deskripsi</Label>
+              <Textarea value={newDietDescription} onChange={(e) => setNewDietDescription(e.target.value)} rows={2} placeholder="Catatan tambahan..." />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDietModalOpen(false)}>
+                Batal
+              </Button>
+              <Button type="button" onClick={handleCreateDietType} disabled={dietSaving}>
+                {dietSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Jenis Diet
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

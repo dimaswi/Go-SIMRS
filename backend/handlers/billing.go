@@ -544,6 +544,11 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 		if err := generateO2UsageItems(tx, billing, visit); err != nil {
 			return err
 		}
+
+		// BHP usage from this visit
+		if err := generateVisitBHPUsageItems(tx, billing, visit); err != nil {
+			return err
+		}
 	}
 
 	// ============================================
@@ -554,6 +559,11 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 
 		// Only procedure items from orders
 		if err := generateVisitProcedureItems(tx, billing, visit); err != nil {
+			return err
+		}
+
+		// BHP usage can also be consumed during lab/radiology execution.
+		if err := generateVisitBHPUsageItems(tx, billing, visit); err != nil {
 			return err
 		}
 
@@ -1107,6 +1117,61 @@ func generateVisitMedicineItems(tx *gorm.DB, billing *models.Billing, visit *mod
 		}
 
 		if err := tx.Create(&billingItem).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// generateVisitBHPUsageItems adds room BHP usage items to billing.
+func generateVisitBHPUsageItems(tx *gorm.DB, billing *models.Billing, visit *models.Visit) error {
+	var usages []models.VisitBHPUsage
+	if err := tx.
+		Preload("Inventory").
+		Preload("CreatedBy").
+		Where("visit_id = ?", visit.ID).
+		Order("used_at ASC, id ASC").
+		Find(&usages).Error; err != nil {
+		return err
+	}
+
+	for _, usage := range usages {
+		if usage.Quantity <= 0 || usage.Subtotal <= 0 {
+			continue
+		}
+
+		description := "Penggunaan BHP"
+		referenceCode := ""
+		if usage.Inventory != nil {
+			description = fmt.Sprintf("BHP: %s", usage.Inventory.Name)
+			referenceCode = usage.Inventory.Code
+		}
+
+		item := models.BillingItem{
+			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
+			ItemType:      models.BillingItemTypeOther,
+			ReferenceID:   usage.ID,
+			ReferenceType: "visit_bhp_usage",
+			ReferenceCode: referenceCode,
+			Description:   description,
+			Quantity:      usage.Quantity,
+			Unit:          usage.Unit,
+			UnitPrice:     usage.UnitPrice,
+			Subtotal:      usage.Subtotal,
+			Notes:         usage.Notes,
+		}
+
+		if usage.CreatedByID != nil {
+			item.PerformedByID = usage.CreatedByID
+			if usage.CreatedBy != nil {
+				item.PerformedByName = usage.CreatedBy.FullName
+				item.PerformedByRole = "petugas"
+			}
+		}
+
+		if err := tx.Create(&item).Error; err != nil {
 			return err
 		}
 	}

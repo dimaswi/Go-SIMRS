@@ -16,6 +16,7 @@ import {
   stockRequestStatusLabels,
   priorityLabels,
   requestTypeLabels,
+  requestModeLabels,
 } from "@/lib/api/stock-requests";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
@@ -241,6 +242,7 @@ export default function StockRequestShow() {
   const canEdit = hasPermission("stock_requests.update") && (request.status === "draft" || request.status === "pending");
   const canSubmit = hasPermission("stock_requests.create") && request.status === "draft";
   const canCreateDistribution = hasPermission("distributions.create")
+    && request.request_mode === "depo"
     && (request.status === "approved" || request.status === "partial")
     && request.items.some((item) => item.quantity_approved > item.quantity_fulfilled);
   const approvalHistories = [...(request.approval_histories || [])].sort(
@@ -326,8 +328,8 @@ export default function StockRequestShow() {
                     <div className="mt-1 text-sm font-semibold text-foreground">{request.items?.length || 0} item</div>
                   </div>
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-3 py-3">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Ruang Tujuan</div>
-                    <div className="mt-1 text-sm font-semibold text-foreground">{request.to_room?.name || "-"}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Mode</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{requestModeLabels[request.request_mode] || request.request_mode}</div>
                   </div>
                 </div>
 
@@ -359,7 +361,7 @@ export default function StockRequestShow() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Building className="h-4 w-4" />
-                        Ke Ruangan
+                        {request.request_mode === "depo" ? "Ke Ruangan" : "Ruangan Penerima"}
                       </div>
                       <p className="text-sm font-medium">{request.to_room?.code} - {request.to_room?.name}</p>
                     </div>
@@ -373,6 +375,39 @@ export default function StockRequestShow() {
                   </div>
                 </div>
               </SectionPanel>
+
+              {request.request_mode === "self_purchase" && (
+                <SectionPanel icon={FileText} title="Data Struk" description="Dokumen bukti pembelian mandiri unit.">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Nomor Struk</p>
+                      <p className="text-sm font-medium">{request.receipt_number || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Tanggal Struk</p>
+                      <p className="text-sm font-medium">{formatShortDate(request.receipt_date)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Supplier</p>
+                      <p className="text-sm font-medium">{request.supplier_name || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Total Belanja</p>
+                      <p className="text-sm font-medium">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(request.total_amount || 0)}</p>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">File Struk</p>
+                      {request.receipt_file_url ? (
+                        <a href={request.receipt_file_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                          {request.receipt_file_url}
+                        </a>
+                      ) : (
+                        <p className="text-sm font-medium">-</p>
+                      )}
+                    </div>
+                  </div>
+                </SectionPanel>
+              )}
 
               <SectionPanel
                 icon={User}
@@ -474,12 +509,15 @@ export default function StockRequestShow() {
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">
-                        <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                        <th className="h-9 w-[12%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Diminta</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Disetujui</th>
-                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Terpenuhi</th>
-                        <th className="h-9 w-[16%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                        <th rowSpan={2} className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th rowSpan={2} className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                        <th colSpan={3} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
+                        <th rowSpan={2} className="h-9 w-[16%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                      </tr>
+                      <tr className="bg-muted/10">
+                        <th className="h-8 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Diminta</th>
+                        <th className="h-8 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Disetujui</th>
+                        <th className="h-8 w-[14%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Terpenuhi</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -488,7 +526,7 @@ export default function StockRequestShow() {
                           const itemData = item.inventory || item.medicine;
                           return (
                             <tr key={item.id} className="transition-colors hover:bg-muted/10">
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                                 <div className="flex items-start gap-2">
                                   {item.inventory_id ? (
                                     <Package className="mt-0.5 h-4 w-4 text-blue-500" />
@@ -501,13 +539,13 @@ export default function StockRequestShow() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">
                                 {item.unit || itemData?.unit || "-"}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">
                                 {item.quantity_requested}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center">
                                 {request.status === "pending" ? (
                                   <span className="text-[11px] text-muted-foreground">-</span>
                                 ) : (
@@ -516,7 +554,7 @@ export default function StockRequestShow() {
                                   </span>
                                 )}
                               </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center">
                                 {item.quantity_fulfilled > 0 ? (
                                   <span className={item.quantity_fulfilled < item.quantity_approved ? "text-sm font-medium text-orange-600" : "text-sm font-medium text-green-600"}>
                                     {item.quantity_fulfilled}
@@ -525,7 +563,7 @@ export default function StockRequestShow() {
                                   <span className="text-[11px] text-muted-foreground">-</span>
                                 )}
                               </td>
-                              <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">
                                 {item.notes || "-"}
                               </td>
                             </tr>

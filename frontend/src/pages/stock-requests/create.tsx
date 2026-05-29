@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { stockRequestsApi } from "@/lib/api/stock-requests";
 import { roomsApi } from "@/lib/api/rooms";
-import { roomInventoriesApi } from "@/lib/api/inventories";
-import { roomMedicinesApi } from "@/lib/api/medicines";
+import { inventoriesApi, roomInventoriesApi } from "@/lib/api/inventories";
+import { medicinesApi, roomMedicinesApi } from "@/lib/api/medicines";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Send, ArrowLeft, ClipboardList, Package, Pill } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
@@ -47,6 +48,20 @@ interface RoomMedicineItem {
   };
   quantity: number;
   min_quantity: number;
+}
+
+interface MasterInventoryItem {
+  id: number;
+  code: string;
+  name: string;
+  unit: string;
+}
+
+interface MasterMedicineItem {
+  id: number;
+  code: string;
+  name: string;
+  unit: string;
 }
 
 const priorityOptions: ComboboxOption[] = [
@@ -115,12 +130,18 @@ export default function StockRequestCreate() {
 
   const [formData, setFormData] = useState({
     request_type: "inventory" as "inventory" | "medicine",
+    request_mode: "depo" as "depo" | "self_purchase",
     from_room_id: 0,
     to_room_id: 0,
     priority: "normal",
     required_date: "",
     reason: "",
     notes: "",
+    receipt_number: "",
+    receipt_date: "",
+    receipt_file_url: "",
+    supplier_name: "",
+    total_amount: 0,
   });
 
   const [selectedItems, setSelectedItems] = useState<SelectedItemWithQty[]>([]);
@@ -130,9 +151,11 @@ export default function StockRequestCreate() {
     loadRooms();
   }, []);
 
-  // Load items when to_room_id (depo/gudang tujuan) or request_type changes
-  const loadRoomItems = useCallback(async (roomId: number, requestType: string) => {
-    if (!roomId) {
+  // Load selectable items based on request mode:
+  // - depo: source from depo room stock
+  // - self_purchase: source from master active items
+  const loadRoomItems = useCallback(async (roomId: number, requestType: string, requestMode: "depo" | "self_purchase") => {
+    if (requestMode === "depo" && !roomId) {
       setAvailableItems([]);
       return;
     }
@@ -141,32 +164,61 @@ export default function StockRequestCreate() {
     try {
       let items: SelectableItem[] = [];
 
-      if (requestType === "inventory") {
-        const res = await roomInventoriesApi.getByRoom(roomId, { limit: 500 });
-        const roomInventories: RoomInventoryItem[] = res.data.data || [];
-        items = roomInventories
-          .filter((ri) => ri.inventory && ri.quantity > 0)
-          .map((ri) => ({
-            id: ri.inventory_id,
-            code: ri.inventory!.code,
-            name: ri.inventory!.name,
-            unit: ri.inventory!.unit,
-            type: "inventory" as const,
-            current_stock: ri.quantity,
-          }));
+      if (requestMode === "depo") {
+        if (requestType === "inventory") {
+          const res = await roomInventoriesApi.getByRoom(roomId, { limit: 500 });
+          const roomInventories: RoomInventoryItem[] = res.data.data || [];
+          items = roomInventories
+            .filter((ri) => ri.inventory && ri.quantity > 0)
+            .map((ri) => ({
+              id: ri.inventory_id,
+              code: ri.inventory!.code,
+              name: ri.inventory!.name,
+              unit: ri.inventory!.unit,
+              type: "inventory" as const,
+              current_stock: ri.quantity,
+            }));
+        } else {
+          const res = await roomMedicinesApi.getByRoom(roomId, { limit: 500 });
+          const roomMedicines: RoomMedicineItem[] = res.data.data || [];
+          items = roomMedicines
+            .filter((rm) => rm.medicine && rm.quantity > 0)
+            .map((rm) => ({
+              id: rm.medicine_id,
+              code: rm.medicine!.code,
+              name: rm.medicine!.name,
+              unit: rm.medicine!.unit,
+              type: "medicine" as const,
+              current_stock: rm.quantity,
+            }));
+        }
       } else {
-        const res = await roomMedicinesApi.getByRoom(roomId, { limit: 500 });
-        const roomMedicines: RoomMedicineItem[] = res.data.data || [];
-        items = roomMedicines
-          .filter((rm) => rm.medicine && rm.quantity > 0)
-          .map((rm) => ({
-            id: rm.medicine_id,
-            code: rm.medicine!.code,
-            name: rm.medicine!.name,
-            unit: rm.medicine!.unit,
-            type: "medicine" as const,
-            current_stock: rm.quantity,
+        if (requestType === "inventory") {
+          const res = await inventoriesApi.getAll({
+            limit: 500,
+            is_active: true,
+            item_group: "bhp",
+            item_scope: "unit,both",
+          });
+          const inventoryItems: MasterInventoryItem[] = res.data.data || [];
+          items = inventoryItems.map((inv) => ({
+            id: inv.id,
+            code: inv.code,
+            name: inv.name,
+            unit: inv.unit,
+            type: "inventory" as const,
           }));
+        } else {
+          const res = await medicinesApi.getAll({ limit: 500, is_active: true });
+          const medicineItems: MasterMedicineItem[] = res.data.data || [];
+          items = medicineItems.map((med) => ({
+            id: med.id,
+            code: med.code,
+            name: med.name,
+            unit: med.unit,
+            type: "medicine" as const,
+          }));
+        }
       }
 
       setAvailableItems(items);
@@ -174,7 +226,7 @@ export default function StockRequestCreate() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Gagal memuat stok ruangan.",
+        description: "Gagal memuat data item.",
       });
     } finally {
       setLoadingItems(false);
@@ -182,12 +234,14 @@ export default function StockRequestCreate() {
   }, [toast]);
 
   useEffect(() => {
-    if (formData.to_room_id > 0) {
-      loadRoomItems(formData.to_room_id, formData.request_type);
-      // Clear items when depo or type changes
+    if (formData.request_mode === "depo" && formData.to_room_id === 0) {
+      setAvailableItems([]);
       setSelectedItems([]);
+      return;
     }
-  }, [formData.to_room_id, formData.request_type, loadRoomItems]);
+    loadRoomItems(formData.to_room_id, formData.request_type, formData.request_mode);
+    setSelectedItems([]);
+  }, [formData.to_room_id, formData.request_type, formData.request_mode, loadRoomItems]);
 
   const loadRooms = async () => {
     setLoading(true);
@@ -239,11 +293,29 @@ export default function StockRequestCreate() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.from_room_id || !formData.to_room_id) {
+    if (!formData.from_room_id) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Pilih ruangan asal dan tujuan.",
+        description: "Pilih ruangan pemohon.",
+      });
+      return;
+    }
+
+    if (formData.request_mode === "depo" && !formData.to_room_id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Pilih depo/gudang tujuan.",
+      });
+      return;
+    }
+
+    if (formData.request_mode === "self_purchase" && !formData.receipt_number.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Nomor struk wajib diisi untuk pembelian sendiri.",
       });
       return;
     }
@@ -261,12 +333,18 @@ export default function StockRequestCreate() {
     try {
       await stockRequestsApi.create({
         request_type: formData.request_type,
+        request_mode: formData.request_mode,
         from_room_id: formData.from_room_id,
-        to_room_id: formData.to_room_id,
+        to_room_id: formData.request_mode === "depo" ? formData.to_room_id : undefined,
         priority: formData.priority,
         required_date: formData.required_date || undefined,
         reason: formData.reason,
         notes: formData.notes,
+        receipt_number: formData.request_mode === "self_purchase" ? formData.receipt_number : undefined,
+        receipt_date: formData.request_mode === "self_purchase" ? (formData.receipt_date || undefined) : undefined,
+        receipt_file_url: formData.request_mode === "self_purchase" ? (formData.receipt_file_url || undefined) : undefined,
+        supplier_name: formData.request_mode === "self_purchase" ? (formData.supplier_name || undefined) : undefined,
+        total_amount: formData.request_mode === "self_purchase" ? formData.total_amount : undefined,
         items: selectedItems.map((item) => ({
           inventory_id: item.type === "inventory" ? item.id : undefined,
           medicine_id: item.type === "medicine" ? item.id : undefined,
@@ -360,7 +438,38 @@ export default function StockRequestCreate() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Sumber Pemenuhan *</Label>
+                    <RadioGroup
+                      value={formData.request_mode}
+                      onValueChange={(value) => {
+                        const nextMode = value as "depo" | "self_purchase";
+                        setFormData((prev) => ({
+                          ...prev,
+                          request_mode: nextMode,
+                          to_room_id: nextMode === "depo" ? prev.to_room_id : 0,
+                        }));
+                        setSelectedItems([]);
+                        setAvailableItems([]);
+                      }}
+                      className="grid gap-2 sm:grid-cols-2"
+                    >
+                      <label className="flex items-start gap-2 border border-border/70 bg-background px-3 py-2">
+                        <RadioGroupItem value="depo" id="request-mode-depo" className="mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Depo</p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2 border border-border/70 bg-background px-3 py-2">
+                        <RadioGroupItem value="self_purchase" id="request-mode-self" className="mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Beli Sendiri</p>
+                        </div>
+                      </label>
+                    </RadioGroup>
+                  </div>
+
+                  <div className={cn("grid gap-3", formData.request_mode === "depo" ? "sm:grid-cols-2" : "sm:grid-cols-1")}>
                     <div className="space-y-1">
                       <Label>Ruangan Pemohon *</Label>
                       <Combobox
@@ -374,18 +483,20 @@ export default function StockRequestCreate() {
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <Label>Depo/Gudang Tujuan *</Label>
-                      <Combobox
-                        options={depoRooms}
-                        value={formData.to_room_id ? formData.to_room_id.toString() : ""}
-                        onValueChange={(value) => setFormData({ ...formData, to_room_id: parseInt(value) })}
-                        placeholder="Pilih depo/gudang"
-                        searchPlaceholder="Cari depo/gudang..."
-                        emptyText="Depo/gudang tidak ditemukan"
-                        className="h-8"
-                      />
-                    </div>
+                    {formData.request_mode === "depo" ? (
+                      <div className="space-y-1">
+                        <Label>Depo/Gudang Tujuan *</Label>
+                        <Combobox
+                          options={depoRooms}
+                          value={formData.to_room_id ? formData.to_room_id.toString() : ""}
+                          onValueChange={(value) => setFormData({ ...formData, to_room_id: parseInt(value) })}
+                          placeholder="Pilih depo/gudang"
+                          searchPlaceholder="Cari depo/gudang..."
+                          emptyText="Depo/gudang tidak ditemukan"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -419,6 +530,52 @@ export default function StockRequestCreate() {
                       className="min-h-[96px] resize-none"
                     />
                   </div>
+
+                  {formData.request_mode === "self_purchase" ? (
+                    <div className="grid gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>Nomor Struk *</Label>
+                        <Input
+                          placeholder="Masukkan nomor struk"
+                          value={formData.receipt_number}
+                          onChange={(e) => setFormData({ ...formData, receipt_number: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Tanggal Struk</Label>
+                        <Input
+                          type="date"
+                          value={formData.receipt_date}
+                          onChange={(e) => setFormData({ ...formData, receipt_date: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Nama Supplier</Label>
+                        <Input
+                          placeholder="Supplier / toko"
+                          value={formData.supplier_name}
+                          onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Total Belanja (Rp)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={formData.total_amount || ""}
+                          onChange={(e) => setFormData({ ...formData, total_amount: parseInt(e.target.value, 10) || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>File/URL Struk</Label>
+                        <Input
+                          placeholder="Link file struk (opsional)"
+                          value={formData.receipt_file_url}
+                          onChange={(e) => setFormData({ ...formData, receipt_file_url: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </SectionPanel>
 
@@ -427,7 +584,7 @@ export default function StockRequestCreate() {
                 title="Ringkasan Permintaan"
                 description="Pantau arah permintaan dan jumlah item sambil menyusun daftar di panel kanan."
               >
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Sumber</div>
                     <div className="mt-1 text-sm font-medium text-foreground">{rooms.find((room) => room.value === String(formData.from_room_id))?.label || "Pilih ruangan"}</div>
@@ -435,6 +592,10 @@ export default function StockRequestCreate() {
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Item Dipilih</div>
                     <div className="mt-1 text-sm font-medium text-foreground">{selectedItems.length} dari {availableItems.length}</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-cyan-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Mode</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{formData.request_mode === "depo" ? "Permintaan ke Depo" : "Beli Sendiri"}</div>
                   </div>
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Tipe</div>
@@ -449,14 +610,16 @@ export default function StockRequestCreate() {
             <SectionPanel
               icon={formData.request_type === "inventory" ? Package : Pill}
               title="Daftar Item"
-              description="Ambil item langsung dari stok depo atau gudang yang dipilih, lalu sesuaikan jumlah per item."
+              description={formData.request_mode === "depo"
+                ? "Ambil item langsung dari stok depo atau gudang yang dipilih, lalu sesuaikan jumlah per item."
+                : "Pilih item master yang akan dibeli sendiri oleh unit, lalu tentukan jumlah per item."}
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
               headerClassName="px-2.5 py-2 sm:px-3"
               contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
               actions={
                 <Button
                   onClick={() => setPickerOpen(true)}
-                  disabled={formData.to_room_id === 0 || loadingItems}
+                  disabled={(formData.request_mode === "depo" && formData.to_room_id === 0) || loadingItems}
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 text-[10px]"
@@ -470,7 +633,7 @@ export default function StockRequestCreate() {
                 </Button>
               }
             >
-              {formData.to_room_id === 0 ? (
+              {formData.request_mode === "depo" && formData.to_room_id === 0 ? (
                 <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/10 text-sm text-muted-foreground">
                   Pilih depo/gudang tujuan terlebih dahulu
                 </div>
@@ -480,7 +643,9 @@ export default function StockRequestCreate() {
                 </div>
               ) : availableItems.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/10 text-sm text-muted-foreground">
-                  Tidak ada {formData.request_type === "inventory" ? "inventaris" : "obat"} di depo/gudang ini
+                  {formData.request_mode === "depo"
+                    ? `Tidak ada ${formData.request_type === "inventory" ? "inventaris" : "obat"} di depo/gudang ini`
+                    : `Tidak ada item master ${formData.request_type === "inventory" ? "BHP" : "obat"} yang aktif`}
                 </div>
               ) : (
                 <>
@@ -489,7 +654,10 @@ export default function StockRequestCreate() {
                     onUpdateItem={handleUpdateItem}
                     onRemoveItem={handleRemoveItem}
                     onRemoveMultiple={handleRemoveMultiple}
+                    compactMode={true}
                     showPrice={false}
+                    showStock={formData.request_mode === "depo"}
+                    enforceStockLimit={formData.request_mode === "depo"}
                     emptyMessage={`Klik 'Pilih Item' untuk menambahkan ${formData.request_type === "inventory" ? "inventaris" : "obat"}`}
                     className="flex min-h-0 flex-1 flex-col"
                     scrollAreaClassName="min-h-0 h-full flex-1"
@@ -510,12 +678,14 @@ export default function StockRequestCreate() {
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           title={`Pilih ${formData.request_type === "inventory" ? "Inventaris" : "Obat"}`}
-          description={`Pilih ${formData.request_type === "inventory" ? "inventaris" : "obat"} yang ingin diminta dari depo`}
+          description={formData.request_mode === "depo"
+            ? `Pilih ${formData.request_type === "inventory" ? "inventaris" : "obat"} yang ingin diminta dari depo`
+            : `Pilih ${formData.request_type === "inventory" ? "item BHP" : "obat"} yang akan dibeli sendiri oleh unit`}
           items={availableItems}
           selectedItems={selectedItems}
           onConfirm={handleItemsConfirm}
           showPrice={false}
-          showStock={true}
+          showStock={formData.request_mode === "depo"}
           showTabs={false}
         />
       </PageContent>

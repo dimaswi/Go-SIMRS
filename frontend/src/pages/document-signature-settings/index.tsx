@@ -36,19 +36,6 @@ function getCoverageStatus(row: RuleRow): { label: string; variant: "default" | 
   return { label: "Single Signature", variant: "outline" };
 }
 
-function getSlotLabel(slot: SignatureColumnOption): string {
-  switch (slot) {
-    case "doctor_dpjp":
-      return "DPJP";
-    case "nurse":
-      return "Perawat";
-    case "patient":
-      return "Pasien";
-    default:
-      return "Kosong";
-  }
-}
-
 const COLUMN_OPTIONS: Array<{ value: SignatureColumnOption; label: string }> = [
   { value: "doctor_dpjp", label: "DPJP" },
   { value: "nurse", label: "Perawat" },

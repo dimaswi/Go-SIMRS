@@ -16,7 +16,6 @@ import {
   Search,
   FileCheck,
   CheckCircle2,
-  XCircle,
   ClipboardList,
   Calendar,
 } from "lucide-react";
@@ -95,6 +94,7 @@ export function SPRIFormSheet({
   const [assigningSPRI, setAssigningSPRI] = useState(false);
   const [searchSPRIError, setSearchSPRIError] = useState("");
   const [searchedSPRI, setSearchedSPRI] = useState<VClaimSuratKontrolDetail | null>(null);
+  const [entryMode, setEntryMode] = useState<"form" | "search">("form");
 
   // Track apakah sudah fetch kepesertaan untuk mencegah loop
   const hasFetchedRef = useRef(false);
@@ -116,6 +116,7 @@ export function SPRIFormSheet({
       setAssigningSPRI(false);
       setSearchSPRIError("");
       setSearchedSPRI(null);
+      setEntryMode("form");
     } else {
       hasFetchedRef.current = false;
     }
@@ -152,15 +153,6 @@ export function SPRIFormSheet({
     }
   };
 
-  // Handler untuk tombol cek peserta manual
-  const handleCekPeserta = () => {
-    if (!noKartu) {
-      toast({ variant: "destructive", title: "Error", description: "Nomor kartu BPJS tidak tersedia" });
-      return;
-    }
-    fetchKepesertaan(noKartu, today);
-  };
-
   // Search Poli untuk SPRI (rawat inap)
   const handleSearchPoli = async (keyword: string) => {
     try {
@@ -174,7 +166,7 @@ export function SPRIFormSheet({
   // Search Dokter untuk SPRI
   const handleSearchDokter = async (keyword: string) => {
     if (!kodePoli || !tglRencanaKontrol) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih poli dan tanggal kontrol terlebih dahulu" });
+      toast({ variant: "destructive", title: "Error", description: "Pilih poli dan tanggal perintah rawat inap terlebih dahulu" });
       return [];
     }
     try {
@@ -200,15 +192,15 @@ export function SPRIFormSheet({
       return;
     }
     if (!tglRencanaKontrol) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih tanggal rencana kontrol" });
+      toast({ variant: "destructive", title: "Error", description: "Pilih tanggal perintah rawat inap" });
       return;
     }
     if (!kodePoli) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih poli kontrol" });
+      toast({ variant: "destructive", title: "Error", description: "Pilih poli perintah rawat inap" });
       return;
     }
     if (!kodeDokter) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih dokter kontrol" });
+      toast({ variant: "destructive", title: "Error", description: "Pilih dokter perintah rawat inap" });
       return;
     }
 
@@ -357,14 +349,50 @@ export function SPRIFormSheet({
             description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
             icon={FileCheck}
             meta={
-              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                SPRI
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                  SPRI
+                </Badge>
+                <Badge
+                  variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}
+                  className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.2em]"
+                  style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
+                >
+                  {loadingPeserta ? "Mengecek" : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
+                </Badge>
+              </div>
             }
           />
 
           <ScrollArea className="flex-1">
-            <div className="px-6 py-2">
+            <div className="space-y-6 p-6">
+              {canAssignExisting && (
+                <div className={BPJS_SECTION_CLASS}>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={entryMode === "form" ? "default" : "outline"}
+                      className="h-8 rounded-none border-border/70 px-3 text-xs"
+                      onClick={() => setEntryMode("form")}
+                    >
+                      Form SPRI
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={entryMode === "search" ? "default" : "outline"}
+                      className="h-8 rounded-none border-border/70 px-3 text-xs"
+                      onClick={() => setEntryMode("search")}
+                    >
+                      Cari Berdasarkan SPRI
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {entryMode === "form" && (
+                <>
               {/* === SEP AKTIF (jika ada) === */}
               {activeSEP && (
               <div className={BPJS_SECTION_CLASS}>
@@ -380,10 +408,12 @@ export function SPRIFormSheet({
                 />
               </div>
               )}
+                </>
+              )}
 
-              {canAssignExisting && (
+              {canAssignExisting && entryMode === "search" && (
               <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Assign" title="Cari & Assign SPRI (GetSuratKontrolDetail)" />
+                <BPJSSectionHeader eyebrow="Assign" title="Cari & Assign SPRI" />
                 <div className={`${BPJS_PANEL_CLASS} space-y-3 p-4`}>
                   <div className="flex gap-2">
                     <Input
@@ -423,7 +453,7 @@ export function SPRIFormSheet({
                           { label: "No. SPRI", value: searchedSPRI.noSuratKontrol || "-", mono: true },
                           { label: "No. Kartu", value: searchedSPRI.noKartu || "-", mono: true },
                           { label: "Nama Peserta", value: searchedSPRI.nama || "-" },
-                          { label: "Tgl Kontrol", value: searchedSPRI.tglRencanaKontrol || "-" },
+                          { label: "Tanggal Perintah", value: searchedSPRI.tglRencanaKontrol || "-" },
                           { label: "Poli", value: searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-", span: 2 },
                           { label: "Dokter", value: searchedSPRI.dokter?.nama || "-" },
                           { label: "Diagnosa", value: searchedSPRI.namaDiagnosa || "-", span: 2 },
@@ -444,80 +474,17 @@ export function SPRIFormSheet({
               </div>
               )}
 
-              {!activeSEP && (
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
-                <BPJSInfoGrid
-                  items={[
-                    { label: "Nama", value: patient.nama_lengkap },
-                    { label: "No. Kartu BPJS", value: patient.no_bpjs || "-", mono: true },
-                    { label: "No. RM", value: patient.no_rm, mono: true },
-                    { label: "NIK", value: patient.nik || "-", mono: true },
-                  ]}
-                />
-              </div>
-              )}
-
-
-              {/* === KEPESERTAAN === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Verification" title="Kepesertaan BPJS" action={
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={handleCekPeserta} 
-                    disabled={loadingPeserta}
-                    className="h-8 rounded-none border-border/70 px-3"
-                  >
-                    {loadingPeserta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                    Cek Ulang
-                  </Button>
-                } />
-
-                {loadingPeserta && (
-                  <BPJSStatePanel
-                    icon={<Loader2 className="h-4 w-4 animate-spin" />}
-                    title="Mengecek kepesertaan..."
-                    description="Data peserta BPJS sedang diambil untuk memastikan hak kelas dan status aktif pasien."
-                  />
-                )}
-                {/* Status Peserta */}
-                {peserta && !loadingPeserta && (
-                  <BPJSStatePanel
-                    tone="success"
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    title={
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{peserta.nama}</span>
-                        <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.18em]">
-                          {peserta.statusPeserta?.keterangan}
-                        </Badge>
-                      </div>
-                    }
-                    extra={
-                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                        <span>NIK: {peserta.nik}</span>
-                        <span>Kelas Hak: {peserta.hakKelas?.keterangan}</span>
-                        <span>Jenis Peserta: {peserta.jenisPeserta?.keterangan}</span>
-                        <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
-                      </div>
-                    }
-                  />
-                )}
-                {pesertaError && !loadingPeserta && (
-                  <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Data peserta tidak dapat diverifikasi" description={pesertaError} />
-                )}
-              </div>
-
+              {entryMode === "form" && (
+                <>
               {/* === FORM SPRI === */}
               <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Planning" title="Rencana Kontrol" />
+                <BPJSSectionHeader eyebrow="Planning" title="Surat Perintah Rawat Inap (SPRI)" />
                 
-                {/* Tanggal Rencana Kontrol */}
+                {/* Tanggal Perintah Rawat Inap */}
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Tanggal Rencana Kontrol <span className="text-destructive">*</span>
+                    Tanggal Perintah Rawat Inap<span className="text-destructive">*</span>
                   </Label>
                   <Input
                     type="date"
@@ -531,9 +498,6 @@ export function SPRIFormSheet({
                     min={getMinDate()}
                     className={BPJS_FIELD_CLASS}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Tanggal kontrol bisa hari ini atau hari berikutnya
-                  </p>
                 </div>
 
                 {/* Poli & Dokter Selector with Tabs */}
@@ -558,6 +522,12 @@ export function SPRIFormSheet({
                     searchDokterBPJS={handleSearchDokter}
                     poliModalTitle="Cari Poli SPRI BPJS"
                     dokterModalTitle="Cari Dokter SPRI BPJS"
+                    poliFieldLabel="Poli Rawat Inap"
+                    dokterFieldLabel="Dokter Rawat Inap"
+                    poliInputPlaceholder="Pilih poli rawat inap"
+                    dokterInputPlaceholder="Pilih dokter rawat inap"
+                    dokterInputPlaceholderDisabled="Pilih poli & tanggal perintah dulu"
+                    dokterHint="Pilih poli dan tanggal perintah rawat inap terlebih dahulu untuk mencari dokter"
                     poliBPJSMinSearch={3}
                     dokterBPJSMinSearch={1}
                   />
@@ -571,12 +541,14 @@ export function SPRIFormSheet({
                   title="Ringkasan SPRI"
                   extra={
                     <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                      <span>Tanggal Kontrol: <strong className="text-foreground">{tglRencanaKontrol}</strong></span>
+                      <span>Tanggal Perintah: <strong className="text-foreground">{tglRencanaKontrol}</strong></span>
                       <span>Poli: <strong className="text-foreground">{namaPoli || kodePoli}</strong></span>
                       <span className="sm:col-span-2">Dokter: <strong className="text-foreground">{namaDokter || kodeDokter}</strong></span>
                     </div>
                   }
                 />
+              )}
+                </>
               )}
             </div>
           </ScrollArea>

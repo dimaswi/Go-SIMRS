@@ -4,7 +4,6 @@ import { roomsApi, type Room } from "@/lib/api/rooms";
 import { settingsApi } from "@/lib/api";
 import {
   Monitor,
-  Tv,
   ArrowRight,
   Loader2,
   Volume2,

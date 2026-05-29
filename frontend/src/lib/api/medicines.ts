@@ -18,6 +18,8 @@ export interface Medicine {
   form: MedicineForm;
   strength?: string;
   unit: string;
+  unit_large?: string;
+  large_to_small_factor: number;
   manufacturer?: string;
   min_stock: number;
   max_stock: number;
@@ -39,7 +41,7 @@ export interface Medicine {
 }
 
 export interface MedicineRequest {
-  code: string;
+  code?: string;
   name: string;
   generic_name?: string;
   description?: string;
@@ -48,6 +50,8 @@ export interface MedicineRequest {
   form: MedicineForm;
   strength?: string;
   unit: string;
+  unit_large?: string;
+  large_to_small_factor?: number;
   manufacturer?: string;
   min_stock?: number;
   max_stock?: number;

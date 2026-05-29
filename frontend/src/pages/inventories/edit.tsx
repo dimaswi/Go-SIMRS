@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { inventoriesApi, type Inventory, type InventoryCategory } from "@/lib/api/inventories";
+import { inventoriesApi, type Inventory, type InventoryCategory, type InventoryItemGroup, type InventoryItemScope } from "@/lib/api/inventories";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Tag, DollarSign, FileText, Layers, Hash, Box, ArrowLeft } from "lucide-react";
+import { Loader2, Package, DollarSign, FileText, Layers, Hash, Box, ArrowLeft } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
@@ -67,12 +67,23 @@ export default function InventoryEdit() {
   const [loadingData, setLoadingData] = useState(true);
   const [categoryOptions, setCategoryOptions] = useState<ComboboxOption[]>([]);
   const [unitOptions, setUnitOptions] = useState<ComboboxOption[]>([]);
+  const itemGroupOptions: ComboboxOption[] = [
+    { value: "bhp", label: "BHP" },
+    { value: "other", label: "Lainnya" },
+  ];
+  const itemScopeOptions: ComboboxOption[] = [
+    { value: "unit", label: "Unit" },
+    { value: "pharmacy", label: "Farmasi" },
+    { value: "both", label: "Unit & Farmasi" },
+  ];
 
   const [formData, setFormData] = useState({
     code: "",
     name: "",
     description: "",
     category: "" as InventoryCategory | "",
+    item_group: "other" as InventoryItemGroup,
+    item_scope: "both" as InventoryItemScope,
     unit: "",
     brand: "",
     model: "",
@@ -129,6 +140,8 @@ export default function InventoryEdit() {
         name: inventory.name,
         description: inventory.description || "",
         category: inventory.category,
+        item_group: inventory.item_group || "other",
+        item_scope: inventory.item_scope || "both",
         unit: inventory.unit,
         brand: inventory.brand || "",
         model: inventory.model || "",
@@ -171,10 +184,11 @@ export default function InventoryEdit() {
 
     try {
       await inventoriesApi.update(Number(id), {
-        code: formData.code,
         name: formData.name,
         description: formData.description || undefined,
         category: formData.category as InventoryCategory,
+        item_group: formData.item_group,
+        item_scope: formData.item_scope,
         unit: formData.unit,
         brand: formData.brand || undefined,
         model: formData.model || undefined,
@@ -235,6 +249,7 @@ export default function InventoryEdit() {
       >
         <div className="flex flex-wrap gap-2 pb-3">
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Edit master langsung</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode tidak dapat diubah</div>
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Stok saat ini read only</div>
           <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Properti dapat diperbarui</div>
         </div>
@@ -253,22 +268,14 @@ export default function InventoryEdit() {
           <SectionPanel icon={Package} title="Informasi Dasar" description="Perbarui identitas inventaris, klasifikasi, satuan, dan detail produk utama.">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="code"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                    Kode Inventaris *
+                  <Label htmlFor="code" className="text-xs font-medium">
+                    Kode Inventaris
                   </Label>
                   <Input
                     id="code"
-                    required
-                    placeholder="Contoh: INV-001"
                     value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    className="h-9 text-sm"
+                    disabled
+                    className="h-9 text-sm bg-muted"
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -346,6 +353,35 @@ export default function InventoryEdit() {
                       setFormData({ ...formData, price: parseInt(e.target.value) || 0 })
                     }
                     className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Kelompok Barang</Label>
+                  <Combobox
+                    options={itemGroupOptions}
+                    value={formData.item_group}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, item_group: value as InventoryItemGroup })
+                    }
+                    placeholder="Pilih kelompok"
+                    searchPlaceholder="Cari kelompok..."
+                    emptyText="Kelompok tidak ditemukan"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Pengelola Barang</Label>
+                  <Combobox
+                    options={itemScopeOptions}
+                    value={formData.item_scope}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, item_scope: value as InventoryItemScope })
+                    }
+                    placeholder="Pilih pengelola"
+                    searchPlaceholder="Cari pengelola..."
+                    emptyText="Pengelola tidak ditemukan"
                   />
                 </div>
               </div>

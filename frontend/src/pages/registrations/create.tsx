@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -19,19 +19,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { patientsApi, roomsApi, registrationApi, api } from "@/lib/api";
-import { roomClinicalPackagesApi, type RoomClinicalPackage } from "@/lib/api/clinical-packages";
-import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
-import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { Patient, Room, RoomStaff, Registration } from "@/lib/api";
 import { ArrowLeft, Loader2, UserPlus, User, Search, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
-import { ClinicalPackageSelector } from "@/components/registration/clinical-package-selector";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
-import { OrderRoomSelection } from "@/components/registration/order-room-selection";
-import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 import { formatPatientName } from "@/lib/print-utils";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
-
-const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
 
 function FlatPanel({
   title,
@@ -120,40 +112,8 @@ export default function RegistrationCreate() {
   const [loading, setLoading] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
 
-  // Room procedures and medicines for supporting services
-  const [roomProcedures, setRoomProcedures] = useState<RoomProcedure[]>([]);
-  const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
-  const [roomClinicalPackages, setRoomClinicalPackages] = useState<RoomClinicalPackage[]>([]);
-  const [selectedClinicalPackageId, setSelectedClinicalPackageId] = useState<number | null>(null);
-  const [selectedProcedures, setSelectedProcedures] = useState<{ procedure_id: number; target_room_id?: number; notes: string }[]>([]);
-  const [orderRoomOptionsByProcedureId, setOrderRoomOptionsByProcedureId] = useState<Record<number, { value: string; label: string }[]>>({});
-  const [pharmacyRoomOptionsByMedicineId, setPharmacyRoomOptionsByMedicineId] = useState<Record<number, { value: string; label: string }[]>>({});
-  const [selectedMedicines, setSelectedMedicines] = useState<{ 
-    medicine_id: number; 
-    pharmacy_room_id?: number;
-    quantity: number; 
-    unit: string;
-    dosage: string;
-    frequency: string;
-    route: string;
-    duration: string;
-    instructions: string;
-    notes: string;
-  }[]>([]);
-  const [loadingRoomItems, setLoadingRoomItems] = useState(false);
   const [scheduledFollowUps, setScheduledFollowUps] = useState<Registration[]>([]);
   const doctorRequired = !["farmasi", "penunjang_medis"].includes(selectedServiceType);
-  const destinationRoom = rooms.find((room) => room.id === destinationRoomId);
-
-  const isDirectLaboratoryRoom = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab"].includes(normalizeRoomType(destinationRoom?.room_type));
-  const isDirectRadiologyRoom = ["radiologi", "radiology"].includes(normalizeRoomType(destinationRoom?.room_type));
-  const isDirectPharmacyRoom = destinationRoom?.service_type === "farmasi" || ["farmasi", "depo_farmasi", "gudang_farmasi", "apotek", "pharmacy"].includes(normalizeRoomType(destinationRoom?.room_type));
-
-  const destinationRoomHandlesProcedureDirectly = (procedureType?: string) => {
-    if (procedureType === "laboratory") return isDirectLaboratoryRoom;
-    if (procedureType === "radiology") return isDirectRadiologyRoom;
-    return false;
-  };
 
   useEffect(() => {
     setPageTitle("Pendaftaran Baru");
@@ -307,260 +267,20 @@ export default function RegistrationCreate() {
     setDestinationRoomId(id);
     setDoctorId(null);
     setRoomStaff([]);
-    setRoomProcedures([]);
-    setRoomMedicines([]);
-    setRoomClinicalPackages([]);
-    setSelectedClinicalPackageId(null);
-    setSelectedProcedures([]);
-    setSelectedMedicines([]);
+    if (!id) return;
 
-    if (id) {
-      try {
-        const response = await roomsApi.getStaff(id);
-        const doctors = (response.data.data || []).filter(
-          (staff: RoomStaff) =>
-            staff.employee?.tipe_karyawan === "dokter" &&
-            (!staff.end_date || new Date(staff.end_date) >= new Date())
-        );
-        setRoomStaff(doctors);
-      } catch (error) {
-        console.error("Failed to load room staff:", error);
-      }
-
-      // Load room procedures for direct order-capable rooms
-      const selectedRoom = rooms.find(r => r.id === id);
-      if (selectedRoom) {
-        setLoadingRoomItems(true);
-        try {
-          const proceduresRes = await roomProceduresApi.getByRoom(id);
-          setRoomProcedures(proceduresRes.data.data || []);
-        } catch (error) {
-          console.error("Failed to load room procedures:", error);
-          setRoomProcedures([]);
-        } finally {
-          setLoadingRoomItems(false);
-        }
-      }
-
-      // Load room medicines for direct room-stock capable rooms
-      if (selectedRoom) {
-        setLoadingRoomItems(true);
-        try {
-          const medicinesRes = await roomMedicinesApi.getByRoom(id, { limit: 1000 });
-          setRoomMedicines(medicinesRes.data.data || []);
-        } catch (error) {
-          console.error("Failed to load room medicines:", error);
-          setRoomMedicines([]);
-        } finally {
-          setLoadingRoomItems(false);
-        }
-      }
-
-      try {
-        const packagesRes = await roomClinicalPackagesApi.getByRoom(id, { is_active: true, package_active_only: true });
-        setRoomClinicalPackages(packagesRes.data.data || []);
-      } catch (error) {
-        console.error("Failed to load clinical packages:", error);
-        setRoomClinicalPackages([]);
-      }
+    try {
+      const response = await roomsApi.getStaff(id);
+      const doctors = (response.data.data || []).filter(
+        (staff: RoomStaff) =>
+          staff.employee?.tipe_karyawan === "dokter" &&
+          (!staff.end_date || new Date(staff.end_date) >= new Date())
+      );
+      setRoomStaff(doctors);
+    } catch (error) {
+      console.error("Failed to load room staff:", error);
     }
   };
-
-  const handleClinicalPackageChange = (packageId: number | null) => {
-    setSelectedClinicalPackageId(packageId);
-
-    if (!packageId) {
-      setSelectedProcedures([]);
-      setSelectedMedicines([]);
-      return;
-    }
-
-    const pkg = roomClinicalPackages.find((assignment) => assignment.clinical_package_id === packageId)?.clinical_package;
-    const selections = mapClinicalPackageToRegistrationSelections(pkg);
-    setSelectedProcedures(selections.procedures);
-    setSelectedMedicines(selections.medicines);
-  };
-
-  // Toggle procedure selection
-  const toggleProcedure = (procedureId: number) => {
-    setSelectedProcedures(prev => {
-      const exists = prev.find(p => p.procedure_id === procedureId);
-      if (exists) {
-        return prev.filter(p => p.procedure_id !== procedureId);
-      } else {
-        return [...prev, { procedure_id: procedureId, target_room_id: undefined, notes: "" }];
-      }
-    });
-  };
-
-  const updateProcedureTargetRoom = (procedureId: number, targetRoomId: number | null) => {
-    setSelectedProcedures((prev) =>
-      prev.map((item) =>
-        item.procedure_id === procedureId
-          ? { ...item, target_room_id: targetRoomId ?? undefined }
-          : item
-      )
-    );
-  };
-
-  // Add medicine to selection
-  const addMedicine = (medicine: RoomMedicine) => {
-    if (!medicine.medicine) return;
-    const exists = selectedMedicines.find(m => m.medicine_id === medicine.medicine_id);
-    if (!exists) {
-      setSelectedMedicines(prev => [...prev, {
-        medicine_id: medicine.medicine_id,
-        pharmacy_room_id: undefined,
-        quantity: 1,
-        unit: medicine.medicine?.unit || "",
-        dosage: medicine.medicine?.dosage || "",
-        frequency: "",
-        route: "",
-        duration: "",
-        instructions: "",
-        notes: ""
-      }]);
-    }
-  };
-
-  // Remove medicine from selection
-  const removeMedicine = (medicineId: number) => {
-    setSelectedMedicines(prev => prev.filter(m => m.medicine_id !== medicineId));
-  };
-
-  // Update medicine quantity
-  const updateMedicineQuantity = (medicineId: number, quantity: number) => {
-    if (quantity < 1) return;
-    setSelectedMedicines(prev => prev.map(m => 
-      m.medicine_id === medicineId ? { ...m, quantity } : m
-    ));
-  };
-
-  const updateMedicinePharmacyRoom = (medicineId: number, pharmacyRoomId: number | null) => {
-    setSelectedMedicines((prev) =>
-      prev.map((item) =>
-        item.medicine_id === medicineId
-          ? { ...item, pharmacy_room_id: pharmacyRoomId ?? undefined }
-          : item
-      )
-    );
-  };
-
-  const selectedClinicalPackage = useMemo(
-    () => roomClinicalPackages.find((assignment) => assignment.clinical_package_id === selectedClinicalPackageId)?.clinical_package,
-    [roomClinicalPackages, selectedClinicalPackageId]
-  );
-
-  const effectiveRoomProcedures = useMemo(
-    () => mergeRoomProceduresWithClinicalPackage(roomProcedures, selectedClinicalPackage),
-    [roomProcedures, selectedClinicalPackage]
-  );
-
-  const effectiveRoomMedicines = useMemo(
-    () => mergeRoomMedicinesWithClinicalPackage(roomMedicines, selectedClinicalPackage),
-    [roomMedicines, selectedClinicalPackage]
-  );
-
-  const availableRoomProcedures = effectiveRoomProcedures.filter(
-    (roomProcedure) =>
-      roomProcedure.is_available &&
-      roomProcedure.procedure
-  );
-
-  const availableRoomMedicines = effectiveRoomMedicines.filter(
-    (roomMedicine) => roomMedicine.medicine && roomMedicine.quantity > 0
-  );
-
-  const orderableProcedureIds = useMemo(
-    () => Array.from(new Set(selectedProcedures
-      .filter((item) => {
-        const procedureType = effectiveRoomProcedures.find((rp) => rp.procedure_id === item.procedure_id)?.procedure?.procedure_type;
-        return procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory";
-      })
-      .map((item) => item.procedure_id))),
-    [selectedProcedures, effectiveRoomProcedures]
-  );
-
-  useEffect(() => {
-
-    if (orderableProcedureIds.length === 0) {
-      setOrderRoomOptionsByProcedureId({});
-      return;
-    }
-
-    let active = true;
-
-    Promise.all(
-      orderableProcedureIds.map(async (procedureId) => {
-        const res = await roomProceduresApi.getAvailableRooms(procedureId);
-        const options = (res.data.data || [])
-          .filter((rp) => rp.room)
-          .map((rp) => ({
-            value: String(rp.room_id),
-            label: `${rp.room?.code || `RM-${rp.room_id}`} - ${rp.room?.name || "Tanpa nama"}`,
-          }));
-        return [procedureId, options] as const;
-      })
-    )
-      .then((entries) => {
-        if (!active) return;
-        const next: Record<number, { value: string; label: string }[]> = {};
-        for (const [procedureId, options] of entries) {
-          next[procedureId] = options;
-        }
-        setOrderRoomOptionsByProcedureId(next);
-      })
-      .catch((error) => {
-        console.error("Failed to load available order rooms:", error);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [orderableProcedureIds]);
-
-  const selectedMedicineIds = useMemo(
-    () => Array.from(new Set(selectedMedicines.map((item) => item.medicine_id))),
-    [selectedMedicines]
-  );
-
-  useEffect(() => {
-    if (selectedMedicineIds.length === 0) {
-      setPharmacyRoomOptionsByMedicineId({});
-      return;
-    }
-
-    let active = true;
-
-    Promise.all(
-      selectedMedicineIds.map(async (medicineId) => {
-        const res = await roomMedicinesApi.getByMedicine(medicineId);
-        const medicineRooms = (res.data.data || []) as RoomMedicine[];
-        const options = medicineRooms
-          .filter((rm: RoomMedicine) => rm.room?.is_active && rm.room?.service_type === "farmasi")
-          .map((rm: RoomMedicine) => ({
-            value: String(rm.room_id),
-            label: `${rm.room?.code || `RM-${rm.room_id}`} - ${rm.room?.name || "Tanpa nama"} (Stok: ${rm.quantity})`,
-          }));
-        return [medicineId, options] as const;
-      })
-    )
-      .then((entries) => {
-        if (!active) return;
-        const next: Record<number, { value: string; label: string }[]> = {};
-        for (const [medicineId, options] of entries) {
-          next[medicineId] = options;
-        }
-        setPharmacyRoomOptionsByMedicineId(next);
-      })
-      .catch((error) => {
-        console.error("Failed to load available pharmacy rooms:", error);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [selectedMedicineIds]);
 
   // Auto-load BPJS data when payment method is BPJS
   useEffect(() => {
@@ -671,110 +391,6 @@ export default function RegistrationCreate() {
         // SEP data for BPJS
         sep_number: paymentMethod === "bpjs" && sepNumber ? sepNumber : undefined,
       };
-
-      // Final guard: only send procedures that are still visible/available for this room context.
-      const allowedProcedureIds = new Set(
-        availableRoomProcedures.map((roomProcedure) => roomProcedure.procedure_id)
-      );
-      const validProcedures = selectedProcedures.filter((item) => allowedProcedureIds.has(item.procedure_id));
-      if (validProcedures.length !== selectedProcedures.length) {
-        const procedureNameById = new Map(
-          effectiveRoomProcedures.map((roomProcedure) => [
-            roomProcedure.procedure_id,
-            roomProcedure.procedure?.name || `ID ${roomProcedure.procedure_id}`,
-          ])
-        );
-        const skippedNames = selectedProcedures
-          .filter((item) => !allowedProcedureIds.has(item.procedure_id))
-          .map((item) => procedureNameById.get(item.procedure_id) || `ID ${item.procedure_id}`);
-
-        setSelectedProcedures(validProcedures);
-        toast({
-          variant: "destructive",
-          title: "Sebagian tindakan tidak dapat dikirim",
-          description: `Tindakan berikut tidak mendukung order langsung dari pendaftaran: ${skippedNames.join(", ")}`,
-        });
-      }
-
-      if ((isDirectLaboratoryRoom || isDirectRadiologyRoom) && validProcedures.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Tindakan wajib diisi",
-          description: isDirectLaboratoryRoom
-            ? "Pilih minimal satu tindakan laboratorium untuk pendaftaran langsung."
-            : "Pilih minimal satu tindakan radiologi untuk pendaftaran langsung.",
-        });
-        setLoading(false);
-        return;
-      }
-
-      const procedureById = new Map(
-        effectiveRoomProcedures.map((roomProcedure) => [
-          roomProcedure.procedure_id,
-          roomProcedure.procedure,
-        ])
-      );
-      const missingTargetRoomProcedures = validProcedures.filter((item) => {
-        const procedureType = procedureById.get(item.procedure_id)?.procedure_type;
-        const requiresTargetRoom =
-          (procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory") &&
-          !destinationRoomHandlesProcedureDirectly(procedureType);
-        return requiresTargetRoom && !item.target_room_id;
-      });
-
-      if (missingTargetRoomProcedures.length > 0) {
-        const names = missingTargetRoomProcedures.map(
-          (item) => procedureById.get(item.procedure_id)?.name || `ID ${item.procedure_id}`
-        );
-        toast({
-          variant: "destructive",
-          title: "Ruangan tindak lanjut belum dipilih",
-          description: `Pilih ruangan tindak lanjut untuk: ${names.join(", ")}`,
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (validProcedures.length > 0) {
-        registrationData.procedure_items = validProcedures;
-      }
-
-      if (isDirectPharmacyRoom && selectedMedicines.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Obat wajib diisi",
-          description: "Pilih minimal satu obat untuk pendaftaran langsung farmasi.",
-        });
-        setLoading(false);
-        return;
-      }
-
-      const missingPharmacyRoomMedicines = isDirectPharmacyRoom
-        ? []
-        : selectedMedicines.filter((item) => !item.pharmacy_room_id);
-      if (missingPharmacyRoomMedicines.length > 0) {
-        const medicineNameById = new Map(
-          effectiveRoomMedicines.map((roomMedicine) => [
-            roomMedicine.medicine_id,
-            roomMedicine.medicine?.name || `ID ${roomMedicine.medicine_id}`,
-          ])
-        );
-        const names = missingPharmacyRoomMedicines.map(
-          (item) => medicineNameById.get(item.medicine_id) || `ID ${item.medicine_id}`
-        );
-        toast({
-          variant: "destructive",
-          title: "Farmasi tujuan belum dipilih",
-          description: `Pilih farmasi tujuan untuk: ${names.join(", ")}`,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Add room medicine items when selected
-      if (selectedMedicines.length > 0) {
-        registrationData.medicine_items = selectedMedicines;
-      }
 
       const response = await registrationApi.create(registrationData);
 
@@ -1103,12 +719,6 @@ export default function RegistrationCreate() {
                           setDestinationRoomId(null);
                           setDoctorId(null);
                           setRoomStaff([]);
-                          setRoomProcedures([]);
-                          setRoomMedicines([]);
-                          setRoomClinicalPackages([]);
-                          setSelectedClinicalPackageId(null);
-                          setSelectedProcedures([]);
-                          setSelectedMedicines([]);
                         }}
                         placeholder="Pilih tipe layanan"
                       />
@@ -1186,37 +796,6 @@ export default function RegistrationCreate() {
                     </div>
                   </div>
                 </FlatPanel>
-
-                {destinationRoomId && (
-                  <FlatPanel title="Paket Klinis" eyebrow="Automation">
-                    <ClinicalPackageSelector
-                      assignments={roomClinicalPackages}
-                      selectedPackageId={selectedClinicalPackageId}
-                      onValueChange={handleClinicalPackageChange}
-                      loading={loadingRoomItems}
-                    />
-                  </FlatPanel>
-                )}
-
-                {destinationRoomId && (loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
-                  <FlatPanel title="Order Tindakan dan Obat" eyebrow="Supporting Services">
-                    <OrderRoomSelection
-                      loading={loadingRoomItems}
-                      procedures={availableRoomProcedures}
-                      selectedProcedures={selectedProcedures}
-                      onToggleProcedure={toggleProcedure}
-                      onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
-                      orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
-                      medicines={availableRoomMedicines}
-                      selectedMedicines={selectedMedicines}
-                      onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
-                      pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
-                      onAddMedicine={addMedicine}
-                      onUpdateMedicineQuantity={updateMedicineQuantity}
-                      onRemoveMedicine={removeMedicine}
-                    />
-                  </FlatPanel>
-                )}
 
                 <FlatPanel title="Catatan Klinis" eyebrow="Narrative">
                   <div className="space-y-2">
