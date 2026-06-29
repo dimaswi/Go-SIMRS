@@ -3,12 +3,20 @@ import { format } from "date-fns";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -16,8 +24,6 @@ import {
   Search,
   FileCheck,
   CheckCircle2,
-  ClipboardList,
-  Calendar,
 } from "lucide-react";
 import {
   vclaimApi,
@@ -27,17 +33,6 @@ import {
   type VClaimSuratKontrolDetail,
 } from "@/lib/api/vclaim";
 import { PoliDokterSelector } from "./poli-dokter-selector";
-import {
-  BPJS_FIELD_CLASS,
-  BPJS_FOOTER_CLASS,
-  BPJSInfoGrid,
-  BPJS_PANEL_CLASS,
-  BPJS_SECTION_CLASS,
-  BPJSSectionHeader,
-  BPJSSheetHero,
-  BPJSStatePanel,
-  BPJS_SHEET_MONO_FAMILY,
-} from "./bpjs-sheet-chrome";
 
 interface SPRIFormSheetProps {
   open: boolean;
@@ -70,20 +65,14 @@ export function SPRIFormSheet({
   const today = format(new Date(), "yyyy-MM-dd");
   const canAssignExisting = (registrationId || 0) > 0 || (visitId || 0) > 0;
 
-  // Derive no_kartu from activeSEP or patient
   const noKartu = activeSEP?.no_kartu || patient.no_bpjs || "";
 
-  // Loading states
   const [loadingPeserta, setLoadingPeserta] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
 
-  // Peserta state
   const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
   const [pesertaError, setPesertaError] = useState<string | null>(null);
 
-  // Modal states (managed by PoliDokterSelector now)
-
-  // Form fields
   const [tglRencanaKontrol, setTglRencanaKontrol] = useState(today);
   const [kodePoli, setKodePoli] = useState("");
   const [namaPoli, setNamaPoli] = useState("");
@@ -96,14 +85,10 @@ export function SPRIFormSheet({
   const [searchedSPRI, setSearchedSPRI] = useState<VClaimSuratKontrolDetail | null>(null);
   const [entryMode, setEntryMode] = useState<"form" | "search">("form");
 
-  // Track apakah sudah fetch kepesertaan untuk mencegah loop
   const hasFetchedRef = useRef(false);
 
-  // Reset form when sheet opens
   useEffect(() => {
     if (open) {
-      hasFetchedRef.current = false;
-      // Reset semua state
       setPeserta(null);
       setPesertaError(null);
       setTglRencanaKontrol(today);
@@ -122,7 +107,6 @@ export function SPRIFormSheet({
     }
   }, [open]);
 
-  // Auto fetch kepesertaan saat drawer buka (sekali saja)
   useEffect(() => {
     if (open && noKartu && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
@@ -130,7 +114,6 @@ export function SPRIFormSheet({
     }
   }, [open, noKartu]);
 
-  // Function untuk fetch kepesertaan
   const fetchKepesertaan = async (kartuBpjs: string, tglPelayanan: string) => {
     setLoadingPeserta(true);
     setPesertaError(null);
@@ -153,7 +136,6 @@ export function SPRIFormSheet({
     }
   };
 
-  // Search Poli untuk SPRI (rawat inap)
   const handleSearchPoli = async (keyword: string) => {
     try {
       const res = await vclaimApi.searchPoliSPRI(keyword);
@@ -163,7 +145,6 @@ export function SPRIFormSheet({
     }
   };
 
-  // Search Dokter untuk SPRI
   const handleSearchDokter = async (keyword: string) => {
     if (!kodePoli || !tglRencanaKontrol) {
       toast({ variant: "destructive", title: "Error", description: "Pilih poli dan tanggal perintah rawat inap terlebih dahulu" });
@@ -171,7 +152,6 @@ export function SPRIFormSheet({
     }
     try {
       const res = await vclaimApi.searchDokterSPRI(kodePoli, tglRencanaKontrol);
-      // Filter by keyword if needed
       const doctors = res.data.data || [];
       if (keyword) {
         return doctors.filter((d) =>
@@ -184,9 +164,7 @@ export function SPRIFormSheet({
     }
   };
 
-  // Submit SPRI
   const handleSubmitSPRI = async () => {
-    // Validasi
     if (!peserta) {
       toast({ variant: "destructive", title: "Error", description: "Data peserta BPJS tidak valid" });
       return;
@@ -334,87 +312,58 @@ export function SPRIFormSheet({
     }
   };
 
-  // Get minimum date (today)
   const getMinDate = () => {
     return format(new Date(), "yyyy-MM-dd");
   };
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <BPJSSheetHero
-            eyebrow="Bridging BPJS"
-            title="Form SPRI Rawat Inap"
-            description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
-            icon={FileCheck}
-            meta={
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
+        <div className="flex flex-col border-b px-4 py-2">
+          <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
+            <div className="space-y-1 text-left">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                  SPRI
-                </Badge>
-                <Badge
-                  variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}
-                  className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.2em]"
-                  style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
-                >
-                  {loadingPeserta ? "Mengecek" : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
+                <h4 className="text-xl font-bold">Form SPRI Rawat Inap</h4>
+                <Badge variant="outline">SPRI</Badge>
+                <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}>
+                  {loadingPeserta ? "Mengecek..." : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
                 </Badge>
               </div>
-            }
-          />
+              <p className="text-muted-foreground">{patient.nama_lengkap} • {patient.no_rm}</p>
+            </div>
 
-          <ScrollArea className="flex-1">
-            <div className="space-y-6 p-6">
-              {canAssignExisting && (
-                <div className={BPJS_SECTION_CLASS}>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={entryMode === "form" ? "default" : "outline"}
-                      className="h-8 rounded-none border-border/70 px-3 text-xs"
-                      onClick={() => setEntryMode("form")}
-                    >
-                      Form SPRI
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={entryMode === "search" ? "default" : "outline"}
-                      className="h-8 rounded-none border-border/70 px-3 text-xs"
-                      onClick={() => setEntryMode("search")}
-                    >
-                      Cari Berdasarkan SPRI
-                    </Button>
-                  </div>
+            {canAssignExisting && (
+              <Select value={entryMode} onValueChange={(val: any) => setEntryMode(val)}>
+                <SelectTrigger className="h-8 w-[130px] text-xs bg-muted/50 border-border/70">
+                  <SelectValue placeholder="Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="form" className="text-xs">Form SPRI</SelectItem>
+                  <SelectItem value="search" className="text-xs">Cari Data</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </SheetHeader>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="px-4 space-y-4">
+            {entryMode === "form" && activeSEP && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground">Info SEP Aktif</h4>
+                <div className="grid grid-cols-2 gap-y-2 text-sm bg-muted/50 p-4 rounded-md">
+                  <div className="text-muted-foreground">No. SEP</div>
+                  <div className="font-medium">{activeSEP.no_sep}</div>
+                  <div className="text-muted-foreground">Poli Asal</div>
+                  <div className="font-medium">{activeSEP.nama_poli || activeSEP.kode_poli || "-"}</div>
                 </div>
-              )}
-
-              {entryMode === "form" && (
-                <>
-              {/* === SEP AKTIF (jika ada) === */}
-              {activeSEP && (
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Context" title="SEP Aktif" />
-                <BPJSInfoGrid
-                  items={[
-                    { label: "No. SEP", value: activeSEP.no_sep, mono: true },
-                    { label: "No. Kartu BPJS", value: activeSEP.no_kartu, mono: true },
-                    { label: "Tanggal SEP", value: activeSEP.tgl_sep },
-                    { label: "Poli Asal", value: activeSEP.nama_poli || activeSEP.kode_poli || "-" },
-                    { label: "Diagnosa Awal", value: activeSEP.nama_diagnosa || activeSEP.diag_awal || "-", span: 2 },
-                  ]}
-                />
               </div>
-              )}
-                </>
-              )}
+            )}
 
-              {canAssignExisting && entryMode === "search" && (
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Assign" title="Cari & Assign SPRI" />
-                <div className={`${BPJS_PANEL_CLASS} space-y-3 p-4`}>
+            {canAssignExisting && entryMode === "search" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nomor SPRI</Label>
                   <div className="flex gap-2">
                     <Input
                       value={searchNoSPRI}
@@ -423,7 +372,6 @@ export function SPRIFormSheet({
                         if (searchSPRIError) setSearchSPRIError("");
                       }}
                       placeholder="Masukkan nomor SPRI"
-                      className={BPJS_FIELD_CLASS}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -433,75 +381,68 @@ export function SPRIFormSheet({
                     />
                     <Button
                       type="button"
-                      variant="outline"
-                      className="h-10 rounded-none border-border/70 px-3"
+                      variant="secondary"
                       onClick={handleSearchSPRI}
                       disabled={searchingSPRI || !searchNoSPRI.trim()}
                     >
                       {searchingSPRI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                     </Button>
                   </div>
-
                   {searchSPRIError && (
-                    <BPJSStatePanel tone="danger" title="Pencarian SPRI gagal" description={searchSPRIError} />
+                    <p className="text-sm text-destructive">{searchSPRIError}</p>
                   )}
+                </div>
 
-                  {searchedSPRI && (
-                    <div className="space-y-3">
-                      <BPJSInfoGrid
-                        items={[
-                          { label: "No. SPRI", value: searchedSPRI.noSuratKontrol || "-", mono: true },
-                          { label: "No. Kartu", value: searchedSPRI.noKartu || "-", mono: true },
-                          { label: "Nama Peserta", value: searchedSPRI.nama || "-" },
-                          { label: "Tanggal Perintah", value: searchedSPRI.tglRencanaKontrol || "-" },
-                          { label: "Poli", value: searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-", span: 2 },
-                          { label: "Dokter", value: searchedSPRI.dokter?.nama || "-" },
-                          { label: "Diagnosa", value: searchedSPRI.namaDiagnosa || "-", span: 2 },
-                        ]}
-                      />
-                      <Button
-                        type="button"
-                        className="w-full rounded-none"
-                        onClick={handleAssignSPRI}
-                        disabled={assigningSPRI}
-                      >
-                        {assigningSPRI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                        Assign SPRI ke Pendaftaran
-                      </Button>
+                {searchedSPRI && (
+                  <div className="space-y-4 p-4 border rounded-md">
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <div className="text-muted-foreground">No. SPRI</div>
+                      <div className="font-medium">{searchedSPRI.noSuratKontrol}</div>
+                      <div className="text-muted-foreground">Tanggal Perintah</div>
+                      <div className="font-medium">{searchedSPRI.tglRencanaKontrol}</div>
+                      <div className="text-muted-foreground">Poli</div>
+                      <div className="font-medium">{searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-"}</div>
+                      <div className="text-muted-foreground">Dokter</div>
+                      <div className="font-medium">{searchedSPRI.dokter?.nama || "-"}</div>
                     </div>
-                  )}
-                </div>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={handleAssignSPRI}
+                      disabled={assigningSPRI}
+                    >
+                      {assigningSPRI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      Assign SPRI
+                    </Button>
+                  </div>
+                )}
               </div>
-              )}
+            )}
 
-              {entryMode === "form" && (
-                <>
-              {/* === FORM SPRI === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Planning" title="Surat Perintah Rawat Inap (SPRI)" />
-                
-                {/* Tanggal Perintah Rawat Inap */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Tanggal Perintah Rawat Inap<span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="date"
-                    value={tglRencanaKontrol}
-                    onChange={(e) => {
-                      setTglRencanaKontrol(e.target.value);
-                      // Reset dokter when date changes
-                      setKodeDokter("");
-                      setNamaDokter("");
-                    }}
-                    min={getMinDate()}
-                    className={BPJS_FIELD_CLASS}
-                  />
+            {entryMode === "form" && (
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between items-end border-b pb-2 mb-4">
+                  <h4 className="font-semibold text-lg">Informasi SPRI</h4>
                 </div>
 
-                {/* Poli & Dokter Selector with Tabs */}
-                <div className={`${BPJS_PANEL_CLASS} p-4`}>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                  <div className="space-y-1.5 lg:col-span-1">
+                    <Label className="text-sm font-medium">Tgl Perintah Inap *</Label>
+                    <Input
+                      type="date"
+                      value={tglRencanaKontrol}
+                      onChange={(e) => {
+                        setTglRencanaKontrol(e.target.value);
+                        setKodeDokter("");
+                        setNamaDokter("");
+                      }}
+                      min={getMinDate()}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6">
                   <PoliDokterSelector
                     kodePoli={kodePoli}
                     namaPoli={namaPoli}
@@ -520,8 +461,8 @@ export function SPRIFormSheet({
                     }}
                     searchPoliBPJS={handleSearchPoli}
                     searchDokterBPJS={handleSearchDokter}
-                    poliModalTitle="Cari Poli SPRI BPJS"
-                    dokterModalTitle="Cari Dokter SPRI BPJS"
+                    poliModalTitle="Cari Poli"
+                    dokterModalTitle="Cari Dokter"
                     poliFieldLabel="Poli Rawat Inap"
                     dokterFieldLabel="Dokter Rawat Inap"
                     poliInputPlaceholder="Pilih poli rawat inap"
@@ -530,50 +471,41 @@ export function SPRIFormSheet({
                     dokterHint="Pilih poli dan tanggal perintah rawat inap terlebih dahulu untuk mencari dokter"
                     poliBPJSMinSearch={3}
                     dokterBPJSMinSearch={1}
+                    compact={true}
                   />
                 </div>
-              </div>
 
-              {/* === INFO RINGKASAN === */}
-              {tglRencanaKontrol && kodePoli && kodeDokter && (
-                <BPJSStatePanel
-                  icon={<ClipboardList className="h-4 w-4" />}
-                  title="Ringkasan SPRI"
-                  extra={
-                    <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                      <span>Tanggal Perintah: <strong className="text-foreground">{tglRencanaKontrol}</strong></span>
-                      <span>Poli: <strong className="text-foreground">{namaPoli || kodePoli}</strong></span>
-                      <span className="sm:col-span-2">Dokter: <strong className="text-foreground">{namaDokter || kodeDokter}</strong></span>
+                {tglRencanaKontrol && kodePoli && kodeDokter && (
+                  <div className="bg-muted/50 p-4 rounded-md space-y-2 text-sm mt-4">
+                    <p className="font-medium flex items-center gap-2">
+                      <FileCheck className="h-4 w-4" />
+                      Ringkasan
+                    </p>
+                    <div className="grid grid-cols-1 gap-1 text-muted-foreground">
+                      <span>Tanggal: <span className="text-foreground">{tglRencanaKontrol}</span></span>
+                      <span>Poli: <span className="text-foreground">{namaPoli || kodePoli}</span></span>
+                      <span>Dokter: <span className="text-foreground">{namaDokter || kodeDokter}</span></span>
                     </div>
-                  }
-                />
-              )}
-                </>
-              )}
-            </div>
-          </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
-          <SheetFooter className={BPJS_FOOTER_CLASS}>
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
-              Batal
-            </Button>
-            <Button
-              onClick={handleSubmitSPRI}
-              disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter}
-              className="rounded-none"
-            >
-              {loadingSubmit ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <FileCheck className="h-4 w-4 mr-2" />
-              )}
-              Buat SPRI
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-
-      {/* Search modals are now managed inside PoliDokterSelector */}
-    </>
+        <SheetFooter className="p-4 border-t sm:justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Batal
+          </Button>
+          <Button
+            onClick={handleSubmitSPRI}
+            disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || entryMode === "search"}
+          >
+            {loadingSubmit && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Buat SPRI
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

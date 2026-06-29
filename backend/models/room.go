@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -20,10 +21,9 @@ type Room struct {
 	ServiceType     string         `gorm:"not null;size:50" json:"service_type"`                 // service_type from master data (rawat_jalan, rawat_inap, penunjang, administrasi)
 	RoomType        string         `gorm:"not null;size:50" json:"room_type"`                    // room_type from master data (rawat_inap, icu, poliklinik, laboratorium, etc)
 	RoomClass       string         `gorm:"size:50" json:"room_class"`                            // room_class from master data (vvip, vip, kelas_1, etc) - optional for non-bed rooms
-	KodeKelasBPJS   string         `gorm:"size:10" json:"kode_kelas_bpjs"`                       // Kode kelas BPJS Aplicare (VVP, VIP, KLS1, KLS2, KLS3, ICU, ICCU, ISO, NON)
 	TotalFloors     int            `gorm:"default:1" json:"total_floors"`                        // jumlah lantai di ruangan ini
-	RegistrationFee float64        `gorm:"type:decimal(15,2);default:0" json:"registration_fee"` // Tarif pendaftaran per ruangan
 	TariffPerDay    float64        `gorm:"type:decimal(15,2);default:0" json:"tariff_per_day"`   // Legacy: tarif per hari (untuk backward compatibility)
+	RegistrationFee float64        `gorm:"type:decimal(15,2);default:0" json:"registration_fee"` // Tarif pendaftaran per kunjungan ke ruangan ini
 	Facilities      string         `gorm:"type:text" json:"facilities"`                          // fasilitas umum ruangan
 	Description     string         `gorm:"type:text" json:"description"`                         // deskripsi ruangan
 	HasBed          bool           `gorm:"default:false" json:"has_bed"`                         // apakah ruangan ini punya tempat tidur
@@ -99,6 +99,7 @@ type RoomUnit struct {
 	Name      string         `gorm:"not null;size:100" json:"name"` // e.g., "Kamar 1"
 	Floor     int            `gorm:"default:1" json:"floor"`        // lantai berapa
 	Capacity  int            `gorm:"default:1" json:"capacity"`     // kapasitas bed di kamar ini
+	Class     string         `gorm:"size:50" json:"class"`          // kelas kamar (maps to patient_class master data)
 	IsActive  bool           `gorm:"default:true" json:"is_active"`
 	Notes     string         `gorm:"type:text" json:"notes"`
 	// Floor plan layout position & size (relative to room/building)
@@ -199,6 +200,91 @@ func (r *Room) ComputeBedStats(db *gorm.DB) {
 
 	r.TotalBeds = int(total)
 	r.AvailableBeds = int(available)
+}
+
+// RoomClassStat holds the aggregated bed statistics per class in a room
+type RoomClassStat struct {
+	Class         string
+	TotalBeds     int
+	AvailableBeds int
+}
+
+// ComputeBedStatsByClass computes the total and available beds grouped by Kamar class
+func (r *Room) ComputeBedStatsByClass(db *gorm.DB) []RoomClassStat {
+	var stats []RoomClassStat
+
+	type Result struct {
+		Class     string
+		Total     int
+		Available int
+	}
+
+	// Group beds by room_unit.class
+	// Available count is sum of CASE WHEN status = 'available' THEN 1 ELSE 0 END
+	db.Model(&Bed{}).
+		Select("room_units.class, COUNT(beds.id) as total_beds, SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END) as available_beds").
+		Joins("JOIN room_units ON room_units.id = beds.room_unit_id").
+		Where("room_units.room_id = ? AND room_units.deleted_at IS NULL AND beds.deleted_at IS NULL", r.ID).
+		Group("room_units.class").
+		Scan(&stats)
+
+	// Override availability calculation for Emergency rooms using virtual count
+	isEmergency := strings.ToLower(r.ServiceType) == "ugd" || strings.ToLower(r.ServiceType) == "igd" || strings.ToLower(r.ServiceType) == "emergency" || strings.ToLower(r.ServiceType) == "gawat_darurat"
+	if isEmergency && len(stats) > 0 {
+		var activeVisits int64
+		db.Table("visits").
+			Where("room_id = ? AND status IN (?, ?, ?)", r.ID, "waiting", "in_queue", "in_progress").
+			Count(&activeVisits)
+
+		for i := range stats {
+			stats[i].AvailableBeds = stats[i].TotalBeds - int(activeVisits)
+			if stats[i].AvailableBeds < 0 {
+				stats[i].AvailableBeds = 0
+			}
+		}
+	}
+
+	return stats
+}
+
+// RoomUnitStat holds the aggregated bed statistics per unit (Kamar) in a room
+type RoomUnitStat struct {
+	UnitID        uint
+	UnitCode      string
+	UnitName      string
+	Class         string
+	TotalBeds     int
+	AvailableBeds int
+}
+
+// ComputeBedStatsByUnit computes the total and available beds grouped by Kamar (RoomUnit)
+func (r *Room) ComputeBedStatsByUnit(db *gorm.DB) []RoomUnitStat {
+	var stats []RoomUnitStat
+
+	db.Model(&Bed{}).
+		Select("room_units.id as unit_id, room_units.code as unit_code, room_units.name as unit_name, room_units.class, COUNT(beds.id) as total_beds, SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END) as available_beds").
+		Joins("JOIN room_units ON room_units.id = beds.room_unit_id").
+		Where("room_units.room_id = ? AND room_units.deleted_at IS NULL AND beds.deleted_at IS NULL", r.ID).
+		Group("room_units.id, room_units.code, room_units.name, room_units.class").
+		Scan(&stats)
+
+	// Override availability calculation for Emergency rooms using virtual count
+	isEmergency := strings.ToLower(r.ServiceType) == "ugd" || strings.ToLower(r.ServiceType) == "igd" || strings.ToLower(r.ServiceType) == "emergency" || strings.ToLower(r.ServiceType) == "gawat_darurat"
+	if isEmergency && len(stats) > 0 {
+		var activeVisits int64
+		db.Table("visits").
+			Where("room_id = ? AND status IN (?, ?, ?)", r.ID, "waiting", "in_queue", "in_progress").
+			Count(&activeVisits)
+
+		for i := range stats {
+			stats[i].AvailableBeds = stats[i].TotalBeds - int(activeVisits)
+			if stats[i].AvailableBeds < 0 {
+				stats[i].AvailableBeds = 0
+			}
+		}
+	}
+
+	return stats
 }
 
 // GetBedCount returns total bed count for a room unit

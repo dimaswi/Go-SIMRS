@@ -66,6 +66,8 @@ export default function EmployeeCreate() {
     status_perkawinan: "",
     alamat: "",
     kota: "",
+    kecamatan: "",
+    kelurahan: "",
     provinsi: "",
     kode_pos: "",
     no_telepon: "",
@@ -205,16 +207,7 @@ export default function EmployeeCreate() {
     }
   }, [selectedDistrictId]);
 
-  // Update form data when region selection changes
-  useEffect(() => {
-    const province = provinces.find(p => p.id === selectedProvinceId);
-    const regency = regencies.find(r => r.id === selectedRegencyId);
-    setFormData(prev => ({
-      ...prev,
-      provinsi: province?.name || "",
-      kota: regency?.name || "",
-    }));
-  }, [selectedProvinceId, selectedRegencyId, provinces, regencies]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,12 +311,13 @@ export default function EmployeeCreate() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nip" className="text-xs font-medium">
-                    NIP
+                    NIP <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="nip"
+                    required
                     maxLength={18}
-                    placeholder="NIP (jika ada)"
+                    placeholder="NIP / Nomor Identitas Pegawai"
                     value={formData.nip}
                     onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                     className="h-9 text-sm"
@@ -467,7 +461,14 @@ export default function EmployeeCreate() {
                   <Combobox
                     options={provinceOptions}
                     value={selectedProvinceId}
-                    onValueChange={(value) => setSelectedProvinceId(value)}
+                    onValueChange={(value) => {
+                      setSelectedProvinceId(value);
+                      setSelectedRegencyId("");
+                      setSelectedDistrictId("");
+                      setSelectedVillageId("");
+                      const p = provinces.find(p => p.id === value);
+                      setFormData(prev => ({ ...prev, provinsi: p?.name || "", kota: "", kecamatan: "", kelurahan: "" }));
+                    }}
                     placeholder="Pilih provinsi"
                     searchPlaceholder="Cari provinsi..."
                     emptyText="Provinsi tidak ditemukan."
@@ -481,7 +482,13 @@ export default function EmployeeCreate() {
                   <Combobox
                     options={regencyOptions}
                     value={selectedRegencyId}
-                    onValueChange={(value) => setSelectedRegencyId(value)}
+                    onValueChange={(value) => {
+                      setSelectedRegencyId(value);
+                      setSelectedDistrictId("");
+                      setSelectedVillageId("");
+                      const r = regencies.find(r => r.id === value);
+                      setFormData(prev => ({ ...prev, kota: r?.name || "", kecamatan: "", kelurahan: "" }));
+                    }}
                     placeholder="Pilih kota/kabupaten"
                     searchPlaceholder="Cari kota/kabupaten..."
                     emptyText="Kota/kabupaten tidak ditemukan."
@@ -498,7 +505,12 @@ export default function EmployeeCreate() {
                   <Combobox
                     options={districtOptions}
                     value={selectedDistrictId}
-                    onValueChange={(value) => setSelectedDistrictId(value)}
+                    onValueChange={(value) => {
+                      setSelectedDistrictId(value);
+                      setSelectedVillageId("");
+                      const d = districts.find(d => d.id === value);
+                      setFormData(prev => ({ ...prev, kecamatan: d?.name || "", kelurahan: "" }));
+                    }}
                     placeholder="Pilih kecamatan"
                     searchPlaceholder="Cari kecamatan..."
                     emptyText="Kecamatan tidak ditemukan."
@@ -513,7 +525,11 @@ export default function EmployeeCreate() {
                   <Combobox
                     options={villageOptions}
                     value={selectedVillageId}
-                    onValueChange={(value) => setSelectedVillageId(value)}
+                    onValueChange={(value) => {
+                      setSelectedVillageId(value);
+                      const v = villages.find(v => v.id === value);
+                      setFormData(prev => ({ ...prev, kelurahan: v?.name || "" }));
+                    }}
                     placeholder="Pilih kelurahan/desa"
                     searchPlaceholder="Cari kelurahan/desa..."
                     emptyText="Kelurahan/desa tidak ditemukan."

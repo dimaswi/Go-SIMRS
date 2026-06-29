@@ -484,3 +484,361 @@ Response :
     }
   }
 }
+
+9. UPDATE RENCANA KONTROL :   {BASE URL}/{Service Name}/RencanaKontrol/Update
+Fungsi : Update tanggal rencana kontrol
+Method : PUT
+Format : Json
+Content-Type: Application/x-www-form-urlencoded
+Request :  
+         {
+            "request": {
+                "noSuratKontrol":"{nomor surat kontrol}",
+                "noSEP":"{nomor SEP}",
+                "kodeDokter":"{kode dokter}",
+                "poliKontrol":"{kode poli}",
+                "tglRencanaKontrol":"{tanggal rencana kontrol, format: yyyy-MM-dd}",
+                "user":"{user pembuat rencana kontrol}"
+            }
+        }
+Response :
+        {
+            "metaData": {
+                "code": "200",
+                "message": "Ok"
+            },
+            "response": {
+                "noSuratKontrol": "0301R0110520K000013",
+                "tglRencanaKontrol": "2020-05-15",
+                "namaDokter": "Dr. John Wick",
+                "noKartu": "0001328186441",
+                "nama": "ARIS",
+                "kelamin": "Laki-laki",
+                "tglLahir": "1947-12-31"
+            }
+        }
+
+10. UPDATE RENCANA KONTROL V2 : {BASE URL}/{Service Name}/RencanaKontrol/v2/Update
+Fungsi : Updaterencana kontrol jika dari pembuatan kontrol ada PRB nya
+Method : PUT
+Format : Json
+Content-Type: Application/x-www-form-urlencoded
+Request :
+{
+   "request":{
+      "noSuratKontrol":"{nomor surat kontrol}",
+      "noSEP":"{nomor SEP}",
+      "kodeDokter":"{kode dokter}",
+      "poliKontrol":"{kode poli}",
+      "tglRencanaKontrol":"{tanggal rencana kontrol, format: yyyy-MM-dd}",
+      "user":"{user pembuat rencana kontrol}",
+      "formPRB":{
+         "kdStatusPRB":"{kode penyakit PRB}",
+         //(01. Diabetes Melitus,
+         02. Hipertensi,
+         03. Asma,
+         04. Penyakit Jantung,
+         05. PPOK,
+         06. Skizofrenia,
+         07. Stroke,
+         08. Epilepsi,
+         09. SLE)"data":{
+            /* 01 */"HBA1C":{
+               "diisi null atau angka"
+            },
+            /* 0.1 sd 15 */
+                 /* 01/07 */"GDP":{
+               "diisi null atau angka"
+            },
+            /* 10 sd 500 */
+                 /* 01 */"GD2JPP":{
+               "diisi null atau angka"
+            },
+            /* 10 sd 500 */
+                 /* 01/02 */"eGFR":{
+               "diisi null atau angka"
+            },
+            /* 5 sd 150 */
+                 /* 01/07 */"TD_Sistolik":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 200 */
+                 /* 01/07 */"TD_Diastolik":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 200 */
+                 /* 01/07 */"LDL":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 500 */
+                 /* 02/04 */"Rata_TD_Sistolik":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 200 */
+                 /* 02/04 */"Rata_TD_Diastolik":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 200 */
+                 /* 02 */"JantungKoroner":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 02 */"Stroke":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 02 */"VaskularPerifer":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 02/04 */"Aritmia":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 02 */"AtrialFibrilasi":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 04 */"NadiIstirahat":{
+               "diisi null atau angka"
+            },
+            /* 20 sd 200 */
+                 /* 04 */"SesakNapas3Bulan":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 04 */"NyeriDada3Bulan":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 04 */"SesakNapasAktivitas":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 04 */"NyeriDadaAktivitas":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 03 */"Terkontrol":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 03 */"Gejala2xMinggu":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 03 */"BangunMalam":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 03 */"KeterbatasanFisik":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 03 */"FungsiParu":{
+               "diisi null atau angka"
+            },
+            /* 0 sd 100 */
+                 /* 05 */"SkorMMRC":{
+               "diisi null atau angka"
+            },
+            /* 0 sd 40 */
+                 /* 05 */"Eksaserbasi1Tahun":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 05 */"MampuAktivitas":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 08 */"Epileptik6Bulan":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 08 */"EfekSampingOAB":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 08 */"HamilMenyusui":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 06 */"Remisi":{
+               "diisi null atau angka"
+            },
+            /* 0 sd 100 */
+                 /* 06 */"TerapiRumatan":{
+               "diisi null atau angka"
+            },
+            /* 0 atau 1 */
+                 /* 06 */"Usia":{
+               "diisi null atau angka"
+            },
+            /* 1 sd 100 */
+                 /* 07 */"AsamUrat":{
+               "diisi null atau angka"
+            },
+            /* 0.1 sd 20 */
+                 /* 09 */"RemisiSLE":{
+               "diisi null atau angka"
+            },
+            /* 0 sd 100 */
+                 /* 09 */"Hamil":{
+               "diisi null atau angka"
+            }/* 0 atau 1 */
+         }
+      }
+   }
+}
+Response :
+{
+   "metaData":{
+      "code":"200",
+      "message":"Ok"
+   },
+   "response":{
+      "noSuratKontrol":"0301R0110520K000013",
+      "tglRencanaKontrol":"2020-05-15",
+      "namaDokter":"Dr. John Wick",
+      "noKartu":"0001328186441",
+      "nama":"ARIS",
+      "kelamin":"Laki-laki",
+      "tglLahir":"1947-12-31",
+      "namaDiagnosa":"I60 - Subarachnoid haemorrhage",
+      "formPRB":{
+         "kdStatusPRB":"07",
+         "data":{
+            "HBA1C":null,
+            "GDP":78,
+            "GD2JPP":null,
+            "eGFR":null,
+            "TD_Sistolik":90,
+            "TD_Diastolik":90,
+            "LDL":20,
+            "Rata_TD_Sistolik":null,
+            "Rata_TD_Diastolik":null,
+            "JantungKoroner":null,
+            "Stroke":null,
+            "VaskularPerifer":null,
+            "Aritmia":null,
+            "AtrialFibrilasi":null,
+            "SesakNapas3Bulan":null,
+            "NyeriDada3Bulan":null,
+            "Terkontrol":null,
+            "Gejala2xMinggu":null,
+            "BangunMalam":null,
+            "KeterbatasanFisik":null,
+            "FungsiParu":null,
+            "SkorMMRC":null,
+            "Eksaserbasi1Tahun":null,
+            "MampuAktivitas":null,
+            "Epileptik6Bulan":null,
+            "EfekSampingOAB":null,
+            "HamilMenyusui":null,
+            "Remisi":null,
+            "TerapiRumatan":null,
+            "Usia":null,
+            "AsamUrat":0.1,
+            "RemisiSLE":null,
+            "Hamil":null,
+            "NadiIstirahat":null,
+            "SesakNapasAktivitas":null,
+            "NyeriDadaAktivitas":null
+         }
+      }
+   }
+}
+11. CARI NOMOR SURAT KONTROL : {BASE URL}/{Service Name}/RencanaKontrol/noSuratKontrol/{parameter}
+Fungsi : Mengambil data kontrol 
+Method : GET
+Content-Type: Application/x-www-form-urlencoded
+Parameter: Nomor Surat Kontrol Peserta
+Response :
+{
+   "response":{
+      "noSuratKontrol":"0301R0111125K000002",
+      "tglRencanaKontrol":"2025-11-25",
+      "tglTerbit":"2025-11-18",
+      "jnsKontrol":"2",
+      "poliTujuan":"BED",
+      "namaPoliTujuan":"BEDAH",
+      "kodeDokter":"31348",
+      "namaDokter":"CIiNatXXAXSkrIrPId,ManFs.SDDMe",
+      "flagKontrol":"False",
+      "kodeDokterPembuat":"31348",
+      "namaDokterPembuat":"CIiNatXXAXSkrIrPId,ManFs.SDDMe",
+      "namaJnsKontrol":"Kontrol",
+      "sep":{
+         "noSep":"0301R0110725V000006",
+         "tglSep":"2025-07-30",
+         "jnsPelayanan":"Rawat Jalan",
+         "poli":"BED - BEDAH",
+         "diagnosa":"E10 - Insulin-dependent diabetes mellitus",
+         "peserta":{
+            "noKartu":"0002482505324",
+            "nama":"ARMSTIOFIALR",
+            "tglLahir":"1983-09-07",
+            "kelamin":"P",
+            "hakKelas":"-"
+         },
+         "provUmum":{
+            "kdProvider":"10210901",
+            "nmProvider":"KERTASEMAYA"
+         },
+         "provPerujuk":{
+            "kdProviderPerujuk":"0050B107",
+            "nmProviderPerujuk":"Klinik Sehat Gajah Mada",
+            "asalRujukan":"1",
+            "noRujukan":"0050B1070924P000001",
+            "tglRujukan":"2025-10-01"
+         }
+      },
+      "formPRB":{
+         "kdStatusPRB":null,
+         "data":{
+            "HBA1C":null,
+            "GDP":null,
+            "GD2JPP":null,
+            "eGFR":null,
+            "TD_Sistolik":null,
+            "TD_Diastolik":null,
+            "LDL":null,
+            "Rata_TD_Sistolik":null,
+            "Rata_TD_Diastolik":null,
+            "JantungKoroner":null,
+            "Stroke":null,
+            "VaskularPerifer":null,
+            "Aritmia":null,
+            "AtrialFibrilasi":null,
+            "SesakNapas3Bulan":null,
+            "NyeriDada3Bulan":null,
+            "Terkontrol":null,
+            "Gejala2xMinggu":null,
+            "BangunMalam":null,
+            "KeterbatasanFisik":null,
+            "FungsiParu":null,
+            "SkorMMRC":null,
+            "Eksaserbasi1Tahun":null,
+            "MampuAktivitas":null,
+            "Epileptik6Bulan":null,
+            "EfekSampingOAB":null,
+            "HamilMenyusui":null,
+            "Remisi":null,
+            "TerapiRumatan":null,
+            "Usia":null,
+            "AsamUrat":null,
+            "RemisiSLE":null,
+            "Hamil":null,
+            "NadiIstirahat":null,
+            "SesakNapasAktivitas":null,
+            "NyeriDadaAktivitas":null
+         }
+      }
+   },
+   "metaData":{
+      "code":"200",
+      "message":"Sukses"
+   }
+}
+Catatan : Ketika pembuatan SPRI atau jenis kontrol 1 tidak ada referensi nomor SEP asalnya, jadi field response SEP kosong atau null. 
+Sedangkan jika pembuatan surat kontrol atau jenis kontrol 2, akan terisi field response SEP karena terdapat referensi nomor SEP asal ketika pembuatan surat kontrol tersebut.

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -157,7 +157,7 @@ export default function NutritionMealPackageShow() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{item.menu?.name || `Menu #${item.menu_id}`}</div>
                   <div className="text-xs text-muted-foreground">
-                    {nutritionCategoryLabels[item.menu?.category || ''] || ''} Â· {item.menu?.calories} kkal/porsi
+                    {nutritionCategoryLabels[item.menu?.category || ''] || ''} &middot; {item.menu?.calories} kkal/porsi
                   </div>
                 </div>
                 <Badge variant="secondary">x{item.quantity}</Badge>

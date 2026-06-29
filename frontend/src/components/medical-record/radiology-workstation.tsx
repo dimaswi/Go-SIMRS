@@ -72,7 +72,7 @@ export function RadiologyWorkstation({
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const orderApi = apiAdapter || procedureOrdersApi;
-  
+
   // PIN verification for saving results
   const {
     showPINDialog,
@@ -85,13 +85,13 @@ export function RadiologyWorkstation({
     handleVerifyPIN,
     requestPINVerification,
   } = usePINVerification({ isRequired: true });
-  
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
   const [directProcedures, setDirectProcedures] = useState<VisitProcedure[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ProcedureOrder | null>(null);
-  
+
   // Inline results state - keyed by item.id -> param.id -> value
   const [inlineResults, setInlineResults] = useState<Record<number, Record<number, string>>>({});
 
@@ -233,7 +233,7 @@ export function RadiologyWorkstation({
       setSuggestion(selectedOrder.suggestion || "");
       setIsCritical(selectedOrder.is_critical || false);
       setCriticalNotes(selectedOrder.critical_notes || "");
-      
+
       // Initialize inline results from existing data
       const results: Record<number, Record<number, string>> = {};
       selectedOrder.items?.forEach((item) => {
@@ -244,7 +244,7 @@ export function RadiologyWorkstation({
         });
       });
       setInlineResults(results);
-      
+
       // Check signature status
       checkSignatureStatus(selectedOrder.id);
       setPendingDoctorName(selectedOrder.ordered_by?.nama_lengkap || "");
@@ -272,11 +272,11 @@ export function RadiologyWorkstation({
     setSelectedOrder((prev) =>
       prev
         ? {
-            ...prev,
-            ordered_by: nextDoctor
-              ? { id: 0, nama_lengkap: nextDoctor }
-              : undefined,
-          }
+          ...prev,
+          ordered_by: nextDoctor
+            ? { id: 0, nama_lengkap: nextDoctor }
+            : undefined,
+        }
         : prev,
     );
     onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
@@ -295,10 +295,10 @@ export function RadiologyWorkstation({
     setSelectedOrder((prev) =>
       prev
         ? {
-            ...prev,
-            created_at: nextDate,
-            updated_at: nextDate,
-          }
+          ...prev,
+          created_at: nextDate,
+          updated_at: nextDate,
+        }
         : prev,
     );
     onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
@@ -336,14 +336,14 @@ export function RadiologyWorkstation({
       const res = await orderApi.getAll(
         rmDuplicateMode
           ? {
-              source_visit_id: visitId,
-              order_type: "radiology",
-              ...(casemixScope || {}),
-            }
+            source_visit_id: visitId,
+            order_type: "radiology",
+            ...(casemixScope || {}),
+          }
           : {
-              target_visit_id: visitId,
-              order_type: "radiology",
-            },
+            target_visit_id: visitId,
+            order_type: "radiology",
+          },
       );
       const data = cloneOrders(res.data || []);
       setOrders(data);
@@ -653,7 +653,7 @@ export function RadiologyWorkstation({
       return (
         <Select value={value} onValueChange={(v) => updateInlineResult(item.id!, param.id, v)}>
           <SelectTrigger className="min-w-[120px] h-8 text-sm">
-            <SelectValue placeholder="Pilih..." />
+            <SelectValue placeholder="Silahkan Pilih" />
           </SelectTrigger>
           <SelectContent>
             {options.map((opt) => (
@@ -693,8 +693,8 @@ export function RadiologyWorkstation({
   const getStatusBadge = (status?: string) => {
     const config = status
       ? PROCEDURE_ORDER_STATUS[
-          status as keyof typeof PROCEDURE_ORDER_STATUS
-        ] || { label: status, variant: "secondary" as const }
+      status as keyof typeof PROCEDURE_ORDER_STATUS
+      ] || { label: status, variant: "secondary" as const }
       : { label: "Unknown", variant: "secondary" as const };
     return (
       <Badge variant={config.variant} className="text-[10px] px-1.5 py-0 h-5">
@@ -766,10 +766,10 @@ export function RadiologyWorkstation({
                   {procedure.status === "pending"
                     ? "Menunggu"
                     : procedure.status === "in_progress"
-                    ? "Dikerjakan"
-                    : procedure.status === "completed"
-                    ? "Selesai"
-                    : procedure.status}
+                      ? "Dikerjakan"
+                      : procedure.status === "completed"
+                        ? "Selesai"
+                        : procedure.status}
                 </Badge>
               </div>
             ))}
@@ -877,257 +877,257 @@ export function RadiologyWorkstation({
                     tooltip="Lihat detail order radiologi"
                     className="h-6 w-6 rounded-md"
                   >
-              <table className="w-full table-fixed text-xs">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {formatPatientName(
-                        selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
-                          selectedOrder.registration?.patient?.nama_lengkap,
-                        selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
-                          selectedOrder.registration?.patient?.jenis_kelamin,
-                        undefined,
-                        selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
-                          selectedOrder.registration?.patient?.tanggal_lahir,
-                      ) || "-"}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {selectedOrder.source_visit?.registration?.patient?.no_rm ||
-                        selectedOrder.registration?.patient?.no_rm || "-"}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {rmDuplicateMode ? (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium">
-                            {selectedOrder.ordered_by?.nama_lengkap || "-"}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            title="Pilih dokter"
-                            onClick={() => {
-                              setPendingDoctorName(
-                                selectedOrder.ordered_by?.nama_lengkap || "",
-                              );
-                              setDoctorSearch("");
-                              setDoctorModalOpen(true);
-                            }}
-                          >
-                            <User className="h-3 w-3" />
-                          </Button>
-                        </span>
-                      ) : (
-                        selectedOrder.ordered_by?.nama_lengkap || "-"
-                      )}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {rmDuplicateMode ? (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium">
-                            {selectedOrder.created_at
-                              ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                              : "-"}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            title="Set tanggal order"
-                            onClick={() => {
-                              setPendingOrderDate(
-                                (selectedOrder.created_at || "")
-                                  .replace(" ", "T")
-                                  .slice(0, 16),
-                              );
-                              setDateModalOpen(true);
-                            }}
-                          >
-                            <Clock className="h-3 w-3" />
-                          </Button>
-                        </span>
-                      ) : (
-                        <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
-                      )}
-                      {selectedOrder.priority !== "normal" && (
-                        <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
-                      )}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.order_number}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
-                      {selectedOrder.items?.length || 0} selesai
-                    </td>
-                  </tr>
-                  {selectedOrder.diagnosis && (
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
-                    </tr>
-                  )}
-                  {selectedOrder.clinical_notes && (
-                    <tr>
-                      <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.clinical_notes}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    <table className="w-full table-fixed text-xs">
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {formatPatientName(
+                              selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                              selectedOrder.registration?.patient?.nama_lengkap,
+                              selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
+                              selectedOrder.registration?.patient?.jenis_kelamin,
+                              undefined,
+                              selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
+                              selectedOrder.registration?.patient?.tanggal_lahir,
+                            ) || "-"}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                              selectedOrder.registration?.patient?.no_rm || "-"}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="font-medium">
+                                  {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Pilih dokter"
+                                  onClick={() => {
+                                    setPendingDoctorName(
+                                      selectedOrder.ordered_by?.nama_lengkap || "",
+                                    );
+                                    setDoctorSearch("");
+                                    setDoctorModalOpen(true);
+                                  }}
+                                >
+                                  <User className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              selectedOrder.ordered_by?.nama_lengkap || "-"
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="font-medium">
+                                  {selectedOrder.created_at
+                                    ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                                    : "-"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Set tanggal order"
+                                  onClick={() => {
+                                    setPendingOrderDate(
+                                      (selectedOrder.created_at || "")
+                                        .replace(" ", "T")
+                                        .slice(0, 16),
+                                    );
+                                    setDateModalOpen(true);
+                                  }}
+                                >
+                                  <Clock className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
+                            )}
+                            {selectedOrder.priority !== "normal" && (
+                              <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
+                          <td className="py-1.5 font-medium break-words">{selectedOrder.order_number}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
+                            {selectedOrder.items?.length || 0} selesai
+                          </td>
+                        </tr>
+                        {selectedOrder.diagnosis && (
+                          <tr className="border-b">
+                            <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                          </tr>
+                        )}
+                        {selectedOrder.clinical_notes && (
+                          <tr>
+                            <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.clinical_notes}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </OrderDetailInfoButton>
                 </div>
               </div>
             </div>
             <div className="p-3 sm:p-4 space-y-4">
-                {/* Results Table - Inline Edit */}
-                {/* Results Table - Inline Edit */}
-                <div className="border border-border/70 overflow-x-auto mt-4">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-muted/50 border-b border-border/70">
-                      <tr>
-                        <th className="py-2 px-3 font-medium w-10">No</th>
-                        <th className="py-2 px-3 font-medium">Pemeriksaan</th>
-                        <th className="py-2 px-3 font-medium">Parameter</th>
-                        <th className="py-2 px-3 font-medium">Hasil</th>
-                        <th className="py-2 px-3 font-medium w-20 text-center">Status</th>
-                        <th className="py-2 px-3 font-medium w-16 text-center">Cetak</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedOrder.items?.map((item, itemIdx) => {
-                        const parameters = item.procedure?.parameters || [];
-                        const rowSpan = Math.max(parameters.length, 1);
+              {/* Results Table - Inline Edit */}
+              {/* Results Table - Inline Edit */}
+              <div className="border border-border/70 overflow-x-auto mt-4">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/50 border-b border-border/70">
+                    <tr>
+                      <th className="py-2 px-3 font-medium w-10">No</th>
+                      <th className="py-2 px-3 font-medium">Pemeriksaan</th>
+                      <th className="py-2 px-3 font-medium">Parameter</th>
+                      <th className="py-2 px-3 font-medium">Hasil</th>
+                      <th className="py-2 px-3 font-medium w-20 text-center">Status</th>
+                      <th className="py-2 px-3 font-medium w-16 text-center">Cetak</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.items?.map((item, itemIdx) => {
+                      const parameters = item.procedure?.parameters || [];
+                      const rowSpan = Math.max(parameters.length, 1);
 
-                        return parameters.length > 0 ? (
-                          parameters.map((param, paramIdx) => (
-                            <tr key={`${item.id}-${param.id}`} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                              {paramIdx === 0 && (
-                                <>
-                                  <td rowSpan={rowSpan} className="align-top border-r border-border/70 py-2 px-3 text-xs font-medium">
-                                    {itemIdx + 1}
-                                  </td>
-                                  <td rowSpan={rowSpan} className="align-top border-r border-border/70 py-2 px-3">
-                                    <div className="text-sm font-medium">{item.procedure?.name}</div>
-                                    <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
-                                  </td>
-                                </>
-                              )}
-                              <td className="text-xs py-2 px-3">{param.name}</td>
-                              <td className="py-2 px-3">{renderInlineInput(item, param)}</td>
-                              {paramIdx === 0 && (
-                                <>
-                                  <td rowSpan={rowSpan} className="align-top border-l border-border/70 py-2 px-3 text-center">
-                                    {getItemStatusBadge(item.status)}
-                                  </td>
-                                  <td rowSpan={rowSpan} className="align-middle text-center py-2 px-3">
-                                    {item.status === "completed" && item.id && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                        onClick={() => printApi.radiologyResultItem(item.id!)}
-                                        title="Cetak hasil"
-                                      >
-                                        <Printer className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                  </td>
-                                </>
-                              )}
-                            </tr>
-                          ))
-                        ) : (
-                          <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                            <td className="py-2 px-3 text-xs font-medium border-r border-border/70">{itemIdx + 1}</td>
-                            <td className="py-2 px-3 border-r border-border/70">
-                              <div className="text-sm font-medium">{item.procedure?.name}</div>
-                              <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
-                            </td>
-                            <td colSpan={2} className="py-2 px-3 text-xs text-muted-foreground italic">
-                              Tidak ada parameter
-                            </td>
-                            <td className="text-center py-2 px-3 border-l border-border/70">{getItemStatusBadge(item.status)}</td>
-                            <td className="align-middle text-center py-2 px-3">
-                              {item.status === "completed" && item.id && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                  onClick={() => printApi.radiologyResultItem(item.id!)}
-                                  title="Cetak hasil"
-                                >
-                                  <Printer className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Signature status remains visible once signed even if order status changes. */}
-                {canShowSignatureArea && (
-                  <div className="border-t pt-3 mt-3 space-y-2">
-                    {signatureStatus?.is_signed ? (
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          <div>
-                            <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
-                            {signatureStatus.signed_at && (
-                              <span className="text-xs text-muted-foreground ml-2">
-                                {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
-                              </span>
+                      return parameters.length > 0 ? (
+                        parameters.map((param, paramIdx) => (
+                          <tr key={`${item.id}-${param.id}`} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                            {paramIdx === 0 && (
+                              <>
+                                <td rowSpan={rowSpan} className="align-top border-r border-border/70 py-2 px-3 text-xs font-medium">
+                                  {itemIdx + 1}
+                                </td>
+                                <td rowSpan={rowSpan} className="align-top border-r border-border/70 py-2 px-3">
+                                  <div className="text-sm font-medium">{item.procedure?.name}</div>
+                                  <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
+                                </td>
+                              </>
                             )}
-                          </div>
+                            <td className="text-xs py-2 px-3">{param.name}</td>
+                            <td className="py-2 px-3">{renderInlineInput(item, param)}</td>
+                            {paramIdx === 0 && (
+                              <>
+                                <td rowSpan={rowSpan} className="align-top border-l border-border/70 py-2 px-3 text-center">
+                                  {getItemStatusBadge(item.status)}
+                                </td>
+                                <td rowSpan={rowSpan} className="align-middle text-center py-2 px-3">
+                                  {item.status === "completed" && item.id && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                      onClick={() => printApi.radiologyResultItem(item.id!)}
+                                      title="Cetak hasil"
+                                    >
+                                      <Printer className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <td className="py-2 px-3 text-xs font-medium border-r border-border/70">{itemIdx + 1}</td>
+                          <td className="py-2 px-3 border-r border-border/70">
+                            <div className="text-sm font-medium">{item.procedure?.name}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
+                          </td>
+                          <td colSpan={2} className="py-2 px-3 text-xs text-muted-foreground italic">
+                            Tidak ada parameter
+                          </td>
+                          <td className="text-center py-2 px-3 border-l border-border/70">{getItemStatusBadge(item.status)}</td>
+                          <td className="align-middle text-center py-2 px-3">
+                            {item.status === "completed" && item.id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => printApi.radiologyResultItem(item.id!)}
+                                title="Cetak hasil"
+                              >
+                                <Printer className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Signature status remains visible once signed even if order status changes. */}
+              {canShowSignatureArea && (
+                <div className="border-t pt-3 mt-3 space-y-2">
+                  {signatureStatus?.is_signed ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <div>
+                          <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
+                          {signatureStatus.signed_at && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
+                            </span>
+                          )}
                         </div>
-                        <Button
-                          onClick={() => setShowRevokeDialog(true)}
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <ShieldX className="h-4 w-4 mr-1" />
-                          Batal TTD
-                        </Button>
                       </div>
-                    ) : (selectedOrder.status === "completed" || allItemsCompleted) ? (
-                      <Button 
-                        onClick={() => setShowSignatureDialog(true)} 
-                        variant="outline" 
-                        className="w-full" 
+                      <Button
+                        onClick={() => setShowRevokeDialog(true)}
+                        variant="outline"
                         size="sm"
+                        className="text-red-600 hover:text-red-700"
                       >
-                        <ShieldCheck className="h-4 w-4 mr-1" />
-                        Tanda Tangani Hasil Radiologi
+                        <ShieldX className="h-4 w-4 mr-1" />
+                        Batal TTD
                       </Button>
-                    ) : null}
-                    {signatureStatus?.is_signed && selectedOrder.status !== "completed" && (
-                      <p className="text-xs text-muted-foreground">
-                        Dokumen sudah ditandatangani. Status order saat ini: {selectedOrder.status}.
-                      </p>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  ) : (selectedOrder.status === "completed" || allItemsCompleted) ? (
+                    <Button
+                      onClick={() => setShowSignatureDialog(true)}
+                      variant="outline"
+                      className="w-full"
+                      size="sm"
+                    >
+                      <ShieldCheck className="h-4 w-4 mr-1" />
+                      Tanda Tangani Hasil Radiologi
+                    </Button>
+                  ) : null}
+                  {signatureStatus?.is_signed && selectedOrder.status !== "completed" && (
+                    <p className="text-xs text-muted-foreground">
+                      Dokumen sudah ditandatangani. Status order saat ini: {selectedOrder.status}.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

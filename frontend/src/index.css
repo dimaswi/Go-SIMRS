@@ -163,7 +163,7 @@
     touch-action: manipulation;
   }
 
-  .medical-record-workspace .mr-tab-item:has(> .mr-tab-chip.bg-primary\/10) .mr-tab-chip {
+  .medical-record-workspace .mr-tab-item:has(> .mr-tab-chip.bg-primary\/10) > .mr-tab-chip {
     border-color: hsl(var(--ring) / 0.26);
     box-shadow: 0 10px 24px -22px hsl(var(--foreground));
   }

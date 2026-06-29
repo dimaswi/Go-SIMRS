@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import type { LucideIcon } from "lucide-react"
+import { type LucideIcon, ArrowLeft } from "lucide-react"
 
 const PAGE_SHELL_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace'
 
@@ -29,6 +29,7 @@ interface PageHeaderProps {
   icon?: LucideIcon
   actions?: React.ReactNode
   className?: string
+  onBack?: () => void | Promise<void>
   // Slot untuk konten tambahan di bawah title row (misal: tabs)
   children?: React.ReactNode
 }
@@ -39,6 +40,7 @@ export function PageHeader({
   icon: Icon,
   actions,
   className,
+  onBack,
   children,
 }: PageHeaderProps) {
   return (
@@ -47,6 +49,15 @@ export function PageHeader({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-w-0 items-start gap-3">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="mt-0.5 flex shrink-0 items-center justify-center border border-border/70 bg-background p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
               {Icon && (
                 <div className="mt-0.5 flex-shrink-0 border border-border/70 bg-background p-2">
                   <Icon className="h-4 w-4 text-muted-foreground" />

@@ -16,6 +16,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Combobox } from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +65,7 @@ import {
   XCircle,
   RotateCcw,
   Check,
+  Tag,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -91,6 +100,11 @@ export function ProcedureForm({
   const [visitProcedures, setVisitProcedures] = useState<VisitProcedure[]>([]);
   const [expandedProcedure, setExpandedProcedure] = useState<number | null>(null);
   const [resultValues, setResultValues] = useState<Record<number, { value: string; num_value: number; is_abnormal: boolean; is_critical: boolean }>>({});
+  const [discountState, setDiscountState] = useState<{
+    discount_type: string;
+    discount_value: number;
+    discount_note: string;
+  }>({ discount_type: "", discount_value: 0, discount_note: "" });
 
   // New procedure form
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,6 +114,10 @@ export function ProcedureForm({
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [procedureToDelete, setProcedureToDelete] = useState<number | null>(null);
+  
+  // Discount Modal
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [procedureToDiscount, setProcedureToDiscount] = useState<number | null>(null);
 
   // Permissions
   const canCreate = hasPermission("medical_records.procedure") && !useExternalData;
@@ -230,6 +248,72 @@ export function ProcedureForm({
     }
   };
 
+  const openDiscountDialog = (procedureId: number) => {
+    const procedure = visitProcedures.find((p) => p.id === procedureId);
+    if (procedure) {
+      setProcedureToDiscount(procedureId);
+      setDiscountState({
+        discount_type: procedure.discount_type || "none",
+        discount_value: procedure.discount_value || 0,
+        discount_note: procedure.discount_note || "",
+      });
+      setDiscountDialogOpen(true);
+    }
+  };
+
+  const handleSaveDiscount = async () => {
+    if (!procedureToDiscount) return;
+    const procedure = visitProcedures.find((p) => p.id === procedureToDiscount);
+    if (!procedure) return;
+
+    setSaving(true);
+    try {
+      // Keep existing results
+      const resultsToSave = expandedProcedure === procedureToDiscount 
+        ? Object.entries(resultValues).map(([paramId, val]) => ({
+            parameter_id: parseInt(paramId),
+            value: val.value,
+            num_value: val.num_value,
+            is_abnormal: val.is_abnormal,
+            is_critical: val.is_critical,
+          }))
+        : procedure.results?.map(r => ({
+            parameter_id: r.parameter_id,
+            value: r.value,
+            num_value: r.num_value || 0,
+            is_abnormal: r.is_abnormal || false,
+            is_critical: r.is_critical || false,
+          })) || [];
+
+      const data: SaveVisitProcedureResultsInput = {
+        status: procedure.status,
+        results: resultsToSave,
+        discount_type: discountState.discount_type === "none" ? "" : discountState.discount_type,
+        discount_value: discountState.discount_value,
+        discount_amount: 0,
+        discount_note: discountState.discount_note,
+      };
+
+      await visitProceduresApi.saveResults(visitId, procedureToDiscount, data);
+      toast({
+        title: "Berhasil",
+        description: "Pengaturan diskon berhasil disimpan",
+      });
+      setDiscountDialogOpen(false);
+      setProcedureToDiscount(null);
+      loadData();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyimpan pengaturan diskon",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Save results
   const handleSaveResults = async (procedureId: number, status?: string) => {
     const procedure = visitProcedures.find((p) => p.id === procedureId);
@@ -248,14 +332,18 @@ export function ProcedureForm({
       const data: SaveVisitProcedureResultsInput = {
         status: status || procedure.status,
         results,
+        discount_type: discountState.discount_type === "none" ? "" : discountState.discount_type,
+        discount_value: discountState.discount_value,
+        discount_amount: 0, // dihitung di backend
+        discount_note: discountState.discount_note,
       };
 
       await visitProceduresApi.saveResults(visitId, procedureId, data);
       toast({
         title: "Berhasil",
-        description: status === "completed" ? "Tindakan berhasil diselesaikan" : 
-                     status === "cancelled" ? "Tindakan berhasil dibatalkan" :
-                     "Hasil tindakan berhasil disimpan",
+        description: status === "completed" ? "Tindakan berhasil diselesaikan" :
+          status === "cancelled" ? "Tindakan berhasil dibatalkan" :
+            "Hasil tindakan berhasil disimpan",
       });
       setExpandedProcedure(null);
       loadData();
@@ -403,7 +491,7 @@ export function ProcedureForm({
     const q = searchQuery.toLowerCase();
     return proc.name.toLowerCase().includes(q) || proc.code.toLowerCase().includes(q);
   });
-  
+
   // Count how many times each procedure has been added
   const procedureCounts = visitProcedures.reduce((acc, vp) => {
     acc[vp.procedure_id] = (acc[vp.procedure_id] || 0) + 1;
@@ -465,133 +553,133 @@ export function ProcedureForm({
 
   return (
     <fieldset disabled={readOnly}>
-    <div className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-2 items-start">
-        <div className="rounded-lg border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Kolom 1 - Assign Tindakan
-          </div>
-          <div className="border-b p-3 space-y-2 bg-muted/10">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">Katalog Tindakan</p>
-              <Badge variant="secondary" className="text-xs">{filteredProcedures.length} item</Badge>
+      <div className="space-y-6">
+        <div className="grid gap-4 xl:grid-cols-2 items-start">
+          <div className="rounded-lg border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Kolom 1 - Assign Tindakan
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari tindakan (nama/kode)..."
-                className="pl-9"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Klik tombol plus pada tindakan untuk assign cepat.</p>
-          </div>
-
-          {canCreate ? (
-            filteredProcedures.length > 0 ? (
-              <div>
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background z-10 border-b">
-                    <tr>
-                      <th className="py-2 px-3 text-left">Tindakan</th>
-                      <th className="py-2 px-3 w-24 text-left">Kode</th>
-                      <th className="py-2 px-3 w-24 text-left">Status</th>
-                      <th className="py-2 px-3 w-16 text-left">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                  {filteredProcedures.map((proc) => {
-                    const addedCount = procedureCounts[proc.id] || 0;
-                    return (
-                      <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
-                        <td className="py-2 px-3">
-                          <p className="font-medium text-sm truncate">{proc.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            {proc.has_parameters && <span>Memiliki parameter</span>}
-                            {proc.duration && <span>• {proc.duration} menit</span>}
-                          </div>
-                        </td>
-                        <td className="py-2 px-3 text-xs text-muted-foreground">{proc.code}</td>
-                        <td className="py-2 px-3">
-                          {addedCount > 0 ? (
-                            <Badge variant="secondary" className="text-xs">{addedCount}x</Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">baru</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={saving}
-                            onClick={() => handleQuickAddProcedure(proc.id)}
-                            title="Tambah cepat"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  </tbody>
-                </table>
+            <div className="border-b p-3 space-y-2 bg-muted/10">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">Katalog Tindakan</p>
+                <Badge variant="secondary" className="text-xs">{filteredProcedures.length} item</Badge>
               </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari tindakan (nama/kode)..."
+                  className="pl-9"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Klik tombol plus pada tindakan untuk assign cepat.</p>
+            </div>
+
+            {canCreate ? (
+              filteredProcedures.length > 0 ? (
+                <div>
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-background z-10 border-b">
+                      <tr>
+                        <th className="py-2 px-3 text-left">Tindakan</th>
+                        <th className="py-2 px-3 w-24 text-left">Kode</th>
+                        <th className="py-2 px-3 w-24 text-left">Status</th>
+                        <th className="py-2 px-3 w-16 text-left">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProcedures.map((proc) => {
+                        const addedCount = procedureCounts[proc.id] || 0;
+                        return (
+                          <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
+                            <td className="py-2 px-3">
+                              <p className="font-medium text-sm truncate">{proc.name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                {proc.has_parameters && <span>Memiliki parameter</span>}
+                                {proc.duration && <span>• {proc.duration} menit</span>}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">{proc.code}</td>
+                            <td className="py-2 px-3">
+                              {addedCount > 0 ? (
+                                <Badge variant="secondary" className="text-xs">{addedCount}x</Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">baru</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={saving}
+                                onClick={() => handleQuickAddProcedure(proc.id)}
+                                title="Tambah cepat"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-muted-foreground">
+                  <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">Tidak ada tindakan yang cocok</p>
+                  <p className="text-sm mt-1">Ubah kata kunci pencarian untuk melihat tindakan lain.</p>
+                </div>
+              )
             ) : (
               <div className="py-12 text-center text-muted-foreground">
                 <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p className="font-medium">Tidak ada tindakan yang cocok</p>
-                <p className="text-sm mt-1">Ubah kata kunci pencarian untuk melihat tindakan lain.</p>
+                <p>Anda tidak memiliki izin untuk menambahkan tindakan.</p>
               </div>
-            )
-          ) : (
-            <div className="py-12 text-center text-muted-foreground">
-              <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>Anda tidak memiliki izin untuk menambahkan tindakan.</p>
-            </div>
-          )}
+            )}
 
-        </div>
-
-        <div className="rounded-lg border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Kolom 2 - Verifikasi dan Isi Hasil
-          </div>
-          <div className="border-b p-3 space-y-2 bg-muted/10">
-            <div className="flex flex-wrap items-center gap-2 justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
-                Semua ({queueCounts.all})
-                </Button>
-                <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
-                Menunggu ({queueCounts.pending})
-                </Button>
-                <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
-                Proses ({queueCounts.in_progress})
-                </Button>
-                <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
-                Selesai ({queueCounts.completed})
-                </Button>
-                <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
-                Batal ({queueCounts.cancelled})
-                </Button>
-              </div>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={queueSearchQuery}
-                onChange={(e) => setQueueSearchQuery(e.target.value)}
-                placeholder="Cari di antrian tindakan..."
-                className="pl-9"
-              />
-            </div>
           </div>
 
-          {filteredVisitProcedures.length > 0 ? (
-            <div className="divide-y">
+          <div className="rounded-lg border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Kolom 2 - Verifikasi dan Isi Hasil
+            </div>
+            <div className="border-b p-3 space-y-2 bg-muted/10">
+              <div className="flex flex-wrap items-center gap-2 justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
+                    Semua ({queueCounts.all})
+                  </Button>
+                  <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
+                    Menunggu ({queueCounts.pending})
+                  </Button>
+                  <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
+                    Proses ({queueCounts.in_progress})
+                  </Button>
+                  <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
+                    Selesai ({queueCounts.completed})
+                  </Button>
+                  <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
+                    Batal ({queueCounts.cancelled})
+                  </Button>
+                </div>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={queueSearchQuery}
+                  onChange={(e) => setQueueSearchQuery(e.target.value)}
+                  placeholder="Cari di antrian tindakan..."
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {filteredVisitProcedures.length > 0 ? (
+              <div className="divide-y">
                 {filteredVisitProcedures.map((vp) => {
                   const isExpanded = expandedProcedure === vp.id;
                   const hasParams = procedureHasParameters(vp);
@@ -659,6 +747,20 @@ export function ProcedureForm({
                                 }}
                               >
                                 <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canEdit && !isDisabled && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 flex-shrink-0"
+                                title="Pengaturan Diskon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDiscountDialog(vp.id);
+                                }}
+                              >
+                                <Tag className="h-4 w-4" />
                               </Button>
                             )}
                             {canEdit && vp.status !== "completed" && vp.status !== "cancelled" && (
@@ -886,38 +988,106 @@ export function ProcedureForm({
                     </Collapsible>
                   );
                 })}
-            </div>
-          ) : (
-            <div className="py-12 text-center text-muted-foreground">
-              <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="font-medium">Tidak ada data pada filter ini</p>
-              <p className="text-sm mt-1">Coba ubah status filter atau kata kunci pencarian.</p>
-            </div>
-          )}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">Tidak ada data pada filter ini</p>
+                <p className="text-sm mt-1">Coba ubah status filter atau kata kunci pencarian.</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Tindakan?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tindakan ini akan dihapus dari daftar. Tindakan hanya dapat dihapus jika statusnya masih "Menunggu".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteProcedure}
-            >
-              Hapus
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus Tindakan?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tindakan ini akan dihapus dari daftar. Tindakan hanya dapat dihapus jika statusnya masih "Menunggu".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleDeleteProcedure}
+              >
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Discount Modal */}
+        <Dialog open={discountDialogOpen} onOpenChange={setDiscountDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Pengaturan Diskon</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Jenis Diskon</Label>
+                <Select
+                  value={discountState.discount_type || "none"}
+                  onValueChange={(v) => setDiscountState((prev) => ({ ...prev, discount_type: v, discount_value: v === "full" ? 0 : prev.discount_value }))}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Pilih Jenis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Tidak Ada</SelectItem>
+                    <SelectItem value="percentage">Persentase (%)</SelectItem>
+                    <SelectItem value="fixed">Nominal (Rp)</SelectItem>
+                    <SelectItem value="full">Gratis (100%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {discountState.discount_type !== "" && discountState.discount_type !== "none" && discountState.discount_type !== "full" && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    {discountState.discount_type === "percentage" ? "Nilai Persentase (%)" : "Nominal Diskon (Rp)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={discountState.discount_type === "percentage" ? "100" : undefined}
+                    value={discountState.discount_value || ""}
+                    onChange={(e) => setDiscountState((prev) => ({ ...prev, discount_value: parseFloat(e.target.value) || 0 }))}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              )}
+              {discountState.discount_type !== "" && discountState.discount_type !== "none" && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Catatan / Alasan</Label>
+                  <Combobox
+                    options={[
+                      { value: "Diskon Jasa Dokter", label: "Diskon Jasa Dokter" },
+                      { value: "Diskon Jasa Perawat", label: "Diskon Jasa Perawat" },
+                      { value: "Diskon Manajemen", label: "Diskon Manajemen" },
+                      { value: "Promo / Gratis", label: "Promo / Gratis" }
+                    ]}
+                    value={discountState.discount_note}
+                    onValueChange={(v) => setDiscountState((prev) => ({ ...prev, discount_note: v }))}
+                    placeholder="Pilih/ketik manual..."
+                    allowCustomValue={true}
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDiscountDialogOpen(false)}>Batal</Button>
+              <Button onClick={handleSaveDiscount} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </fieldset>
   );
 }

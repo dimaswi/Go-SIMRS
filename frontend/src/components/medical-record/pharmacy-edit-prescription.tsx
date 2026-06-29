@@ -44,6 +44,7 @@ import {
   Clock,
 } from "lucide-react";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
+import { getPharmacyOrderStatusMeta } from "./pharmacy-status";
 import { cn } from "@/lib/utils";
 import { medicineOrdersApi, getPharmacyRoomMedicines } from "@/lib/api";
 import { medicinesApi } from "@/lib/api/medicines";
@@ -77,22 +78,6 @@ interface PharmacyEditPrescriptionProps {
     updates: { fake_date?: string; doctor_name?: string },
   ) => void;
 }
-
-const ORDER_STATUS_LABELS: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  ordered: { label: "Aktif", variant: "default" },
-  pending: { label: "Menunggu Telaah", variant: "secondary" },
-  reviewed: { label: "Sudah Ditelaah", variant: "default" },
-  preparing: { label: "Disiapkan", variant: "default" },
-  ready: { label: "Siap Diserahkan", variant: "default" },
-  delivered: { label: "Sudah Diserahkan", variant: "default" },
-  cancelled: { label: "Dibatalkan", variant: "destructive" },
-  partial: { label: "Sebagian", variant: "outline" },
-  returned: { label: "Ada Return", variant: "outline" },
-  in_progress: { label: "Dikerjakan", variant: "default" },
-};
 
 const formatRupiah = (value: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -229,6 +214,18 @@ const getStatusDotClass = (status?: string) => {
   }
 };
 
+const getDuplicateOrderStatusMeta = (status?: string) => {
+  if (status === "pending") {
+    return { label: "Aktif", variant: "outline" as const, className: "border-sky-200 bg-sky-50 text-sky-700" };
+  }
+  return getPharmacyOrderStatusMeta(status);
+};
+
+const getDuplicateStatusDotClass = (status?: string) => {
+  if (status === "pending") return "bg-sky-500";
+  return getStatusDotClass(status);
+};
+
 export function PharmacyEditPrescription({
   visitId,
   readOnly = false,
@@ -360,11 +357,7 @@ export function PharmacyEditPrescription({
       return;
     }
     if (!selectedOrder) return;
-    if (expandedOrderId === null) {
-      setExpandedOrderId(selectedOrder.id);
-      return;
-    }
-    if (!orders.some((order) => order.id === expandedOrderId)) {
+    if (expandedOrderId !== null && !orders.some((order) => order.id === expandedOrderId)) {
       setExpandedOrderId(selectedOrder.id);
     }
   }, [rmDuplicateMode, orders, selectedOrder, expandedOrderId]);
@@ -410,9 +403,9 @@ export function PharmacyEditPrescription({
           ? editRacikanSearchTerm
           : editItemDialogOpen
             ? editItemMedicineSearchTerm
-          : showRacikanDialog
-            ? racikanSearchTerm
-            : searchTerm;
+            : showRacikanDialog
+              ? racikanSearchTerm
+              : searchTerm;
         const res = await medicinesApi.getAll({
           search: activeSearchTerm || undefined,
           is_active: true,
@@ -561,13 +554,13 @@ export function PharmacyEditPrescription({
       ? async () => onCreateDuplicateOrder(payload)
       : adapterCreate
         ? async () => {
-            const res = await adapterCreate({
-              fake_date: payload?.order_date
-                ? `${payload.order_date.replace("T", " ")}:00`
-                : new Date().toISOString().slice(0, 19),
-            });
-            return res.data;
-          }
+          const res = await adapterCreate({
+            fake_date: payload?.order_date
+              ? `${payload.order_date.replace("T", " ")}:00`
+              : new Date().toISOString().slice(0, 19),
+          });
+          return res.data;
+        }
         : null;
     if (!createFn) return null;
 
@@ -1344,6 +1337,13 @@ export function PharmacyEditPrescription({
   const getOrderActiveItemCount = (order: MedicineOrder) =>
     (order.items || []).filter((item) => item.status !== "cancelled").length;
 
+  const getOrderComputedData = (order: MedicineOrder) => {
+    const orderActiveItems = (order.items || []).filter((item) => item.status !== "cancelled");
+    const orderGrouped = groupMedicineOrderItems(orderActiveItems);
+    const orderTotal = orderActiveItems.reduce((total, item) => total + getUnitPrice(item) * Number(item.quantity || 0), 0);
+    return { orderActiveItems, orderGrouped, orderTotal };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 gap-2">
@@ -1376,10 +1376,11 @@ export function PharmacyEditPrescription({
                   {orders.map((order) => {
                     const isExpanded = expandedOrderId === order.id;
                     const isSelected = selectedOrder?.id === order.id;
+                    const dupStatusMeta = rmDuplicateMode ? getDuplicateOrderStatusMeta(order.status) : getPharmacyOrderStatusMeta(order.status);
                     return (
-                      <tr
-                        key={order.id}
-                        className={cn(
+                      <Fragment key={order.id}>
+                        <tr
+                          className={cn(
                           "cursor-pointer border-b border-border/60 hover:bg-muted/30",
                           isSelected && "bg-primary/5",
                         )}
@@ -1394,12 +1395,251 @@ export function PharmacyEditPrescription({
                         <td className="px-3 py-2">{getOrderActiveItemCount(order)}</td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(order.status))} />
-                            <span>{ORDER_STATUS_LABELS[order.status]?.label || order.status}</span>
+                            <span className={cn("h-1.5 w-1.5 rounded-full", rmDuplicateMode ? getDuplicateStatusDotClass(order.status) : getStatusDotClass(order.status))} />
+                            <span>{dupStatusMeta.label}</span>
                             <span className="text-xs text-muted-foreground">{isExpanded ? "▼" : "▶"}</span>
                           </div>
                         </td>
                       </tr>
+                      {/* Inline collapsible medicine list directly below the order row */}
+                      {isExpanded && isSelected && selectedOrder && (() => {
+                        const { orderActiveItems: expandedActiveItems, orderGrouped: expandedGrouped, orderTotal: expandedTotal } = getOrderComputedData(selectedOrder);
+                        return (
+                          <tr>
+                            <td colSpan={5} className="p-0">
+                              <div className="border-t border-border/50 bg-muted/10 border-b-2 border-b-primary/20">
+                                {/* Toolbar for this order's medicines */}
+                                <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-border/50 bg-muted/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                  <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                    <Pill className="h-3.5 w-3.5" />
+                                    Daftar Obat ({expandedGrouped.length} entri)
+                                  </span>
+                                  <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>
+                                    <Badge
+                                      variant={dupStatusMeta.variant}
+                                      className={cn("h-5 px-1.5 py-0 text-[10px]", dupStatusMeta.className)}
+                                    >
+                                      {dupStatusMeta.label}
+                                    </Badge>
+                                    {canModify && (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          onClick={(e) => { e.stopPropagation(); openRacikanDialog(); }}
+                                          className="h-7 w-7 rounded-md"
+                                          title="Tambah Racikan"
+                                        >
+                                          <Pill className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          onClick={(e) => { e.stopPropagation(); openAddDialog(); }}
+                                          className="h-7 w-7 rounded-md"
+                                          title="Tambah Obat"
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Medicine items table */}
+                                <div className="overflow-x-auto">
+                                  <table className="w-full min-w-[900px] text-sm">
+                                    <thead className="bg-muted/30 border-b border-border/50">
+                                      <tr>
+                                        <th className="py-1.5 px-3 text-left font-medium text-xs">Nama Item</th>
+                                        <th className="py-1.5 px-3 text-left font-medium text-xs">Detail Resep</th>
+                                        <th className="py-1.5 px-3 text-left font-medium text-xs w-[120px]">Jumlah</th>
+                                        <th className="py-1.5 px-3 text-right font-medium text-xs w-[140px]">Harga</th>
+                                        <th className="py-1.5 px-3 text-left font-medium text-xs w-[110px]">Status</th>
+                                        {canModify && <th className="py-1.5 px-3 text-center font-medium text-xs w-[100px]">Aksi</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {expandedGrouped.length === 0 ? (
+                                        <tr>
+                                          <td colSpan={canModify ? 6 : 5} className="py-6 text-center text-muted-foreground text-xs">
+                                            Belum ada obat dalam resep
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        expandedGrouped.map((group, groupIndex) => {
+                                          if (group.type === "racikan") {
+                                            const firstItem = group.items[0];
+                                            const firstIndex = expandedActiveItems.findIndex((c) => c === firstItem);
+                                            const firstRow = getRowEditData(firstItem, firstIndex);
+                                            const groupKey = group.racikanGroup || group.key;
+                                            const isRacikanExpanded = expandedRacikanGroups[groupKey] ?? false;
+                                            const groupTotal = group.items.reduce((sum, item) => {
+                                              const itemIndex = expandedActiveItems.findIndex((c) => c === item);
+                                              const row = getRowEditData(item, itemIndex);
+                                              return sum + getUnitPrice(item) * Number(row.quantity || 0);
+                                            }, 0);
+                                            const groupDisabled = group.items.some((item) => Boolean(item.dispensed_qty) && item.dispensed_qty > 0);
+                                            const detailSummary = [firstRow.dosage || "-", firstRow.frequency || "-"].join(" • ");
+
+                                            return (
+                                              <Fragment key={group.key}>
+                                                <tr className="border-b bg-muted/10 align-top">
+                                                  <td className="py-2 px-3">
+                                                    <button
+                                                      type="button"
+                                                      className="flex w-full items-start gap-2 text-left"
+                                                      onClick={(e) => { e.stopPropagation(); toggleRacikanGroup(groupKey); }}
+                                                    >
+                                                      <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                          <span className="font-semibold truncate">{firstRow.racikan_name || group.racikanName || "Racikan"}</span>
+                                                          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Racikan</Badge>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground truncate">
+                                                          {firstRow.racikan_type || group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
+                                                        </p>
+                                                      </div>
+                                                    </button>
+                                                  </td>
+                                                  <td className="py-2 px-3">
+                                                    <p className="truncate">{detailSummary}</p>
+                                                    <p className="text-xs text-muted-foreground truncate">Instruksi: {firstRow.instructions || "-"}</p>
+                                                  </td>
+                                                  <td className="py-2 px-3 font-medium">{firstRow.racikan_qty || 1} {firstRow.racikan_unit || "bungkus"}</td>
+                                                  <td className="py-2 px-3 text-right">
+                                                    <p className="text-sm font-semibold leading-5">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(groupTotal)}</p>
+                                                  </td>
+                                                  <td className="py-2 px-3">
+                                                    <Badge variant={groupDisabled ? "outline" : "default"}>
+                                                      {groupDisabled ? "Sudah Diproses" : "Aktif"}
+                                                    </Badge>
+                                                  </td>
+                                                  {canModify && (
+                                                    <td className="py-2 px-3">
+                                                      <div className="flex items-center justify-center gap-1">
+                                                        <Button
+                                                          variant="ghost" size="icon" className="h-8 w-8"
+                                                          onClick={(e) => { e.stopPropagation(); openEditRacikanDialog(group.items, groupKey); }}
+                                                          disabled={groupDisabled}
+                                                        >
+                                                          <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                          variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                                                          onClick={(e) => { e.stopPropagation(); handleDeleteRacikanGroup(group.items); }}
+                                                          disabled={groupDisabled}
+                                                        >
+                                                          <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                      </div>
+                                                    </td>
+                                                  )}
+                                                </tr>
+                                                {isRacikanExpanded && group.items.map((item, index) => {
+                                                  const actualIndex = expandedActiveItems.findIndex((c) => c === item);
+                                                  const row = getRowEditData(item, actualIndex);
+                                                  const unitPrice = getUnitPrice(item);
+                                                  return (
+                                                    <tr key={item.id || index} className="border-b bg-background">
+                                                      <td className="py-2 px-3 pl-11">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                          <span className="h-px w-4 bg-border" />
+                                                          <span className="truncate text-muted-foreground">{item.medicine?.name || "Komponen"}</span>
+                                                        </div>
+                                                      </td>
+                                                      <td className="py-2 px-3 text-xs text-muted-foreground">Bahan racikan</td>
+                                                      <td className="py-2 px-3 text-xs">{row.quantity} {row.unit || item.unit}</td>
+                                                      <td className="py-2 px-3 text-right text-xs">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(Number(row.quantity || 0) * unitPrice)}</td>
+                                                      <td className="py-2 px-3 text-muted-foreground text-xs">Komponen</td>
+                                                      {canModify && <td className="py-2 px-3 text-center">-</td>}
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </Fragment>
+                                            );
+                                          }
+
+                                          const item = group.items[0];
+                                          const actualIndex = expandedActiveItems.findIndex((c) => c === item);
+                                          const row = getRowEditData(item, actualIndex);
+                                          const unitPrice = getUnitPrice(item);
+                                          const itemDisabled = Boolean(item.dispensed_qty) && item.dispensed_qty > 0;
+                                          const detailSummary = [row.dosage || "-", row.frequency || "-"].join(" • ");
+
+                                          return (
+                                            <tr key={item.id || groupIndex} className="border-b align-top bg-background">
+                                              <td className="py-2 px-3">
+                                                <p className="font-medium truncate">{item.medicine?.name || "Obat"}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{item.medicine?.code || "-"}</p>
+                                              </td>
+                                              <td className="py-2 px-3">
+                                                <p className="truncate">{detailSummary}</p>
+                                                <p className="text-xs text-muted-foreground truncate">Instruksi: {row.instructions || "-"}</p>
+                                              </td>
+                                              <td className="py-2 px-3 font-medium">{row.quantity} {row.unit || item.unit}</td>
+                                              <td className="py-2 px-3 text-right">
+                                                <p className="text-sm font-semibold leading-4">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(Number(row.quantity || 0) * unitPrice)}</p>
+                                              </td>
+                                              <td className="py-2 px-3">
+                                                <Badge variant={dupStatusMeta.variant} className={dupStatusMeta.className}>
+                                                  {dupStatusMeta.label}
+                                                </Badge>
+                                              </td>
+                                              {canModify && (
+                                                <td className="py-2 px-3">
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    <Button
+                                                      variant="ghost" size="icon" className="h-8 w-8"
+                                                      onClick={(e) => { e.stopPropagation(); openEditItemDialog(item); }}
+                                                      disabled={itemDisabled}
+                                                    >
+                                                      <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                      variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                                                      onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }}
+                                                      disabled={itemDisabled}
+                                                    >
+                                                      <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  </div>
+                                                </td>
+                                              )}
+                                            </tr>
+                                          );
+                                        })
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                {/* Footer with total and delete button */}
+                                <div className="border-t border-border/50 bg-primary/5 px-3 py-2 flex items-center justify-between">
+                                  <div>
+                                    {canEdit && (
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        onClick={(e) => { e.stopPropagation(); setCancelConfirmOrder(true); }}
+                                      >
+                                        <AlertCircle className="h-4 w-4 mr-1" />
+                                        Hapus Resep
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-[10px] text-muted-foreground">Grand Total</p>
+                                    <p className="text-sm font-semibold text-primary">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(expandedTotal)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -1417,132 +1657,146 @@ export function PharmacyEditPrescription({
             <Pill className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p>Belum ada resep obat.</p>
           </div>
-        ) : showSelectedOrderEditor && selectedOrder ? (
+        ) : !rmDuplicateMode && showSelectedOrderEditor && selectedOrder ? (
           <>
-            {!isEditable && (
+            {/* {!isEditable && (
               <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30 rounded p-3 mb-4">
                 <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
                   <AlertCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">Order sudah diproses, tidak dapat diedit</span>
                 </div>
               </div>
-            )}
+            )} */}
 
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
-                <span className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                   <Pill className="h-3 w-3" />
                   Daftar Obat ({groupedActiveItems.length} entri)
                 </span>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[320px] sm:items-end">
+                <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                  {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
+                  <Badge
+                    variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                    className={cn("h-5 px-1.5 py-0 text-[10px]", getPharmacyOrderStatusMeta(selectedOrder.status).className)}
+                  >
+                    {getPharmacyOrderStatusMeta(selectedOrder.status).label}
+                  </Badge>
                   {canModify && (
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                      <Button size="sm" variant="outline" onClick={openRacikanDialog} className="h-6 text-[10px] py-0 px-2">
-                        <Pill className="h-3 w-3 mr-1" />
-                        Tambah Racikan
+                    <>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={openRacikanDialog}
+                        className="h-9 w-9 rounded-md"
+                        title="Tambah Racikan"
+                        aria-label="Tambah Racikan"
+                      >
+                        <Pill className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" onClick={openAddDialog} className="h-6 text-[10px] py-0 px-2">
-                        <Plus className="h-3 w-3 mr-1" />
-                        Tambah Obat
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={openAddDialog}
+                        className="h-9 w-9 rounded-md"
+                        title="Tambah Obat"
+                        aria-label="Tambah Obat"
+                      >
+                        <Plus className="h-5 w-5" />
                       </Button>
-                    </div>
+                    </>
                   )}
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
-                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
-                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                    </Badge>
-                    <OrderDetailInfoButton
-                      title="Detail Order Farmasi"
-                      tooltip="Lihat detail order farmasi"
-                      className="h-6 w-6 rounded-md"
-                    >
-                      <table className="w-full table-fixed text-xs">
-                        <tbody>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
-                            <td className="py-1.5 font-medium break-words">
-                              {rmDuplicateMode ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5"
-                                    title="Pilih dokter"
-                                    onClick={() => setDoctorModalOpen(true)}
-                                  >
-                                    <User className="h-3 w-3" />
-                                  </Button>
-                                </span>
-                              ) : (
+                  <OrderDetailInfoButton
+                    title="Detail Order Farmasi"
+                    tooltip="Lihat detail order farmasi"
+                    className="h-9 w-9 rounded-md"
+                  >
+                    <table className="w-full table-fixed text-xs">
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                          <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                          <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
                                 <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                              )}
-                            </td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Tanggal Order</td>
-                            <td className="py-1.5 font-medium break-words">
-                              {rmDuplicateMode ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <span className="font-medium">
-                                    {selectedOrder.created_at
-                                      ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                                      : "-"}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5"
-                                    title="Set tanggal order"
-                                    onClick={() => setDateModalOpen(true)}
-                                  >
-                                    <Clock className="h-3 w-3" />
-                                  </Button>
-                                </span>
-                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Pilih dokter"
+                                  onClick={() => setDoctorModalOpen(true)}
+                                >
+                                  <User className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Tanggal Order</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
                                 <span className="font-medium">
                                   {selectedOrder.created_at
                                     ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
                                     : "-"}
                                 </span>
-                              )}
-                            </td>
-                          </tr>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Set tanggal order"
+                                  onClick={() => setDateModalOpen(true)}
+                                >
+                                  <Clock className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              <span className="font-medium">
+                                {selectedOrder.created_at
+                                  ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                                  : "-"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">No. Resep</td>
+                          <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
+                          <td className="py-1.5 font-medium break-words">{groupedActiveItems.length}</td>
+                        </tr>
+                        {selectedOrder.diagnosis && (
                           <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. Resep</td>
-                            <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
+                            <td className="py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
                           </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
-                            <td className="py-1.5 font-medium break-words">{groupedActiveItems.length}</td>
+                        )}
+                        {selectedOrder.notes && (
+                          <tr>
+                            <td className="py-1.5 align-top text-muted-foreground">Catatan Resep</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
                           </tr>
-                          {selectedOrder.diagnosis && (
-                            <tr className="border-b">
-                              <td className="py-1.5 align-top text-muted-foreground">Diagnosis</td>
-                              <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
-                            </tr>
-                          )}
-                          {selectedOrder.notes && (
-                            <tr>
-                              <td className="py-1.5 align-top text-muted-foreground">Catatan Resep</td>
-                              <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </OrderDetailInfoButton>
-                  </div>
+                        )}
+                      </tbody>
+                    </table>
+                  </OrderDetailInfoButton>
                 </div>
               </div>
               <div className="p-0 overflow-x-auto">
@@ -1700,8 +1954,11 @@ export function PharmacyEditPrescription({
                               <p className="text-sm font-semibold leading-4">{formatRupiah(Number(row.quantity || 0) * unitPrice)}</p>
                             </td>
                             <td className="py-2 px-3">
-                              <Badge variant={ORDER_STATUS_LABELS[item.status || "pending"]?.variant || "secondary"}>
-                                {ORDER_STATUS_LABELS[item.status || "pending"]?.label || item.status || "Aktif"}
+                              <Badge
+                                variant={getPharmacyOrderStatusMeta(item.status || "pending").variant}
+                                className={getPharmacyOrderStatusMeta(item.status || "pending").className}
+                              >
+                                {getPharmacyOrderStatusMeta(item.status || "pending").label}
                               </Badge>
                             </td>
                             {canModify && (
@@ -2578,8 +2835,11 @@ export function PharmacyEditPrescription({
                         <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(order.status))} />
                         {order.order_number}
                       </span>
-                      <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"}>
-                        {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                      <Badge
+                        variant={getPharmacyOrderStatusMeta(order.status).variant}
+                        className={getPharmacyOrderStatusMeta(order.status).className}
+                      >
+                        {getPharmacyOrderStatusMeta(order.status).label}
                       </Badge>
                     </div>
                   </button>

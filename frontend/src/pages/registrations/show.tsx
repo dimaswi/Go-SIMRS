@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import {
   Trash2,
   ShieldCheck,
   Search,
+  FileText,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -62,8 +64,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { printApi } from "@/lib/api/print";
 import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 
 interface SEPLocal {
   id: number;
@@ -175,6 +179,7 @@ export default function RegistrationShow() {
   const [updatingSEP, setUpdatingSEP] = useState(false);
   const [deleteSPRIOpen, setDeleteSPRIOpen] = useState(false);
   const [deletingSPRI, setDeletingSPRI] = useState(false);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
 
   const [editPaymentOpen, setEditPaymentOpen] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
@@ -447,7 +452,7 @@ export default function RegistrationShow() {
 
   const handleActivateCheckin = async () => {
     if (!bpjsQueue) return;
-    
+
     setActivatingCheckin(true);
     try {
       const response = await bpjsApi.activateQueueCheckin(bpjsQueue.id);
@@ -528,6 +533,18 @@ export default function RegistrationShow() {
               <Pencil className="h-4 w-4" />
               Ubah Pembayaran
             </Button>
+            {registration.registration_type === "inpatient" && registration.visit && (
+              <>
+                <Button variant="default" size="sm" onClick={() => setSignatureDialogOpen(true)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  TTD Persetujuan
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => printApi.generalConsentInpatient(registration.visit!.id)}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Cetak Persetujuan
+                </Button>
+              </>
+            )}
             {bpjsQueue && (
               <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                 <Smartphone className="mr-1 h-3 w-3" />
@@ -764,7 +781,7 @@ export default function RegistrationShow() {
                   ) : undefined
                 }
               >
-                <div className="grid gap-3 lg:grid-cols-2">
+                <div className="grid gap-3 lg:grid-cols-1">
                   <DetailItem label="Nomor SPRI" value={spriData.no_spri} mono />
                   <DetailItem label="Status" value={spriData.status === "active" ? "Aktif" : spriData.status === "cancelled" ? "Dibatalkan" : spriData.status} />
                   <DetailItem
@@ -888,7 +905,7 @@ export default function RegistrationShow() {
               Update data SEP dengan nomor <strong className="font-mono">{sepData?.no_sep}</strong>
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             {/* Info SEP (readonly) */}
             <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
@@ -1237,7 +1254,7 @@ export default function RegistrationShow() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deletingSEP}>Batal</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteSEP}
               disabled={deletingSEP}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1279,6 +1296,21 @@ export default function RegistrationShow() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <SignOnBehalfDialog
+        open={signatureDialogOpen}
+        onOpenChange={setSignatureDialogOpen}
+        documentType="general_consent_inpatient"
+        documentId={registration.visit?.id || 0}
+        visitId={registration.visit?.id || 0}
+        signerHint="Silakan lengkapi Tanda Tangan"
+        documentTitle="Persetujuan Umum Rawat Inap"
+        slotLabels={{ left: "Wali", right: "Pasien" }}
+        fixedRoles={{
+          left: "wali",
+          right: "pasien"
+        }}
+        requiredSignatures={2}
+      />
     </PageShell>
   );
 }

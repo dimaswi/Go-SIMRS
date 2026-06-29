@@ -50,22 +50,21 @@ export function BPJSSectionPanel({
   return (
     <section className={cn("border border-border/70 bg-background", className)}>
       {(title || description || actions) && (
-        <div className="border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              {title && (
-                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">
-                  {title}
-                </h2>
-              )}
-              {description && (
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {description}
-                </p>
-              )}
-            </div>
-            {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            {title && (
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">
+                {title}
+              </h2>
+            )}
+            {description && (
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            )}
           </div>
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        </div>
         </div>
       )}
       <div className={cn("p-4 sm:p-5", bodyClassName)}>{children}</div>

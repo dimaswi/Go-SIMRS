@@ -37,6 +37,11 @@ func GetVisits(c *gin.Context) {
 			Where("registrations.patient_id = ?", patientID)
 	}
 
+	// Filter by doctor_id
+	if doctorID := c.Query("doctor_id"); doctorID != "" {
+		query = query.Where("visits.doctor_id = ?", doctorID)
+	}
+
 	// Filter by visit_type (support comma-separated values for multiple types)
 	if visitType := c.Query("visit_type"); visitType != "" {
 		if strings.Contains(visitType, ",") {
@@ -412,6 +417,7 @@ func UpdateVisit(c *gin.Context) {
 			}
 		}
 
+		oldStatus := visit.Status
 		visit.Status = input.Status
 
 		// Update timestamps based on status
@@ -426,6 +432,19 @@ func UpdateVisit(c *gin.Context) {
 				visit.StartTime = &now
 			}
 			visit.EndTime = &now
+		}
+
+		// If status changed to completed or cancelled, release the bed and sync Aplicare
+		if oldStatus != input.Status && (input.Status == models.VisitStatusCompleted || input.Status == models.VisitStatusCancelled) {
+			if visit.BedID != nil && *visit.BedID > 0 {
+				database.DB.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "available")
+			}
+
+			action := "patient_completed_bed_released"
+			if input.Status == models.VisitStatusCancelled {
+				action = "patient_cancelled_bed_released"
+			}
+			go bpjsService.UpdateRoomBedAvailability(visit.RoomID, action)
 		}
 	}
 
@@ -467,7 +486,7 @@ func AcceptVisit(c *gin.Context) {
 	id := c.Param("id")
 
 	var visit models.Visit
-	if err := database.DB.Preload("RoomQueue").First(&visit, id).Error; err != nil {
+	if err := database.DB.Preload("RoomQueue").Preload("Room").First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
 		return
 	}
@@ -507,7 +526,15 @@ func AcceptVisit(c *gin.Context) {
 		}
 	}
 
+	// Bed auto-assignment for UGD has been removed.
+	// UGD bed availability is now calculated via pure math using active visits count.
+
 	tx.Commit()
+
+	isEmergency := visit.VisitType == "emergency" || (visit.Room != nil && (strings.ToLower(visit.Room.ServiceType) == "ugd" || strings.ToLower(visit.Room.ServiceType) == "igd" || strings.ToLower(visit.Room.ServiceType) == "emergency"))
+	if isEmergency {
+		go bpjsService.UpdateRoomBedAvailability(visit.RoomID, "ugd_patient_accepted")
+	}
 
 	// Load relationships
 	database.DB.Preload("Registration").Preload("Registration.Patient").
@@ -522,7 +549,7 @@ func CompleteVisit(c *gin.Context) {
 	id := c.Param("id")
 	var visit models.Visit
 
-	if err := database.DB.Preload("Registration").Preload("RoomQueue").First(&visit, id).Error; err != nil {
+	if err := database.DB.Preload("Registration").Preload("RoomQueue").Preload("Room").First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
 		return
 	}
@@ -531,6 +558,11 @@ func CompleteVisit(c *gin.Context) {
 	if visit.Status == models.VisitStatusCompleted {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Kunjungan sudah selesai"})
 		return
+	}
+
+	// Release bed if assigned (especially for UGD)
+	if visit.BedID != nil {
+		database.DB.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "available")
 	}
 
 	// Update status to completed
@@ -559,6 +591,8 @@ func CompleteVisit(c *gin.Context) {
 			bpjsService.TriggerTask5FromVisit(visit.ID, now)
 		}()
 	}
+
+	go bpjsService.UpdateRoomBedAvailability(visit.RoomID, "patient_completed_bed_released")
 
 	// Load relationships for response
 	database.DB.Preload("Registration").Preload("Registration.Patient").
@@ -668,6 +702,11 @@ func CancelVisit(c *gin.Context) {
 			return
 		}
 
+		if visit.BedID != nil && *visit.BedID > 0 {
+			database.DB.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "available")
+		}
+		go bpjsService.UpdateRoomBedAvailability(visit.RoomID, "patient_cancelled_bed_released")
+
 		// Reload with associations
 		database.DB.Preload("Registration").Preload("Registration.Patient").
 			Preload("Room").Preload("Doctor").Preload("RoomQueue").
@@ -689,6 +728,11 @@ func CancelVisit(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan kunjungan"})
 		return
 	}
+
+	if visit.BedID != nil && *visit.BedID > 0 {
+		database.DB.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "available")
+	}
+	go bpjsService.UpdateRoomBedAvailability(visit.RoomID, "patient_cancelled_bed_released")
 
 	// Reload with associations
 	database.DB.Preload("Registration").Preload("Registration.Patient").
@@ -739,6 +783,12 @@ func CancelCompleteVisit(c *gin.Context) {
 		visit.RoomQueue.CompletedAt = nil
 		database.DB.Save(visit.RoomQueue)
 	}
+
+	// Re-occupy the bed if assigned
+	if visit.BedID != nil && *visit.BedID > 0 {
+		database.DB.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "occupied")
+	}
+	go bpjsService.UpdateRoomBedAvailability(visit.RoomID, "patient_visit_reactivated")
 
 	// Load relationships for response
 	database.DB.Preload("Registration").Preload("Registration.Patient").

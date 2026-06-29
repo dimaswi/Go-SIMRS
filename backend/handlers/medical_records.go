@@ -1575,6 +1575,9 @@ func SaveDisposition(c *gin.Context) {
 		}
 		fmt.Printf("DEBUG: Visit update rows affected: %d\n", result.RowsAffected)
 
+		// Trigger Aplicare bed sync unconditionally for the room
+		go bpjs.UpdateRoomBedAvailability(visit.RoomID, "disposition_visit_completed")
+
 		// Complete the room queue if exists
 		database.DB.Exec(`UPDATE room_queues SET status = ?, completed_at = ?, updated_at = ? WHERE visit_id = ?`,
 			models.RoomQueueStatusCompleted, now, now, visit.ID)
@@ -1841,6 +1844,9 @@ func CancelDisposition(c *gin.Context) {
 		return
 	}
 
+	// Trigger Aplicare bed sync unconditionally for the room
+	go bpjs.UpdateRoomBedAvailability(visit.RoomID, "disposition_visit_reactivated")
+
 	// Reactivate the registration status (frontend checks this)
 	if visit.RegistrationID != 0 {
 		database.DB.Exec(`UPDATE registrations SET status = ?, updated_at = ? WHERE id = ?`,
@@ -1998,8 +2004,18 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 	// Get room class for inpatient billing
 	var room models.Room
 	var inpatientClass string
-	if err := tx.First(&room, *roomID).Error; err == nil {
-		inpatientClass = room.RoomClass
+
+	if bedID != nil {
+		var bed models.Bed
+		if err := tx.Preload("RoomUnit").First(&bed, *bedID).Error; err == nil && bed.RoomUnit != nil && bed.RoomUnit.Class != "" {
+			inpatientClass = bed.RoomUnit.Class
+		}
+	}
+
+	if inpatientClass == "" {
+		if err := tx.First(&room, *roomID).Error; err == nil {
+			inpatientClass = room.RoomClass
+		}
 	}
 
 	now := time.Now()
@@ -2524,6 +2540,9 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	var vitalSignCount int64
 	scopedRMQuery(c, visitID).Model(&models.VitalSign{}).Count(&vitalSignCount)
 
+	var bersalinCount int64
+	database.DB.Model(&models.BersalinRecord{}).Where("visit_id = ?", visitID).Count(&bersalinCount)
+
 	// Build diagnosis in same format as GetDiagnoses endpoint
 	diagnosisItems := make([]gin.H, 0)
 	for _, d := range diagnoses {
@@ -2564,6 +2583,7 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		"fluid_balance_count":  fluidBalanceCount,
 		"bed_transfer_count":   bedTransferCount,
 		"vital_sign_count":     vitalSignCount,
+		"bersalin_count":       bersalinCount,
 	})
 }
 

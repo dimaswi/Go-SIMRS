@@ -7,6 +7,7 @@ import (
 	"starter/backend/models"
 	bpjsService "starter/backend/services/bpjs"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -88,8 +89,8 @@ func AplicareCreateRoom(c *gin.Context) {
 		return
 	}
 
-	// Compute bed stats
-	room.ComputeBedStats(database.DB)
+	// Compute bed stats per unit (Kamar)
+	unitStats := room.ComputeBedStatsByUnit(database.DB)
 
 	client, err := bpjsService.NewAplicareClient()
 	if err != nil {
@@ -97,60 +98,108 @@ func AplicareCreateRoom(c *gin.Context) {
 		return
 	}
 
-	kodeKelas := room.KodeKelasBPJS
-	if kodeKelas == "" {
-		kodeKelas = bpjsService.MapRoomClassToAplicare(room.RoomClass)
+	var successResponses []bpjsService.AplicareBedRequest
+	var errors []string
+
+	for _, stat := range unitStats {
+		kodeKelas := bpjsService.MapRoomClassToAplicare(stat.Class)
+
+		unitCode := stat.UnitCode
+		if unitCode == "" {
+			unitCode = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
+		}
+
+		if len(unitCode) > 10 {
+			unitCode = unitCode[:10]
+		}
+
+		req := bpjsService.AplicareBedRequest{
+			KodeKelas:          kodeKelas,
+			KodeRuang:          unitCode,
+			NamaRuang:          stat.UnitName,
+			Kapasitas:          strconv.Itoa(stat.TotalBeds),
+			Tersedia:           strconv.Itoa(stat.AvailableBeds),
+			TersediaPria:       "0",
+			TersediaWanita:     "0",
+			TersediaPriaWanita: "0",
+		}
+
+		// override if specific values provided in request payload
+		if input.KodeKelas != "" {
+			req.KodeKelas = input.KodeKelas
+		}
+		if input.KodeRuang != "" {
+			req.KodeRuang = input.KodeRuang
+		}
+		if input.NamaRuang != "" {
+			req.NamaRuang = input.NamaRuang
+		}
+		if input.Kapasitas != "" {
+			req.Kapasitas = input.Kapasitas
+		}
+		if input.Tersedia != "" {
+			req.Tersedia = input.Tersedia
+		}
+		if input.TersediaPria != "" {
+			req.TersediaPria = input.TersediaPria
+		}
+		if input.TersediaWanita != "" {
+			req.TersediaWanita = input.TersediaWanita
+		}
+		if input.TersediaPriaWanita != "" {
+			req.TersediaPriaWanita = input.TersediaPriaWanita
+		}
+
+		var missingFields []string
+		if req.KodeKelas == "" {
+			missingFields = append(missingFields, "KodeKelas")
+		}
+		if req.KodeRuang == "" {
+			missingFields = append(missingFields, "KodeRuang")
+		}
+		if req.NamaRuang == "" {
+			missingFields = append(missingFields, "NamaRuang")
+		}
+		if req.Kapasitas == "" {
+			missingFields = append(missingFields, "Kapasitas")
+		}
+		if req.Tersedia == "" {
+			missingFields = append(missingFields, "Tersedia")
+		}
+
+		if len(missingFields) > 0 {
+			errors = append(errors, fmt.Sprintf("Field request Aplicare belum lengkap (%s) untuk kamar %s (kelas %s)", strings.Join(missingFields, ", "), stat.UnitName, stat.Class))
+			continue
+		}
+
+		if err := client.CreateBed(req); err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "sudah ada") {
+				if updateErr := client.UpdateBed(req); updateErr != nil {
+					errors = append(errors, fmt.Sprintf("Gagal mendaftarkan kamar %s: %v (update fallback failed: %v)", stat.UnitName, err, updateErr))
+				} else {
+					successResponses = append(successResponses, req)
+				}
+			} else {
+				errors = append(errors, fmt.Sprintf("Gagal mendaftarkan kamar %s: %v", stat.UnitName, err))
+			}
+		} else {
+			successResponses = append(successResponses, req)
+		}
 	}
 
-	req := bpjsService.AplicareBedRequest{
-		KodeKelas:          kodeKelas,
-		KodeRuang:          room.Code,
-		NamaRuang:          room.Name,
-		Kapasitas:          strconv.Itoa(room.TotalBeds),
-		Tersedia:           strconv.Itoa(room.AvailableBeds),
-		TersediaPria:       "0",
-		TersediaWanita:     "0",
-		TersediaPriaWanita: "0",
-	}
-
-	if input.KodeKelas != "" {
-		req.KodeKelas = input.KodeKelas
-	}
-	if input.KodeRuang != "" {
-		req.KodeRuang = input.KodeRuang
-	}
-	if input.NamaRuang != "" {
-		req.NamaRuang = input.NamaRuang
-	}
-	if input.Kapasitas != "" {
-		req.Kapasitas = input.Kapasitas
-	}
-	if input.Tersedia != "" {
-		req.Tersedia = input.Tersedia
-	}
-	if input.TersediaPria != "" {
-		req.TersediaPria = input.TersediaPria
-	}
-	if input.TersediaWanita != "" {
-		req.TersediaWanita = input.TersediaWanita
-	}
-	if input.TersediaPriaWanita != "" {
-		req.TersediaPriaWanita = input.TersediaPriaWanita
-	}
-
-	if req.KodeKelas == "" || req.KodeRuang == "" || req.NamaRuang == "" || req.Kapasitas == "" || req.Tersedia == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Field request Aplicare belum lengkap"})
+	if len(errors) > 0 && len(successResponses) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": strings.Join(errors, ", ")})
 		return
 	}
 
-	if err := client.CreateBed(req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal mendaftarkan ruangan ke Aplicare: %v", err)})
-		return
+	message := fmt.Sprintf("Berhasil mendaftarkan %d kelas ruangan %s ke Aplicare", len(successResponses), room.Name)
+	if len(errors) > 0 {
+		message += fmt.Sprintf(" (dengan %d error: %s)", len(errors), strings.Join(errors, ", "))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Ruangan %s berhasil didaftarkan ke Aplicare", room.Name),
-		"data":    req,
+		"message": message,
+		"data":    successResponses,
 	})
 }
 
@@ -176,7 +225,7 @@ func AplicareUpdateRoom(c *gin.Context) {
 		return
 	}
 
-	room.ComputeBedStats(database.DB)
+	unitStats := room.ComputeBedStatsByUnit(database.DB)
 
 	client, err := bpjsService.NewAplicareClient()
 	if err != nil {
@@ -184,30 +233,67 @@ func AplicareUpdateRoom(c *gin.Context) {
 		return
 	}
 
-	kodeKelas := room.KodeKelasBPJS
-	if kodeKelas == "" {
-		kodeKelas = bpjsService.MapRoomClassToAplicare(room.RoomClass)
+	var successResponses []bpjsService.AplicareBedRequest
+	var errors []string
+
+	for _, stat := range unitStats {
+		kodeKelas := bpjsService.MapRoomClassToAplicare(stat.Class)
+
+		kodeRuang := stat.UnitCode
+		if kodeRuang == "" {
+			kodeRuang = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
+		}
+		
+		// BPJS Aplicare implicitly truncates KodeRuang to 10 characters
+		if len(kodeRuang) > 10 {
+			kodeRuang = kodeRuang[:10]
+		}
+
+		namaRuang := stat.UnitName
+		if namaRuang == "" {
+			namaRuang = room.Name
+		}
+
+		req := bpjsService.AplicareBedRequest{
+			KodeKelas:          kodeKelas,
+			KodeRuang:          kodeRuang,
+			NamaRuang:          namaRuang,
+			Kapasitas:          strconv.Itoa(stat.TotalBeds),
+			Tersedia:           strconv.Itoa(stat.AvailableBeds),
+			TersediaPria:       "0",
+			TersediaWanita:     "0",
+			TersediaPriaWanita: "0",
+		}
+
+		if err := client.UpdateBed(req); err != nil {
+			errStr := strings.ToLower(err.Error())
+			if strings.Contains(errStr, "tidak ditemukan") || strings.Contains(errStr, "data tidak ada") {
+				if createErr := client.CreateBed(req); createErr != nil {
+					errors = append(errors, fmt.Sprintf("Gagal mengupdate kamar %s: %v (create fallback failed: %v)", stat.UnitName, err, createErr))
+				} else {
+					successResponses = append(successResponses, req)
+				}
+			} else {
+				errors = append(errors, fmt.Sprintf("Gagal mengupdate kamar %s: %v", stat.UnitName, err))
+			}
+		} else {
+			successResponses = append(successResponses, req)
+		}
 	}
 
-	req := bpjsService.AplicareBedRequest{
-		KodeKelas:          kodeKelas,
-		KodeRuang:          room.Code,
-		NamaRuang:          room.Name,
-		Kapasitas:          strconv.Itoa(room.TotalBeds),
-		Tersedia:           strconv.Itoa(room.AvailableBeds),
-		TersediaPria:       "0",
-		TersediaWanita:     "0",
-		TersediaPriaWanita: "0",
-	}
-
-	if err := client.UpdateBed(req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal mengupdate ke Aplicare: %v", err)})
+	if len(errors) > 0 && len(successResponses) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": strings.Join(errors, ", ")})
 		return
 	}
 
+	message := fmt.Sprintf("Ketersediaan tempat tidur %d kelas ruangan %s berhasil diupdate", len(successResponses), room.Name)
+	if len(errors) > 0 {
+		message += fmt.Sprintf(" (dengan %d error: %s)", len(errors), strings.Join(errors, ", "))
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Ketersediaan tempat tidur ruangan %s berhasil diupdate", room.Name),
-		"data":    req,
+		"message": message,
+		"data":    successResponses,
 	})
 }
 
@@ -242,7 +328,7 @@ func AplicareDeleteRoom(c *gin.Context) {
 // AplicareGetRooms mengambil daftar ruangan rawat inap SIMRS yang memiliki bed
 func AplicareGetRooms(c *gin.Context) {
 	var rooms []models.Room
-	if err := database.DB.Where("has_bed = ? AND is_active = ?", true, true).
+	if err := database.DB.Preload("Units").Where("has_bed = ? AND is_active = ?", true, true).
 		Order("name ASC").
 		Find(&rooms).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data ruangan"})

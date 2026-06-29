@@ -15,9 +15,7 @@ import (
 )
 
 type timesheetMedicineItem struct {
-	OrderID      uint   `json:"order_id"`
-	OrderNumber  string `json:"order_number"`
-	OrderItemID  uint   `json:"order_item_id"`
+	ItemID       uint   `json:"item_id"`
 	MedicineID   uint   `json:"medicine_id"`
 	MedicineName string `json:"medicine_name"`
 	MedicineCode string `json:"medicine_code"`
@@ -31,15 +29,15 @@ type timesheetMedicineItem struct {
 }
 
 type timesheetEntryResponse struct {
-	ID                  uint       `json:"id"`
-	MedicineOrderItemID uint       `json:"medicine_order_item_id"`
-	ScheduledAt         time.Time  `json:"scheduled_at"`
-	Status              string     `json:"status"`
-	ReasonCode          string     `json:"reason_code"`
-	ReasonDetail        string     `json:"reason_detail"`
-	AdministeredAt      *time.Time `json:"administered_at,omitempty"`
-	AdministeredBy      *uint      `json:"administered_by,omitempty"`
-	Notes               string     `json:"notes"`
+	ID              uint       `json:"id"`
+	TimesheetItemID uint       `json:"timesheet_item_id"`
+	ScheduledAt     time.Time  `json:"scheduled_at"`
+	Status          string     `json:"status"`
+	ReasonCode      string     `json:"reason_code"`
+	ReasonDetail    string     `json:"reason_detail"`
+	AdministeredAt  *time.Time `json:"administered_at,omitempty"`
+	AdministeredBy  *uint      `json:"administered_by,omitempty"`
+	Notes           string     `json:"notes"`
 }
 
 func normalizeTimesheetStatus(value string) (string, bool) {
@@ -141,7 +139,20 @@ func parseTimesheetDateAndHour(dateText string, hour int) (time.Time, error) {
 	return time.Date(day.Year(), day.Month(), day.Day(), hour, 0, 0, 0, time.Local), nil
 }
 
-// GetMedicationTimesheet returns in-room medicine rows and hourly logs for a visit/day.
+func loadTimesheetVisit(c *gin.Context, visitID uint) (*models.Visit, error) {
+	var visit models.Visit
+	if err := database.DB.Select("id", "registration_id").First(&visit, visitID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "visit not found"})
+			return nil, err
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return nil, err
+	}
+	return &visit, nil
+}
+
+// GetMedicationTimesheet returns manually selected medicine rows and hourly logs for a visit/day.
 func GetMedicationTimesheet(c *gin.Context) {
 	visitIDValue := c.Query("visit_id")
 	if visitIDValue == "" {
@@ -168,51 +179,37 @@ func GetMedicationTimesheet(c *gin.Context) {
 	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.Local)
 	end := start.Add(24 * time.Hour)
 
-	var visit models.Visit
-	if err := database.DB.Select("id", "registration_id").First(&visit, visitID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "visit not found"})
+	if _, err := loadTimesheetVisit(c, visitID); err != nil {
 		return
 	}
 
-	var orders []models.MedicineOrder
+	var itemRows []models.MedicineAdministrationTimesheetItem
 	if err := database.DB.
-		Where("source_visit_id = ? AND fulfillment_type = ? AND status <> ?", visitID, models.FulfillmentTypeInRoom, models.OrderStatusCancelled).
-		Preload("Items", "status <> ?", models.ItemStatusCancelled).
-		Preload("Items.Medicine").
-		Order("created_at ASC").
-		Find(&orders).Error; err != nil {
+		Where("visit_id = ?", visitID).
+		Order("created_at ASC, id ASC").
+		Find(&itemRows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	items := make([]timesheetMedicineItem, 0)
-	for _, order := range orders {
-		for _, item := range order.Items {
-			medicineName := ""
-			medicineCode := ""
-			if item.Medicine != nil {
-				medicineName = item.Medicine.Name
-				medicineCode = item.Medicine.Code
-			}
-			items = append(items, timesheetMedicineItem{
-				OrderID:      order.ID,
-				OrderNumber:  order.OrderNumber,
-				OrderItemID:  item.ID,
-				MedicineID:   item.MedicineID,
-				MedicineName: medicineName,
-				MedicineCode: medicineCode,
-				Quantity:     item.Quantity,
-				Unit:         item.Unit,
-				Dosage:       item.Dosage,
-				Frequency:    item.Frequency,
-				Route:        item.Route,
-				Duration:     item.Duration,
-				Instructions: item.Instructions,
-			})
-		}
+	for _, item := range itemRows {
+		items = append(items, timesheetMedicineItem{
+			ItemID:       item.ID,
+			MedicineID:   item.MedicineID,
+			MedicineName: item.MedicineName,
+			MedicineCode: item.MedicineCode,
+			Quantity:     item.Quantity,
+			Unit:         item.Unit,
+			Dosage:       item.Dosage,
+			Frequency:    item.Frequency,
+			Route:        item.Route,
+			Duration:     item.Duration,
+			Instructions: item.Instructions,
+		})
 	}
 
-	var entries []models.MedicineAdministrationTimesheet
+	var entries []models.MedicineAdministrationTimesheetEntry
 	if err := database.DB.
 		Where("visit_id = ? AND scheduled_at >= ? AND scheduled_at < ?", visitID, start, end).
 		Order("scheduled_at ASC").
@@ -224,15 +221,15 @@ func GetMedicationTimesheet(c *gin.Context) {
 	entryResponses := make([]timesheetEntryResponse, 0, len(entries))
 	for _, entry := range entries {
 		entryResponses = append(entryResponses, timesheetEntryResponse{
-			ID:                  entry.ID,
-			MedicineOrderItemID: entry.MedicineOrderItemID,
-			ScheduledAt:         entry.ScheduledAt,
-			Status:              entry.Status,
-			ReasonCode:          entry.ReasonCode,
-			ReasonDetail:        entry.ReasonDetail,
-			AdministeredAt:      entry.AdministeredAt,
-			AdministeredBy:      entry.AdministeredBy,
-			Notes:               entry.Notes,
+			ID:              entry.ID,
+			TimesheetItemID: entry.TimesheetItemID,
+			ScheduledAt:     entry.ScheduledAt,
+			Status:          entry.Status,
+			ReasonCode:      entry.ReasonCode,
+			ReasonDetail:    entry.ReasonDetail,
+			AdministeredAt:  entry.AdministeredAt,
+			AdministeredBy:  entry.AdministeredBy,
+			Notes:           entry.Notes,
 		})
 	}
 
@@ -244,17 +241,128 @@ func GetMedicationTimesheet(c *gin.Context) {
 	})
 }
 
+// CreateMedicationTimesheetItem creates a manual timesheet item from master medicine.
+func CreateMedicationTimesheetItem(c *gin.Context) {
+	var input struct {
+		VisitID      uint   `json:"visit_id" binding:"required"`
+		MedicineID   uint   `json:"medicine_id" binding:"required"`
+		Quantity     int    `json:"quantity"`
+		Unit         string `json:"unit"`
+		Dosage       string `json:"dosage"`
+		Frequency    string `json:"frequency"`
+		Route        string `json:"route"`
+		Duration     string `json:"duration"`
+		Instructions string `json:"instructions"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	visit, err := loadTimesheetVisit(c, input.VisitID)
+	if err != nil {
+		return
+	}
+
+	var medicine models.Medicine
+	if err := database.DB.Select("id", "name", "code", "unit", "is_active").First(&medicine, input.MedicineID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "medicine not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Quantity <= 0 {
+		input.Quantity = 1
+	}
+
+	item := models.MedicineAdministrationTimesheetItem{
+		VisitID:        input.VisitID,
+		RegistrationID: visit.RegistrationID,
+		MedicineID:     medicine.ID,
+		MedicineName:   strings.TrimSpace(medicine.Name),
+		MedicineCode:   strings.TrimSpace(medicine.Code),
+		Quantity:       input.Quantity,
+		Unit:           strings.TrimSpace(input.Unit),
+		Dosage:         strings.TrimSpace(input.Dosage),
+		Frequency:      strings.TrimSpace(input.Frequency),
+		Route:          strings.TrimSpace(input.Route),
+		Duration:       strings.TrimSpace(input.Duration),
+		Instructions:   strings.TrimSpace(input.Instructions),
+	}
+	if item.Unit == "" {
+		item.Unit = strings.TrimSpace(medicine.Unit)
+	}
+
+	if err := database.DB.Create(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, timesheetMedicineItem{
+		ItemID:       item.ID,
+		MedicineID:   item.MedicineID,
+		MedicineName: item.MedicineName,
+		MedicineCode: item.MedicineCode,
+		Quantity:     item.Quantity,
+		Unit:         item.Unit,
+		Dosage:       item.Dosage,
+		Frequency:    item.Frequency,
+		Route:        item.Route,
+		Duration:     item.Duration,
+		Instructions: item.Instructions,
+	})
+}
+
+// DeleteMedicationTimesheetItem removes a manual timesheet item and its slots.
+func DeleteMedicationTimesheetItem(c *gin.Context) {
+	itemID64, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid item id"})
+		return
+	}
+	visitID64, err := strconv.ParseUint(c.Query("visit_id"), 10, 32)
+	if err != nil || visitID64 == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "visit_id is required"})
+		return
+	}
+
+	if _, err := loadTimesheetVisit(c, uint(visitID64)); err != nil {
+		return
+	}
+
+	tx := database.DB.Begin()
+	if err := tx.Where("timesheet_item_id = ? AND visit_id = ?", uint(itemID64), uint(visitID64)).
+		Delete(&models.MedicineAdministrationTimesheetEntry{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := tx.Where("id = ? AND visit_id = ?", uint(itemID64), uint(visitID64)).
+		Delete(&models.MedicineAdministrationTimesheetItem{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{"message": "timesheet item deleted"})
+}
+
 // UpsertMedicationTimesheetEntry creates, updates, or clears a slot in the medication timesheet.
 func UpsertMedicationTimesheetEntry(c *gin.Context) {
 	var input struct {
-		VisitID             uint   `json:"visit_id" binding:"required"`
-		MedicineOrderItemID uint   `json:"medicine_order_item_id" binding:"required"`
-		Date                string `json:"date" binding:"required"`
-		Hour                *int   `json:"hour" binding:"required"`
-		Status              string `json:"status"`
-		ReasonCode          string `json:"reason_code"`
-		ReasonDetail        string `json:"reason_detail"`
-		Notes               string `json:"notes"`
+		VisitID         uint   `json:"visit_id" binding:"required"`
+		TimesheetItemID uint   `json:"timesheet_item_id" binding:"required"`
+		Date            string `json:"date" binding:"required"`
+		Hour            *int   `json:"hour" binding:"required"`
+		Status          string `json:"status"`
+		ReasonCode      string `json:"reason_code"`
+		ReasonDetail    string `json:"reason_detail"`
+		Notes           string `json:"notes"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -285,33 +393,28 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 		return
 	}
 
-	var item models.MedicineOrderItem
+	var item models.MedicineAdministrationTimesheetItem
 	if err := database.DB.
-		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_order_items.id = ?", input.MedicineOrderItemID).
-		Where("medicine_orders.source_visit_id = ?", input.VisitID).
-		Where("medicine_orders.fulfillment_type = ?", models.FulfillmentTypeInRoom).
-		Where("medicine_orders.status <> ?", models.OrderStatusCancelled).
+		Where("id = ? AND visit_id = ?", input.TimesheetItemID, input.VisitID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "medicine order item is not eligible for in-room timesheet"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "timesheet item not found for visit"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var visit models.Visit
-	if err := database.DB.Select("id", "registration_id").First(&visit, input.VisitID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "visit not found"})
+	visit, err := loadTimesheetVisit(c, input.VisitID)
+	if err != nil {
 		return
 	}
 
 	tx := database.DB.Begin()
 
 	if status == "" {
-		if err := tx.Unscoped().Where("medicine_order_item_id = ? AND scheduled_at = ?", input.MedicineOrderItemID, slotTime).
-			Delete(&models.MedicineAdministrationTimesheet{}).Error; err != nil {
+		if err := tx.Unscoped().Where("timesheet_item_id = ? AND scheduled_at = ?", input.TimesheetItemID, slotTime).
+			Delete(&models.MedicineAdministrationTimesheetEntry{}).Error; err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -321,8 +424,8 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 		return
 	}
 
-	var entry models.MedicineAdministrationTimesheet
-	findErr := tx.Unscoped().Where("medicine_order_item_id = ? AND scheduled_at = ?", input.MedicineOrderItemID, slotTime).
+	var entry models.MedicineAdministrationTimesheetEntry
+	findErr := tx.Unscoped().Where("timesheet_item_id = ? AND scheduled_at = ?", input.TimesheetItemID, slotTime).
 		First(&entry).Error
 	if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
 		tx.Rollback()
@@ -339,8 +442,7 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 
 	entry.VisitID = input.VisitID
 	entry.RegistrationID = visit.RegistrationID
-	entry.MedicineOrderID = item.MedicineOrderID
-	entry.MedicineOrderItemID = input.MedicineOrderItemID
+	entry.TimesheetItemID = input.TimesheetItemID
 	entry.ScheduledAt = slotTime
 	entry.Status = status
 	entry.DeletedAt = gorm.DeletedAt{}
@@ -380,14 +482,14 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 	tx.Commit()
 
 	c.JSON(http.StatusOK, timesheetEntryResponse{
-		ID:                  entry.ID,
-		MedicineOrderItemID: entry.MedicineOrderItemID,
-		ScheduledAt:         entry.ScheduledAt,
-		Status:              entry.Status,
-		ReasonCode:          entry.ReasonCode,
-		ReasonDetail:        entry.ReasonDetail,
-		AdministeredAt:      entry.AdministeredAt,
-		AdministeredBy:      entry.AdministeredBy,
-		Notes:               entry.Notes,
+		ID:              entry.ID,
+		TimesheetItemID: entry.TimesheetItemID,
+		ScheduledAt:     entry.ScheduledAt,
+		Status:          entry.Status,
+		ReasonCode:      entry.ReasonCode,
+		ReasonDetail:    entry.ReasonDetail,
+		AdministeredAt:  entry.AdministeredAt,
+		AdministeredBy:  entry.AdministeredBy,
+		Notes:           entry.Notes,
 	})
 }

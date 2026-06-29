@@ -32,13 +32,16 @@ import type {
   MedicineOrder,
   PrescriptionReview,
 } from "@/lib/api";
+import { getPharmacyOrderStatusMeta } from "./pharmacy-status";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
+const PHARMACY_FINAL_REVIEW_SAVED_EVENT = "pharmacy-final-review-saved";
 
 interface PharmacyReviewProps {
   visitId: number;
   readOnly?: boolean;
+  onInitialReviewSaved?: () => void;
 }
 
 type ReviewFormState = {
@@ -62,20 +65,6 @@ type ReviewFormState = {
   pio_benefit_check: boolean;
   pio_storage_check: boolean;
   pio_other_check: boolean;
-};
-
-const ORDER_STATUS_LABELS: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  pending: { label: "Menunggu Telaah", variant: "secondary" },
-  reviewed: { label: "Telaah Awal Selesai", variant: "default" },
-  preparing: { label: "Disiapkan", variant: "default" },
-  ready: { label: "Siap Diserahkan", variant: "default" },
-  delivered: { label: "Sudah Diserahkan", variant: "default" },
-  cancelled: { label: "Dibatalkan", variant: "destructive" },
-  partial: { label: "Sebagian", variant: "outline" },
-  returned: { label: "Ada Return", variant: "outline" },
 };
 
 const createDefaultForm = (): ReviewFormState => ({
@@ -112,7 +101,11 @@ const formatRupiah = (value: number) =>
 const getUnitPrice = (item: any): number =>
   Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
 
-export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProps) {
+export function PharmacyReview({
+  visitId,
+  readOnly = false,
+  onInitialReviewSaved,
+}: PharmacyReviewProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -122,6 +115,8 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   const [existingReview, setExistingReview] = useState<PrescriptionReview | null>(null);
   const [initialModalOpen, setInitialModalOpen] = useState(false);
   const [finalModalOpen, setFinalModalOpen] = useState(false);
+  const [_initialModalLocked, setInitialModalLocked] = useState(false);
+  const [pendingFinalReviewToken, setPendingFinalReviewToken] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState<ReviewFormState>(createDefaultForm());
 
   const canReview = hasPermission("pharmacy.review");
@@ -243,12 +238,20 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
   useEffect(() => {
     const handleReviewRequest = (event: Event) => {
-      const customEvent = event as CustomEvent<{ mode?: "initial" | "final" }>;
+      const customEvent = event as CustomEvent<{
+        mode?: "initial" | "final";
+        lock?: boolean;
+        token?: string;
+      }>;
       const mode = customEvent.detail?.mode || "initial";
       if (mode === "final" && initialReviewCompleted) {
+        setInitialModalLocked(false);
+        setPendingFinalReviewToken(customEvent.detail?.token || null);
         setFinalModalOpen(true);
         return;
       }
+      setInitialModalLocked(customEvent.detail?.lock === true);
+      setPendingFinalReviewToken(null);
       setInitialModalOpen(true);
     };
 
@@ -333,18 +336,21 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   const submitReview = async (
     payload: Parameters<typeof medicineOrdersApi.submitReview>[1],
     successDescription: string,
+    onCommitted?: () => void,
   ) => {
     if (!selectedOrder || submitting || readOnly || !canReview) return false;
 
     setSubmitting(true);
     try {
-      await medicineOrdersApi.submitReview(selectedOrder.id, payload);
+      const orderId = selectedOrder.id;
+      await medicineOrdersApi.submitReview(orderId, payload);
       toast({
         title: "Berhasil",
         description: successDescription,
       });
-      await loadOrders({ preferredOrderId: selectedOrder.id });
-      await loadReview(selectedOrder.id);
+      onCommitted?.();
+      void loadOrders({ preferredOrderId: orderId });
+      void loadReview(orderId);
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
       return true;
@@ -385,9 +391,13 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
         is_approved: true,
       },
       "Telaah Awal berhasil disimpan.",
+      () => {
+        setInitialModalLocked(false);
+        setInitialModalOpen(false);
+      },
     );
     if (success) {
-      setInitialModalOpen(false);
+      onInitialReviewSaved?.();
     }
   };
 
@@ -431,9 +441,23 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
         pio_other_check: reviewForm.pio_other_check,
       },
       "Telaah Akhir berhasil disimpan.",
+      () => {
+        setPendingFinalReviewToken(null);
+        setFinalModalOpen(false);
+      },
     );
     if (success) {
-      setFinalModalOpen(false);
+      const completedToken = pendingFinalReviewToken;
+      const completedOrderId = selectedOrder?.id;
+      if (completedToken && completedOrderId) {
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent(PHARMACY_FINAL_REVIEW_SAVED_EVENT, {
+              detail: { token: completedToken, orderId: completedOrderId },
+            }),
+          );
+        }, 220);
+      }
     }
   };
 
@@ -476,10 +500,10 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
           List Obat ({activeItems.length})
         </p>
         <Badge
-          variant={ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.variant || "secondary"}
-          className="h-5 px-1.5 py-0 text-[10px]"
+          variant={getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").variant}
+          className={`h-5 px-1.5 py-0 text-[10px] ${getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").className}`}
         >
-          {ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.label || selectedOrder?.status}
+          {getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").label}
         </Badge>
       </div>
 
@@ -579,17 +603,17 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
               <SelectContent>
                 {orders.map((order) => (
                   <SelectItem key={order.id} value={String(order.id)}>
-                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                    {order.order_number} - {getPharmacyOrderStatusMeta(order.status).label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {selectedOrder && (
               <Badge
-                variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}
-                className="w-fit"
+                variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                className={getPharmacyOrderStatusMeta(selectedOrder.status).className}
               >
-                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                {getPharmacyOrderStatusMeta(selectedOrder.status).label}
               </Badge>
             )}
           </div>
@@ -621,24 +645,23 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
               </p>
               <p className="text-sm text-muted-foreground">
                 {!finalReviewCompleted
-                  ? "Gunakan tombol footer atau tombol berikut untuk lanjut Telaah Akhir."
-                  : "Data telaah sudah lengkap, Anda tetap bisa membuka modal untuk melihat detail."}
+                  ? "Telaah Akhir akan muncul dari tombol footer saat proses penyerahan obat."
+                  : "Data telaah sudah lengkap dan siap untuk proses penyerahan obat."}
               </p>
-              <Button
-                size="sm"
-                className="rounded-none"
-                onClick={() => setFinalModalOpen(true)}
-                disabled={readOnly || !canReview}
-              >
-                Buka Modal Telaah Akhir
-              </Button>
             </>
           )}
         </div>
       </div>
 
-      <Dialog open={initialModalOpen} onOpenChange={setInitialModalOpen}>
-        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[96vw] 2xl:max-w-[1400px] max-h-[94vh] overflow-hidden">
+      <Dialog
+        open={initialModalOpen}
+        onOpenChange={(open) => {
+          setInitialModalOpen(open);
+        }}
+      >
+        <DialogContent
+          className="w-[calc(100vw-1rem)] sm:max-w-[96vw] 2xl:max-w-[1400px] max-h-[94vh] overflow-hidden"
+        >
           <DialogHeader>
             <DialogTitle>Telaah Awal Resep</DialogTitle>
             <DialogDescription>
@@ -775,8 +798,11 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
       </Dialog>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.variant || "secondary"}>
-          {ORDER_STATUS_LABELS[selectedOrder?.status || "pending"]?.label || selectedOrder?.status}
+        <Badge
+          variant={getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").variant}
+          className={getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").className}
+        >
+          {getPharmacyOrderStatusMeta(selectedOrder?.status || "pending").label}
         </Badge>
         {initialReviewCompleted && (
           <Badge variant="outline">

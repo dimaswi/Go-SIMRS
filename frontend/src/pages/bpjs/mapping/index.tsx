@@ -63,7 +63,6 @@ import {
   Edit,
   Trash2,
   Search,
-  AlertCircle,
   Users,
   RefreshCw,
   Check,
@@ -537,27 +536,27 @@ export default function BPJSMappingPage() {
     const rows =
       jadwalDokters.length > 0
         ? jadwalDokters.map((dok) => ({
-            key: `${dok.kodedokter}::${dok.namahari}::${dok.jadwal}`,
-            kode_dokter_bpjs: String(dok.kodedokter),
-            nama_dokter_bpjs: dok.namadokter,
-            jadwal_hari: dok.namahari,
-            jam_praktek: dok.jadwal,
-            kuota_jkn: dok.kapasitaspasien,
-            kuota_non_jkn: 0,
-            sumber: "jadwal" as const,
-            raw: dok,
-          }))
+          key: `${dok.kodedokter}::${dok.namahari}::${dok.jadwal}`,
+          kode_dokter_bpjs: String(dok.kodedokter),
+          nama_dokter_bpjs: dok.namadokter,
+          jadwal_hari: dok.namahari,
+          jam_praktek: dok.jadwal,
+          kuota_jkn: dok.kapasitaspasien,
+          kuota_non_jkn: 0,
+          sumber: "jadwal" as const,
+          raw: dok,
+        }))
         : uniqueBpjsDokters.map((dok) => ({
-            key: `${dok.kodedokter}`,
-            kode_dokter_bpjs: String(dok.kodedokter),
-            nama_dokter_bpjs: dok.namadokter,
-            jadwal_hari: "",
-            jam_praktek: "",
-            kuota_jkn: 0,
-            kuota_non_jkn: 0,
-            sumber: "referensi" as const,
-            raw: dok,
-          }));
+          key: `${dok.kodedokter}`,
+          kode_dokter_bpjs: String(dok.kodedokter),
+          nama_dokter_bpjs: dok.namadokter,
+          jadwal_hari: "",
+          jam_praktek: "",
+          kuota_jkn: 0,
+          kuota_non_jkn: 0,
+          sumber: "referensi" as const,
+          raw: dok,
+        }));
 
     if (!query) {
       return rows;
@@ -630,8 +629,8 @@ export default function BPJSMappingPage() {
 
   // Hitung poli yang sudah dan belum dimapping
   // Filter rooms yang merupakan poliklinik berdasarkan room_type atau service_type
-  const poliklinikRooms = rooms.filter(r => 
-    r.room_type?.toLowerCase().includes('poliklinik') || 
+  const poliklinikRooms = rooms.filter(r =>
+    r.room_type?.toLowerCase().includes('poliklinik') ||
     r.room_type?.toLowerCase().includes('poli') ||
     r.service_type?.toLowerCase() === 'rawat jalan' ||
     r.service_type?.toLowerCase() === 'outpatient'
@@ -690,25 +689,6 @@ export default function BPJSMappingPage() {
         </div>
 
         <BPJSSectionPanel title="Daftar Mapping">
-
-          {/* Unmapped Polis Warning */}
-          {unmappedPolis.length > 0 && (
-            <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
-                    {unmappedPolis.length} poliklinik belum di-mapping dengan BPJS
-                  </p>
-                  <p className="text-xs text-orange-600 dark:text-orange-500 mt-1">
-                    {unmappedPolis.slice(0, 5).map(r => r.name).join(", ")}
-                    {unmappedPolis.length > 5 && `, dan ${unmappedPolis.length - 5} lainnya`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Search and Add */}
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -970,64 +950,63 @@ export default function BPJSMappingPage() {
             </div>
 
             <div className="space-y-2">
-                <Label>Pilih dari Referensi Poli VClaim</Label>
-                <Popover open={bpjsPoliOpen} onOpenChange={setBpjsPoliOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={bpjsPoliOpen}
-                      className="w-full justify-between font-normal"
-                    >
-                      {poliForm.kode_poli_bpjs
-                        ? `${poliForm.kode_poli_bpjs} - ${poliForm.nama_poli_bpjs}`
-                        : "Cari poli BPJS..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Ketik minimal 2 huruf nama atau kode poli..."
-                        value={bpjsPoliQuery}
-                        onValueChange={setBpjsPoliQuery}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {loadingPolis
-                            ? "Mencari poli VClaim..."
-                            : bpjsPoliQuery.trim().length < 2
-                              ? "Ketik minimal 2 huruf untuk mencari poli."
-                              : "Poli tidak ditemukan."}
-                        </CommandEmpty>
-                        <CommandGroup className="max-h-[300px] overflow-y-auto">
-                          {uniqueBpjsPolis.map((poli) => (
-                            <CommandItem
-                              key={poli.kdpoli}
-                              value={`${poli.kdpoli} ${poli.nmpoli}`}
-                              onSelect={() => {
-                                handleSelectBPJSPoli(poli.kdpoli);
-                                setBpjsPoliOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={`mr-2 h-4 w-4 ${
-                                  poliForm.kode_poli_bpjs === poli.kdpoli ? "opacity-100" : "opacity-0"
+              <Label>Pilih dari Referensi Poli VClaim</Label>
+              <Popover open={bpjsPoliOpen} onOpenChange={setBpjsPoliOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={bpjsPoliOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {poliForm.kode_poli_bpjs
+                      ? `${poliForm.kode_poli_bpjs} - ${poliForm.nama_poli_bpjs}`
+                      : "Cari poli BPJS..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Ketik minimal 2 huruf nama atau kode poli..."
+                      value={bpjsPoliQuery}
+                      onValueChange={setBpjsPoliQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {loadingPolis
+                          ? "Mencari poli VClaim..."
+                          : bpjsPoliQuery.trim().length < 2
+                            ? "Ketik minimal 2 huruf untuk mencari poli."
+                            : "Poli tidak ditemukan."}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-[300px] overflow-y-auto">
+                        {uniqueBpjsPolis.map((poli) => (
+                          <CommandItem
+                            key={poli.kdpoli}
+                            value={`${poli.kdpoli} ${poli.nmpoli}`}
+                            onSelect={() => {
+                              handleSelectBPJSPoli(poli.kdpoli);
+                              setBpjsPoliOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${poliForm.kode_poli_bpjs === poli.kdpoli ? "opacity-100" : "opacity-0"
                                 }`}
-                              />
-                              <span className="font-mono text-xs mr-2">{poli.kdpoli}</span>
-                              <span className="truncate">{poli.nmpoli}</span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <p className="text-xs text-muted-foreground">
-                  Data kode dan nama poli diambil dari endpoint VClaim referensi/poli/[parameter].
-                </p>
-              </div>
+                            />
+                            <span className="font-mono text-xs mr-2">{poli.kdpoli}</span>
+                            <span className="truncate">{poli.nmpoli}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                Data kode dan nama poli diambil dari endpoint VClaim referensi/poli/[parameter].
+              </p>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1076,279 +1055,281 @@ export default function BPJSMappingPage() {
 
       {/* Dokter Dialog */}
       <Dialog open={dokterDialogOpen} onOpenChange={setDokterDialogOpen}>
-        <DialogContent className="sm:max-w-[980px]">
+        <DialogContent className="max-w-[95vw] h-[95vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{editingDokter ? "Edit Mapping Dokter" : "Tambah Mapping Dokter"}</DialogTitle>
             <DialogDescription>Petakan dokter SIMRS dengan kode dokter BPJS</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Poli *</Label>
-                <Select
-                  value={dokterForm.poli_mapping_id}
-                  onValueChange={(value) => setDokterForm({ ...dokterForm, poli_mapping_id: value })}
-                  disabled={!!editingDokter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih poli..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {poliMappings.filter(p => p.is_active).map((poli) => (
-                      <SelectItem key={poli.id} value={String(poli.id)}>
-                        {poli.room_name} ({poli.kode_poli_bpjs})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-6 py-4 flex-1 overflow-hidden px-1">
+            {/* Kiri: Pilih Dokter SIMRS & Cari Referensi BPJS */}
+            <div className="flex flex-col gap-4 overflow-hidden pr-2">
+              <div className="grid grid-cols-2 gap-4 flex-none">
+                <div className="space-y-2">
+                  <Label>Poli *</Label>
+                  <Select
+                    value={dokterForm.poli_mapping_id}
+                    onValueChange={(value) => setDokterForm({ ...dokterForm, poli_mapping_id: value })}
+                    disabled={!!editingDokter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih poli..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {poliMappings.filter(p => p.is_active).map((poli) => (
+                        <SelectItem key={poli.id} value={String(poli.id)}>
+                          {poli.room_name} ({poli.kode_poli_bpjs})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Dokter SIMRS *</Label>
+                  <Select
+                    value={dokterForm.employee_id}
+                    onValueChange={(value) => setDokterForm({ ...dokterForm, employee_id: value })}
+                    disabled={!!editingDokter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih dokter..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((emp) => (
+                        <SelectItem key={emp.id} value={String(emp.id)}>
+                          {emp.nama_lengkap} {emp.spesialisasi ? `(${emp.spesialisasi})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Dokter SIMRS *</Label>
-                <Select
-                  value={dokterForm.employee_id}
-                  onValueChange={(value) => setDokterForm({ ...dokterForm, employee_id: value })}
-                  disabled={!!editingDokter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih dokter..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((emp) => (
-                      <SelectItem key={emp.id} value={String(emp.id)}>
-                        {emp.nama_lengkap} {emp.spesialisasi ? `(${emp.spesialisasi})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3 rounded-md border p-4 flex-1 flex flex-col min-h-0 bg-muted/5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end flex-none">
+                  <div className="space-y-2 md:w-[150px]">
+                    <Label>Tanggal Jadwal</Label>
+                    <Input
+                      type="date"
+                      value={doctorSearchDate}
+                      onChange={(e) => setDoctorSearchDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <Label>Cari Dokter BPJS</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={bpjsDokterQuery}
+                        onChange={(e) => setBpjsDokterQuery(e.target.value)}
+                        placeholder="Cari kode, nama..."
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const poliMapping = poliMappings.find(
+                        (p) => p.id === parseInt(dokterForm.poli_mapping_id)
+                      );
+                      if (poliMapping) {
+                        loadJadwalDokter(poliMapping.kode_poli_bpjs, doctorSearchDate);
+                      }
+                    }}
+                    disabled={!dokterForm.poli_mapping_id || loadingJadwal}
+                  >
+                    {loadingJadwal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Refresh
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between text-sm flex-none">
+                  <div className="font-medium">
+                    Referensi: {jadwalDokters.length > 0 ? "Jadwal" : "Fallback"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {filteredBpjsDoctorRows.length} baris
+                    {(loadingJadwal || loadingDokters) && <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin" />}
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto rounded-md border bg-background">
+                  <Table containerClassName="border-0 rounded-none">
+                    <TableHeader className="sticky top-0 bg-background z-10 shadow-sm border-b">
+                      <TableRow className="hover:bg-transparent border-b-0">
+                        <TableHead className="w-[48px]">Pilih</TableHead>
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Nama Dokter</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredBpjsDoctorRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                            {loadingJadwal || loadingDokters
+                              ? "Memuat dokter BPJS..."
+                              : "Tidak ada dokter BPJS."}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredBpjsDoctorRows.map((row) => {
+                          const active = selectedBPJSDokterKey === row.key;
+                          return (
+                            <TableRow
+                              key={row.key}
+                              className={cn("cursor-pointer border-b last:border-0", active && "bg-muted/60")}
+                              onClick={() =>
+                                handleSelectBPJSDokter(
+                                  row.kode_dokter_bpjs,
+                                  row.sumber === "jadwal" ? (row.raw as BPJSJadwalDokter) : undefined
+                                )
+                              }
+                            >
+                              <TableCell>
+                                <div className={cn("h-4 w-4 rounded-full border", active && "border-primary bg-primary")} />
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{row.kode_dokter_bpjs}</TableCell>
+                              <TableCell>{row.nama_dokter_bpjs}</TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {jadwalDokters.length === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1 flex-none">
+                    Sistem memakai referensi fallback dokter BPJS.
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="space-y-3 rounded-md border p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                <div className="space-y-2 md:w-[220px]">
-                  <Label>Tanggal Cari Jadwal BPJS</Label>
+            {/* Kanan: Form Detail Mapping */}
+            <div className="flex flex-col gap-4 overflow-y-auto pr-2">
+              <div className="space-y-4 rounded-md border p-4 bg-muted/5">
+                <h3 className="font-semibold text-sm border-b pb-2">Data BPJS Terpilih</h3>
+
+                <div className="space-y-2">
+                  <Label>Kode Dokter BPJS *</Label>
                   <Input
-                    type="date"
-                    value={doctorSearchDate}
-                    onChange={(e) => setDoctorSearchDate(e.target.value)}
+                    value={dokterForm.kode_dokter_bpjs}
+                    onChange={(e) => setDokterForm({ ...dokterForm, kode_dokter_bpjs: e.target.value })}
+                    placeholder="Contoh: 12345"
                   />
                 </div>
-                <div className="space-y-2 flex-1">
-                  <Label>Cari Dokter BPJS</Label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <div className="space-y-2">
+                  <Label>Nama Dokter BPJS</Label>
+                  <Input
+                    value={dokterForm.nama_dokter_bpjs}
+                    onChange={(e) => setDokterForm({ ...dokterForm, nama_dokter_bpjs: e.target.value })}
+                    placeholder="Nama di BPJS"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Hari Praktek</Label>
+                    <Select
+                      value={dokterForm.jadwal_hari}
+                      onValueChange={(value) => {
+                        const nextTimeOptions = Array.from(
+                          new Set(
+                            jadwalDokters
+                              .filter(
+                                (row) =>
+                                  String(row.kodedokter) === dokterForm.kode_dokter_bpjs &&
+                                  row.namahari === value
+                              )
+                              .map((row) => row.jadwal)
+                              .filter(Boolean)
+                          )
+                        );
+                        setDokterForm({
+                          ...dokterForm,
+                          jadwal_hari: value,
+                          jam_praktek: nextTimeOptions.includes(dokterForm.jam_praktek)
+                            ? dokterForm.jam_praktek
+                            : nextTimeOptions[0] || "",
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih hari..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {practiceDayOptions.map((day) => (
+                          <SelectItem key={day} value={day}>
+                            {day}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Jam Praktek</Label>
+                    <Select
+                      value={dokterForm.jam_praktek}
+                      onValueChange={(value) => setDokterForm({ ...dokterForm, jam_praktek: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih jam..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {practiceTimeOptions.length > 0 ? (
+                          practiceTimeOptions.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="-" disabled>
+                            Belum ada jam
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Kuota JKN</Label>
                     <Input
-                      value={bpjsDokterQuery}
-                      onChange={(e) => setBpjsDokterQuery(e.target.value)}
-                      placeholder="Cari kode, nama, hari, atau jam praktek..."
-                      className="pl-9"
+                      type="number"
+                      value={dokterForm.kuota_jkn}
+                      onChange={(e) => setDokterForm({ ...dokterForm, kuota_jkn: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Kuota Non-JKN</Label>
+                    <Input
+                      type="number"
+                      value={dokterForm.kuota_non_jkn}
+                      onChange={(e) => setDokterForm({ ...dokterForm, kuota_non_jkn: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
                     />
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const poliMapping = poliMappings.find(
-                      (p) => p.id === parseInt(dokterForm.poli_mapping_id)
-                    );
-                    if (poliMapping) {
-                      loadJadwalDokter(poliMapping.kode_poli_bpjs, doctorSearchDate);
-                    }
-                  }}
-                  disabled={!dokterForm.poli_mapping_id || loadingJadwal}
-                >
-                  {loadingJadwal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Refresh Jadwal
-                </Button>
-              </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <div className="font-medium">
-                  Dokter BPJS {jadwalDokters.length > 0 ? "berdasarkan jadwal" : "referensi fallback"}
-                </div>
-                <div className="text-muted-foreground">
-                  {filteredBpjsDoctorRows.length} baris
-                  {(loadingJadwal || loadingDokters) && <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin" />}
-                </div>
-              </div>
-
-              <div className="max-h-[280px] overflow-auto rounded-md border">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background">
-                    <TableRow>
-                      <TableHead className="w-[48px]">Pilih</TableHead>
-                      <TableHead>Kode</TableHead>
-                      <TableHead>Nama Dokter</TableHead>
-                      <TableHead>Hari</TableHead>
-                      <TableHead>Jam</TableHead>
-                      <TableHead className="text-right">Kuota JKN</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredBpjsDoctorRows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                          {loadingJadwal || loadingDokters
-                            ? "Memuat dokter BPJS..."
-                            : "Tidak ada dokter BPJS untuk filter yang dipilih."}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredBpjsDoctorRows.map((row) => {
-                        const active = selectedBPJSDokterKey === row.key;
-                        return (
-                          <TableRow
-                            key={row.key}
-                            className={cn("cursor-pointer", active && "bg-muted/60")}
-                            onClick={() =>
-                              handleSelectBPJSDokter(
-                                row.kode_dokter_bpjs,
-                                row.sumber === "jadwal" ? (row.raw as BPJSJadwalDokter) : undefined
-                              )
-                            }
-                          >
-                            <TableCell>
-                              <div className={cn("h-4 w-4 rounded-full border", active && "border-primary bg-primary")} />
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">{row.kode_dokter_bpjs}</TableCell>
-                            <TableCell>{row.nama_dokter_bpjs}</TableCell>
-                            <TableCell>{row.jadwal_hari || "-"}</TableCell>
-                            <TableCell>{row.jam_praktek || "-"}</TableCell>
-                            <TableCell className="text-right">{row.kuota_jkn || 0}</TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              {jadwalDokters.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Jadwal dokter BPJS belum ditemukan untuk tanggal ini, jadi sistem memakai referensi dokter BPJS sebagai cadangan.
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Kode Dokter BPJS *</Label>
-                <Input
-                  value={dokterForm.kode_dokter_bpjs}
-                  onChange={(e) => setDokterForm({ ...dokterForm, kode_dokter_bpjs: e.target.value })}
-                  placeholder="Contoh: 12345"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Nama Dokter BPJS</Label>
-                <Input
-                  value={dokterForm.nama_dokter_bpjs}
-                  onChange={(e) => setDokterForm({ ...dokterForm, nama_dokter_bpjs: e.target.value })}
-                  placeholder="Nama di BPJS"
-                />
+                {editingDokter && (
+                  <div className="flex items-center justify-between pt-2">
+                    <Label>Status Aktif</Label>
+                    <Switch
+                      checked={dokterForm.is_active}
+                      onCheckedChange={(checked) => setDokterForm({ ...dokterForm, is_active: checked })}
+                    />
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Hari Praktek</Label>
-                <Select
-                  value={dokterForm.jadwal_hari}
-                  onValueChange={(value) => {
-                    const nextTimeOptions = Array.from(
-                      new Set(
-                        jadwalDokters
-                          .filter(
-                            (row) =>
-                              String(row.kodedokter) === dokterForm.kode_dokter_bpjs &&
-                              row.namahari === value
-                          )
-                          .map((row) => row.jadwal)
-                          .filter(Boolean)
-                      )
-                    );
-                    setDokterForm({
-                      ...dokterForm,
-                      jadwal_hari: value,
-                      jam_praktek: nextTimeOptions.includes(dokterForm.jam_praktek)
-                        ? dokterForm.jam_praktek
-                        : nextTimeOptions[0] || "",
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih hari praktek..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {practiceDayOptions.map((day) => (
-                      <SelectItem key={day} value={day}>
-                        {day}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Jam Praktek</Label>
-                <Select
-                  value={dokterForm.jam_praktek}
-                  onValueChange={(value) => setDokterForm({ ...dokterForm, jam_praktek: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih jam praktek..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {practiceTimeOptions.length > 0 ? (
-                      practiceTimeOptions.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="-" disabled>
-                        Belum ada jam praktek
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Kuota JKN</Label>
-                <Input
-                  type="number"
-                  value={dokterForm.kuota_jkn}
-                  onChange={(e) => setDokterForm({ ...dokterForm, kuota_jkn: parseInt(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Kuota Non-JKN</Label>
-                <Input
-                  type="number"
-                  value={dokterForm.kuota_non_jkn}
-                  onChange={(e) => setDokterForm({ ...dokterForm, kuota_non_jkn: parseInt(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            {editingDokter && (
-              <div className="flex items-center justify-between">
-                <Label>Status Aktif</Label>
-                <Switch
-                  checked={dokterForm.is_active}
-                  onCheckedChange={(checked) => setDokterForm({ ...dokterForm, is_active: checked })}
-                />
-              </div>
-            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-none pt-2">
             <Button variant="outline" onClick={() => { setDokterDialogOpen(false); resetDokterForm(); }}>
               Batal
             </Button>

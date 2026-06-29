@@ -28,6 +28,8 @@ func Load() *Config {
 			"http://192.168.12.122:*",
 			"http://43.128.92.161:*",
 			"https://43.128.92.161:*",
+			"http://bpjs_dev.dimaswysnu.com:*",
+			"https://bpjs_dev.dimaswysnu.com:*",
 			"https://simrs.klinikmuhammadiyahkedungadem.id",
 			"http://simrs.klinikmuhammadiyahkedungadem.id",
 		}),

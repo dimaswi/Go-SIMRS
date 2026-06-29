@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PageContent, PageHeader, PageShell } from '@/components/layout/page-shell';
@@ -116,14 +116,14 @@ export default function RoleCreate() {
         }
       />
 
-      <PageContent className="flex-none space-y-6 pb-8">
+      <PageContent className="flex-none space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
             <div className="space-y-6">
               <SectionPanel
                 icon={Shield}
                 title="Identitas Role"
-                description="Nama dan deskripsi dipakai sebagai konteks utama saat role dipilih di seluruh modul user management."
+                description="Nama dan deskripsi dipakai sebagai konteks utama saat role dipilih."
               >
                 <div className="space-y-5">
                   <div className="space-y-2">
@@ -188,19 +188,21 @@ export default function RoleCreate() {
                 onTogglePermission={handlePermissionToggle}
                 onReplaceSelection={handleReplaceSelection}
                 onShowPermissionInfo={handleShowPermissionInfo}
-                className="p-4 sm:p-5"
+                className="p-0 sm:p-0"
               />
             </SectionPanel>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
-            <Button type="button" variant="outline" onClick={() => navigate('/roles')}>
-              Batal
-            </Button>
-            <Button type="submit" disabled={loading} className="min-w-28">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Simpan Role
-            </Button>
+          <div className="sticky bottom-0 z-20 -mx-4 -mb-4 mt-8 border-t border-border/70 bg-background/80 p-4 backdrop-blur-xl md:-mx-6 md:-mb-6">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => navigate('/roles')}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={loading} className="min-w-28 shadow-md">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Simpan Role
+              </Button>
+            </div>
           </div>
         </form>
       </PageContent>

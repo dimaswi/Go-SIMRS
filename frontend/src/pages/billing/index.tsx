@@ -136,11 +136,11 @@ export default function BillingIndex() {
   };
 
   const filtered = useMemo(() => {
-    let data = registrations;
+    let data = [...registrations];
 
     switch (activeTab) {
       case 'need_billing':
-        data = data.filter((registration) => !registration.has_billing && (registration.status === 'completed' || registration.status === 'discharged'));
+        data = data.filter((registration) => !registration.has_billing);
         break;
       case 'need_payment':
         data = data.filter((registration) => registration.has_billing && registration.billing_status !== 'paid' && registration.billing_status !== 'cancelled');
@@ -152,11 +152,29 @@ export default function BillingIndex() {
         break;
     }
 
+    // Sort partially paid bills to the top
+    data.sort((a, b) => {
+      const aPartial = a.billing_status === 'partial' ? 1 : 0;
+      const bPartial = b.billing_status === 'partial' ? 1 : 0;
+      
+      if (aPartial !== bPartial) {
+        return bPartial - aPartial;
+      }
+      
+      // Secondary sort: by creation time (newest first)
+      const dateA = a.registration_date || a.created_at || a.CreatedAt;
+      const dateB = b.registration_date || b.created_at || b.CreatedAt;
+      const aTime = dateA ? new Date(dateA).getTime() : 0;
+      const bTime = dateB ? new Date(dateB).getTime() : 0;
+      
+      return bTime - aTime;
+    });
+
     return data;
   }, [activeTab, registrations]);
 
   const stats = useMemo(() => {
-    const needBilling = registrations.filter((registration) => !registration.has_billing && (registration.status === 'completed' || registration.status === 'discharged')).length;
+    const needBilling = registrations.filter((registration) => !registration.has_billing).length;
     const needPayment = registrations.filter((registration) => registration.has_billing && registration.billing_status !== 'paid' && registration.billing_status !== 'cancelled').length;
     const paid = registrations.filter((registration) => registration.has_billing && registration.billing_status === 'paid').length;
 
@@ -208,7 +226,8 @@ export default function BillingIndex() {
         return { label: 'Perlu Tagihan', variant: 'outline' as const, className: 'border-amber-500 text-amber-600 bg-amber-50' };
       }
 
-      return { label: 'Belum Selesai', variant: 'outline' as const, className: 'text-muted-foreground' };
+      // Even if not completed, it can be billed now
+      return { label: 'Belum Selesai (Bisa Ditagih)', variant: 'outline' as const, className: 'border-amber-500 text-amber-600 bg-amber-50 opacity-80' };
     }
 
     switch (registration.billing_status) {

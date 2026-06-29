@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { formatPatientName } from "@/lib/print-utils";
+import { cn } from "@/lib/utils";
 
 interface ColumnOptions {
   onView: (id: number) => void;
@@ -37,6 +38,7 @@ interface ColumnOptions {
   onCreateSEPRanap: (registration: Registration) => void;
   onViewSPRI: (registration: Registration) => void;
   onViewSEPRanap: (registration: Registration) => void;
+  onViewSEPOutpatient: (registration: Registration) => void;
   hasViewPermission: boolean;
   hasDeletePermission: boolean;
   printingType?: { regId: number; type: 'queue' | 'label' } | null;
@@ -78,30 +80,55 @@ export function createRegistrationColumns(
   return [
     {
       accessorKey: "registration_number",
-      header: () => columnHeader("No. Registrasi", "w-[130px]"),
+      header: () => columnHeader("No. Registrasi", "w-[200px]"),
       cell: ({ row }) => {
-        const regId = getRegistrationId(row.original);
+        const reg = row.original;
+        const regId = getRegistrationId(reg);
         const mjknQueue = options.mjknQueueMap.get(regId);
 
+        const status = reg.status;
+        const statusColorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
+        const statusLabel = registrationStatusLabels[status] || status || "-";
+
+        const canEditPayment = reg.status !== "cancelled" && reg.status !== "completed";
+
         return (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="font-mono font-medium break-all">
-              {row.original.registration_number}
-            </span>
-            {mjknQueue && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-100 text-blue-600 flex-shrink-0">
-                      <Smartphone className="h-3.5 w-3.5" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Mobile JKN - {mjknQueue.kode_booking}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+          <div className="flex flex-col min-w-0 gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-medium break-all">
+                {reg.registration_number}
+              </span>
+              {mjknQueue && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-100 text-blue-600 flex-shrink-0">
+                        <Smartphone className="h-4 w-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Mobile JKN - {mjknQueue.kode_booking}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge className={cn(statusColorClass, "h-5 px-1.5 text-[10px] py-0 leading-none")}>
+                {statusLabel}
+              </Badge>
+              <Badge
+                className={cn(
+                  paymentColors[reg.payment_method],
+                  canEditPayment ? "cursor-pointer hover:opacity-80" : "",
+                  "h-5 w-fit px-1.5 text-[10px] py-0 leading-none"
+                )}
+                onClick={canEditPayment ? () => options.onEditPayment(reg) : undefined}
+              >
+                {paymentMethodLabels[reg.payment_method]}
+                {canEditPayment && <Pencil className="h-2.5 w-2.5 ml-1" />}
+              </Badge>
+            </div>
           </div>
         );
       },
@@ -201,122 +228,130 @@ export function createRegistrationColumns(
       },
     },
     {
-      accessorKey: "payment_method",
-      header: () => columnHeader("Pembayaran", "w-[150px]"),
+      id: "bpjs_triggers",
+      header: () => columnHeader("Doc", "w-[100px]"),
       cell: ({ row }) => {
         const reg = row.original;
-        const canEdit = reg.status !== "cancelled" && reg.status !== "completed";
+        // If not BPJS, don't show the triggers at all
+        if (reg.payment_method !== "bpjs") return <span className="text-muted-foreground">-</span>;
+
         const regId = getRegistrationId(reg);
-        const isBPJSInpatient = reg.payment_method === "bpjs" && reg.registration_type === "inpatient";
+        const isInpatient = reg.registration_type === "inpatient" || reg.destination_room?.service_type === "rawat_inap";
+
+        if (!isInpatient) {
+          const sepNo = reg.sep_number;
+          return (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {sepNo ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => options.onViewSEPOutpatient(reg)}
+                        className="inline-flex items-center rounded-sm"
+                      >
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
+                          <CheckCircle className="h-3 w-3" />
+                          SEP
+                        </Badge>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Lihat detail SEP: {sepNo}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted px-1.5 py-0 h-5">
+                  SEP
+                </Badge>
+              )}
+            </div>
+          );
+        }
+
         const spriData = options.spriMap.get(regId);
         const sepRanapNo = options.sepRanapMap.get(regId);
+
         return (
-          <div className="min-w-0 max-w-[170px] space-y-1">
-            <div className="flex items-center gap-1.5">
-              <Badge
-                className={`${paymentColors[reg.payment_method]} ${canEdit ? "cursor-pointer hover:opacity-80" : ""} h-5 w-fit px-2 text-[11px] leading-none`}
-                onClick={canEdit ? () => options.onEditPayment(reg) : undefined}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {spriData ? (
+              (spriData.is_bpjs || !spriData.no_spri.startsWith("LOCAL-")) ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => options.onViewSPRI(reg)}
+                        className="inline-flex items-center rounded-sm"
+                      >
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
+                          <CheckCircle className="h-3 w-3" />
+                          SPRI
+                        </Badge>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Lihat detail SPRI: {spriData.no_spri}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => options.onCreateSPRI(reg)}
+                        className="inline-flex items-center rounded-sm"
+                      >
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-amber-100">
+                          SPRI
+                        </Badge>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Draft Lokal — belum terkirim ke BPJS</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={() => options.onCreateSPRI(reg)}
+                className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
               >
-                {paymentMethodLabels[reg.payment_method]}
-                {canEdit && <Pencil className="h-2.5 w-2.5 ml-1" />}
+                SPRI
+              </button>
+            )}
+            {sepRanapNo ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => options.onViewSEPRanap(reg)}
+                      className="inline-flex items-center rounded-sm"
+                    >
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
+                        <CheckCircle className="h-3 w-3" />
+                        SEP
+                      </Badge>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Lihat detail SEP: {sepRanapNo}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : spriData ? (
+              <button
+                type="button"
+                onClick={() => options.onCreateSEPRanap(reg)}
+                className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
+              >
+                SEP
+              </button>
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted px-1.5 py-0 h-5">
+                SEP
               </Badge>
-            </div>
-            {isBPJSInpatient && (
-              <div className="flex items-center gap-1.5">
-                {spriData ? (
-                  (spriData.is_bpjs || !spriData.no_spri.startsWith("LOCAL-")) ? (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => options.onViewSPRI(reg)}
-                            className="inline-flex items-center rounded-sm"
-                          >
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
-                              <CheckCircle className="h-3 w-3" />
-                              SPRI
-                            </Badge>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Lihat detail SPRI: {spriData.no_spri}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => options.onCreateSPRI(reg)}
-                            className="inline-flex items-center rounded-sm"
-                          >
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-amber-100">
-                              SPRI
-                            </Badge>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Draft Lokal — belum terkirim ke BPJS</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => options.onCreateSPRI(reg)}
-                    className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
-                  >
-                    SPRI
-                  </button>
-                )}
-                {sepRanapNo ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => options.onViewSEPRanap(reg)}
-                          className="inline-flex items-center rounded-sm"
-                        >
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-pointer hover:bg-green-100">
-                            <CheckCircle className="h-3 w-3" />
-                            SEP
-                          </Badge>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Lihat detail SEP: {sepRanapNo}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : spriData ? (
-                  <button
-                    type="button"
-                    onClick={() => options.onCreateSEPRanap(reg)}
-                    className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
-                  >
-                    SEP
-                  </button>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted px-1.5 py-0 h-5">
-                    SEP
-                  </Badge>
-                )}
-              </div>
             )}
           </div>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: () => columnHeader("Status", "w-[104px]"),
-      cell: ({ row }) => {
-        const status = row.original.status;
-        const colorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
-        const label = registrationStatusLabels[status] || status || "-";
-        return (
-          <Badge className={colorClass}>
-            {label}
-          </Badge>
         );
       },
     },
@@ -329,7 +364,7 @@ export function createRegistrationColumns(
         const hasPatient = reg.patient;
         const regId = getRegistrationId(reg);
         const mjknQueue = options.mjknQueueMap.get(regId);
-        const isMjknPending = mjknQueue && mjknQueue.status === "booking";
+        const isMjknPending = mjknQueue && mjknQueue.status === "booking" && reg.status !== "cancelled";
 
         const isPrintingQueue = options.printingType?.regId === regId && options.printingType?.type === 'queue';
         const isPrintingLabel = options.printingType?.regId === regId && options.printingType?.type === 'label';

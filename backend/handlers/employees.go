@@ -55,7 +55,7 @@ func GetEmployee(c *gin.Context) {
 	id := c.Param("id")
 
 	var employee models.Employee
-	if err := database.DB.First(&employee, id).Error; err != nil {
+	if err := database.DB.Preload("User").First(&employee, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Pegawai tidak ditemukan"})
 		return
 	}
@@ -67,7 +67,7 @@ func GetEmployee(c *gin.Context) {
 type CreateEmployeeRequest struct {
 	// Personal Information
 	NIK              string `json:"nik" binding:"required,len=16"`
-	NIP              string `json:"nip"`
+	NIP              string `json:"nip" binding:"required"`
 	NamaLengkap      string `json:"nama_lengkap" binding:"required"`
 	TempatLahir      string `json:"tempat_lahir"`
 	TanggalLahir     string `json:"tanggal_lahir"`
@@ -76,6 +76,8 @@ type CreateEmployeeRequest struct {
 	StatusPerkawinan string `json:"status_perkawinan"`
 	Alamat           string `json:"alamat"`
 	Kota             string `json:"kota"`
+	Kecamatan        string `json:"kecamatan"`
+	Kelurahan        string `json:"kelurahan"`
 	Provinsi         string `json:"provinsi"`
 	KodePos          string `json:"kode_pos"`
 	NoTelepon        string `json:"no_telepon"`
@@ -166,6 +168,8 @@ func CreateEmployee(c *gin.Context) {
 		StatusPerkawinan:      req.StatusPerkawinan,
 		Alamat:                req.Alamat,
 		Kota:                  req.Kota,
+		Kecamatan:             req.Kecamatan,
+		Kelurahan:             req.Kelurahan,
 		Provinsi:              req.Provinsi,
 		KodePos:               req.KodePos,
 		NoTelepon:             req.NoTelepon,
@@ -218,6 +222,8 @@ type UpdateEmployeeRequest struct {
 	StatusPerkawinan string `json:"status_perkawinan"`
 	Alamat           string `json:"alamat"`
 	Kota             string `json:"kota"`
+	Kecamatan        string `json:"kecamatan"`
+	Kelurahan        string `json:"kelurahan"`
 	Provinsi         string `json:"provinsi"`
 	KodePos          string `json:"kode_pos"`
 	NoTelepon        string `json:"no_telepon"`
@@ -321,6 +327,12 @@ func UpdateEmployee(c *gin.Context) {
 	}
 	if req.Kota != "" {
 		employee.Kota = req.Kota
+	}
+	if req.Kecamatan != "" {
+		employee.Kecamatan = req.Kecamatan
+	}
+	if req.Kelurahan != "" {
+		employee.Kelurahan = req.Kelurahan
 	}
 	if req.Provinsi != "" {
 		employee.Provinsi = req.Provinsi

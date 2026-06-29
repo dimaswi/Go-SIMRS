@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, RefreshCw } from "lucide-react";
 
 interface MasterDataState {
   procedure_service_type: MasterData[];
@@ -44,8 +44,10 @@ export default function ProcedureCreate() {
     patient_class: [],
     anesthesia_type: [],
   });
+  const generateProcedureCode = () => `TDK${Date.now().toString().slice(-6)}`;
+
   const [formData, setFormData] = useState<CreateProcedureRequest>({
-    code: "",
+    code: generateProcedureCode(),
     name: "",
     description: "",
     procedure_type: "medical",
@@ -217,13 +219,25 @@ export default function ProcedureCreate() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="code">Kode Tindakan *</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) => updateField("code", e.target.value)}
-                    placeholder="Contoh: TDK001"
-                    required
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="code"
+                      value={formData.code}
+                      onChange={(e) => updateField("code", e.target.value)}
+                      placeholder="Contoh: TDK001"
+                      required
+                      className="flex-1"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => updateField("code", generateProcedureCode())}
+                      title="Generate Kode Otomatis"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Nama Tindakan *</Label>

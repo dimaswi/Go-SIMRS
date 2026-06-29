@@ -3,6 +3,7 @@ package bpjs
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
 	"starter/backend/database"
 	"starter/backend/models"
 	"time"
@@ -52,6 +53,12 @@ func SendTaskManual(kodeBooking string, taskID int, waktuMs int64) (bool, int, s
 			fmt.Printf("[BPJS SendTaskManual] Task %d untuk %s: code 208 (sudah ada), treated as success\n", taskID, kodeBooking)
 			return true, 200, msg
 		}
+
+		database.DB.Model(&models.BPJSQueue{}).Where("kode_booking = ?", kodeBooking).Updates(map[string]interface{}{
+			"sync_status":  "failed",
+			"sync_error":   fmt.Sprintf("[Task %d] %s", taskID, msg),
+			"last_sync_at": time.Now(),
+		})
 
 		return false, code, msg
 	}
@@ -113,6 +120,9 @@ func UpdateTask(kodeBooking string, taskID int, waktu time.Time, additionalData 
 		}
 
 		fmt.Printf("[BPJS Task %d] GAGAL untuk %s: %s - TIDAK update database\n", taskID, kodeBooking, errStr)
+
+		UpdateSyncError(kodeBooking, taskID, errStr)
+
 		return fmt.Errorf("gagal update task ke BPJS: %w", err)
 	}
 
@@ -121,6 +131,39 @@ func UpdateTask(kodeBooking string, taskID int, waktu time.Time, additionalData 
 	fmt.Printf("[BPJS Task %d] SUKSES untuk %s\n", taskID, kodeBooking)
 	logTaskUpdate(kodeBooking, taskID, waktu, 200)
 	return nil
+}
+
+// UpdateSyncError manages appending or updating specific task errors in sync_error field
+func UpdateSyncError(kodeBooking string, taskID int, errMsg string) {
+	var queue models.BPJSQueue
+	if err := database.DB.Select("sync_error").Where("kode_booking = ?", kodeBooking).First(&queue).Error; err != nil {
+		return
+	}
+
+	newTaskErr := fmt.Sprintf("[Task %d] %s", taskID, errMsg)
+	
+	// If it already contains an error for this task, we want to replace it, otherwise append
+	// (Simple approach: just append it if not too long, or reconstruct)
+	finalErr := newTaskErr
+	if queue.SyncError != "" {
+		importRegexp := regexp.MustCompile(fmt.Sprintf(`(?m)^\[Task %d\].*?$`, taskID))
+		if importRegexp.MatchString(queue.SyncError) {
+			finalErr = importRegexp.ReplaceAllString(queue.SyncError, newTaskErr)
+		} else {
+			finalErr = queue.SyncError + "\n" + newTaskErr
+		}
+	}
+
+	// Safety truncation
+	if len(finalErr) > 2000 {
+		finalErr = finalErr[len(finalErr)-2000:]
+	}
+
+	database.DB.Model(&models.BPJSQueue{}).Where("kode_booking = ?", kodeBooking).Updates(map[string]interface{}{
+		"sync_status":  "failed",
+		"sync_error":   finalErr,
+		"last_sync_at": time.Now(),
+	})
 }
 
 // UpdateTaskAsync updates task asynchronously (fire and forget)
@@ -158,6 +201,27 @@ func ensureSequentialTime(queue *models.BPJSQueue, taskID int, waktu time.Time) 
 		fmt.Printf("[BPJS Task %d] Waktu %s <= task sebelumnya %s, adjusted ke %s\n",
 			taskID, waktu.Format("15:04:05"), prevTime.Format("15:04:05"), adjusted.Format("15:04:05"))
 		return adjusted
+	}
+
+	// BPJS requires tasks to be on the same date as TanggalPeriksa.
+	// If the user forgot to update task on the same day (e.g. discharging next morning),
+	// we clamp the time to TanggalPeriksa 23:59:00, or prevTime + 15 mins.
+	if waktu.Year() != queue.TanggalPeriksa.Year() || waktu.Month() != queue.TanggalPeriksa.Month() || waktu.Day() != queue.TanggalPeriksa.Day() {
+		// Default to 15 mins after prevTime if prevTime exists and is on TanggalPeriksa
+		if prevTime != nil && prevTime.Year() == queue.TanggalPeriksa.Year() && prevTime.Month() == queue.TanggalPeriksa.Month() && prevTime.Day() == queue.TanggalPeriksa.Day() {
+			adjusted := prevTime.Add(15 * time.Minute)
+			// Ensure it doesn't spill over to the next day
+			if adjusted.Day() != queue.TanggalPeriksa.Day() {
+				adjusted = time.Date(queue.TanggalPeriksa.Year(), queue.TanggalPeriksa.Month(), queue.TanggalPeriksa.Day(), 23, 59, 0, 0, queue.TanggalPeriksa.Location())
+			}
+			fmt.Printf("[BPJS Task %d] Waktu beda hari dengan TanggalPeriksa, adjusted ke prevTime+15m: %s\n", taskID, adjusted.Format("2006-01-02 15:04:05"))
+			return adjusted
+		} else {
+			// Fallback: 23:55:00 on TanggalPeriksa
+			adjusted := time.Date(queue.TanggalPeriksa.Year(), queue.TanggalPeriksa.Month(), queue.TanggalPeriksa.Day(), 23, 55, 0, 0, queue.TanggalPeriksa.Location())
+			fmt.Printf("[BPJS Task %d] Waktu beda hari, fallback adjusted ke 23:55:00: %s\n", taskID, adjusted.Format("2006-01-02 15:04:05"))
+			return adjusted
+		}
 	}
 
 	return waktu
@@ -252,6 +316,21 @@ func UpdateBPJSQueueFromRoomQueueStatus(roomQueueID uint, newStatus string, wakt
 func AutoChainFarmasiTasks(kodeBooking string, task5Time time.Time) {
 	var queue models.BPJSQueue
 	if err := database.DB.Where("kode_booking = ?", kodeBooking).First(&queue).Error; err != nil {
+		return
+	}
+
+	if queue.VisitID == nil {
+		return
+	}
+
+	// Cek apakah ada order resep dibawa pulang
+	var orderCount int64
+	database.DB.Model(&models.MedicineOrder{}).
+		Where("source_visit_id = ? AND fulfillment_type = ?", *queue.VisitID, models.FulfillmentTypeTakeHome).
+		Count(&orderCount)
+
+	if orderCount == 0 {
+		fmt.Printf("[BPJS AutoChain] Skip Task 6 & 7 untuk %s (Tidak ada order farmasi dibawa pulang)\n", kodeBooking)
 		return
 	}
 

@@ -131,18 +131,6 @@ export function DatePickerDropdown({
           </div>
         </PopoverContent>
       </Popover>
-      {value && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          className={cn("rounded-none px-2", isCompact ? "h-8 text-xs" : "h-9 text-sm")}
-          onClick={() => onChange(undefined)}
-        >
-          Reset
-        </Button>
-      )}
     </div>
   );
 }

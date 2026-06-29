@@ -12,15 +12,9 @@ import {
   Stethoscope,
   Database,
 } from "lucide-react";
+
 import { bpjsApi, type BPJSPoliMapping, type BPJSDoctorMapping } from "@/lib/api/bpjs";
 import { SearchModal } from "./search-modal";
-import {
-  BPJS_COMPACT_FIELD_CLASS,
-  BPJS_FIELD_CLASS,
-  BPJS_ICON_BUTTON_CLASS,
-  BPJS_MUTED_PANEL_CLASS,
-  BPJS_SHEET_MONO_FAMILY,
-} from "./bpjs-sheet-chrome";
 
 export type DataSourceTab = "bpjs" | "mapping";
 
@@ -188,8 +182,7 @@ export function PoliDokterSelector({
         <Database className={size === "compact" ? "h-3.5 w-3.5 text-muted-foreground" : "h-4 w-4 text-muted-foreground"} />
         <Label
           htmlFor="use-mapping-switch"
-          className={`cursor-pointer select-none uppercase tracking-[0.18em] ${size === "compact" ? "text-[10px]" : "text-xs"} ${useMapping ? "text-foreground font-medium" : "text-muted-foreground"}`}
-          style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
+          className={`cursor-pointer select-none font-medium ${size === "compact" ? "text-xs" : "text-sm"} ${useMapping ? "text-foreground" : "text-muted-foreground"}`}
         >
           Gunakan Mapping Lokal
         </Label>
@@ -207,7 +200,7 @@ export function PoliDokterSelector({
   const BpjsFieldsCompact = () => (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-2 lg:col-span-2">
-        <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-1" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+        <Label className="text-sm font-medium flex items-center gap-1">
           <Building2 className="h-3.5 w-3.5" />
           Poli Tujuan
         </Label>
@@ -216,7 +209,7 @@ export function PoliDokterSelector({
             value={namaPoli || kodePoli}
             placeholder="Pilih poli..."
             readOnly
-            className={`${BPJS_COMPACT_FIELD_CLASS} flex-1`}
+            className="h-9 flex-1"
           />
           <Button
             type="button"
@@ -224,14 +217,14 @@ export function PoliDokterSelector({
             size="icon"
             onClick={() => setPoliModalOpen(true)}
             disabled={disabled}
-            className={BPJS_ICON_BUTTON_CLASS}
+            className="h-9 w-9 px-0"
           >
             <Search className="h-4 w-4" />
           </Button>
         </div>
       </div>
       <div className="space-y-2 lg:col-span-2">
-        <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-1" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+        <Label className="text-sm font-medium flex items-center gap-1">
           <Stethoscope className="h-3.5 w-3.5" />
           Dokter
         </Label>
@@ -240,7 +233,7 @@ export function PoliDokterSelector({
             value={namaDokter || kodeDokter}
             placeholder="Pilih dokter..."
             readOnly
-            className={`${BPJS_COMPACT_FIELD_CLASS} flex-1`}
+            className="h-9 flex-1"
           />
           <Button
             type="button"
@@ -248,7 +241,7 @@ export function PoliDokterSelector({
             size="icon"
             onClick={() => setDokterModalOpen(true)}
             disabled={disabled || !kodePoli}
-            className={BPJS_ICON_BUTTON_CLASS}
+            className="h-9 w-9 px-0"
           >
             <Search className="h-4 w-4" />
           </Button>
@@ -363,14 +356,14 @@ export function PoliDokterSelector({
   // Full layout for Sheet forms (surat-kontrol, spri)
   return (
     <>
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-3">
         <SwitchRow />
 
         {dataSource === "bpjs" ? (
-          <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Poli Kontrol — BPJS API */}
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+              <Label className="text-sm font-medium flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 {poliFieldLabel} <span className="text-destructive">*</span>
               </Label>
@@ -379,7 +372,7 @@ export function PoliDokterSelector({
                   value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
                   placeholder={poliInputPlaceholder}
                   readOnly
-                  className={`${BPJS_FIELD_CLASS} bg-muted/20 cursor-pointer`}
+                  className="h-9 bg-muted/20 cursor-pointer"
                   onClick={() => !disabled && setPoliModalOpen(true)}
                 />
                 <Button
@@ -387,7 +380,7 @@ export function PoliDokterSelector({
                   variant="outline"
                   onClick={() => setPoliModalOpen(true)}
                   disabled={disabled}
-                  className={BPJS_ICON_BUTTON_CLASS}
+                  className="h-9 w-9 px-0"
                 >
                   <Search className="h-4 w-4" />
                 </Button>
@@ -396,7 +389,7 @@ export function PoliDokterSelector({
 
             {/* Dokter Kontrol — BPJS API */}
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+              <Label className="text-sm font-medium flex items-center gap-2">
                 <Stethoscope className="h-4 w-4 text-muted-foreground" />
                 {dokterFieldLabel} <span className="text-destructive">*</span>
               </Label>
@@ -405,7 +398,7 @@ export function PoliDokterSelector({
                   value={namaDokter ? `${kodeDokter} - ${namaDokter}` : ""}
                   placeholder={kodePoli && tglRencanaKontrol ? dokterInputPlaceholder : dokterInputPlaceholderDisabled}
                   readOnly
-                  className={`${BPJS_FIELD_CLASS} bg-muted/20 cursor-pointer`}
+                  className="h-9 bg-muted/20 cursor-pointer"
                   onClick={() => !disabled && kodePoli && tglRencanaKontrol && setDokterModalOpen(true)}
                 />
                 <Button
@@ -413,7 +406,7 @@ export function PoliDokterSelector({
                   variant="outline"
                   onClick={() => setDokterModalOpen(true)}
                   disabled={disabled || !kodePoli || !tglRencanaKontrol}
-                  className={BPJS_ICON_BUTTON_CLASS}
+                  className="h-9 w-9 px-0"
                 >
                   <Search className="h-4 w-4" />
                 </Button>
@@ -424,7 +417,7 @@ export function PoliDokterSelector({
                 </p>
               )}
             </div>
-          </>
+          </div>
         ) : (
           <>
             {loadingMappings ? (
@@ -444,10 +437,10 @@ export function PoliDokterSelector({
                 </Button>
               </div>
             ) : (
-              <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Poli dari Mapping — Searchable Combobox */}
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                  <Label className="text-sm font-medium flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     {poliFieldLabel} <span className="text-destructive">*</span>
                   </Label>
@@ -460,7 +453,7 @@ export function PoliDokterSelector({
                     emptyText="Poli tidak ditemukan"
                     disabled={disabled}
                     loading={loadingMappings}
-                    className={BPJS_FIELD_CLASS}
+                    className="h-9"
                   />
                   {kodePoli && (
                     <p className="text-xs text-muted-foreground">
@@ -471,10 +464,11 @@ export function PoliDokterSelector({
 
                 {/* Dokter dari Mapping — Searchable Combobox */}
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-[0.18em] flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                  <Label className="text-sm font-medium flex items-center gap-2">
                     <Stethoscope className="h-4 w-4 text-muted-foreground" />
                     {dokterFieldLabel} <span className="text-destructive">*</span>
                   </Label>
+
                   <Combobox
                     options={dokterOptions}
                     value={filteredDoctors.find((d) => d.kode_dokter_bpjs === kodeDokter)?.id.toString() || ""}
@@ -483,7 +477,7 @@ export function PoliDokterSelector({
                     searchPlaceholder="Ketik nama dokter..."
                     emptyText="Dokter tidak ditemukan"
                     disabled={disabled || !selectedPoliMappingId}
-                    className={BPJS_FIELD_CLASS}
+                    className="h-9"
                   />
                   {!selectedPoliMappingId && (
                     <p className="text-xs text-amber-600">
@@ -497,11 +491,13 @@ export function PoliDokterSelector({
                   )}
                 </div>
 
-                <p className={`${BPJS_MUTED_PANEL_CLASS} p-3 text-xs text-muted-foreground`}>
-                  Data diambil dari mapping lokal yang sudah dikonfigurasi di menu BPJS &gt; Mapping.
-                  Pastikan mapping sudah ter-update.
-                </p>
-              </>
+                <div className="md:col-span-2">
+                  <p className="bg-muted p-3 text-xs text-muted-foreground rounded-md">
+                    Data diambil dari mapping lokal yang sudah dikonfigurasi di menu BPJS &gt; Mapping.
+                    Pastikan mapping sudah ter-update.
+                  </p>
+                </div>
+              </div>
             )}
           </>
         )}

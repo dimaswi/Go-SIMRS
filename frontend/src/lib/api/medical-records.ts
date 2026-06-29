@@ -38,6 +38,36 @@ export interface Triage {
   updated_at?: string;
 }
 
+export interface BersalinRecord {
+  id?: number;
+  visit_id: number;
+  jam_datang?: string;
+  jam_pengkajian?: string;
+  anamnesis_type?: string;
+  keluhan_utama?: string;
+  pemeriksaan_fisik?: any;
+  genetalia?: any;
+  skor_norton?: number;
+  skor_must?: number;
+  skor_barthel?: number;
+  skor_morse?: number;
+  nyeri?: any;
+  edukasi?: any;
+  riwayat_medis?: any;
+  rencana_asuhan?: any;
+  ketuban_pecah_jam?: string;
+  mules_sejak_jam?: string;
+  lembar_observasi?: any;
+  partograf_data?: any;
+  laporan_tindakan?: any;
+  catatan_kala_1?: any;
+  catatan_kala_2?: any;
+  catatan_kala_3?: any;
+  bayi_baru_lahir?: any;
+  pemantauan_kala_4?: any;
+  catatan_kala_4?: any;
+}
+
 export interface Anamnesis {
   id: number;
   visit_id: number;
@@ -568,6 +598,13 @@ export const medicalRecordsApi = {
   },
   saveAssessmentPlan: async (visitId: number, data: Partial<AssessmentPlan>) => {
     return api.post<AssessmentPlan>(`/visits/${visitId}/assessment-plan`, data);
+  },
+
+  getBersalinRecord: async (visitId: number) => {
+    return api.get<BersalinRecord>(`/visits/${visitId}/bersalin`);
+  },
+  saveBersalinRecord: async (visitId: number, data: Partial<BersalinRecord>) => {
+    return api.post<BersalinRecord>(`/visits/${visitId}/bersalin`, data);
   },
 
   // Disposition endpoints

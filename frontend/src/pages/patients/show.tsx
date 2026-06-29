@@ -293,61 +293,63 @@ export default function PatientShow() {
       </PageHeader>
 
       <PageContent>
-        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6 pb-6">
           {/* Identitas Pasien */}
           <div className="border border-border/70 bg-background">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
               <User className="h-3 w-3" />
               IDENTITAS PASIEN
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">NIK</label>
-                  <p className="font-medium text-sm">{patient.nik || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.nik || '-'}</p>
                 </div>
-                <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Panggilan</label>
-                <p className="font-medium text-sm">{patient.nama_panggilan || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Jenis Kelamin</label>
-                <p className="font-medium text-sm">{patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tempat, Tanggal Lahir</label>
-                <p className="font-medium text-sm">{patient.tempat_lahir || '-'}, {formatDate(patient.tanggal_lahir)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Umur</label>
-                <p className="font-medium text-sm">{calculateAge(patient.tanggal_lahir)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Golongan Darah</label>
-                <p className="font-medium text-sm">{patient.golongan_darah || '-'} ({patient.rhesus || '-'})</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Agama</label>
-                <p className="font-medium text-sm">{patient.agama || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Status Perkawinan</label>
-                <p className="font-medium text-sm">{patient.status_perkawinan || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Pendidikan</label>
-                <p className="font-medium text-sm">{patient.pendidikan_terakhir || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Pekerjaan</label>
-                <p className="font-medium text-sm">{patient.pekerjaan || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Kewarganegaraan</label>
-                <p className="font-medium text-sm">{patient.kewarganegaraan || 'WNI'}</p>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="text-xs text-muted-foreground">Nama Lengkap</label>
+                  <p className="font-medium text-sm mt-1">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama Panggilan</label>
+                  <p className="font-medium text-sm mt-1">{patient.nama_panggilan || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Jenis Kelamin</label>
+                  <p className="font-medium text-sm mt-1">{patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</p>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="text-xs text-muted-foreground">Tempat, Tanggal Lahir</label>
+                  <p className="font-medium text-sm mt-1">{patient.tempat_lahir || '-'}, {formatDate(patient.tanggal_lahir)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Umur</label>
+                  <p className="font-medium text-sm mt-1">{calculateAge(patient.tanggal_lahir)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Golongan Darah</label>
+                  <p className="font-medium text-sm mt-1">{patient.golongan_darah || '-'} {patient.rhesus ? `(${patient.rhesus})` : ''}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Agama</label>
+                  <p className="font-medium text-sm mt-1">{patient.agama || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Status Perkawinan</label>
+                  <p className="font-medium text-sm mt-1">{patient.status_perkawinan || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Pendidikan</label>
+                  <p className="font-medium text-sm mt-1">{patient.pendidikan_terakhir || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Pekerjaan</label>
+                  <p className="font-medium text-sm mt-1">{patient.pekerjaan || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Kewarganegaraan</label>
+                  <p className="font-medium text-sm mt-1">{patient.kewarganegaraan || 'WNI'}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -394,23 +396,23 @@ export default function PatientShow() {
               <Phone className="h-3 w-3" />
               KONTAK
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">No. Telepon</label>
-                  <p className="font-medium text-sm">{patient.no_telepon || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.no_telepon || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">No. HP</label>
-                  <p className="font-medium text-sm">{patient.no_hp || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.no_hp || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">No. HP Alternatif</label>
-                  <p className="font-medium text-sm">{patient.no_hp_alternatif || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.no_hp_alternatif || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Email</label>
-                  <p className="font-medium text-sm">{patient.email || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.email || '-'}</p>
                 </div>
               </div>
             </div>
@@ -422,23 +424,23 @@ export default function PatientShow() {
               <Users className="h-3 w-3" />
               PENANGGUNG JAWAB
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">Nama</label>
-                  <p className="font-medium text-sm">{patient.nama_penanggung_jawab || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.nama_penanggung_jawab || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Hubungan</label>
-                  <p className="font-medium text-sm">{patient.hubungan_penanggung_jawab || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.hubungan_penanggung_jawab || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">NIK</label>
-                  <p className="font-medium text-sm">{patient.nik_penanggung_jawab || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.nik_penanggung_jawab || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Telepon</label>
-                  <p className="font-medium text-sm">{patient.telepon_penanggung_jawab || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.telepon_penanggung_jawab || '-'}</p>
                 </div>
               </div>
             </div>
@@ -450,11 +452,11 @@ export default function PatientShow() {
               <Shield className="h-3 w-3" />
               JAMINAN KESEHATAN
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">Jenis Jaminan</label>
-                  <p className="font-medium text-sm">
+                  <p className="font-medium text-sm mt-1">
                     <Badge variant="outline">{patient.jenis_jaminan}</Badge>
                   </p>
                 </div>
@@ -462,15 +464,15 @@ export default function PatientShow() {
                   <>
                     <div>
                       <label className="text-xs text-muted-foreground">No. BPJS</label>
-                      <p className="font-medium text-sm">{patient.no_bpjs || '-'}</p>
+                      <p className="font-medium text-sm mt-1">{patient.no_bpjs || '-'}</p>
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">Kelas BPJS</label>
-                      <p className="font-medium text-sm">Kelas {patient.kelas_bpjs || '-'}</p>
+                      <p className="font-medium text-sm mt-1">Kelas {patient.kelas_bpjs || '-'}</p>
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">Faskes Tingkat 1</label>
-                      <p className="font-medium text-sm">{patient.faskes_tingkat_1 || '-'}</p>
+                      <p className="font-medium text-sm mt-1">{patient.faskes_tingkat_1 || '-'}</p>
                     </div>
                   </>
                 )}
@@ -478,15 +480,15 @@ export default function PatientShow() {
                   <>
                     <div>
                       <label className="text-xs text-muted-foreground">Nama Asuransi</label>
-                      <p className="font-medium text-sm">{patient.nama_asuransi || '-'}</p>
+                      <p className="font-medium text-sm mt-1">{patient.nama_asuransi || '-'}</p>
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">No. Polis</label>
-                      <p className="font-medium text-sm">{patient.no_polis_asuransi || '-'}</p>
+                      <p className="font-medium text-sm mt-1">{patient.no_polis_asuransi || '-'}</p>
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">Masa Berlaku</label>
-                      <p className="font-medium text-sm">{formatDate(patient.masa_berlaku_asuransi)}</p>
+                      <p className="font-medium text-sm mt-1">{formatDate(patient.masa_berlaku_asuransi)}</p>
                     </div>
                   </>
                 )}
@@ -500,39 +502,39 @@ export default function PatientShow() {
               <Heart className="h-3 w-3" />
               RIWAYAT MEDIS PENTING
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">Alergi Obat</label>
-                  <p className="font-medium text-sm">{patient.alergi_obat || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.alergi_obat || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Alergi Makanan</label>
-                  <p className="font-medium text-sm">{patient.alergi_makanan || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.alergi_makanan || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Alergi Lainnya</label>
-                  <p className="font-medium text-sm">{patient.alergi_lainnya || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.alergi_lainnya || '-'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Penyakit Kronis</label>
-                  <p className="font-medium text-sm">{patient.penyakit_kronis || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.penyakit_kronis || '-'}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2 lg:col-span-2">
                   <label className="text-xs text-muted-foreground">Riwayat Operasi</label>
-                  <p className="font-medium text-sm">{patient.riwayat_operasi || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.riwayat_operasi || '-'}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2 lg:col-span-2">
                   <label className="text-xs text-muted-foreground">Obat Rutin</label>
-                  <p className="font-medium text-sm">{patient.obat_rutin || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.obat_rutin || '-'}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2 lg:col-span-2">
                   <label className="text-xs text-muted-foreground">Disabilitas</label>
-                  <p className="font-medium text-sm">{patient.disabilitas || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.disabilitas || '-'}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2 lg:col-span-2">
                   <label className="text-xs text-muted-foreground">Catatan Khusus</label>
-                  <p className="font-medium text-sm">{patient.catatan_khusus || '-'}</p>
+                  <p className="font-medium text-sm mt-1">{patient.catatan_khusus || '-'}</p>
                 </div>
               </div>
             </div>
@@ -543,23 +545,23 @@ export default function PatientShow() {
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               INFORMASI SISTEM
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="text-xs text-muted-foreground">ID Pasien</label>
-                  <p className="font-medium text-sm">#{patient.id}</p>
+                  <p className="font-medium text-sm mt-1">#{patient.id}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Tanggal Registrasi</label>
-                  <p className="font-medium text-sm">{formatDateTime(patient.tanggal_registrasi)}</p>
+                  <p className="font-medium text-sm mt-1">{formatDateTime(patient.tanggal_registrasi)}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Kunjungan Terakhir</label>
-                  <p className="font-medium text-sm">{formatDateTime(patient.tanggal_kunjungan_terakhir)}</p>
+                  <p className="font-medium text-sm mt-1">{formatDateTime(patient.tanggal_kunjungan_terakhir)}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
-                  <p className="font-medium text-sm">{formatDateTime(patient.updated_at)}</p>
+                  <p className="font-medium text-sm mt-1">{formatDateTime(patient.updated_at)}</p>
                 </div>
               </div>
             </div>

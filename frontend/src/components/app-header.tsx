@@ -13,6 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { CashierShiftWidget } from '@/components/layout/cashier-shift-widget';
 
 // Route label mapping for better breadcrumb display
 const routeLabels: Record<string, string> = {
@@ -158,12 +159,14 @@ export function AppHeader() {
       </div>
       
       {/* Patient Search */}
-      <div className="hidden md:flex items-center">
-        <PatientSearch />
-      </div>
+      {hasPermission('patients.view') && (
+        <div className="hidden md:flex items-center">
+          <PatientSearch />
+        </div>
+      )}
       
       {/* Quick Actions */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-2">
         {hasPermission('patients.create') && (
           <TooltipProvider>
             <Tooltip>
@@ -185,6 +188,9 @@ export function AppHeader() {
           </TooltipProvider>
         )}
         
+        {/* Cashier Shift Widget */}
+        <CashierShiftWidget />
+
         {/* Notification Bell */}
         <NotificationBell />
         

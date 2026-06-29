@@ -13,6 +13,8 @@ export interface Employee {
   status_perkawinan?: string;
   alamat?: string;
   kota?: string;
+  kecamatan?: string;
+  kelurahan?: string;
   provinsi?: string;
   kode_pos?: string;
   no_telepon?: string;
@@ -58,6 +60,8 @@ export interface EmployeeRequest {
   status_perkawinan?: string;
   alamat?: string;
   kota?: string;
+  kecamatan?: string;
+  kelurahan?: string;
   provinsi?: string;
   kode_pos?: string;
   no_telepon?: string;

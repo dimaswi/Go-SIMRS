@@ -315,14 +315,25 @@ export const registrationApi = {
     api.post<{ data: Registration }>(`/registrations/${id}/complete`),
 
   // Check-in scheduled registration (for kontrol/follow-up)
-  checkIn: (id: number) =>
-    api.post<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/checkin`),
+  // Check-in (Scheduled -> In Queue)
+  checkIn: (id: number, sepData?: any) =>
+    api.post<{ data: Registration; message: string; requires_admission?: boolean }>(
+      `/registrations/${id}/checkin`,
+      sepData
+    ),
 
   // BPJS check-in with SEP: AddAntrean → Create SEP → Activate Visit (sequential)
   bpjsCheckinWithSEP: (id: number, sepData: Record<string, any>) =>
     api.post<{ data: ScheduledRegistration; message: string; no_sep: string; queue_number: string }>(
       `/registrations/${id}/bpjs-checkin`,
       sepData
+    ),
+
+  // Check-in via QR Surat Kontrol (SKDP BPJS) — untuk anjungan mandiri
+  checkInBySuratKontrol: (noSuratKontrol: string) =>
+    api.post<{ data: ScheduledRegistration; queue_number: string; surat_kontrol: string; message: string; requires_admission?: boolean }>(
+      "/registrations/checkin-by-surat-kontrol",
+      { no_surat_kontrol: noSuratKontrol }
     ),
 
   // Send BPJS Antrean only (Step 1 of check-in)
@@ -365,6 +376,10 @@ export interface ScheduledRegistration extends Registration {
     id: number;
     username: string;
     full_name?: string;
+  };
+  surat_kontrol?: {
+    no_surat_kontrol: string;
+    status: string;
   };
 }
 

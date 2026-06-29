@@ -31,6 +31,7 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 		// Audit Logs (Admin/Manajemen)
 		signature.GET("/logs", handlers.GetSignatureLogs)                             // Signature activity logs
 		signature.GET("/medical-record-logs", handlers.GetMedicalRecordEditLogsAudit) // Medical record edit logs
+		signature.GET("/patient-link", handlers.GeneratePatientSignatureLink) // Generate JWT link for patient signature
 	}
 }
 
@@ -38,4 +39,7 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 func SetupPublicSignatureRoutes(public *gin.RouterGroup) {
 	// Public verification endpoint (for external parties to verify document signature)
 	public.GET("/signature/verify/:hash", handlers.VerifyDocumentSignature)
+	
+	// Public patient signature submission (authenticated via JWT token in payload)
+	public.POST("/signature/submit", handlers.SubmitPatientSignature)
 }

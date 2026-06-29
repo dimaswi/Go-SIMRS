@@ -299,7 +299,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({ identifier: email, password });
       login(response.data.token, response.data.user);
       if (rememberLogin) {
         upsertSavedAccount(response.data.token, response.data.user);
@@ -428,11 +428,11 @@ export default function LoginPage() {
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="identifier" className="text-sm font-medium">NIP Pegawai / Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@simrs.com"
+                  id="identifier"
+                  type="text"
+                  placeholder="Masukkan NIP atau Username..."
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11"

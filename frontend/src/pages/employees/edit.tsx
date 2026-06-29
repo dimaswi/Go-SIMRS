@@ -10,13 +10,11 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { employeesApi, regionsApi, masterDataApi, type MasterData } from "@/lib/api";
 import type { Province, Regency, District, Village } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, 
-  Loader2, 
-  User, 
-  CreditCard, 
-  MapPin, 
-  Phone, 
+import {
+  ArrowLeft,
+  Loader2,
+  User,
+  MapPin,
   Briefcase,
   GraduationCap,
   Heart,
@@ -40,11 +38,11 @@ export default function EmployeeEdit() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  
+
   // Master data states
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [loadingMasterData, setLoadingMasterData] = useState(true);
-  
+
   // Region states
   const [allRegencies, setAllRegencies] = useState<(Regency & { province?: Province })[]>([]);
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -58,14 +56,14 @@ export default function EmployeeEdit() {
     districts: false,
     villages: false,
   });
-  
+
   // Selected region IDs for cascading
   const [selectedProvinceId, setSelectedProvinceId] = useState("");
   const [selectedRegencyId, setSelectedRegencyId] = useState("");
   const [selectedDistrictId, setSelectedDistrictId] = useState("");
   const [selectedVillageId, setSelectedVillageId] = useState("");
   const [regionInitialized, setRegionInitialized] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     // Personal Information
     nik: "",
@@ -78,12 +76,14 @@ export default function EmployeeEdit() {
     status_perkawinan: "",
     alamat: "",
     kota: "",
+    kecamatan: "",
+    kelurahan: "",
     provinsi: "",
     kode_pos: "",
     no_telepon: "",
     no_hp: "",
     email: "",
-    
+
     // Employment Information
     tipe_karyawan: "",
     status_kepegawaian: "",
@@ -91,7 +91,7 @@ export default function EmployeeEdit() {
     tanggal_keluar: "",
     departemen: "",
     jabatan: "",
-    
+
     // Medical Staff Information
     no_str: "",
     tanggal_str: "",
@@ -100,22 +100,22 @@ export default function EmployeeEdit() {
     tanggal_sip: "",
     masa_berlaku_sip: "",
     spesialisasi: "",
-    
+
     // Education
     pendidikan_terakhir: "",
     nama_institusi: "",
     tahun_lulus: "",
-    
+
     // Bank Information
     nama_bank: "",
     no_rekening: "",
     atas_nama_rekening: "",
-    
+
     // Emergency Contact
     nama_kontak_darurat: "",
     hubungan_kontak_darurat: "",
     telepon_kontak_darurat: "",
-    
+
     // Status
     is_active: true,
   });
@@ -165,7 +165,7 @@ export default function EmployeeEdit() {
     } finally {
       setLoadingRegions(prev => ({ ...prev, allRegencies: false, provinces: false }));
     }
-    
+
     // Load employee
     loadEmployee();
   };
@@ -185,6 +185,8 @@ export default function EmployeeEdit() {
         status_perkawinan: emp.status_perkawinan || "",
         alamat: emp.alamat || "",
         kota: emp.kota || "",
+        kecamatan: emp.kecamatan || "",
+        kelurahan: emp.kelurahan || "",
         provinsi: emp.provinsi || "",
         kode_pos: emp.kode_pos || "",
         no_telepon: emp.no_telepon || "",
@@ -244,7 +246,8 @@ export default function EmployeeEdit() {
       setDistricts([]);
       setVillages([]);
     }
-  }, [selectedProvinceId, regionInitialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvinceId]);
 
   // Load districts when regency changes
   useEffect(() => {
@@ -262,7 +265,8 @@ export default function EmployeeEdit() {
       setDistricts([]);
       setVillages([]);
     }
-  }, [selectedRegencyId, regionInitialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRegencyId]);
 
   // Load villages when district changes
   useEffect(() => {
@@ -277,27 +281,62 @@ export default function EmployeeEdit() {
     } else if (!selectedDistrictId) {
       setVillages([]);
     }
-  }, [selectedDistrictId, regionInitialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDistrictId]);
 
-  // Update form data when region selection changes
-  useEffect(() => {
-    if (regionInitialized) {
-      const province = provinces.find(p => p.id === selectedProvinceId);
-      const regency = regencies.find(r => r.id === selectedRegencyId);
-      setFormData(prev => ({
-        ...prev,
-        provinsi: province?.name || "",
-        kota: regency?.name || "",
-      }));
-    }
-  }, [selectedProvinceId, selectedRegencyId, provinces, regencies, regionInitialized]);
+
 
   // Mark region as initialized after first load
   useEffect(() => {
-    if (!fetching && provinces.length > 0) {
-      setRegionInitialized(true);
+    if (!fetching && provinces.length > 0 && !regionInitialized) {
+      if (formData.provinsi) {
+        const run = async () => {
+          const matchRegionName = (apiName: string, formName?: string) => {
+            if (!formName) return false;
+            const clean = (s: string) => s.toLowerCase().replace(/^(provinsi|prov\.|kota|kabupaten|kab\.|kecamatan|kec\.|kelurahan|kel\.|desa)\s+/i, '').trim();
+            return clean(apiName) === clean(formName);
+          };
+
+          const province = provinces.find((p) => matchRegionName(p.name, formData.provinsi));
+          if (province) {
+            setSelectedProvinceId(province.id);
+            try {
+              const regRes = await regionsApi.getRegencies(province.id);
+              const loadedRegencies = regRes.data.data || [];
+              setRegencies(loadedRegencies);
+              const regency = loadedRegencies.find((r: any) => matchRegionName(r.name, formData.kota));
+
+              if (regency) {
+                setSelectedRegencyId(regency.id);
+                const distRes = await regionsApi.getDistricts(regency.id);
+                const loadedDistricts = distRes.data.data || [];
+                setDistricts(loadedDistricts);
+                const district = loadedDistricts.find((d: any) => matchRegionName(d.name, formData.kecamatan));
+
+                if (district) {
+                  setSelectedDistrictId(district.id);
+                  const villRes = await regionsApi.getVillages(district.id);
+                  const loadedVillages = villRes.data.data || [];
+                  setVillages(loadedVillages);
+                  const village = loadedVillages.find((v: any) => matchRegionName(v.name, formData.kelurahan));
+
+                  if (village) {
+                    setSelectedVillageId(village.id);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error("Failed to map regions", error);
+            }
+          }
+          setRegionInitialized(true);
+        };
+        run();
+      } else {
+        setRegionInitialized(true);
+      }
     }
-  }, [fetching, provinces]);
+  }, [fetching, provinces, formData.provinsi, formData.kota, formData.kecamatan, formData.kelurahan, regionInitialized]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,12 +385,12 @@ export default function EmployeeEdit() {
   const relationshipOptions = toComboboxOptions(masterData.relationship);
   const bankOptions = toComboboxOptions(masterData.bank);
   const specializationOptions = toComboboxOptions(masterData.specialization);
-  
+
   const birthplaceOptions: ComboboxOption[] = allRegencies.map(r => ({
     value: r.name,
     label: r.province ? `${r.name}, ${r.province.name}` : r.name,
   }));
-  
+
   const provinceOptions: ComboboxOption[] = provinces.map(p => ({ value: p.id, label: p.name }));
   const regencyOptions: ComboboxOption[] = regencies.map(r => ({ value: r.id, label: r.name }));
   const districtOptions: ComboboxOption[] = districts.map(d => ({ value: d.id, label: d.name }));
@@ -384,645 +423,666 @@ export default function EmployeeEdit() {
         }
       />
       <PageContent>
-      <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
-        {/* Status Card */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Status Pegawai
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="flex items-center justify-between border border-border/50 p-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
-                  Status Pegawai
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {formData.is_active ? 'Pegawai aktif' : 'Pegawai tidak aktif'}
-                </p>
-              </div>
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
+        <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
+          {/* Status Card */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Status Pegawai
             </div>
-          </div>
-        </div>
-
-        {/* Personal Information */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <User className="h-3 w-3" />
-            Data Pribadi
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="space-y-2">
-                <Label htmlFor="nik" className="text-xs font-medium flex items-center gap-2">
-                  <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                  NIK <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="nik"
-                  required
-                  maxLength={16}
-                  placeholder="16 digit NIK"
-                  value={formData.nik}
-                  onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nip" className="text-xs font-medium">
-                  NIP
-                </Label>
-                <Input
-                  id="nip"
-                  maxLength={18}
-                  placeholder="NIP (jika ada)"
-                  value={formData.nip}
-                  onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nama_lengkap" className="text-xs font-medium">
-                  Nama Lengkap <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="nama_lengkap"
-                  required
-                  placeholder="Nama lengkap sesuai KTP"
-                  value={formData.nama_lengkap}
-                  onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Tempat Lahir
-                </Label>
-                <Combobox
-                  options={birthplaceOptions}
-                  value={formData.tempat_lahir}
-                  onValueChange={(value) => setFormData({ ...formData, tempat_lahir: value })}
-                  placeholder="Pilih kota"
-                  searchPlaceholder="Cari kota..."
-                  emptyText="Kota tidak ditemukan."
-                  loading={loadingRegions.allRegencies}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tanggal_lahir" className="text-xs font-medium">
-                  Tanggal Lahir
-                </Label>
-                <Input
-                  id="tanggal_lahir"
-                  type="date"
-                  value={formData.tanggal_lahir}
-                  onChange={(e) => setFormData({ ...formData, tanggal_lahir: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Jenis Kelamin <span className="text-destructive">*</span>
-                </Label>
-                <Combobox
-                  options={genderOptions}
-                  value={formData.jenis_kelamin}
-                  onValueChange={(value) => setFormData({ ...formData, jenis_kelamin: value })}
-                  placeholder="Pilih"
-                  searchPlaceholder="Cari..."
-                  loading={loadingMasterData}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Agama
-                </Label>
-                <Combobox
-                  options={religionOptions}
-                  value={formData.agama}
-                  onValueChange={(value) => setFormData({ ...formData, agama: value })}
-                  placeholder="Pilih"
-                  searchPlaceholder="Cari agama..."
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Status Perkawinan
-                </Label>
-                <Combobox
-                  options={maritalStatusOptions}
-                  value={formData.status_perkawinan}
-                  onValueChange={(value) => setFormData({ ...formData, status_perkawinan: value })}
-                  placeholder="Pilih"
-                  searchPlaceholder="Cari..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="no_telepon" className="text-xs font-medium flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  No. Telepon
-                </Label>
-                <Input
-                  id="no_telepon"
-                  placeholder="No. telepon rumah"
-                  value={formData.no_telepon}
-                  onChange={(e) => setFormData({ ...formData, no_telepon: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="no_hp" className="text-xs font-medium">
-                  No. HP
-                </Label>
-                <Input
-                  id="no_hp"
-                  placeholder="No. HP aktif"
-                  value={formData.no_hp}
-                  onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-medium">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Address Information */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <MapPin className="h-3 w-3" />
-            Alamat
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Provinsi
-                </Label>
-                <Combobox
-                  options={provinceOptions}
-                  value={selectedProvinceId}
-                  onValueChange={(value) => setSelectedProvinceId(value)}
-                  placeholder="Pilih provinsi"
-                  searchPlaceholder="Cari provinsi..."
-                  emptyText="Provinsi tidak ditemukan."
-                  loading={loadingRegions.provinces}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Kota/Kabupaten
-                </Label>
-                <Combobox
-                  options={regencyOptions}
-                  value={selectedRegencyId}
-                  onValueChange={(value) => setSelectedRegencyId(value)}
-                  placeholder="Pilih kota/kabupaten"
-                  searchPlaceholder="Cari kota/kabupaten..."
-                  emptyText="Kota/kabupaten tidak ditemukan."
-                  loading={loadingRegions.regencies}
-                  disabled={!selectedProvinceId}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Kecamatan
-                </Label>
-                <Combobox
-                  options={districtOptions}
-                  value={selectedDistrictId}
-                  onValueChange={(value) => setSelectedDistrictId(value)}
-                  placeholder="Pilih kecamatan"
-                  searchPlaceholder="Cari kecamatan..."
-                  emptyText="Kecamatan tidak ditemukan."
-                  loading={loadingRegions.districts}
-                  disabled={!selectedRegencyId}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Kelurahan/Desa
-                </Label>
-                <Combobox
-                  options={villageOptions}
-                  value={selectedVillageId}
-                  onValueChange={(value) => setSelectedVillageId(value)}
-                  placeholder="Pilih kelurahan/desa"
-                  searchPlaceholder="Cari kelurahan/desa..."
-                  emptyText="Kelurahan/desa tidak ditemukan."
-                  loading={loadingRegions.villages}
-                  disabled={!selectedDistrictId}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
-              <div className="md:col-span-3 space-y-2">
-                <Label htmlFor="alamat" className="text-xs font-medium">
-                  Alamat Lengkap (Jalan, RT/RW, No.)
-                </Label>
-                <Textarea
-                  id="alamat"
-                  placeholder="Alamat lengkap sesuai KTP"
-                  value={formData.alamat}
-                  onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
-                  className="text-sm min-h-[80px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="kode_pos" className="text-xs font-medium">
-                  Kode Pos
-                </Label>
-                <Input
-                  id="kode_pos"
-                  placeholder="Kode pos"
-                  value={formData.kode_pos}
-                  onChange={(e) => setFormData({ ...formData, kode_pos: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Employment Information */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Briefcase className="h-3 w-3" />
-            Data Kepegawaian
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Tipe Karyawan <span className="text-destructive">*</span>
-                </Label>
-                <Combobox
-                  options={employeeTypeOptions}
-                  value={formData.tipe_karyawan}
-                  onValueChange={(value) => setFormData({ ...formData, tipe_karyawan: value })}
-                  placeholder="Pilih tipe"
-                  searchPlaceholder="Cari tipe..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Status Kepegawaian <span className="text-destructive">*</span>
-                </Label>
-                <Combobox
-                  options={employmentStatusOptions}
-                  value={formData.status_kepegawaian}
-                  onValueChange={(value) => setFormData({ ...formData, status_kepegawaian: value })}
-                  placeholder="Pilih status"
-                  searchPlaceholder="Cari status..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tanggal_masuk" className="text-xs font-medium">
-                  Tanggal Masuk
-                </Label>
-                <Input
-                  id="tanggal_masuk"
-                  type="date"
-                  value={formData.tanggal_masuk}
-                  onChange={(e) => setFormData({ ...formData, tanggal_masuk: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tanggal_keluar" className="text-xs font-medium">
-                  Tanggal Keluar
-                </Label>
-                <Input
-                  id="tanggal_keluar"
-                  type="date"
-                  value={formData.tanggal_keluar}
-                  onChange={(e) => setFormData({ ...formData, tanggal_keluar: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
-              <div className="space-y-2">
-                <Label htmlFor="departemen" className="text-xs font-medium">
-                  Departemen
-                </Label>
-                <Input
-                  id="departemen"
-                  placeholder="Departemen/Unit"
-                  value={formData.departemen}
-                  onChange={(e) => setFormData({ ...formData, departemen: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="jabatan" className="text-xs font-medium">
-                  Jabatan
-                </Label>
-                <Input
-                  id="jabatan"
-                  placeholder="Jabatan"
-                  value={formData.jabatan}
-                  onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              {isMedicalStaff && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">
-                    Spesialisasi
+            <div className="p-3 sm:p-4">
+              <div className="flex items-center justify-between border border-border/50 p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
+                    Status Pegawai
                   </Label>
-                  <Combobox
-                    options={specializationOptions}
-                    value={formData.spesialisasi}
-                    onValueChange={(value) => setFormData({ ...formData, spesialisasi: value })}
-                    placeholder="Pilih spesialisasi"
-                    searchPlaceholder="Cari spesialisasi..."
-                    emptyText="Spesialisasi tidak ditemukan."
-                    loading={loadingMasterData}
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.is_active ? 'Pegawai aktif' : 'Pegawai tidak aktif'}
+                  </p>
                 </div>
-              )}
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Medical Staff License Information */}
-        {isMedicalStaff && (
+          {/* Personal Information */}
           <div className="border border-border/70 bg-background">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-              <Stethoscope className="h-3 w-3" />
-              Surat Izin Praktik
+              <User className="h-3 w-3" />
+              Data Pribadi
             </div>
             <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="no_str" className="text-xs font-medium">
-                    No. STR
+                  <Label htmlFor="nik" className="text-xs font-medium">
+                    NIK <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="no_str"
-                    placeholder="Nomor STR"
-                    value={formData.no_str}
-                    onChange={(e) => setFormData({ ...formData, no_str: e.target.value })}
+                    id="nik"
+                    required
+                    maxLength={16}
+                    placeholder="16 digit NIK"
+                    value={formData.nik}
+                    onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tanggal_str" className="text-xs font-medium">
-                    Tanggal STR
+                  <Label htmlFor="nip" className="text-xs font-medium">
+                    NIP <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="tanggal_str"
-                    type="date"
-                    value={formData.tanggal_str}
-                    onChange={(e) => setFormData({ ...formData, tanggal_str: e.target.value })}
+                    id="nip"
+                    required
+                    maxLength={18}
+                    placeholder="NIP / Nomor Identitas Pegawai"
+                    value={formData.nip}
+                    onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="masa_berlaku_str" className="text-xs font-medium">
-                    Masa Berlaku STR
+                  <Label htmlFor="nama_lengkap" className="text-xs font-medium">
+                    Nama Lengkap <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="masa_berlaku_str"
+                    id="nama_lengkap"
+                    required
+                    placeholder="Nama lengkap sesuai KTP"
+                    value={formData.nama_lengkap}
+                    onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Tempat Lahir
+                  </Label>
+                  <Combobox
+                    options={birthplaceOptions}
+                    value={formData.tempat_lahir}
+                    onValueChange={(value) => setFormData({ ...formData, tempat_lahir: value })}
+                    placeholder="Pilih kota"
+                    searchPlaceholder="Cari kota..."
+                    emptyText="Kota tidak ditemukan."
+                    loading={loadingRegions.allRegencies}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tanggal_lahir" className="text-xs font-medium">
+                    Tanggal Lahir
+                  </Label>
+                  <Input
+                    id="tanggal_lahir"
                     type="date"
-                    value={formData.masa_berlaku_str}
-                    onChange={(e) => setFormData({ ...formData, masa_berlaku_str: e.target.value })}
+                    value={formData.tanggal_lahir}
+                    onChange={(e) => setFormData({ ...formData, tanggal_lahir: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Jenis Kelamin <span className="text-destructive">*</span>
+                  </Label>
+                  <Combobox
+                    options={genderOptions}
+                    value={formData.jenis_kelamin}
+                    onValueChange={(value) => setFormData({ ...formData, jenis_kelamin: value })}
+                    placeholder="Pilih"
+                    searchPlaceholder="Cari..."
+                    loading={loadingMasterData}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Agama
+                  </Label>
+                  <Combobox
+                    options={religionOptions}
+                    value={formData.agama}
+                    onValueChange={(value) => setFormData({ ...formData, agama: value })}
+                    placeholder="Pilih"
+                    searchPlaceholder="Cari agama..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Status Perkawinan
+                  </Label>
+                  <Combobox
+                    options={maritalStatusOptions}
+                    value={formData.status_perkawinan}
+                    onValueChange={(value) => setFormData({ ...formData, status_perkawinan: value })}
+                    placeholder="Pilih"
+                    searchPlaceholder="Cari..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="no_telepon" className="text-xs font-medium">
+                    No. Telepon
+                  </Label>
+                  <Input
+                    id="no_telepon"
+                    placeholder="No. telepon rumah"
+                    value={formData.no_telepon}
+                    onChange={(e) => setFormData({ ...formData, no_telepon: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="no_hp" className="text-xs font-medium">
+                    No. HP
+                  </Label>
+                  <Input
+                    id="no_hp"
+                    placeholder="No. HP aktif"
+                    value={formData.no_hp}
+                    onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-xs font-medium">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@example.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Address Information */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <MapPin className="h-3 w-3" />
+              Alamat
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Provinsi
+                  </Label>
+                  <Combobox
+                    options={provinceOptions}
+                    value={selectedProvinceId}
+                    onValueChange={(value) => {
+                      setSelectedProvinceId(value);
+                      setSelectedRegencyId("");
+                      setSelectedDistrictId("");
+                      setSelectedVillageId("");
+                      const p = provinces.find(p => p.id === value);
+                      setFormData(prev => ({ ...prev, provinsi: p?.name || "", kota: "", kecamatan: "", kelurahan: "" }));
+                    }}
+                    placeholder="Pilih provinsi"
+                    searchPlaceholder="Cari provinsi..."
+                    emptyText="Provinsi tidak ditemukan."
+                    loading={loadingRegions.provinces}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Kota/Kabupaten
+                  </Label>
+                  <Combobox
+                    options={regencyOptions}
+                    value={selectedRegencyId}
+                    onValueChange={(value) => {
+                      setSelectedRegencyId(value);
+                      setSelectedDistrictId("");
+                      setSelectedVillageId("");
+                      const r = regencies.find(r => r.id === value);
+                      setFormData(prev => ({ ...prev, kota: r?.name || "", kecamatan: "", kelurahan: "" }));
+                    }}
+                    placeholder="Pilih kota/kabupaten"
+                    searchPlaceholder="Cari kota/kabupaten..."
+                    emptyText="Kota/kabupaten tidak ditemukan."
+                    loading={loadingRegions.regencies}
+                    disabled={!selectedProvinceId}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Kecamatan
+                  </Label>
+                  <Combobox
+                    options={districtOptions}
+                    value={selectedDistrictId}
+                    onValueChange={(value) => {
+                      setSelectedDistrictId(value);
+                      setSelectedVillageId("");
+                      const d = districts.find(d => d.id === value);
+                      setFormData(prev => ({ ...prev, kecamatan: d?.name || "", kelurahan: "" }));
+                    }}
+                    placeholder="Pilih kecamatan"
+                    searchPlaceholder="Cari kecamatan..."
+                    emptyText="Kecamatan tidak ditemukan."
+                    loading={loadingRegions.districts}
+                    disabled={!selectedRegencyId}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Kelurahan/Desa
+                  </Label>
+                  <Combobox
+                    options={villageOptions}
+                    value={selectedVillageId}
+                    onValueChange={(value) => {
+                      setSelectedVillageId(value);
+                      const v = villages.find(v => v.id === value);
+                      setFormData(prev => ({ ...prev, kelurahan: v?.name || "" }));
+                    }}
+                    placeholder="Pilih kelurahan/desa"
+                    searchPlaceholder="Cari kelurahan/desa..."
+                    emptyText="Kelurahan/desa tidak ditemukan."
+                    loading={loadingRegions.villages}
+                    disabled={!selectedDistrictId}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+                <div className="md:col-span-3 space-y-2">
+                  <Label htmlFor="alamat" className="text-xs font-medium">
+                    Alamat Lengkap (Jalan, RT/RW, No.)
+                  </Label>
+                  <Textarea
+                    id="alamat"
+                    placeholder="Alamat lengkap sesuai KTP"
+                    value={formData.alamat}
+                    onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                    className="text-sm min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kode_pos" className="text-xs font-medium">
+                    Kode Pos
+                  </Label>
+                  <Input
+                    id="kode_pos"
+                    placeholder="Kode pos"
+                    value={formData.kode_pos}
+                    onChange={(e) => setFormData({ ...formData, kode_pos: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Employment Information */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Briefcase className="h-3 w-3" />
+              Data Kepegawaian
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Tipe Karyawan <span className="text-destructive">*</span>
+                  </Label>
+                  <Combobox
+                    options={employeeTypeOptions}
+                    value={formData.tipe_karyawan}
+                    onValueChange={(value) => setFormData({ ...formData, tipe_karyawan: value })}
+                    placeholder="Pilih tipe"
+                    searchPlaceholder="Cari tipe..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Status Kepegawaian <span className="text-destructive">*</span>
+                  </Label>
+                  <Combobox
+                    options={employmentStatusOptions}
+                    value={formData.status_kepegawaian}
+                    onValueChange={(value) => setFormData({ ...formData, status_kepegawaian: value })}
+                    placeholder="Pilih status"
+                    searchPlaceholder="Cari status..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tanggal_masuk" className="text-xs font-medium">
+                    Tanggal Masuk
+                  </Label>
+                  <Input
+                    id="tanggal_masuk"
+                    type="date"
+                    value={formData.tanggal_masuk}
+                    onChange={(e) => setFormData({ ...formData, tanggal_masuk: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tanggal_keluar" className="text-xs font-medium">
+                    Tanggal Keluar
+                  </Label>
+                  <Input
+                    id="tanggal_keluar"
+                    type="date"
+                    value={formData.tanggal_keluar}
+                    onChange={(e) => setFormData({ ...formData, tanggal_keluar: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
                 <div className="space-y-2">
-                  <Label htmlFor="no_sip" className="text-xs font-medium">
-                    No. SIP
+                  <Label htmlFor="departemen" className="text-xs font-medium">
+                    Departemen
                   </Label>
                   <Input
-                    id="no_sip"
-                    placeholder="Nomor SIP"
-                    value={formData.no_sip}
-                    onChange={(e) => setFormData({ ...formData, no_sip: e.target.value })}
+                    id="departemen"
+                    placeholder="Departemen/Unit"
+                    value={formData.departemen}
+                    onChange={(e) => setFormData({ ...formData, departemen: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tanggal_sip" className="text-xs font-medium">
-                    Tanggal SIP
+                  <Label htmlFor="jabatan" className="text-xs font-medium">
+                    Jabatan
                   </Label>
                   <Input
-                    id="tanggal_sip"
-                    type="date"
-                    value={formData.tanggal_sip}
-                    onChange={(e) => setFormData({ ...formData, tanggal_sip: e.target.value })}
+                    id="jabatan"
+                    placeholder="Jabatan"
+                    value={formData.jabatan}
+                    onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                {isMedicalStaff && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">
+                      Spesialisasi
+                    </Label>
+                    <Combobox
+                      options={specializationOptions}
+                      value={formData.spesialisasi}
+                      onValueChange={(value) => setFormData({ ...formData, spesialisasi: value })}
+                      placeholder="Pilih spesialisasi"
+                      searchPlaceholder="Cari spesialisasi..."
+                      emptyText="Spesialisasi tidak ditemukan."
+                      loading={loadingMasterData}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Medical Staff License Information */}
+          {isMedicalStaff && (
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Stethoscope className="h-3 w-3" />
+                Surat Izin Praktik
+              </div>
+              <div className="p-3 sm:p-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="no_str" className="text-xs font-medium">
+                      No. STR
+                    </Label>
+                    <Input
+                      id="no_str"
+                      placeholder="Nomor STR"
+                      value={formData.no_str}
+                      onChange={(e) => setFormData({ ...formData, no_str: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tanggal_str" className="text-xs font-medium">
+                      Tanggal STR
+                    </Label>
+                    <Input
+                      id="tanggal_str"
+                      type="date"
+                      value={formData.tanggal_str}
+                      onChange={(e) => setFormData({ ...formData, tanggal_str: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="masa_berlaku_str" className="text-xs font-medium">
+                      Masa Berlaku STR
+                    </Label>
+                    <Input
+                      id="masa_berlaku_str"
+                      type="date"
+                      value={formData.masa_berlaku_str}
+                      onChange={(e) => setFormData({ ...formData, masa_berlaku_str: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="no_sip" className="text-xs font-medium">
+                      No. SIP
+                    </Label>
+                    <Input
+                      id="no_sip"
+                      placeholder="Nomor SIP"
+                      value={formData.no_sip}
+                      onChange={(e) => setFormData({ ...formData, no_sip: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tanggal_sip" className="text-xs font-medium">
+                      Tanggal SIP
+                    </Label>
+                    <Input
+                      id="tanggal_sip"
+                      type="date"
+                      value={formData.tanggal_sip}
+                      onChange={(e) => setFormData({ ...formData, tanggal_sip: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="masa_berlaku_sip" className="text-xs font-medium">
+                      Masa Berlaku SIP
+                    </Label>
+                    <Input
+                      id="masa_berlaku_sip"
+                      type="date"
+                      value={formData.masa_berlaku_sip}
+                      onChange={(e) => setFormData({ ...formData, masa_berlaku_sip: e.target.value })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Education */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <GraduationCap className="h-3 w-3" />
+              Pendidikan
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    Pendidikan Terakhir
+                  </Label>
+                  <Combobox
+                    options={educationLevelOptions}
+                    value={formData.pendidikan_terakhir}
+                    onValueChange={(value) => setFormData({ ...formData, pendidikan_terakhir: value })}
+                    placeholder="Pilih"
+                    searchPlaceholder="Cari..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nama_institusi" className="text-xs font-medium">
+                    Nama Institusi
+                  </Label>
+                  <Input
+                    id="nama_institusi"
+                    placeholder="Nama sekolah/universitas"
+                    value={formData.nama_institusi}
+                    onChange={(e) => setFormData({ ...formData, nama_institusi: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="masa_berlaku_sip" className="text-xs font-medium">
-                    Masa Berlaku SIP
+                  <Label htmlFor="tahun_lulus" className="text-xs font-medium">
+                    Tahun Lulus
                   </Label>
                   <Input
-                    id="masa_berlaku_sip"
-                    type="date"
-                    value={formData.masa_berlaku_sip}
-                    onChange={(e) => setFormData({ ...formData, masa_berlaku_sip: e.target.value })}
+                    id="tahun_lulus"
+                    type="number"
+                    min="1950"
+                    max={new Date().getFullYear()}
+                    placeholder="Tahun lulus"
+                    value={formData.tahun_lulus}
+                    onChange={(e) => setFormData({ ...formData, tahun_lulus: e.target.value })}
                     className="h-9 text-sm"
                   />
                 </div>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Education */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <GraduationCap className="h-3 w-3" />
-            Pendidikan
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  Pendidikan Terakhir
-                </Label>
-                <Combobox
-                  options={educationLevelOptions}
-                  value={formData.pendidikan_terakhir}
-                  onValueChange={(value) => setFormData({ ...formData, pendidikan_terakhir: value })}
-                  placeholder="Pilih"
-                  searchPlaceholder="Cari..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nama_institusi" className="text-xs font-medium">
-                  Nama Institusi
-                </Label>
-                <Input
-                  id="nama_institusi"
-                  placeholder="Nama sekolah/universitas"
-                  value={formData.nama_institusi}
-                  onChange={(e) => setFormData({ ...formData, nama_institusi: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tahun_lulus" className="text-xs font-medium">
-                  Tahun Lulus
-                </Label>
-                <Input
-                  id="tahun_lulus"
-                  type="number"
-                  min="1950"
-                  max={new Date().getFullYear()}
-                  placeholder="Tahun lulus"
-                  value={formData.tahun_lulus}
-                  onChange={(e) => setFormData({ ...formData, tahun_lulus: e.target.value })}
-                  className="h-9 text-sm"
-                />
+          {/* Bank Information */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Building2 className="h-3 w-3" />
+              Informasi Bank
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="nama_bank" className="text-xs font-medium">
+                    Nama Bank
+                  </Label>
+                  <Combobox
+                    options={bankOptions}
+                    value={formData.nama_bank}
+                    onValueChange={(value) => setFormData({ ...formData, nama_bank: value })}
+                    placeholder="Pilih bank"
+                    searchPlaceholder="Cari bank..."
+                    loading={loadingMasterData}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="no_rekening" className="text-xs font-medium">
+                    No. Rekening
+                  </Label>
+                  <Input
+                    id="no_rekening"
+                    placeholder="Nomor rekening"
+                    value={formData.no_rekening}
+                    onChange={(e) => setFormData({ ...formData, no_rekening: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="atas_nama_rekening" className="text-xs font-medium">
+                    Atas Nama
+                  </Label>
+                  <Input
+                    id="atas_nama_rekening"
+                    placeholder="Nama pemilik rekening"
+                    value={formData.atas_nama_rekening}
+                    onChange={(e) => setFormData({ ...formData, atas_nama_rekening: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Bank Information */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Building2 className="h-3 w-3" />
-            Informasi Bank
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="space-y-2">
-                <Label htmlFor="nama_bank" className="text-xs font-medium">
-                  Nama Bank
-                </Label>
-                <Combobox
-                  options={bankOptions}
-                  value={formData.nama_bank}
-                  onValueChange={(value) => setFormData({ ...formData, nama_bank: value })}
-                  placeholder="Pilih bank"
-                  searchPlaceholder="Cari bank..."
-                  loading={loadingMasterData}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="no_rekening" className="text-xs font-medium">
-                  No. Rekening
-                </Label>
-                <Input
-                  id="no_rekening"
-                  placeholder="Nomor rekening"
-                  value={formData.no_rekening}
-                  onChange={(e) => setFormData({ ...formData, no_rekening: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="atas_nama_rekening" className="text-xs font-medium">
-                  Atas Nama
-                </Label>
-                <Input
-                  id="atas_nama_rekening"
-                  placeholder="Nama pemilik rekening"
-                  value={formData.atas_nama_rekening}
-                  onChange={(e) => setFormData({ ...formData, atas_nama_rekening: e.target.value })}
-                  className="h-9 text-sm"
-                />
+          {/* Emergency Contact */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Heart className="h-3 w-3" />
+              Kontak Darurat
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="nama_kontak_darurat" className="text-xs font-medium">
+                    Nama Kontak
+                  </Label>
+                  <Input
+                    id="nama_kontak_darurat"
+                    placeholder="Nama kontak darurat"
+                    value={formData.nama_kontak_darurat}
+                    onChange={(e) => setFormData({ ...formData, nama_kontak_darurat: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hubungan_kontak_darurat" className="text-xs font-medium">
+                    Hubungan
+                  </Label>
+                  <Combobox
+                    options={relationshipOptions}
+                    value={formData.hubungan_kontak_darurat}
+                    onValueChange={(value) => setFormData({ ...formData, hubungan_kontak_darurat: value })}
+                    placeholder="Pilih hubungan"
+                    searchPlaceholder="Cari..."
+                    loading={loadingMasterData}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telepon_kontak_darurat" className="text-xs font-medium">
+                    No. Telepon
+                  </Label>
+                  <Input
+                    id="telepon_kontak_darurat"
+                    placeholder="No. telepon kontak"
+                    value={formData.telepon_kontak_darurat}
+                    onChange={(e) => setFormData({ ...formData, telepon_kontak_darurat: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Emergency Contact */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Heart className="h-3 w-3" />
-            Kontak Darurat
+          {/* Sticky Footer */}
+          <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/employees")}
+              className="h-9"
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={loading} className="h-9 min-w-28">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Perbarui
+            </Button>
           </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="space-y-2">
-                <Label htmlFor="nama_kontak_darurat" className="text-xs font-medium">
-                  Nama Kontak
-                </Label>
-                <Input
-                  id="nama_kontak_darurat"
-                  placeholder="Nama kontak darurat"
-                  value={formData.nama_kontak_darurat}
-                  onChange={(e) => setFormData({ ...formData, nama_kontak_darurat: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hubungan_kontak_darurat" className="text-xs font-medium">
-                  Hubungan
-                </Label>
-                <Combobox
-                  options={relationshipOptions}
-                  value={formData.hubungan_kontak_darurat}
-                  onValueChange={(value) => setFormData({ ...formData, hubungan_kontak_darurat: value })}
-                  placeholder="Pilih hubungan"
-                  searchPlaceholder="Cari..."
-                  loading={loadingMasterData}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telepon_kontak_darurat" className="text-xs font-medium">
-                  No. Telepon
-                </Label>
-                <Input
-                  id="telepon_kontak_darurat"
-                  placeholder="No. telepon kontak"
-                  value={formData.telepon_kontak_darurat}
-                  onChange={(e) => setFormData({ ...formData, telepon_kontak_darurat: e.target.value })}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sticky Footer */}
-        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/employees")}
-            className="h-9"
-          >
-            Batal
-          </Button>
-          <Button type="submit" disabled={loading} className="h-9 min-w-28">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Perbarui
-          </Button>
-        </div>
-      </form>
+        </form>
       </PageContent>
     </PageShell>
   );

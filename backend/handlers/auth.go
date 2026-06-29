@@ -10,8 +10,8 @@ import (
 )
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Identifier string `json:"identifier" binding:"required"`
+	Password   string `json:"password" binding:"required"`
 }
 
 type LoginResponse struct {
@@ -20,14 +20,15 @@ type LoginResponse struct {
 }
 
 type UserResponse struct {
-	ID         uint          `json:"id"`
-	Email      string        `json:"email"`
-	Username   string        `json:"username"`
-	FullName   string        `json:"full_name"`
-	IsActive   bool          `json:"is_active"`
-	EmployeeID *uint         `json:"employee_id,omitempty"`
-	RoleID     uint          `json:"role_id,omitempty"`
-	Role       *RoleResponse `json:"role,omitempty"`
+	ID         uint             `json:"id"`
+	Email      string           `json:"email"`
+	Username   string           `json:"username"`
+	FullName   string           `json:"full_name"`
+	IsActive   bool             `json:"is_active"`
+	EmployeeID *uint            `json:"employee_id,omitempty"`
+	Employee   *models.Employee `json:"employee,omitempty"`
+	RoleID     uint             `json:"role_id,omitempty"`
+	Role       *RoleResponse    `json:"role,omitempty"`
 }
 
 type RoleResponse struct {
@@ -54,7 +55,11 @@ func Login(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := database.DB.Preload("Role.Permissions").Where("email = ?", req.Email).First(&user).Error; err != nil {
+	query := database.DB.Preload("Role.Permissions").Preload("Employee").
+		Joins("LEFT JOIN employees ON users.employee_id = employees.id").
+		Where("users.email = ? OR users.username = ? OR employees.n_ip = ?", req.Identifier, req.Identifier, req.Identifier)
+
+	if err := query.First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
@@ -84,6 +89,7 @@ func Login(c *gin.Context) {
 			FullName:   user.FullName,
 			IsActive:   user.IsActive,
 			EmployeeID: user.EmployeeID,
+			Employee:   user.Employee,
 			RoleID:     user.RoleID,
 		},
 	}
@@ -119,7 +125,7 @@ func GetProfile(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
 	var user models.User
-	if err := database.DB.Preload("Role.Permissions").First(&user, userID).Error; err != nil {
+	if err := database.DB.Preload("Role.Permissions").Preload("Employee").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -131,6 +137,7 @@ func GetProfile(c *gin.Context) {
 		FullName:   user.FullName,
 		IsActive:   user.IsActive,
 		EmployeeID: user.EmployeeID,
+		Employee:   user.Employee,
 		RoleID:     user.RoleID,
 	}
 

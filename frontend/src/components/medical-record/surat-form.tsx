@@ -255,13 +255,12 @@ export function SuratForm({ visitId, readOnly = false }: SuratFormProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => setSelectedType(null)}
               className="gap-1 -ml-2"
             >
               <ChevronLeft className="h-4 w-4" />
-              Kembali
             </Button>
             <div className="h-5 w-px bg-border" />
             <span className="p-1 rounded text-muted-foreground">{selectedTypeInfo.icon}</span>
@@ -1437,10 +1436,12 @@ function MCUCertificateSubForm({ visitId, readOnly = false, onCountChange }: Sub
             columns={[
               { key: "letter_number", label: "No. Surat" },
               { key: "date", label: "Tanggal", render: (l: any) => fmtDate(l.exam_date) },
-              { key: "conclusion", label: "Kesimpulan", render: (l: any) => {
-                const color = l.conclusion === "layak" ? "bg-green-600" : l.conclusion === "tidak_layak" ? "bg-destructive" : "";
-                return <Badge variant="default" className={color}>{conclusionLabels[l.conclusion] || l.conclusion}</Badge>;
-              }},
+              {
+                key: "conclusion", label: "Kesimpulan", render: (l: any) => {
+                  const color = l.conclusion === "layak" ? "bg-green-600" : l.conclusion === "tidak_layak" ? "bg-destructive" : "";
+                  return <Badge variant="default" className={color}>{conclusionLabels[l.conclusion] || l.conclusion}</Badge>;
+                }
+              },
               { key: "institution", label: "Instansi", render: (l: any) => l.institution || l.purpose || "-" },
             ]}
             signatureStatuses={signatureStatuses}

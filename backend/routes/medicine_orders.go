@@ -22,6 +22,8 @@ func setupMedicineOrderRoutes(router *gin.RouterGroup) {
 
 		// In-room medication timesheet (hourly administration)
 		orders.GET("/timesheet", middleware.RequirePermission("medical_records.medicine_order"), handlers.GetMedicationTimesheet)
+		orders.POST("/timesheet/item", middleware.RequirePermission("medical_records.medicine_order"), handlers.CreateMedicationTimesheetItem)
+		orders.DELETE("/timesheet/item/:id", middleware.RequirePermission("medical_records.medicine_order"), handlers.DeleteMedicationTimesheetItem)
 		orders.POST("/timesheet/entry", middleware.RequirePermission("medical_records.medicine_order"), handlers.UpsertMedicationTimesheetEntry)
 
 		// Get single medicine order

@@ -47,9 +47,9 @@ export type {
 
 // BPJS (Legacy - use integrationsApi for new code)
 export { bpjsApi } from './bpjs';
-export type { 
-  BPJSConfigValue, 
-  BPJSConfigMap, 
+export type {
+  BPJSConfigValue,
+  BPJSConfigMap,
   BPJSConnectionTestResult,
   BPJSSyncLog,
   BPJSSyncStats,
@@ -83,13 +83,13 @@ export { counterApi } from './counters';
 export type { Counter, CreateCounterInput, UpdateCounterInput } from './counters';
 
 // Rooms
-export { roomsApi, schedulesApi, getDayName, getDayShortName } from './rooms';
-export type { 
+export { roomsApi, schedulesApi, getDayName, getDayShortName, ROOM_TARIFF_COMPONENTS } from './rooms';
+export type {
   Room, RoomUnit, Bed, RoomStaff, RoomTariff,
   Schedule, DoctorSchedule, ScheduleException,
   RoomRequest, RoomUnitRequest, BedRequest, RoomStaffRequest, RoomTariffRequest, BulkRoomTariffRequest,
   ScheduleRequest, DoctorScheduleRequest, ScheduleExceptionRequest,
-  RoomListResponse 
+  RoomListResponse
 } from './rooms';
 
 // Buildings & Floor Plan
@@ -103,10 +103,10 @@ export type {
 } from './buildings';
 
 // Procedures
-export { 
-  proceduresApi, 
-  roomProceduresApi, 
-  PATIENT_CLASSES, 
+export {
+  proceduresApi,
+  roomProceduresApi,
+  PATIENT_CLASSES,
   TARIFF_COMPONENTS,
   formatCurrency,
   getPatientClassLabel,
@@ -119,12 +119,12 @@ export {
   getAnesthesiaTypeLabel,
   getServiceTypeLabel
 } from './procedures';
-export type { 
-  Procedure, 
-  ProcedureTariff, 
-  TariffRequest, 
-  RoomProcedure, 
-  ProcedureCategory, 
+export type {
+  Procedure,
+  ProcedureTariff,
+  TariffRequest,
+  RoomProcedure,
+  ProcedureCategory,
   PatientClass,
   PatientClassOption,
   CreateProcedureRequest,
@@ -134,10 +134,10 @@ export type {
 
 // Patients
 export { patientsApi } from './patients';
-export type { 
-  Patient, 
-  PatientRequest, 
-  PatientListParams, 
+export type {
+  Patient,
+  PatientRequest,
+  PatientListParams,
   PatientStats,
   PatientStatus,
   BloodType,
@@ -147,17 +147,17 @@ export type {
 } from './patients';
 
 // Inventories
-export { 
-  inventoriesApi, 
-  roomInventoriesApi, 
+export {
+  inventoriesApi,
+  roomInventoriesApi,
   inventoryCategoryLabels,
   inventoryConditionLabels,
   inventoryStatusLabels
 } from './inventories';
-export type { 
-  Inventory, 
-  InventoryItem, 
-  RoomInventory, 
+export type {
+  Inventory,
+  InventoryItem,
+  RoomInventory,
   InventoryTransaction,
   InventoryCategory,
   InventoryCondition,
@@ -165,15 +165,15 @@ export type {
 } from './inventories';
 
 // Medicines
-export { 
-  medicinesApi, 
-  roomMedicinesApi, 
+export {
+  medicinesApi,
+  roomMedicinesApi,
   medicineCategoryLabels,
   medicineTypeLabels,
   medicineFormLabels
 } from './medicines';
-export type { 
-  Medicine, 
+export type {
+  Medicine,
   MedicineRequest,
   RoomMedicine,
   RoomMedicineRequest,
@@ -183,8 +183,8 @@ export type {
 } from './medicines';
 
 // Queue & Registration
-export { 
-  queueApi, 
+export {
+  queueApi,
   registrationApi,
   queueStatusLabels,
   queueTypeLabels,
@@ -215,6 +215,7 @@ export type {
   MedicalRecord,
   MedicalRecordSummary,
   Triage,
+  BersalinRecord,
   Anamnesis,
   PhysicalExam,
   Diagnosis,
@@ -254,10 +255,10 @@ export type {
 } from './medicine-orders';
 
 // Procedure Orders (Radiology & Laboratory)
-export { 
-  procedureOrdersApi, 
-  PROCEDURE_ORDER_STATUS, 
-  PROCEDURE_ORDER_TYPES 
+export {
+  procedureOrdersApi,
+  PROCEDURE_ORDER_STATUS,
+  PROCEDURE_ORDER_TYPES
 } from './procedure-orders';
 export type {
   ProcedureOrder,
@@ -269,8 +270,8 @@ export type {
 } from './procedure-orders';
 
 // Visit Procedures (Tindakan di Ruangan)
-export { 
-  visitProceduresApi, 
+export {
+  visitProceduresApi,
   VISIT_PROCEDURE_STATUS,
   getVisitProcedureStatusLabel,
   getVisitProcedureStatusColor
@@ -352,7 +353,7 @@ export type {
 } from './admission-request';
 
 // Patient Allergy (with SNOMED CT for SatuSehat)
-export { 
+export {
   patientAllergyApi,
   ALLERGY_CATEGORY_LABELS,
   ALLERGY_CRITICALITY_LABELS,

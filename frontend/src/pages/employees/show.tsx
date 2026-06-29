@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +19,10 @@ import {
   GraduationCap,
   Building2,
   Heart,
+  Lock,
 } from 'lucide-react';
 import { setPageTitle } from '@/lib/page-title';
+import { CreateUserModal } from './create-user-modal';
 
 function formatDate(dateString?: string) {
   if (!dateString) return '-';
@@ -45,13 +47,9 @@ export default function EmployeeShow() {
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
+  const [userModalOpen, setUserModalOpen] = useState(false);
 
-  useEffect(() => {
-    setPageTitle('Detail Pegawai');
-    loadData();
-  }, [id]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [employeeRes, masterDataRes] = await Promise.all([
         employeesApi.getById(Number(id)),
@@ -77,7 +75,12 @@ export default function EmployeeShow() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, toast]);
+
+  useEffect(() => {
+    setPageTitle('Detail Pegawai');
+    loadData();
+  }, [loadData]);
 
   const getMasterDataName = (category: string, code?: string): string => {
     if (!code) return '-';
@@ -151,6 +154,17 @@ export default function EmployeeShow() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
+            {hasPermission('users.create') && !employee.user && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUserModalOpen(true)}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+              >
+                <Lock className="mr-2 h-4 w-4" />
+                Buat Akun
+              </Button>
+            )}
             {hasPermission('employees.update') && (
               <Button
                 variant="outline"
@@ -187,7 +201,7 @@ export default function EmployeeShow() {
       </PageHeader>
 
       <PageContent>
-        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6 pb-6">
           {/* Data Pribadi */}
           <div className="border border-border/70 bg-background">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
@@ -277,7 +291,8 @@ export default function EmployeeShow() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Status Kepegawaian</label>
-                  <Badge variant="outline" className="mt-1">{getMasterDataName('employment_status', employee.status_kepegawaian)}</Badge>
+                  <br />
+                  <Badge variant="outline" className="">{getMasterDataName('employment_status', employee.status_kepegawaian)}</Badge>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Departemen</label>
@@ -445,6 +460,13 @@ export default function EmployeeShow() {
         confirmText="Hapus"
         cancelText="Batal"
         variant="destructive"
+      />
+
+      <CreateUserModal
+        isOpen={userModalOpen}
+        onClose={() => setUserModalOpen(false)}
+        employee={employee}
+        onSuccess={loadData}
       />
     </PageShell>
   );

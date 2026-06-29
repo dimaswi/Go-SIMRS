@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { PageContent, PageHeader, PageShell } from "@/components/layout/page-shell";
@@ -128,12 +128,11 @@ export default function UserCreate() {
 
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Email
+                    Email (Opsional)
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    required
                     placeholder="email@example.com"
                     value={formData.email}
                     onChange={(event) => setFormData((current) => ({ ...current, email: event.target.value }))}
@@ -214,9 +213,9 @@ export default function UserCreate() {
 
                 <div className="border border-border/70 bg-background px-4 py-3">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5" /> Kontak Login
+                    <Mail className="h-3.5 w-3.5" /> NIP Pegawai (Login)
                   </div>
-                  <p className="mt-2 text-sm font-medium text-foreground">{formData.email || "Belum diisi"}</p>
+                  <p className="mt-2 text-sm font-medium text-foreground">{selectedEmployee?.nip || "Gunakan Username"}</p>
                 </div>
 
                 <div className="border border-border/70 bg-background px-4 py-3">

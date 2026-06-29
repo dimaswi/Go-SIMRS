@@ -108,6 +108,7 @@ interface MenuItem {
   permission?: string;
   exact?: boolean;
   submenu?: MenuItem[];
+  target?: string;
 }
 
 interface NavigationSection {
@@ -124,7 +125,7 @@ const menuItems: MenuItem[] = [
     icon: Users,
     submenu: [
       { path: '/queues', label: 'Antrean', icon: ClipboardList, permission: 'queues.view' },
-      { path: '/checkin', label: 'Check-In Scanner', icon: QrCode, permission: 'registrations.checkin' },
+      { path: '/checkin', label: 'Check-In Scanner', icon: QrCode, permission: 'registrations.checkin', target: '_blank' },
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
@@ -174,19 +175,20 @@ const menuItems: MenuItem[] = [
     path: '/nutrition',
     label: 'Gizi',
     icon: UtensilsCrossed,
+    permission: 'nutrition.view',
     submenu: [
-      { path: '/nutrition/menus', label: 'Menu Makanan', icon: UtensilsCrossed },
-      { path: '/nutrition/ingredients', label: 'Master Bahan', icon: Boxes },
-      { path: '/nutrition/invoices', label: 'Input Faktur Bahan', icon: Receipt },
-      { path: '/nutrition/meal-packages', label: 'Paket Makanan', icon: Package },
-      { path: '/nutrition/kitchen', label: 'Dapur', icon: ChefHat },
+      { path: '/nutrition/menus', label: 'Menu Makanan', icon: UtensilsCrossed, permission: 'nutrition.view' },
+      { path: '/nutrition/ingredients', label: 'Master Bahan', icon: Boxes, permission: 'nutrition.view' },
+      { path: '/nutrition/invoices', label: 'Input Faktur Bahan', icon: Receipt, permission: 'nutrition.view' },
+      { path: '/nutrition/meal-packages', label: 'Paket Makanan', icon: Package, permission: 'nutrition.view' },
+      { path: '/nutrition/kitchen', label: 'Dapur', icon: ChefHat, permission: 'nutrition.view' },
     ]
   },
   {
     path: '/reports',
     label: 'Laporan',
     icon: BarChart3,
-    permission: 'dashboard.view',
+    permission: 'reports.view',
   },
   {
     path: '/master',
@@ -201,9 +203,9 @@ const menuItems: MenuItem[] = [
       { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
       { path: '/clinical-packages', label: 'Paket Klinis', icon: Package, permission: 'master_data.view' },
-      { path: '/icd', label: 'Kode ICD', icon: BookMarked },
+      { path: '/icd', label: 'Kode ICD', icon: BookMarked, permission: 'icd.view' },
       { path: '/regions', label: 'Wilayah', icon: MapPin, permission: 'regions.view' },
-      { path: '/master-data', label: 'Referensi Data', icon: Database },
+      { path: '/master-data', label: 'Referensi Data', icon: Database, permission: 'master_data.view' },
     ]
   },
   {
@@ -237,7 +239,7 @@ const menuItems: MenuItem[] = [
     path: '/settings',
     label: 'Pengaturan',
     icon: Settings,
-    permission: 'users.view',
+    permission: 'settings.view',
     submenu: [
       { path: '/users', label: 'Users', icon: Users, permission: 'users.view' },
       { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles.view' },
@@ -336,6 +338,7 @@ function TreeChild({
     <li>
       <Link
         to={item.path}
+        target={item.target}
         className={cn(
           "group/child flex items-center gap-2.5 rounded-md py-1.5 pl-4 pr-2 text-[13px] transition-colors",
           isActive
@@ -377,6 +380,7 @@ function DirectMenuLink({
           <TooltipTrigger asChild>
             <Link
               to={item.path}
+              target={item.target}
               className={cn(
                 "flex size-8 items-center justify-center rounded-md transition-colors",
                 isActive
@@ -396,6 +400,7 @@ function DirectMenuLink({
   return (
     <Link
       to={item.path}
+      target={item.target}
       className={cn(
         "group/direct flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
         isActive
@@ -489,6 +494,7 @@ function TreeParent({
               <DropdownMenuItem key={subItem.path} asChild className="py-0 px-0">
                 <Link
                   to={subItem.path}
+                  target={subItem.target}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors",
                     isSubActive
@@ -832,12 +838,14 @@ export function AppSidebar() {
                     <span>Profil Akun</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/settings" className="gap-2.5">
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                    <span>Pengaturan</span>
-                  </Link>
-                </DropdownMenuItem>
+                {hasPermission('settings.view') && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" className="gap-2.5">
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      <span>Pengaturan</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <div className="-mx-1.5 my-1 h-px bg-border" />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive gap-2.5 focus:text-destructive focus:bg-destructive/10">
                   <LogOut className="h-4 w-4" />

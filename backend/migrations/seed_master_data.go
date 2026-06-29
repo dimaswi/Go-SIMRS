@@ -248,11 +248,14 @@ func SeedMasterData(db *gorm.DB) error {
 
 		// Room Staff Role (Peran Staff Ruangan)
 		{Category: models.CategoryRoomStaffRole, Code: "kepala_ruangan", Name: "Kepala Ruangan", SortOrder: 1, IsActive: true},
-		{Category: models.CategoryRoomStaffRole, Code: "perawat_pelaksana", Name: "Perawat Pelaksana", SortOrder: 2, IsActive: true},
-		{Category: models.CategoryRoomStaffRole, Code: "dokter_penanggung_jawab", Name: "Dokter Penanggung Jawab", SortOrder: 3, IsActive: true},
-		{Category: models.CategoryRoomStaffRole, Code: "asisten_perawat", Name: "Asisten Perawat", SortOrder: 4, IsActive: true},
-		{Category: models.CategoryRoomStaffRole, Code: "administrasi", Name: "Administrasi", SortOrder: 5, IsActive: true},
-		{Category: models.CategoryRoomStaffRole, Code: "cleaning_service", Name: "Cleaning Service", SortOrder: 6, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "dokter_penanggung_jawab", Name: "Dokter Penanggung Jawab", SortOrder: 2, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "dokter_spesialis", Name: "Dokter Spesialis", SortOrder: 3, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "dokter", Name: "Dokter", SortOrder: 4, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "perawat_pelaksana", Name: "Perawat Pelaksana", SortOrder: 5, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "asisten_perawat", Name: "Asisten Perawat", SortOrder: 6, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "staf_penunjang", Name: "Staf Penunjang", SortOrder: 7, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "administrasi", Name: "Administrasi", SortOrder: 8, IsActive: true},
+		{Category: models.CategoryRoomStaffRole, Code: "cleaning_service", Name: "Cleaning Service", SortOrder: 9, IsActive: true},
 
 		// Jenis Tindakan (Procedure Type)
 		{Category: models.CategoryProcedureType, Code: "medical", Name: "Tindakan Medis", Description: "Tindakan medis umum seperti bedah, dll", SortOrder: 1, IsActive: true},

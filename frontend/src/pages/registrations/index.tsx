@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
-
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { createRegistrationColumns } from "./columns";
@@ -36,7 +35,6 @@ import {
   X,
   ArrowRight,
   ExternalLink,
-  ShieldCheck,
   Printer,
   Pencil,
   Trash2,
@@ -52,10 +50,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -70,16 +64,12 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetFooter } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@/components/ui/sheet";
 import { api } from "@/lib/api/client";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import {
   BPJS_FOOTER_CLASS,
-  BPJSInfoGrid,
-  BPJS_SECTION_CLASS,
-  BPJSSectionHeader,
-  BPJSSheetHero,
   BPJSStatePanel,
 } from "@/components/sep/bpjs-sheet-chrome";
 
@@ -189,7 +179,6 @@ export default function RegistrationIndex() {
   const [selectedAdmissionStatus, setSelectedAdmissionStatus] = useState<string>(() => normalizeAdmissionStatus(searchParams.get("admissionStatus") || sessionStorage.getItem("reg_admission_status")));
   const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("reg_date") || ""); // Empty = show all data
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-  const [serviceTypeOpen, setServiceTypeOpen] = useState(false);
   const [draftSelectedRoom, setDraftSelectedRoom] = useState<string>("");
   const [draftSelectedStatus, setDraftSelectedStatus] = useState<string>("all");
   const [draftSelectedAdmissionStatus, setDraftSelectedAdmissionStatus] = useState<string>("all");
@@ -316,7 +305,7 @@ export default function RegistrationIndex() {
 
   // Badge counts: active (registered, in_queue, in_progress) per tab
   const tabBadgeCounts = useMemo(() => {
-    const activeStatuses = ["registered", "in_queue", "in_progress", "scheduled"];
+    const activeStatuses = ["registered", "in_queue", "in_progress"];
     const counts: Record<string, number> = {};
     for (const tab of REG_TABS) {
       if (tab.mode === "admission_requests") {
@@ -344,10 +333,6 @@ export default function RegistrationIndex() {
     return counts;
   }, [allRegistrations, pendingAdmissionCount]);
 
-  const totalServiceTypeCount = useMemo(
-    () => Object.values(tabBadgeCounts).reduce((sum, count) => sum + count, 0),
-    [tabBadgeCounts],
-  );
 
   useEffect(() => {
     try {
@@ -374,8 +359,8 @@ export default function RegistrationIndex() {
     }
   }, []);
 
-  const loadAdmissionRequests = useCallback(async () => {
-    setLoading(true);
+  const loadAdmissionRequests = useCallback(async (isPolling = false) => {
+    if (!isPolling) setLoading(true);
     try {
       const response = await admissionRequestApi.getAll({
         status: selectedAdmissionStatus === "all" ? undefined : selectedAdmissionStatus,
@@ -385,7 +370,7 @@ export default function RegistrationIndex() {
     } catch {
       setAdmissionRequests([]);
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
   }, [selectedAdmissionStatus]);
 
@@ -431,8 +416,8 @@ export default function RegistrationIndex() {
       });
       loadMjknQueues();
       loadData();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Gagal mengaktifkan check-in";
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.message || "Gagal mengaktifkan check-in";
       toast({
         variant: "destructive",
         title: "Error!",
@@ -465,8 +450,8 @@ export default function RegistrationIndex() {
     }
   };
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isPolling = false) => {
+    if (!isPolling) setLoading(true);
     try {
       const params: Record<string, string | number> = {
         limit: 1000, // Get all records
@@ -493,6 +478,11 @@ export default function RegistrationIndex() {
 
       const response = await registrationApi.getAll(params);
       let registrationsData = response.data.data || [];
+
+      // Exclude "scheduled" (Mobile JKN pending checkin) by default when "all" status is selected
+      if (selectedStatus === "all") {
+        registrationsData = registrationsData.filter((r) => r.status !== "scheduled");
+      }
 
       if (activeTab === "laboratory") {
         const validRoomTypes = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab", "laboratory"];
@@ -535,7 +525,7 @@ export default function RegistrationIndex() {
         description: "Gagal memuat data pendaftaran.",
       });
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
   }, [selectedRoom, selectedStatus, selectedDate, activeTab, toast]);
 
@@ -599,12 +589,13 @@ export default function RegistrationIndex() {
 
     const interval = setInterval(() => {
       if (!isAdmissionRequestTab) {
-        loadData();
+        loadData(true);
       } else {
-        loadAdmissionRequests();
+        loadAdmissionRequests(true);
       }
       loadAllRegistrations();
       loadPendingAdmissionCount();
+      loadMjknQueues();
     }, 60000);
 
     return () => clearInterval(interval);
@@ -792,6 +783,56 @@ export default function RegistrationIndex() {
 
       if (!sepData) {
         toast({ variant: "destructive", title: "Error", description: "Detail SEP tidak ditemukan" });
+        return;
+      }
+
+      setSepDetailData(sepData);
+      setSepDetailRegId(regId);
+      setSepDetailOpen(true);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal memuat detail SEP",
+      });
+    }
+  };
+
+  const handleViewSEPOutpatient = async (reg: Registration) => {
+    const regId = reg.ID || reg.id || 0;
+    if (!regId) return;
+    try {
+      let sepData: SEPLocal | null = null;
+
+      if (reg.sep_number) {
+        try {
+          const list = await vclaimApi.getSEPList({ no_sep: reg.sep_number, limit: 1 });
+          if (list.data?.data?.length > 0) {
+            sepData = list.data.data[0];
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      if (!sepData) {
+        try {
+          const byReg = await vclaimApi.getSEPByRegistration(regId);
+          if (byReg.data?.data?.jns_pelayanan === "2") {
+            sepData = byReg.data.data;
+          }
+        } catch {
+          // fallback below
+        }
+      }
+
+      if (!sepData) {
+        const list = await vclaimApi.getSEPList({ registration_id: regId, status: "active" });
+        sepData = (list.data?.data || []).find((item) => item.jns_pelayanan === "2") || null;
+      }
+
+      if (!sepData) {
+        toast({ variant: "destructive", title: "Error", description: "Detail SEP Rawat Jalan tidak ditemukan" });
         return;
       }
 
@@ -1127,6 +1168,7 @@ export default function RegistrationIndex() {
     onCreateSEPRanap: handleOpenSEPRanap,
     onViewSPRI: handleViewSPRI,
     onViewSEPRanap: handleViewSEPRanap,
+    onViewSEPOutpatient: handleViewSEPOutpatient,
     hasViewPermission: hasPermission("registrations.view"),
     hasDeletePermission: hasPermission("registrations.delete"),
     printingType,
@@ -1355,20 +1397,6 @@ export default function RegistrationIndex() {
         actions={
           <div className="flex items-center gap-1.5">
             <Button
-              variant={serviceTypeOpen ? "secondary" : "outline"}
-              size="sm"
-              className="h-8 gap-2 text-xs"
-              onClick={() => setServiceTypeOpen((prev) => !prev)}
-            >
-              <span className="max-w-[140px] truncate font-medium text-foreground">{currentTab.label}</span>
-              {totalServiceTypeCount > 0 && (
-                <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                  {totalServiceTypeCount}
-                </Badge>
-              )}
-              <ChevronsUpDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", serviceTypeOpen && "rotate-180")} />
-            </Button>
-            <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/registrations/scheduled")}
@@ -1418,46 +1446,45 @@ export default function RegistrationIndex() {
         }
       />
 
-      <Collapsible open={serviceTypeOpen} onOpenChange={setServiceTypeOpen}>
-        <CollapsibleContent>
-          <div className=" border-border bg-muted/15 px-6 py-2">
-            <div className="flex min-w-0 overflow-x-auto border-y border-border bg-background">
-              {REG_TABS.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const tabCount = tabBadgeCounts[tab.key] ?? 0;
+      <div className="border-b border-border bg-muted/15 px-4 py-2 flex items-center justify-between">
+        <div className="flex min-w-0 overflow-x-auto gap-1.5">
+          {REG_TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const tabCount = tabBadgeCounts[tab.key] ?? 0;
 
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => handleTabChange(tab.key)}
-                    className={cn(
-                      "min-w-[148px] border-r border-border px-3 py-2 text-left transition-colors last:border-r-0",
-                      isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Layanan</span>
-                      {tabCount > 0 ? (
-                        <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                          {tabCount}
-                        </Badge>
-                      ) : (
-                        <span className="text-[11px] tabular-nums text-muted-foreground">0</span>
-                      )}
-                    </div>
-                    <div className={cn("mt-1 text-sm font-medium", isActive && "text-foreground")}>{tab.label}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {hasActiveFilters && (
-              <div className="pt-2 text-[11px] text-muted-foreground">Filter aktif</div>
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleTabChange(tab.key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors border",
+                  isActive
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {tab.label}
+                <Badge
+                  className={cn(
+                    "h-4 min-w-4 flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold border-none transition-colors",
+                    isActive
+                      ? "bg-background text-foreground hover:bg-background"
+                      : tabCount > 0
+                        ? "bg-red-600 text-white hover:bg-red-600"
+                        : "bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/20"
+                  )}
+                >
+                  {tabCount}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+        {hasActiveFilters && (
+          <div className="text-[11px] text-muted-foreground shrink-0 ml-4">Filter aktif</div>
+        )}
+      </div>
 
       <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
         <DialogContent className="max-w-2xl p-0">
@@ -1835,15 +1862,20 @@ export default function RegistrationIndex() {
         }}
       >
         <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <BPJSSheetHero
-            eyebrow="Bridging BPJS"
-            title="Detail SPRI"
-            description={<span className="font-mono text-sm">{spriDetailData?.no_spri || "-"}</span>}
-            icon={ShieldCheck}
-            meta={getSpriStatusBadge(spriDetailData?.status)}
-          />
+          <div className="flex flex-col border-b px-4 py-2">
+            <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
+              <div className="space-y-1 text-left">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xl font-bold">Detail SPRI</h4>
+                  <Badge variant="outline">SPRI</Badge>
+                  {getSpriStatusBadge(spriDetailData?.status)}
+                </div>
+                <p className="text-muted-foreground">{spriDetailData?.no_spri || "-"}</p>
+              </div>
+            </SheetHeader>
+          </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto px-4 py-2">
             {spriDetailData?.status === "cancelled" && (
               <BPJSStatePanel
                 tone="danger"
@@ -1852,59 +1884,117 @@ export default function RegistrationIndex() {
               />
             )}
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              <div className="space-y-6">
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="SPRI" title="Informasi Dokumen" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "No. SPRI", value: spriDetailData?.no_spri || "-", mono: true, span: 2 },
-                      { label: "Status", value: spriDetailData?.status || "-" },
-                      { label: "Sumber", value: spriDetailData?.is_bpjs ? "BPJS" : "Lokal" },
-                      {
-                        label: "Tgl Rencana Kontrol",
-                        value: spriDetailData?.tgl_rencana_kontrol
+            <div className="grid gap-2 mt-2">
+              <div className="space-y-2">
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4 border rounded-md bg-background p-4 text-sm">
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs block mb-1">No. SPRI</span>
+                      <p className="font-mono font-medium text-foreground">{spriDetailData?.no_spri || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Status</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.status || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Sumber</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.is_bpjs ? "BPJS" : "Lokal"}</p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs block mb-1">Tgl Rencana Kontrol</span>
+                      <p className="font-medium text-foreground">
+                        {spriDetailData?.tgl_rencana_kontrol
                           ? format(new Date(spriDetailData.tgl_rencana_kontrol), "dd MMM yyyy", { locale: idLocale })
-                          : "-",
-                      },
-                      { label: "User Buat", value: spriDetailData?.user_buat || "-" },
-                      {
-                        label: "Dibuat",
-                        value: spriDetailData?.created_at
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">User Buat</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.user_buat || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Dibuat</span>
+                      <p className="font-medium text-foreground">
+                        {spriDetailData?.created_at
                           ? format(new Date(spriDetailData.created_at), "dd MMM yyyy HH:mm", { locale: idLocale })
-                          : "-",
-                      },
-                      {
-                        label: "Diupdate",
-                        value: spriDetailData?.updated_at
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs block mb-1">Diupdate</span>
+                      <p className="font-medium text-foreground">
+                        {spriDetailData?.updated_at
                           ? format(new Date(spriDetailData.updated_at), "dd MMM yyyy HH:mm", { locale: idLocale })
-                          : "-",
-                      },
-                    ]}
-                  />
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2 border-t pt-3 mt-1">
+                      <span className="text-muted-foreground text-xs block mb-1">Nama Peserta</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.nama || "-"}</p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs block mb-1">No. Kartu BPJS</span>
+                      <p className="font-mono font-medium text-foreground">{spriDetailData?.no_kartu || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Jenis Kelamin</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.kelamin || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Tgl Lahir</span>
+                      <p className="font-medium text-foreground">{spriDetailData?.tgl_lahir || "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Patient ID</span>
+                      <p className="font-mono font-medium text-foreground">{spriDetailData?.patient_id ? String(spriDetailData.patient_id) : "-"}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Registration ID</span>
+                      <p className="font-mono font-medium text-foreground">{spriDetailData?.registration_id ? String(spriDetailData.registration_id) : "-"}</p>
+                    </div>
+
+                    {!spriIsEditing && (
+                      <>
+                        <div className="col-span-2 border-t pt-3 mt-1">
+                          <span className="text-muted-foreground text-xs block mb-1">Poli Kontrol</span>
+                          <p className="font-medium text-foreground">
+                            {spriDetailData?.nama_poli || "-"}
+                            {spriDetailData?.kode_poli ? ` (${spriDetailData.kode_poli})` : ""}
+                          </p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground text-xs block mb-1">Dokter DPJP</span>
+                          <p className="font-medium text-foreground">
+                            {spriDetailData?.nama_dokter || "-"}
+                            {spriDetailData?.kode_dokter ? ` (${spriDetailData.kode_dokter})` : ""}
+                          </p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground text-xs block mb-1">Diagnosa</span>
+                          <p className="font-medium text-foreground">{spriDetailData?.nama_diagnosa || "-"}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "Nama Peserta", value: spriDetailData?.nama || "-", span: 2 },
-                      { label: "No. Kartu BPJS", value: spriDetailData?.no_kartu || "-", mono: true, span: 2 },
-                      { label: "Jenis Kelamin", value: spriDetailData?.kelamin || "-" },
-                      { label: "Tgl Lahir", value: spriDetailData?.tgl_lahir || "-" },
-                      { label: "Patient ID", value: spriDetailData?.patient_id ? String(spriDetailData.patient_id) : "-", mono: true },
-                      { label: "Registration ID", value: spriDetailData?.registration_id ? String(spriDetailData.registration_id) : "-", mono: true },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Control Plan" title="Rencana Kontrol" />
-                  {spriIsEditing ? (
+                {spriIsEditing && (
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-lg border-b pb-2 mt-4">Ubah Rencana Kontrol</h4>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <p className="text-sm text-muted-foreground">Tanggal Perintah Rawat Inap</p>
@@ -1912,19 +2002,19 @@ export default function RegistrationIndex() {
                           type="date"
                           value={spriEditForm.tgl_rencana_kontrol}
                           onChange={(event) => setSpriEditForm((prev) => ({ ...prev, tgl_rencana_kontrol: event.target.value }))}
-                          className="h-10 rounded-none border-border/70 text-base"
+                          className="h-9"
                         />
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-sm text-muted-foreground">Diagnosa</p>
-                        <Input value={spriDetailData?.nama_diagnosa || "-"} disabled className="h-10 rounded-none border-border/70 text-base" />
+                        <Input value={spriDetailData?.nama_diagnosa || "-"} disabled className="h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-sm text-muted-foreground">Kode Poli</p>
                         <Input
                           value={spriEditForm.kode_poli}
                           onChange={(event) => setSpriEditForm((prev) => ({ ...prev, kode_poli: event.target.value }))}
-                          className="h-10 rounded-none border-border/70 text-base"
+                          className="h-9"
                           placeholder="Masukkan kode poli"
                         />
                       </div>
@@ -1933,7 +2023,7 @@ export default function RegistrationIndex() {
                         <Input
                           value={spriEditForm.nama_poli}
                           onChange={(event) => setSpriEditForm((prev) => ({ ...prev, nama_poli: event.target.value }))}
-                          className="h-10 rounded-none border-border/70 text-base"
+                          className="h-9"
                           placeholder="Masukkan nama poli"
                         />
                       </div>
@@ -1942,7 +2032,7 @@ export default function RegistrationIndex() {
                         <Input
                           value={spriEditForm.kode_dokter}
                           onChange={(event) => setSpriEditForm((prev) => ({ ...prev, kode_dokter: event.target.value }))}
-                          className="h-10 rounded-none border-border/70 text-base"
+                          className="h-9"
                           placeholder="Masukkan kode dokter"
                         />
                       </div>
@@ -1951,40 +2041,13 @@ export default function RegistrationIndex() {
                         <Input
                           value={spriEditForm.nama_dokter}
                           onChange={(event) => setSpriEditForm((prev) => ({ ...prev, nama_dokter: event.target.value }))}
-                          className="h-10 rounded-none border-border/70 text-base"
+                          className="h-9"
                           placeholder="Masukkan nama dokter"
                         />
                       </div>
                     </div>
-                  ) : (
-                    <BPJSInfoGrid
-                      columns={2}
-                      items={[
-                        {
-                          label: "Poli Kontrol",
-                          value: (
-                            <>
-                              {spriDetailData?.nama_poli || "-"}
-                              {spriDetailData?.kode_poli ? ` (${spriDetailData.kode_poli})` : ""}
-                            </>
-                          ),
-                          span: 2,
-                        },
-                        {
-                          label: "Dokter DPJP",
-                          value: (
-                            <>
-                              {spriDetailData?.nama_dokter || "-"}
-                              {spriDetailData?.kode_dokter ? ` (${spriDetailData.kode_dokter})` : ""}
-                            </>
-                          ),
-                          span: 2,
-                        },
-                        { label: "Diagnosa", value: spriDetailData?.nama_diagnosa || "-", span: 2 },
-                      ]}
-                    />
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1994,7 +2057,7 @@ export default function RegistrationIndex() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-none border-border/70"
+                className="h-9"
                 onClick={handlePrintSPRI}
                 disabled={!spriDetailData?.id || spriPrinting || spriUpdating || spriDeleting}
               >
@@ -2005,12 +2068,12 @@ export default function RegistrationIndex() {
               <div className="flex items-center gap-2">
                 {!spriIsEditing ? (
                   <>
-                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => setSpriDetailOpen(false)}>
+                    <Button variant="outline" className="h-9" onClick={() => setSpriDetailOpen(false)}>
                       Tutup
                     </Button>
                     <Button
                       variant="outline"
-                      className="rounded-none border-border/70"
+                      className="h-9"
                       onClick={() => setSpriIsEditing(true)}
                       disabled={spriDetailData?.status === "cancelled" || spriDeleting}
                     >
@@ -2019,7 +2082,7 @@ export default function RegistrationIndex() {
                     </Button>
                     <Button
                       variant="destructive"
-                      className="rounded-none"
+                      className="h-9"
                       onClick={() => setSpriDeleteDialogOpen(true)}
                       disabled={spriDetailData?.status === "cancelled" || spriDeleting}
                     >
@@ -2031,14 +2094,14 @@ export default function RegistrationIndex() {
                   <>
                     <Button
                       variant="outline"
-                      className="rounded-none border-border/70"
+                      className="h-9"
                       onClick={() => setSpriIsEditing(false)}
                       disabled={spriUpdating}
                     >
                       <X className="mr-2 h-4 w-4" />
                       Batal
                     </Button>
-                    <Button className="rounded-none" onClick={handleUpdateSPRI} disabled={spriUpdating}>
+                    <Button className="h-9" onClick={handleUpdateSPRI} disabled={spriUpdating}>
                       {spriUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                       Simpan
                     </Button>

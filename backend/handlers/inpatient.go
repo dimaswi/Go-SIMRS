@@ -1218,6 +1218,12 @@ func CreateBedTransfer(c *gin.Context) {
 
 	// Get target room class for billing
 	newInpatientClass := targetRoom.RoomClass
+	if input.ToBedID != 0 {
+		var bed models.Bed
+		if err := database.DB.Preload("RoomUnit").First(&bed, input.ToBedID).Error; err == nil && bed.RoomUnit != nil && bed.RoomUnit.Class != "" {
+			newInpatientClass = bed.RoomUnit.Class
+		}
+	}
 
 	// Start transaction
 	tx := database.DB.Begin()

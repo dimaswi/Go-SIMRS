@@ -64,6 +64,8 @@ type Employee struct {
 	StatusPerkawinan string     `gorm:"size:20" json:"status_perkawinan"`
 	Alamat           string     `gorm:"type:text" json:"alamat"`
 	Kota             string     `gorm:"size:100" json:"kota"`
+	Kecamatan        string     `gorm:"size:100" json:"kecamatan"`
+	Kelurahan        string     `gorm:"size:100" json:"kelurahan"`
 	Provinsi         string     `gorm:"size:100" json:"provinsi"`
 	KodePos          string     `gorm:"size:10" json:"kode_pos"`
 	NoTelepon        string     `gorm:"size:15" json:"no_telepon"`

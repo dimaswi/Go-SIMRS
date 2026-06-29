@@ -26,3 +26,11 @@ export function emitMedicalRecordTabSaved(tabId: string, saved: boolean) {
     })
   );
 }
+
+export function emitMedicalRecordTabsSaved(tabIds: string[], saved: boolean) {
+  window.dispatchEvent(
+    new CustomEvent<{ tabIds: string[], saved: boolean }>("medical-record-tabs-saved", {
+      detail: { tabIds, saved },
+    })
+  );
+}

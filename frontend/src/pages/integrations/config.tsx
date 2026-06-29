@@ -6,14 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -31,7 +23,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft,
   Save,
   Loader2,
   Settings,
@@ -58,6 +49,9 @@ import {
   isBPJSType,
   getBPJSServiceName,
 } from "@/lib/api";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { DataTable } from "@/components/ui/data-table";
+import { type ColumnDef } from "@tanstack/react-table";
 
 interface IntegrationItem {
   id: string;
@@ -651,10 +645,10 @@ export default function IntegrationsConfigPage() {
         prev.map((i) =>
           i.id === integrationId
             ? {
-                ...i,
-                isConnected: false,
-                lastTested: new Date().toLocaleString("id-ID"),
-              }
+              ...i,
+              isConnected: false,
+              lastTested: new Date().toLocaleString("id-ID"),
+            }
             : i,
         ),
       );
@@ -747,34 +741,123 @@ export default function IntegrationsConfigPage() {
     );
   };
 
+  const columns: ColumnDef<IntegrationItem>[] = [
+    {
+      accessorKey: "name",
+      header: "Integrasi",
+      cell: ({ row }) => {
+        const integration = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+              {integration.icon}
+            </div>
+            <div>
+              <p className="font-medium">{integration.name}</p>
+              <p className="text-xs text-muted-foreground">{integration.description}</p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "category",
+      header: "Kategori",
+      cell: ({ row }) => (
+        <Badge variant="outline">{row.original.category || "-"}</Badge>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status Konfigurasi",
+      cell: ({ row }) => getStatusBadge(row.original),
+    },
+    {
+      id: "connection",
+      header: "Status Koneksi",
+      cell: ({ row }) => getConnectionBadge(row.original),
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      cell: ({ row }) => {
+        const integration = row.original;
+        return integration.isConfigured && integration.environment ? (
+          <Badge
+            variant={
+              integration.environment === "production" ? "default" : "secondary"
+            }
+          >
+            {integration.environment === "production"
+              ? "Production"
+              : "Development"}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        );
+      },
+    },
+    {
+      accessorKey: "lastTested",
+      header: "Terakhir Diuji",
+      cell: ({ row }) => {
+        return row.original.lastTested ? (
+          <span className="text-sm text-muted-foreground">
+            {row.original.lastTested}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => {
+        const integration = row.original;
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleTestConnection(integration.id)}
+              disabled={!integration.isConfigured || testing === integration.id}
+            >
+              {testing === integration.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plug className="h-4 w-4" />
+              )}
+              <span className="ml-2 hidden sm:inline">Test</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleOpenConfig(integration.id)}
+            >
+              <Settings className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Konfigurasi</span>
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   if (fetching) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="grid gap-4">
-        <div className="flex items-center p-4">
-          <div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">Konfigurasi Integrasi</h1>
-            <p className="text-sm text-muted-foreground">
-              Kelola integrasi dengan sistem eksternal
-            </p>
-          </div>
+    <PageShell>
+      <PageHeader
+        title="Konfigurasi Integrasi"
+        description="Kelola integrasi dengan sistem eksternal"
+        onBack={() => navigate(-1)}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -787,106 +870,16 @@ export default function IntegrationsConfigPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-        </div>
-        <div className="rounded-lg border p-6 mx-4 mb-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[280px]">Integrasi</TableHead>
-                <TableHead className="w-[100px]">Kategori</TableHead>
-                <TableHead>Status Konfigurasi</TableHead>
-                <TableHead>Status Koneksi</TableHead>
-                <TableHead>Environment</TableHead>
-                <TableHead>Terakhir Diuji</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[...integrations]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((integration) => (
-                  <TableRow key={integration.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                          {integration.icon}
-                        </div>
-                        <div>
-                          <p className="font-medium">{integration.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {integration.description}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {integration.category || "-"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(integration)}</TableCell>
-                    <TableCell>{getConnectionBadge(integration)}</TableCell>
-                    <TableCell>
-                      {integration.isConfigured && integration.environment ? (
-                        <Badge
-                          variant={
-                            integration.environment === "production"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {integration.environment === "production"
-                            ? "Production"
-                            : "Development"}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {integration.lastTested ? (
-                        <span className="text-sm text-muted-foreground">
-                          {integration.lastTested}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleTestConnection(integration.id)}
-                          disabled={
-                            !integration.isConfigured ||
-                            testing === integration.id
-                          }
-                        >
-                          {testing === integration.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Plug className="h-4 w-4" />
-                          )}
-                          <span className="ml-2 hidden sm:inline">Test</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenConfig(integration.id)}
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="ml-2 hidden sm:inline">
-                            Konfigurasi
-                          </span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+        }
+      />
+      <PageContent>
+        <DataTable
+          tableId="integrations-config"
+          columns={columns}
+          data={integrations}
+          searchPlaceholder="Cari integrasi..."
+        />
+      </PageContent>
 
       {/* BPJS Config Dialog (each BPJS service has its own config) */}
       <Dialog
@@ -1811,6 +1804,6 @@ export default function IntegrationsConfigPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

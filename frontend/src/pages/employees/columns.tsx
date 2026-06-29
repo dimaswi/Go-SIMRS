@@ -2,7 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Eye, Edit, Trash2, ArrowUpDown } from "lucide-react"
+import { Eye, Edit, Trash2, ArrowUpDown, Lock } from "lucide-react"
 import { createSelectColumn } from "@/components/ui/data-table-utils"
 import type { Employee, MasterData } from "@/lib/api"
 
@@ -13,6 +13,8 @@ interface EmployeeColumnsProps {
   hasViewPermission: boolean
   hasEditPermission: boolean
   hasDeletePermission: boolean
+  hasCreateUserPermission: boolean
+  onCreateUser: (employee: Employee) => void
   masterData: Record<string, MasterData[]>
 }
 
@@ -32,6 +34,8 @@ export function createEmployeeColumns({
   hasViewPermission,
   hasEditPermission,
   hasDeletePermission,
+  hasCreateUserPermission,
+  onCreateUser,
   masterData,
 }: EmployeeColumnsProps): ColumnDef<Employee>[] {
   return [
@@ -180,6 +184,17 @@ export function createEmployeeColumns({
         const employee = row.original
         return (
           <div className="flex items-center gap-1">
+            {hasCreateUserPermission && !employee.user && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onCreateUser(employee)}
+                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="Buat Akun Pegawai"
+              >
+                <Lock className="h-4 w-4" />
+              </Button>
+            )}
             {hasViewPermission && (
               <Button
                 variant="ghost"

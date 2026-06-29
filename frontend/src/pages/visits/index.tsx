@@ -33,13 +33,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import { PharmacyReview } from "@/components/medical-record/pharmacy-review";
 import { createVisitColumns } from "./columns";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -55,7 +52,7 @@ import {
   ExternalLink,
   ScreenShare,
 } from "lucide-react";
-import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
+import { medicineOrdersApi, roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatPatientName } from "@/lib/print-utils";
@@ -111,6 +108,8 @@ const spellQueueNumberForSpeech = (value: string) =>
 
 const getRoomQueueAnnouncementVersion = (queue: { id: number; called_at?: string; updated_at?: string; created_at?: string }) =>
   queue.called_at || queue.updated_at || queue.created_at || new Date().toISOString();
+
+const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
 
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
@@ -231,6 +230,7 @@ export default function VisitsIndex() {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const { user } = useAuthStore();
+  const isDoctor = (user?.employee?.tipe_karyawan?.toLowerCase() === "dokter" || user?.role?.name?.toLowerCase().includes("dokter")) ?? false;
 
   // ── All visits (no visit_type filter) used for badge counts ──
   const [allVisits, setAllVisits] = useState<Visit[]>([]);
@@ -244,6 +244,10 @@ export default function VisitsIndex() {
 
   const [selectedStatus, setSelectedStatus] = useState<string>(() => normalizeVisitStatus(searchParams.get("status") || sessionStorage.getItem("visits_status")));
   const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("visits_date") || ""); // Empty = show all data
+  const [showMyPatientsOnly, setShowMyPatientsOnly] = useState<boolean>(() => {
+    const stored = sessionStorage.getItem("visits_my_patients");
+    return stored ? stored === "true" : isDoctor;
+  });
   const [loading, setLoading] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [recallingId, setRecallingId] = useState<number | null>(null);
@@ -252,18 +256,41 @@ export default function VisitsIndex() {
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-  const [visitTypeOpen, setVisitTypeOpen] = useState(false);
   const [draftSelectedRoom, setDraftSelectedRoom] = useState<string>("");
   const [draftSelectedStatus, setDraftSelectedStatus] = useState<string>("active");
   const [draftSelectedDate, setDraftSelectedDate] = useState<string>("");
+  const [draftShowMyPatientsOnly, setDraftShowMyPatientsOnly] = useState<boolean>(false);
   const [cancelConfirmVisit, setCancelConfirmVisit] = useState<Visit | null>(null);
+  const [pendingPharmacyReviewVisit, setPendingPharmacyReviewVisit] = useState<Visit | null>(null);
 
   // Check if user is admin
   const adminRoles = ["admin", "super admin", "system administrator", "sistem admin"];
   const isAdmin = adminRoles.includes(user?.role?.name?.toLowerCase() || "");
 
+  // Determine available tabs based on user's rooms
+  const availableTabs = useMemo(() => {
+    if (isAdmin) return VISIT_TABS;
+
+    return VISIT_TABS.filter((tab) => {
+      if (tab.roomTypes.length === 0) return true;
+      return rooms.some((room) =>
+        tab.roomTypes.some((rt) =>
+          room.room_type?.toLowerCase().includes(rt) ||
+          rt.includes(room.room_type?.toLowerCase() ?? "")
+        )
+      );
+    });
+  }, [rooms, isAdmin]);
+
   // Current tab definition
-  const currentTab = VISIT_TABS.find((t) => t.key === activeTab) ?? VISIT_TABS[0];
+  const currentTab = availableTabs.find((t) => t.key === activeTab) ?? availableTabs[0] ?? VISIT_TABS[0];
+
+  // Auto-switch tab if the activeTab is no longer available after rooms load
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.some((t) => t.key === activeTab)) {
+      setActiveTab(availableTabs[0].key);
+    }
+  }, [availableTabs, activeTab]);
 
   // Rooms filtered to match current tab's room types
   const tabRoomOptions = useMemo(() => {
@@ -281,7 +308,7 @@ export default function VisitsIndex() {
   const tabBadgeCounts = useMemo(() => {
     const activeStatuses = ["waiting", "in_queue", "in_progress"];
     const counts: Record<string, number> = {};
-    for (const tab of VISIT_TABS) {
+    for (const tab of availableTabs) {
       counts[tab.key] = allVisits.filter(
         (v) =>
           v.visit_type === tab.key &&
@@ -289,12 +316,7 @@ export default function VisitsIndex() {
       ).length;
     }
     return counts;
-  }, [allVisits]);
-
-  const totalVisitTypeCount = useMemo(
-    () => Object.values(tabBadgeCounts).reduce((sum, count) => sum + count, 0),
-    [tabBadgeCounts],
-  );
+  }, [allVisits, availableTabs]);
 
   const buildRoomAnnouncementText = useCallback((queueNumber: string) => {
     const queueText = spellQueueNumberForSpeech(queueNumber);
@@ -312,7 +334,7 @@ export default function VisitsIndex() {
         "dt_page_visits",
         "dt_size_visits",
       ].forEach((key) => localStorage.removeItem(key));
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -350,7 +372,8 @@ export default function VisitsIndex() {
     sessionStorage.setItem("visits_room", selectedRoom);
     sessionStorage.setItem("visits_status", selectedStatus);
     sessionStorage.setItem("visits_date", selectedDate);
-  }, [activeTab, searchParams, selectedDate, selectedRoom, selectedStatus, setSearchParams]);
+    sessionStorage.setItem("visits_my_patients", showMyPatientsOnly.toString());
+  }, [activeTab, searchParams, selectedDate, selectedRoom, selectedStatus, showMyPatientsOnly, setSearchParams]);
 
   useEffect(() => {
     if (!filterDialogOpen) {
@@ -361,7 +384,14 @@ export default function VisitsIndex() {
     setDraftSelectedDate(selectedDate);
     setDraftSelectedRoom(selectedRoom);
     setDraftSelectedStatus(selectedStatus);
-  }, [filterDialogOpen, selectedDate, selectedRoom, selectedStatus]);
+    setDraftShowMyPatientsOnly(showMyPatientsOnly);
+  }, [filterDialogOpen, selectedDate, selectedRoom, selectedStatus, showMyPatientsOnly]);
+
+  useEffect(() => {
+    if (isDoctor && !sessionStorage.getItem("visits_my_patients")) {
+      setShowMyPatientsOnly(true);
+    }
+  }, [isDoctor]);
 
   useEffect(() => {
     setPageTitle("Kunjungan");
@@ -372,16 +402,7 @@ export default function VisitsIndex() {
     loadAllVisits();
   }, [selectedDate]);
 
-  useEffect(() => {
-    // Load visits on mount and when filters change
-    loadVisits();
-    // Auto refresh every 10 seconds
-    const interval = setInterval(() => {
-      loadVisits();
-      loadAllVisits();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [selectedRoom, selectedStatus, selectedDate, activeTab]);
+
 
   const loadRooms = async () => {
     try {
@@ -413,10 +434,13 @@ export default function VisitsIndex() {
         params.start_date = selectedDate;
         params.end_date = selectedDate;
       }
+      if (showMyPatientsOnly && user?.employee_id) {
+        params.doctor_id = user.employee_id;
+      }
       const response = await visitsApi.getAll(params);
       setAllVisits(response.data || []);
     } catch { }
-  }, [selectedDate]);
+  }, [selectedDate, showMyPatientsOnly, user?.employee_id]);
 
   const loadVisits = useCallback(async () => {
     setLoading(true);
@@ -445,8 +469,17 @@ export default function VisitsIndex() {
         params.status = selectedStatus;
       }
 
+      if (showMyPatientsOnly && user?.employee_id) {
+        params.doctor_id = user.employee_id;
+      }
+
       const response = await visitsApi.getAll(params);
-      const data = response.data || [];
+      let data = response.data || [];
+
+      // Exclude "scheduled" (Mobile JKN pending checkin) by default when "all" status is selected
+      if (selectedStatus === "all") {
+        data = data.filter((v: Visit) => v.status !== "scheduled");
+      }
 
       // Sort by check_in_time descending (newest first)
       const sortedData = data.sort((a: Visit, b: Visit) => {
@@ -457,16 +490,27 @@ export default function VisitsIndex() {
 
       setVisits(sortedData);
     } catch (error: any) {
+      console.error("Failed to load visits:", error);
       toast({
+        title: "Gagal memuat kunjungan",
+        description: error.response?.data?.error || "Terjadi kesalahan",
         variant: "destructive",
-        title: "Error",
-        description:
-          error.response?.data?.error || "Gagal memuat data kunjungan",
       });
     } finally {
       setLoading(false);
     }
-  }, [selectedRoom, selectedStatus, selectedDate, activeTab, toast]);
+  }, [activeTab, selectedDate, selectedRoom, selectedStatus, showMyPatientsOnly, user?.employee_id, toast]);
+
+  useEffect(() => {
+    // Load visits on mount and when filters or user data changes
+    loadVisits();
+    // Auto refresh every 10 seconds
+    const interval = setInterval(() => {
+      loadVisits();
+      loadAllVisits();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [loadVisits, loadAllVisits]);
 
   const handleCallQueue = async (visit: Visit) => {
     if (!visit.room_queue) {
@@ -569,9 +613,62 @@ export default function VisitsIndex() {
     }
   };
 
-  const handleViewDetail = (id: number) => {
-    navigate(`/visits/${id}`);
+  const handleViewDetail = async (visit: Visit) => {
+    const isPharmacyVisit = visit.visit_type === "pharmacy" || visit.room?.service_type === "farmasi";
+    if (!isPharmacyVisit) {
+      navigate(`/visits/${visit.id}`);
+      return;
+    }
+
+    try {
+      const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visit.id });
+      const activeOrders = (ordersRes.data || []).filter((order) => order.status !== "cancelled");
+
+      let hasCompletedFinalReview = false;
+      let needsInitialReview = false;
+
+      for (const order of activeOrders) {
+        let reviewData: any = null;
+        try {
+          const reviewRes = await medicineOrdersApi.getReview(order.id);
+          reviewData = reviewRes.data;
+        } catch {
+          reviewData = null;
+        }
+
+        if (reviewData?.final_review_completed) {
+          hasCompletedFinalReview = true;
+        }
+
+        if (order.status === "pending" && !reviewData?.initial_review_completed) {
+          needsInitialReview = true;
+        }
+      }
+
+      if (!hasCompletedFinalReview && needsInitialReview) {
+        setPendingPharmacyReviewVisit(visit);
+        return;
+      }
+    } catch {
+      // Fall back to opening the workstation if the pre-check fails.
+    }
+
+    navigate(`/visits/${visit.id}`);
   };
+
+  useEffect(() => {
+    if (!pendingPharmacyReviewVisit) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(
+        new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
+          detail: { mode: "initial", lock: false },
+        }),
+      );
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingPharmacyReviewVisit]);
 
   const handleCancelVisit = async (visit: Visit) => {
     setCancelConfirmVisit(visit);
@@ -618,14 +715,6 @@ export default function VisitsIndex() {
     hasViewPermission: hasPermission("medical_records.view"),
     hasCancelPermission: hasPermission("visits.delete"),
   });
-
-  if (loading && visits.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const renderRoomFilterSlot = (
     roomValue: string,
@@ -715,20 +804,6 @@ export default function VisitsIndex() {
         count={visits.length}
         actions={
           <div className="flex items-center gap-1.5">
-            <Button
-              variant={visitTypeOpen ? "secondary" : "outline"}
-              size="sm"
-              className="h-8 gap-2 text-xs"
-              onClick={() => setVisitTypeOpen((prev) => !prev)}
-            >
-              <span className="max-w-[140px] truncate font-medium text-foreground">{currentTab.label}</span>
-              {totalVisitTypeCount > 0 && (
-                <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                  {totalVisitTypeCount}
-                </Badge>
-              )}
-              <ChevronsUpDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", visitTypeOpen && "rotate-180")} />
-            </Button>
             {selectedRoom && (
               <Button
                 variant="outline"
@@ -772,47 +847,48 @@ export default function VisitsIndex() {
           </div>
         }
       />
+      <div className="border-b border-border bg-muted/15 px-4 py-2 flex items-center justify-between">
+        <div className="flex min-w-0 overflow-x-auto gap-1.5">
+          {availableTabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const tabCount = tabBadgeCounts[tab.key] ?? 0;
 
-      <Collapsible open={visitTypeOpen} onOpenChange={setVisitTypeOpen}>
-        <CollapsibleContent>
-          <div className=" border-border bg-muted/15 px-6 py-2">
-            <div className="flex min-w-0 overflow-x-auto border-y border-border bg-background">
-              {VISIT_TABS.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const tabCount = tabBadgeCounts[tab.key] ?? 0;
-
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => handleVisitTabChange(tab.key)}
-                    className={cn(
-                      "min-w-[148px] border-r border-border px-3 py-2 text-left transition-colors last:border-r-0",
-                      isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Kunjungan</span>
-                      {tabCount > 0 ? (
-                        <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                          {tabCount}
-                        </Badge>
-                      ) : (
-                        <span className="text-[11px] tabular-nums text-muted-foreground">0</span>
-                      )}
-                    </div>
-                    <div className={cn("mt-1 text-sm font-medium", isActive && "text-foreground")}>{tab.label}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {hasActiveFilters && (
-              <div className="pt-2 text-[11px] text-muted-foreground">Filter aktif</div>
-            )}
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleVisitTabChange(tab.key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors border",
+                  isActive
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {tab.label}
+                <Badge
+                  className={cn(
+                    "h-4 min-w-4 flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold border-none transition-colors",
+                    isActive
+                      ? "bg-background text-foreground hover:bg-background"
+                      : tabCount > 0
+                        ? "bg-red-600 text-white hover:bg-red-600"
+                        : "bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/20"
+                  )}
+                >
+                  {tabCount}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+        {hasActiveFilters && (
+          <div className="text-[10px] bg-green-100 text-green-600 font-medium whitespace-nowrap ml-4 flex items-center gap-1.5 border border-border px-2 py-1 rounded-md bg-background">
+            <span className="h-1.5 w-1.5 bg-green-600 rounded-full" />
+            Filter aktif
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        )}
+      </div>
 
       <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
         <DialogContent className="max-w-2xl p-0">
@@ -897,6 +973,43 @@ export default function VisitsIndex() {
                 })}
               </div>
             </div>
+            {isDoctor && (
+              <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start border-t border-border">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tampilan Pasien</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-8 border px-3 text-xs",
+                      draftShowMyPatientsOnly
+                        ? "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    onClick={() => setDraftShowMyPatientsOnly(true)}
+                  >
+                    Hanya Pasien Saya
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-8 border px-3 text-xs",
+                      !draftShowMyPatientsOnly
+                        ? "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    onClick={() => setDraftShowMyPatientsOnly(false)}
+                  >
+                    Semua Pasien di Ruangan
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
@@ -909,22 +1022,22 @@ export default function VisitsIndex() {
                   setDraftSelectedDate("");
                   setDraftSelectedRoom("");
                   setDraftSelectedStatus("active");
+                  setDraftShowMyPatientsOnly(isDoctor);
                 }}
               >
                 Reset
               </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
-                Batal
-              </Button>
               <Button
-                size="sm"
-                className="h-8 text-xs"
+                type="button"
+                variant="outline"
                 onClick={() => {
+                  setFilterDialogOpen(false);
                   setSelectedDate(draftSelectedDate);
                   setSelectedRoom(draftSelectedRoom);
                   setSelectedStatus(draftSelectedStatus);
-                  setFilterDialogOpen(false);
+                  setShowMyPatientsOnly(draftShowMyPatientsOnly);
                 }}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground h-8 text-xs"
               >
                 Terapkan
               </Button>
@@ -972,20 +1085,19 @@ export default function VisitsIndex() {
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Daftar Kunjungan
           </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
+          <div className="p-3 sm:p-4 relative">
+            {loading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-b-md">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : ( 
-              <DataTable
-            columns={columns}
-            data={visits}
-            searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
-            pageSize={10}
-            tableId={`visits-${activeTab}`}
-          />
             )}
+            <DataTable
+              columns={columns}
+              data={visits}
+              searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
+              pageSize={10}
+              tableId={`visits-${activeTab}`}
+            />
           </div>
         </div>
       </PageContent>
@@ -1030,6 +1142,19 @@ export default function VisitsIndex() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {pendingPharmacyReviewVisit && (
+        <div className="hidden">
+          <PharmacyReview
+            visitId={pendingPharmacyReviewVisit.id}
+            onInitialReviewSaved={() => {
+              const nextVisitId = pendingPharmacyReviewVisit.id;
+              setPendingPharmacyReviewVisit(null);
+              navigate(`/visits/${nextVisitId}`);
+            }}
+          />
+        </div>
+      )}
     </PageShell>
   );
 }

@@ -12,8 +12,8 @@ export interface Room {
   room_class: string;
   kode_kelas_bpjs?: string;
   total_floors: number;
-  registration_fee: number;
   tariff_per_day: number;
+  registration_fee?: number;
   facilities: string;
   description: string;
   building_id?: number | null;
@@ -60,6 +60,14 @@ export interface BulkRoomTariffRequest {
   tariffs: RoomTariffRequest[];
 }
 
+export const ROOM_TARIFF_COMPONENTS = [
+  { key: "akomodasi", label: "Akomodasi" },
+  { key: "makan", label: "Makan" },
+  { key: "perawatan", label: "Perawatan" },
+  { key: "administrasi", label: "Administrasi" },
+  { key: "lainnya", label: "Lainnya" },
+] as const;
+
 // RoomUnit (Kamar) - Chamber within a Room
 export interface RoomUnit {
   id: number;
@@ -68,6 +76,7 @@ export interface RoomUnit {
   name: string;
   floor: number;
   capacity: number;
+  class?: string;
   is_active: boolean;
   notes: string;
   room?: Room;
@@ -185,15 +194,16 @@ export interface RoomRequest {
   room_type: string;
   room_class?: string;
   kode_kelas_bpjs?: string;
-  total_floors?: number;
+  total_floors: number;
+  tariff_per_day: number;
   registration_fee?: number;
-  tariff_per_day?: number;
-  facilities?: string;
-  description?: string;
-  has_bed?: boolean;
-  has_schedule?: boolean;
+  facilities: string;
+  description: string;
+  has_bed: boolean;
+  has_schedule: boolean;
   is_active?: boolean;
   pic_employee_id?: number | null;
+  tariffs?: RoomTariffRequest[];
 }
 
 export interface RoomUnitRequest {
@@ -201,6 +211,7 @@ export interface RoomUnitRequest {
   name: string;
   floor?: number;
   capacity?: number;
+  class?: string;
   is_active?: boolean;
   notes?: string;
 }
@@ -219,9 +230,8 @@ export interface RoomStaffRequest {
   notes?: string;
 }
 
-// Schedule request types
 export interface ScheduleRequest {
-  room_id?: number; // Optional for create from room context
+  room_id?: number;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -273,9 +283,9 @@ export interface RoomListResponse {
 
 export const roomsApi = {
   // Room CRUD
-  getAll: (params?: { 
-    page?: number; 
-    limit?: number; 
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
     search?: string;
     room_type?: string;
     room_class?: string;
@@ -302,19 +312,19 @@ export const roomsApi = {
     const queryString = searchParams.toString();
     return api.get<{ data: Room[] }>(`/rooms/my-assigned${queryString ? `?${queryString}` : ''}`);
   },
-  
+
   getById: (id: number) =>
     api.get<{ data: Room }>(`/rooms/${id}`),
-  
+
   create: (data: RoomRequest) =>
     api.post<{ data: Room; message: string }>('/rooms', data),
-  
+
   update: (id: number, data: RoomRequest) =>
     api.put<{ data: Room; message: string }>(`/rooms/${id}`, data),
-  
+
   delete: (id: number) =>
     api.delete<{ message: string }>(`/rooms/${id}`),
-  
+
   // Room Units (Kamar)
   getUnits: (roomId: number, params?: { floor?: number; is_active?: string }) => {
     const searchParams = new URLSearchParams();
@@ -323,23 +333,23 @@ export const roomsApi = {
     const queryString = searchParams.toString();
     return api.get<{ data: RoomUnit[] }>(`/rooms/${roomId}/units${queryString ? `?${queryString}` : ''}`);
   },
-  
+
   getUnit: (roomId: number, unitId: number) =>
     api.get<{ data: RoomUnit }>(`/rooms/${roomId}/units/${unitId}`),
-  
+
   createUnit: (roomId: number, data: RoomUnitRequest) =>
     api.post<{ data: RoomUnit; message: string }>(`/rooms/${roomId}/units`, data),
-  
+
   updateUnit: (roomId: number, unitId: number, data: RoomUnitRequest) =>
     api.put<{ data: RoomUnit; message: string }>(`/rooms/${roomId}/units/${unitId}`, data),
-  
+
   deleteUnit: (roomId: number, unitId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/units/${unitId}`),
-  
+
   // All Beds for a Room (across all units)
   getAllBeds: (roomId: number) =>
     api.get<{ data: Bed[] }>(`/rooms/${roomId}/beds`),
-  
+
   // Beds for a specific Unit
   getBeds: (roomId: number, unitId: number, params?: { status?: string }) => {
     const searchParams = new URLSearchParams();
@@ -347,71 +357,71 @@ export const roomsApi = {
     const queryString = searchParams.toString();
     return api.get<{ data: Bed[] }>(`/rooms/${roomId}/units/${unitId}/beds${queryString ? `?${queryString}` : ''}`);
   },
-  
+
   createBed: (roomId: number, unitId: number, data: BedRequest) =>
     api.post<{ data: Bed; message: string }>(`/rooms/${roomId}/units/${unitId}/beds`, data),
-  
+
   updateBed: (roomId: number, unitId: number, bedId: number, data: BedRequest) =>
     api.put<{ data: Bed; message: string }>(`/rooms/${roomId}/units/${unitId}/beds/${bedId}`, data),
-  
+
   deleteBed: (roomId: number, unitId: number, bedId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/units/${unitId}/beds/${bedId}`),
-  
+
   // Staff
   getStaff: (roomId: number) =>
     api.get<{ data: RoomStaff[] }>(`/rooms/${roomId}/staff`),
-  
+
   assignStaff: (roomId: number, data: RoomStaffRequest) =>
     api.post<{ data: RoomStaff; message: string }>(`/rooms/${roomId}/staff`, data),
-  
+
   updateStaff: (roomId: number, staffId: number, data: Omit<RoomStaffRequest, 'employee_id'>) =>
     api.put<{ data: RoomStaff; message: string }>(`/rooms/${roomId}/staff/${staffId}`, data),
-  
+
   removeStaff: (roomId: number, staffId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/staff/${staffId}`),
 
   // Room Schedules (Jadwal Poli)
   getSchedules: (roomId: number) =>
     api.get<{ data: Schedule[]; grouped: Record<string, Schedule[]> }>(`/rooms/${roomId}/schedules`),
-  
+
   createSchedule: (roomId: number, data: Omit<ScheduleRequest, 'room_id'>) =>
     api.post<{ data: Schedule; message: string }>(`/rooms/${roomId}/schedules`, { ...data, room_id: roomId }),
-  
+
   createBulkSchedules: (roomId: number, schedules: Omit<ScheduleRequest, 'room_id'>[]) =>
     api.post<{ data: Schedule[]; message: string }>(`/rooms/${roomId}/schedules/bulk`, { room_id: roomId, schedules }),
-  
+
   updateSchedule: (roomId: number, scheduleId: number, data: Omit<ScheduleRequest, 'room_id'>) =>
     api.put<{ data: Schedule; message: string }>(`/rooms/${roomId}/schedules/${scheduleId}`, data),
-  
+
   deleteSchedule: (roomId: number, scheduleId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/schedules/${scheduleId}`),
 
   // Doctor Schedules (Jadwal Dokter)
   getDoctorSchedules: (roomId: number) =>
     api.get<{ data: DoctorSchedule[]; grouped: Record<string, DoctorSchedule[]> }>(`/rooms/${roomId}/doctor-schedules`),
-  
+
   createDoctorSchedule: (roomId: number, data: Omit<DoctorScheduleRequest, 'room_id'>) =>
     api.post<{ data: DoctorSchedule; message: string }>(`/rooms/${roomId}/doctor-schedules`, { ...data, room_id: roomId }),
-  
+
   updateDoctorSchedule: (roomId: number, scheduleId: number, data: Omit<DoctorScheduleRequest, 'room_id'>) =>
     api.put<{ data: DoctorSchedule; message: string }>(`/rooms/${roomId}/doctor-schedules/${scheduleId}`, data),
-  
+
   deleteDoctorSchedule: (roomId: number, scheduleId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/doctor-schedules/${scheduleId}`),
 
   // Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
   getTariffs: (roomId: number) =>
     api.get<{ data: RoomTariff[] }>(`/rooms/${roomId}/tariffs`),
-  
+
   createTariff: (roomId: number, data: RoomTariffRequest) =>
     api.post<{ data: RoomTariff; message: string }>(`/rooms/${roomId}/tariffs`, data),
-  
+
   updateTariff: (roomId: number, tariffId: number, data: RoomTariffRequest) =>
     api.put<{ data: RoomTariff; message: string }>(`/rooms/${roomId}/tariffs/${tariffId}`, data),
-  
+
   deleteTariff: (roomId: number, tariffId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/tariffs/${tariffId}`),
-  
+
   bulkUpdateTariffs: (roomId: number, data: BulkRoomTariffRequest) =>
     api.post<{ data: RoomTariff[]; message: string }>(`/rooms/${roomId}/tariffs/bulk`, data),
 };

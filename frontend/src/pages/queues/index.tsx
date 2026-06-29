@@ -11,6 +11,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RegistrationDialog } from "./registration-dialog";
+import { CounterSelectionDialog } from "./counter-selection-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import {
@@ -19,14 +20,8 @@ import {
   Monitor,
   Tv,
   ExternalLink,
-  DoorOpen,
-
-  DoorClosed,
   ScreenShare,
-  X,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { queueSharedAnnouncement } from "@/lib/shared-queue-announcer";
 
 const INDONESIAN_SPEECH_MAP: Record<string, string> = {
@@ -79,6 +74,10 @@ const spellQueueNumberForSpeech = (value: string) =>
 const getQueueAnnouncementVersion = (queue: Queue) =>
   queue.called_at || queue.updated_at || queue.created_at || new Date().toISOString();
 
+const getLocalTodayDateString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export default function QueueIndex() {
   const { hasPermission } = usePermission();
@@ -90,14 +89,24 @@ export default function QueueIndex() {
   const [loadingCounters, setLoadingCounters] = useState(true);
   const [selectedCounter, setSelectedCounter] = useState<string>(() => searchParams.get("counter") || sessionStorage.getItem("queues_counter") || "all");
   const [selectedStatus, setSelectedStatus] = useState<string>(() => searchParams.get("status") || sessionStorage.getItem("queues_status") || "all");
-  const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("queues_date") || ""); // Empty = show all data
+  const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("queues_date") || getLocalTodayDateString()); // Default = show today
+
+  // Active Counter Session State
+  const [activeCounterId, setActiveCounterId] = useState<string | null>(() => localStorage.getItem("queues_active_counter"));
+
+  // Force selected counter to match active session if not admin mode
+  useEffect(() => {
+    if (activeCounterId && activeCounterId !== "all") {
+      setSelectedCounter(activeCounterId);
+    }
+  }, [activeCounterId]);
+
   const [skipId, setSkipId] = useState<number | null>(null);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [registerQueue, setRegisterQueue] = useState<{
     id: number;
     number: string;
   } | null>(null);
-  const [counterPanelOpen, setCounterPanelOpen] = useState(false);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
   const [togglingCounterId, setTogglingCounterId] = useState<number | null>(null);
 
@@ -204,30 +213,6 @@ export default function QueueIndex() {
       });
     } finally {
       setTogglingCounterId(null);
-    }
-  };
-
-  const handleOpenAll = async () => {
-    const closedCounters = counters.filter((c) => !c.is_open);
-    if (closedCounters.length === 0) return;
-    try {
-      await counterApi.bulkToggleOpen(closedCounters.map((c) => c.id), true);
-      setCounters((prev) => prev.map((c) => ({ ...c, is_open: true })));
-      toast({ title: "Berhasil", description: "Semua loket dibuka." });
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "Gagal membuka semua loket." });
-    }
-  };
-
-  const handleCloseAll = async () => {
-    const openCounters = counters.filter((c) => c.is_open);
-    if (openCounters.length === 0) return;
-    try {
-      await counterApi.bulkToggleOpen(openCounters.map((c) => c.id), false);
-      setCounters((prev) => prev.map((c) => ({ ...c, is_open: false })));
-      toast({ title: "Berhasil", description: "Semua loket ditutup." });
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "Gagal menutup semua loket." });
     }
   };
 
@@ -376,6 +361,22 @@ export default function QueueIndex() {
         count={queues.length}
         actions={
           <div className="flex items-center gap-1.5">
+            {activeCounterId && (
+              <div className="mr-2 flex items-center bg-secondary/30 px-3 py-1.5 rounded-md border border-secondary">
+                <div className="h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse" />
+                <span className="text-xs font-medium mr-3">
+                  {activeCounterId === "all" ? "Admin (Semua Loket)" : counters.find((c) => c.id.toString() === activeCounterId)?.name || "Loket Aktif"}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] px-2 h-full py-1"
+                  onClick={() => setActiveCounterId(null)}
+                >
+                  Ganti Loket
+                </Button>
+              </div>
+            )}
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/kiosk", "_blank")}>
               <Monitor className="mr-1 h-3.5 w-3.5" />
               KIOSK
@@ -385,15 +386,6 @@ export default function QueueIndex() {
               <Tv className="mr-1 h-3.5 w-3.5" />
               Display
               <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
-            </Button>
-            <Button
-              variant={counterPanelOpen ? "secondary" : "outline"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCounterPanelOpen((value) => !value)}
-              title="Panel Loket"
-            >
-              {counterPanelOpen ? <DoorOpen className="h-4 w-4" /> : <DoorClosed className="h-4 w-4" />}
             </Button>
             <Button
               variant={displayPanelOpen ? "secondary" : "outline"}
@@ -411,64 +403,6 @@ export default function QueueIndex() {
         }
       />
 
-      {counterPanelOpen && (
-        <div className="border-b border-border px-6 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">Status Loket</h3>
-              <p className="text-xs text-muted-foreground">Buka atau tutup loket aktif.</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleOpenAll}>
-                <DoorOpen className="mr-1 h-3 w-3" />
-                Buka Semua
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleCloseAll}>
-                <DoorClosed className="mr-1 h-3 w-3" />
-                Tutup Semua
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {loadingCounters ? (
-              <div className="col-span-full flex items-center justify-center py-4 text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Memuat loket...
-              </div>
-            ) : counters.length === 0 ? (
-              <div className="col-span-full py-4 text-center text-sm text-muted-foreground">
-                Tidak ada loket aktif
-              </div>
-            ) : (
-              counters.map((counter) => (
-                <div
-                  key={counter.id}
-                  className={
-                    counter.is_open
-                      ? "flex items-center justify-between rounded-md border border-green-200 bg-green-50 p-3"
-                      : "flex items-center justify-between rounded-md border border-border bg-background p-3"
-                  }
-                >
-                  <div className="mr-2 min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{counter.name}</div>
-                    <Badge
-                      variant={counter.is_open ? "default" : "secondary"}
-                      className={counter.is_open ? "mt-1 bg-green-600 text-[10px] hover:bg-green-600" : "mt-1 text-[10px]"}
-                    >
-                      {counter.is_open ? "Buka" : "Tutup"}
-                    </Badge>
-                  </div>
-                  <Switch
-                    checked={counter.is_open}
-                    disabled={togglingCounterId === counter.id}
-                    onCheckedChange={() => handleToggleCounter(counter.id)}
-                  />
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
 
       {displayPanelOpen && (
         <div className="border-b border-border px-6 py-3">
@@ -523,7 +457,7 @@ export default function QueueIndex() {
                       className="h-7 px-2 text-xs"
                       onClick={() => window.open(`/queue-display/counter/${counter.id}`, "_blank")}
                     >
-                      {counter.code}
+                      {counter.name}
                       <ExternalLink className="ml-1 h-2.5 w-2.5" />
                     </Button>
                   ))
@@ -555,12 +489,13 @@ export default function QueueIndex() {
                 />
                 <Combobox
                   options={counterOptions}
-                  value={selectedCounter}
+                  value={activeCounterId !== "all" && activeCounterId !== null ? activeCounterId : selectedCounter}
                   onValueChange={(value) => setSelectedCounter(value || "all")}
                   placeholder="Semua Loket"
                   searchPlaceholder="Cari loket..."
                   emptyText="Loket tidak ditemukan"
                   loading={loadingCounters}
+                  disabled={activeCounterId !== "all" && activeCounterId !== null}
                   className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
                 />
                 <Combobox
@@ -572,7 +507,7 @@ export default function QueueIndex() {
                   emptyText="Status tidak ditemukan"
                   className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
                 />
-                {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
+                {/* {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -586,7 +521,7 @@ export default function QueueIndex() {
                     <X className="mr-1.5 h-3.5 w-3.5" />
                     Reset
                   </Button>
-                )}
+                )} */}
               </div>
             </div>
           </div>
@@ -607,6 +542,20 @@ export default function QueueIndex() {
           </div>
         </div>
       </PageContent>
+
+      <CounterSelectionDialog
+        open={activeCounterId === null && !loadingCounters}
+        counters={counters}
+        togglingCounterId={togglingCounterId}
+        onToggleCounter={handleToggleCounter}
+        onSelect={(id) => {
+          setActiveCounterId(id);
+          localStorage.setItem("queues_active_counter", id);
+          if (id !== "all") {
+            setSelectedCounter(id);
+          }
+        }}
+      />
 
       <ConfirmDialog
         open={skipId !== null}

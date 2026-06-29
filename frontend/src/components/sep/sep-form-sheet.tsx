@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -18,7 +26,6 @@ import {
   Search,
   FileText,
   CheckCircle2,
-  XCircle,
   Calendar,
 } from "lucide-react";
 import {
@@ -32,16 +39,6 @@ import { cn } from "@/lib/utils";
 import { SearchModal } from "./search-modal";
 import { RujukanModal, type RujukanData } from "./rujukan-modal";
 import { SKDPModal, type SKDPData } from "./skdp-modal";
-import {
-  BPJS_COMPACT_FIELD_CLASS,
-  BPJS_FOOTER_CLASS,
-  BPJS_ICON_BUTTON_CLASS,
-  BPJS_SECTION_CLASS,
-  BPJSSectionHeader,
-  BPJSSheetHero,
-  BPJSStatePanel,
-  BPJS_SHEET_MONO_FAMILY,
-} from "./bpjs-sheet-chrome";
 
 // Helper to convert options to Combobox format
 function toComboOptions(options: SEPOptionItem[]) {
@@ -157,14 +154,13 @@ export function SEPFormSheet({
   // Reset form when sheet opens
   useEffect(() => {
     if (open) {
-      hasFetchedRef.current = false;
-      // Reset semua state
+      // Reset semua state (hanya dijalankan saat modal baru dibuka)
       setPeserta(null);
       setPesertaError(null);
       setNoKartu(patient.no_bpjs || "");
       setTglSEP(today);
       setNoTelp(patient.no_telepon || "");
-      setKlsRawatHak("");
+      setKlsRawatHak(patient.kelas_bpjs || "3");
       setKlsRawatNaik("");
       setPembiayaan("");
       setNoRujukan("");
@@ -187,49 +183,63 @@ export function SEPFormSheet({
       setFlagProcedure("");
       setKdPenunjang("");
       setAssesmentPel("");
-      if (initialValues) {
-        setKodePoli(initialValues.kodePoli || "");
-        setNamaPoli(initialValues.namaPoli || "");
-        setKodeDPJP(initialValues.kodeDokter || "");
-        setNamaDPJP(initialValues.namaDokter || "");
-        setJnsPelayanan(initialValues.jenisPelayanan || "2");
-        
-        // RAWAT INAP: Auto-generate noRujukan dengan format YYYYMMDDHHIISS
-        if (initialValues.jenisPelayanan === "1") {
-          const now = new Date();
-          const generated = format(now, "yyyyMMddHHmmss");
-          setNoRujukan(generated);
-          setTglRujukan(format(now, "yyyy-MM-dd"));
-          setAsalRujukan("2"); // Faskes 2 (internal RS)
-        } else {
-          // KONTROL: gunakan SEP asal dari initialValues
-          if (initialValues.noSuratKontrol) {
-            setNoSuratKontrol(initialValues.noSuratKontrol);
-          }
-          if (initialValues.noRujukan) {
-            setNoRujukan(initialValues.noRujukan);
-            setAsalRujukan(initialValues.asalRujukan || "2");
-          }
-          if (initialValues.tglRujukan) {
-            setTglRujukan(initialValues.tglRujukan);
-          }
-        }
-        
-        if (initialValues.diagAwal) {
-          setDiagAwal(initialValues.diagAwal);
-          setNamaDiagnosa(initialValues.namaDiagnosa || "");
-        }
-      } else {
-        setKodePoli("");
-        setNamaPoli("");
-        setKodeDPJP("");
-        setNamaDPJP("");
-        setJnsPelayanan("2");
-      }
+      setKodePoli("");
+      setNamaPoli("");
+      setKodeDPJP("");
+      setNamaDPJP("");
+      setJnsPelayanan("2");
     } else {
       hasFetchedRef.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Apply initial values
+  useEffect(() => {
+    if (open && initialValues) {
+      if (initialValues.kodePoli) setKodePoli(initialValues.kodePoli);
+      if (initialValues.namaPoli) setNamaPoli(initialValues.namaPoli);
+      if (initialValues.kodeDokter) setKodeDPJP(initialValues.kodeDokter);
+      if (initialValues.namaDokter) setNamaDPJP(initialValues.namaDokter);
+
+      // Jika ini dari surat kontrol → paksa Rawat Jalan ("2")
+      const isKontrol = !!initialValues.noSuratKontrol;
+      if (isKontrol || initialValues.jenisPelayanan) {
+        setJnsPelayanan(isKontrol ? "2" : initialValues.jenisPelayanan!);
+      }
+
+      // Assessment pelayanan: default "5" (Tujuan Kontrol) untuk kontrol
+      if (isKontrol) {
+        setAssesmentPel("5");
+      }
+
+      // RAWAT INAP: Auto-generate noRujukan dengan format YYYYMMDDHHIISS
+      if (initialValues.jenisPelayanan === "1" && !isKontrol) {
+        const now = new Date();
+        const generated = format(now, "yyyyMMddHHmmss");
+        setNoRujukan(generated);
+        setTglRujukan(format(now, "yyyy-MM-dd"));
+        setAsalRujukan("2"); // Faskes 2 (internal RS)
+      } else {
+        // KONTROL / RAWAT JALAN: gunakan SEP asal dari initialValues
+        if (initialValues.noSuratKontrol) {
+          setNoSuratKontrol(initialValues.noSuratKontrol);
+        }
+        if (initialValues.noRujukan) {
+          setNoRujukan(initialValues.noRujukan);
+          setAsalRujukan(initialValues.asalRujukan || "2");
+        }
+        if (initialValues.tglRujukan) {
+          setTglRujukan(initialValues.tglRujukan);
+        }
+      }
+
+      if (initialValues.diagAwal) {
+        setDiagAwal(initialValues.diagAwal);
+        if (initialValues.namaDiagnosa) setNamaDiagnosa(initialValues.namaDiagnosa);
+      }
+    }
+  }, [open, initialValues]);
 
   // Auto fetch kepesertaan saat drawer buka (sekali saja)
   useEffect(() => {
@@ -238,6 +248,67 @@ export function SEPFormSheet({
       fetchKepesertaan(patient.no_bpjs, today);
     }
   }, [open, patient.no_bpjs]);
+
+  // Auto-fetch SKDP detail dari initialValues.noSuratKontrol saat sheet terbuka
+  useEffect(() => {
+    if (open && initialValues?.noSuratKontrol && noKartu && !skdpData) {
+      const fetchSkdpFromInitial = async () => {
+        try {
+          const res = await vclaimApi.getSuratKontrolDetail(initialValues.noSuratKontrol!);
+          const detail = res.data.data;
+          if (!detail) return;
+
+          const kodePoliResult = detail.poli?.kode || detail.poliTujuan || "";
+          const namaPoliResult = detail.poli?.nama || detail.namaPoliTujuan || "";
+          const kodeDokterResult = detail.dokter?.kode || detail.kodeDokter || "";
+          const namaDokterResult = detail.dokter?.nama || detail.namaDokter || "";
+
+          const skdp: SKDPData = {
+            noSuratKontrol: detail.noSuratKontrol || initialValues.noSuratKontrol!,
+            jnsPelayanan: "",
+            jnsKontrol: detail.jnsKontrol || "",
+            namaJnsKontrol: detail.namaJnsKontrol || "",
+            tglRencanaKontrol: detail.tglRencanaKontrol || "",
+            tglTerbitKontrol: detail.tglTerbitKontrol || "",
+            noSepAsalKontrol: detail.sep?.noSep || "",
+            poliAsal: "",
+            namaPoliAsal: "",
+            poliTujuan: kodePoliResult,
+            namaPoliTujuan: namaPoliResult,
+            kodePoliTujuan: kodePoliResult,
+            tglSEP: detail.sep?.tglSep || "",
+            kodeDokter: kodeDokterResult,
+            namaDokter: namaDokterResult,
+            noKartu: noKartu,
+            nama: detail.nama || "",
+            terbitSEP: detail.sep?.noSep ? "Sudah" : "Belum",
+          };
+
+          setSkdpData(skdp);
+
+          if (skdp.kodePoliTujuan && !initialValues.kodePoli) {
+            setKodePoli(skdp.kodePoliTujuan);
+            setNamaPoli(skdp.namaPoliTujuan);
+          }
+          if (skdp.kodeDokter && !initialValues.kodeDokter) {
+            setKodeDPJP(skdp.kodeDokter);
+            setNamaDPJP(skdp.namaDokter);
+          }
+
+          const noSepAsal = skdp.noSepAsalKontrol || initialValues.noRujukan || "";
+          const tglSepAsal = skdp.tglSEP || initialValues.tglRujukan || format(new Date(), "yyyy-MM-dd");
+          if (noSepAsal) {
+            setNoRujukan(noSepAsal);
+            setTglRujukan(tglSepAsal);
+            setAsalRujukan("2");
+          }
+        } catch (e) {
+          console.warn("Auto-fetch SKDP detail gagal:", e);
+        }
+      };
+      fetchSkdpFromInitial();
+    }
+  }, [open, initialValues?.noSuratKontrol, noKartu]);
 
   // Function untuk fetch kepesertaan
   const fetchKepesertaan = async (kartuBpjs: string, tglPelayanan: string) => {
@@ -249,8 +320,8 @@ export function SEPFormSheet({
       if (!data) throw new Error("Data peserta tidak ditemukan");
 
       setPeserta(data);
-      
-      // Auto-fill field dari data peserta
+
+      // Auto-fill kelas rawat dari hakKelas BPJS (override dari peserta)
       if (data.hakKelas?.kode) {
         setKlsRawatHak(String(data.hakKelas.kode));
       }
@@ -260,7 +331,7 @@ export function SEPFormSheet({
 
       toast({
         title: "Peserta Ditemukan",
-        description: `${data.nama || 'N/A'} - ${data.statusPeserta?.keterangan || 'N/A'} - Kelas ${data.hakKelas?.keterangan || 'N/A'}`,
+        description: data.nama + " - " + (data.statusPeserta?.keterangan || "N/A") + " - Kelas " + (data.hakKelas?.keterangan || "N/A"),
       });
     } catch (error: any) {
       setPeserta(null);
@@ -287,10 +358,10 @@ export function SEPFormSheet({
       // Unwrap nested rujukan structure
       return rujukanList.map((item) => item.rujukan);
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Gagal", 
-        description: error.response?.data?.error || "Gagal mengambil data rujukan" 
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: error.response?.data?.error || "Gagal mengambil data rujukan"
       });
       return [];
     }
@@ -360,10 +431,10 @@ export function SEPFormSheet({
         terbitSEP: item.terbitSEP || "",
       }));
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Gagal", 
-        description: error.response?.data?.error || "Gagal mengambil data surat kontrol" 
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: error.response?.data?.error || "Gagal mengambil data surat kontrol"
       });
       return [];
     }
@@ -440,7 +511,7 @@ export function SEPFormSheet({
 
       let noSep: string;
       if (onSubmitOverride) {
-        // Use custom submit handler (e.g., BPJS checkin with SEP: AddAntrean → SEP → CheckIn)
+        // Use custom submit handler (e.g., BPJS checkin with SEP: AddAntrean â†’ SEP â†’ CheckIn)
         const result = await onSubmitOverride(sepRequest);
         noSep = result.noSep;
       } else {
@@ -565,460 +636,431 @@ export function SEPFormSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <BPJSSheetHero
-            eyebrow="Bridging BPJS"
-            title="Form SEP"
-            description={<><strong>{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</strong> • RM {patient.no_rm}</>}
-            icon={FileText}
-            meta={
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                  SEP
-                </Badge>
-                <Badge
-                  variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}
-                  className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.2em]"
-                  style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
-                >
-                  {loadingPeserta ? "Mengecek" : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
-                </Badge>
+          <div className="flex flex-col border-b px-4 py-2">
+            <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
+              <div className="space-y-1 text-left">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xl font-bold">Form SEP</h4>
+                  <Badge variant="outline">SEP</Badge>
+                  <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}>
+                    {loadingPeserta ? "Mengecek..." : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} â€¢ RM {patient.no_rm}</p>
               </div>
-            }
-          />
+
+              {canAssignExisting && (
+                <Select value={entryMode} onValueChange={(val: any) => setEntryMode(val)}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs bg-muted/50 border-border/70">
+                    <SelectValue placeholder="Mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="form" className="text-xs">Form SEP</SelectItem>
+                    <SelectItem value="search" className="text-xs">Cari Berdasarkan SEP</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </SheetHeader>
+          </div>
 
           <ScrollArea className="flex-1">
-            <div className="space-y-6 p-6">
-              {canAssignExisting && (
-                <div className={BPJS_SECTION_CLASS}>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={entryMode === "form" ? "default" : "outline"}
-                      className="h-8 rounded-none border-border/70 px-3 text-xs"
-                      onClick={() => setEntryMode("form")}
-                    >
-                      Form SEP
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={entryMode === "search" ? "default" : "outline"}
-                      className="h-8 rounded-none border-border/70 px-3 text-xs"
-                      onClick={() => setEntryMode("search")}
-                    >
-                      Cari Berdasarkan SEP
-                    </Button>
-                  </div>
-                </div>
-              )}
-
+            <div className="space-y-4 px-4">
               {canAssignExisting && entryMode === "search" && (
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Assign" title="CARI DATA KUNJUNGAN BERDASARKAN SEP" />
-
-                <div className="space-y-3 rounded-none border border-border/70 bg-muted/10 p-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={searchNoSEP}
-                      onChange={(e) => {
-                        setSearchNoSEP(e.target.value);
-                        if (searchSEPError) setSearchSEPError("");
-                      }}
-                      placeholder="Masukkan nomor SEP"
-                      className={BPJS_COMPACT_FIELD_CLASS}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleSearchSEPForAssign();
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={BPJS_ICON_BUTTON_CLASS}
-                      onClick={handleSearchSEPForAssign}
-                      disabled={searchingSEP || !searchNoSEP.trim()}
-                    >
-                      {searchingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    </Button>
-                  </div>
-
-                  {searchSEPError && (
-                    <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Pencarian SEP gagal" description={searchSEPError} />
-                  )}
-
-                  {searchedSEP && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2 rounded-none border border-border/70 bg-background p-3 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">No. SEP</span>
-                          <p className="font-mono font-medium text-foreground">{searchedSEP.noSep || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Tanggal SEP</span>
-                          <p className="font-medium text-foreground">{searchedSEP.tglSep || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Nama Peserta</span>
-                          <p className="font-medium text-foreground">{searchedSEP.peserta?.nama || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">No. Kartu</span>
-                          <p className="font-mono font-medium text-foreground">{searchedSEP.peserta?.noKartu || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Poli</span>
-                          <p className="font-medium text-foreground">{searchedSEP.poli || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Diagnosa</span>
-                          <p className="font-medium text-foreground">{searchedSEP.diagnosa || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Jenis Pelayanan</span>
-                          <p className="font-medium text-foreground">
-                            {searchedSEP.jnsPelayanan === "1"
-                              ? "Rawat Inap"
-                              : searchedSEP.jnsPelayanan === "2"
-                                ? "Rawat Jalan"
-                                : searchedSEP.jnsPelayanan || "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Kelas Rawat</span>
-                          <p className="font-medium text-foreground">
-                            {searchedSEP.peserta?.klsRawat?.klsRawatHak ? `Kelas ${searchedSEP.peserta.klsRawat.klsRawatHak}` : "-"}
-                          </p>
-                        </div>
-                      </div>
-
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <Input
+                        value={searchNoSEP}
+                        onChange={(e) => {
+                          setSearchNoSEP(e.target.value);
+                          if (searchSEPError) setSearchSEPError("");
+                        }}
+                        placeholder="Masukkan nomor SEP"
+                        className="h-9"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSearchSEPForAssign();
+                          }
+                        }}
+                      />
                       <Button
                         type="button"
-                        className="w-full rounded-none"
-                        onClick={handleAssignSEPFromSearch}
-                        disabled={assigningSEP}
+                        variant="outline"
+                        className="h-9 w-9 px-0"
+                        onClick={handleSearchSEPForAssign}
+                        disabled={searchingSEP || !searchNoSEP.trim()}
                       >
-                        {assigningSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                        Assign SEP ke Pendaftaran
+                        {searchingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                       </Button>
                     </div>
-                  )}
+
+                    {searchSEPError && (
+                      <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md">Pencarian SEP gagal: {searchSEPError}</div>
+                    )}
+
+                    {searchedSEP && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 border rounded-md bg-background p-3 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">No. SEP</span>
+                            <p className="font-mono font-medium text-foreground">{searchedSEP.noSep || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Tanggal SEP</span>
+                            <p className="font-medium text-foreground">{searchedSEP.tglSep || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Nama Peserta</span>
+                            <p className="font-medium text-foreground">{searchedSEP.peserta?.nama || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">No. Kartu</span>
+                            <p className="font-mono font-medium text-foreground">{searchedSEP.peserta?.noKartu || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Poli</span>
+                            <p className="font-medium text-foreground">{searchedSEP.poli || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Diagnosa</span>
+                            <p className="font-medium text-foreground">{searchedSEP.diagnosa || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Jenis Pelayanan</span>
+                            <p className="font-medium text-foreground">
+                              {searchedSEP.jnsPelayanan === "1"
+                                ? "Rawat Inap"
+                                : searchedSEP.jnsPelayanan === "2"
+                                  ? "Rawat Jalan"
+                                  : searchedSEP.jnsPelayanan || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Kelas Rawat</span>
+                            <p className="font-medium text-foreground">
+                              {searchedSEP.peserta?.klsRawat?.klsRawatHak ? `Kelas ${searchedSEP.peserta.klsRawat.klsRawatHak}` : "-"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={handleAssignSEPFromSearch}
+                          disabled={assigningSEP}
+                        >
+                          {assigningSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Assign SEP ke Pendaftaran
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
               )}
 
               {entryMode === "form" && (
                 <>
-              {/* === RUJUKAN === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Source" title="Rujukan" action={
-                  isIGD ? (
-                    <Badge variant="secondary" className="text-xs">Tidak wajib untuk IGD</Badge>
-                  ) : null
-                } />
-                
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Jenis Pelayanan *</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.jenisPelayanan)}
-                      value={jnsPelayanan}
-                      onValueChange={setJnsPelayanan}
-                      placeholder="Pilih"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Asal Rujukan</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.asalRujukan)}
-                      value={asalRujukan}
-                      onValueChange={setAsalRujukan}
-                      placeholder="Pilih"
-                      className="h-9"
-                      disabled={isIGD}
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas Rawat Hak *</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.kelasRawat)}
-                      value={klsRawatHak}
-                      onValueChange={setKlsRawatHak}
-                      placeholder="Pilih"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Naik Kelas</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.kelasRawatNaik)}
-                      value={klsRawatNaik}
-                      onValueChange={(val) => {
-                        setKlsRawatNaik(val);
-                        if (!val) setPembiayaan("");
-                      }}
-                      placeholder="Tidak naik"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                      {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")}
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={noRujukan}
-                        onChange={(e) => setNoRujukan(e.target.value)}
-                        disabled={isIGD || jnsPelayanan === "1"}
-                        placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
-                        className={BPJS_COMPACT_FIELD_CLASS}
-                      />
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setRujukanModalOpen(true)}
-                        disabled={!noKartu || isIGD || jnsPelayanan === "1"}
-                        className={BPJS_ICON_BUTTON_CLASS}
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
+                  {/* === RUJUKAN === */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Jenis Pelayanan *</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.jenisPelayanan)}
+                          value={jnsPelayanan}
+                          onValueChange={setJnsPelayanan}
+                          placeholder="Pilih"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Asal Rujukan</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.asalRujukan)}
+                          value={asalRujukan}
+                          onValueChange={setAsalRujukan}
+                          placeholder="Pilih"
+                          className="h-9"
+                          disabled={isIGD}
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Kelas Rawat Hak *</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.kelasRawat)}
+                          value={klsRawatHak}
+                          onValueChange={setKlsRawatHak}
+                          placeholder="Pilih"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Naik Kelas</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.kelasRawatNaik)}
+                          value={klsRawatNaik}
+                          onValueChange={(val) => {
+                            setKlsRawatNaik(val);
+                            if (!val) setPembiayaan("");
+                          }}
+                          placeholder="Tidak naik"
+                          className="h-9"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
-                    <Input
-                      type="date"
-                      value={tglRujukan}
-                      onChange={(e) => setTglRujukan(e.target.value)}
-                      className={BPJS_COMPACT_FIELD_CLASS}
-                      disabled={isIGD || jnsPelayanan === "1"}
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
-                        placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
-                        readOnly
-                        className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
-                      />
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setDokterModalOpen(true)}
-                        disabled={!kodePoli}
-                        className={BPJS_ICON_BUTTON_CLASS}
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>PPK Perujuk</Label>
-                    <Input
-                      value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : namaRujukan}
-                      onChange={(e) => setNamaRujukan(e.target.value)}
-                      placeholder="Nama faskes perujuk"
-                      className={BPJS_COMPACT_FIELD_CLASS}
-                      disabled={isIGD || jnsPelayanan === "1"}
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Diagnosa Awal (ICD-10) *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
-                        placeholder="Pilih diagnosa"
-                        readOnly
-                        className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
-                      />
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setDiagnosaModalOpen(true)}
-                        className={BPJS_ICON_BUTTON_CLASS}
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  {/* Poli Tujuan - hanya untuk rawat jalan */}
-                  {jnsPelayanan !== "1" && (
-                    <>
-                      <div className="space-y-1.5 lg:col-span-2">
-                        <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Poli Tujuan *</Label>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">
+                          {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")}
+                        </Label>
                         <div className="flex gap-2">
                           <Input
-                            value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
-                            placeholder="Pilih poli"
-                            readOnly
-                            className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
+                            value={noRujukan}
+                            onChange={(e) => setNoRujukan(e.target.value)}
+                            disabled={isIGD || jnsPelayanan === "1"}
+                            placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
+                            className="h-9"
                           />
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
-                            onClick={() => setPoliModalOpen(true)}
-                            className={BPJS_ICON_BUTTON_CLASS}
+                            onClick={() => setRujukanModalOpen(true)}
+                            disabled={!noKartu || isIGD || jnsPelayanan === "1"}
+                            className="h-9 w-9 px-0"
                           >
                             <Search className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
                       <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Poli Eksekutif</Label>
+                        <Label className="text-sm font-medium">{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
+                        <Input
+                          type="date"
+                          value={tglRujukan}
+                          onChange={(e) => setTglRujukan(e.target.value)}
+                          className="h-9"
+                          disabled={isIGD || jnsPelayanan === "1"}
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-2">
+                        <Label className="text-sm font-medium">Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
+                            placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
+                            readOnly
+                            className={cn("h-9", "bg-muted/20")}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDokterModalOpen(true)}
+                            disabled={!kodePoli}
+                            className="h-9 w-9 px-0"
+                          >
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      <div className="space-y-1.5 lg:col-span-2">
+                        <Label className="text-sm font-medium">PPK Perujuk</Label>
+                        <Input
+                          value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : namaRujukan}
+                          onChange={(e) => setNamaRujukan(e.target.value)}
+                          placeholder="Nama faskes perujuk"
+                          className="h-9"
+                          disabled={isIGD || jnsPelayanan === "1"}
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-2">
+                        <Label className="text-sm font-medium">Diagnosa Awal (ICD-10) *</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
+                            placeholder="Pilih diagnosa"
+                            readOnly
+                            className={cn("h-9", "bg-muted/20")}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDiagnosaModalOpen(true)}
+                            className="h-9 w-9 px-0"
+                          >
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      {/* Poli Tujuan - hanya untuk rawat jalan */}
+                      {jnsPelayanan !== "1" && (
+                        <>
+                          <div className="space-y-1.5 lg:col-span-2">
+                            <Label className="text-sm font-medium">Poli Tujuan *</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
+                                placeholder="Pilih poli"
+                                readOnly
+                                className={cn("h-9", "bg-muted/20")}
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPoliModalOpen(true)}
+                                className="h-9 w-9 px-0"
+                              >
+                                <Search className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 lg:col-span-1">
+                            <Label className="text-sm font-medium">Poli Eksekutif</Label>
+                            <Combobox
+                              options={toComboOptions(SEP_OPTIONS.yaTidak)}
+                              value={poliEksekutif}
+                              onValueChange={setPoliEksekutif}
+                              placeholder="Pilih"
+                              className="h-9"
+                            />
+                          </div>
+                        </>
+                      )}
+                      <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "lg:col-span-1" : "lg:col-span-2")}>
+                        <Label className="text-sm font-medium">Nomor Surat Kontrol / SPRI</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={noSuratKontrol}
+                            onChange={(e) => setNoSuratKontrol(e.target.value)}
+                            placeholder="Nomor surat kontrol"
+                            className="h-9"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSkdpModalOpen(true)}
+                            disabled={!noKartu}
+                            className="h-9 w-9 px-0"
+                          >
+                            <Calendar className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {skdpData && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {skdpData.namaPoliTujuan} - {skdpData.namaDokter} | Berlaku: {skdpData.tglRencanaKontrol}
+                        {skdpData.noSepAsalKontrol && (
+                          <span className="block">SEP Asal: {skdpData.noSepAsalKontrol}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* === JAMINAN === */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Kecelakaan Lalu Lintas</Label>
                         <Combobox
-                          options={toComboOptions(SEP_OPTIONS.yaTidak)}
-                          value={poliEksekutif}
-                          onValueChange={setPoliEksekutif}
+                          options={toComboOptions(SEP_OPTIONS.lakaLantas)}
+                          value={lakaLantas}
+                          onValueChange={setLakaLantas}
                           placeholder="Pilih"
                           className="h-9"
                         />
                       </div>
-                    </>
-                  )}
-                  <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "lg:col-span-1" : "lg:col-span-2")}>
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Surat Kontrol / SPRI</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={noSuratKontrol}
-                        onChange={(e) => setNoSuratKontrol(e.target.value)}
-                        placeholder="Nomor surat kontrol"
-                        className={BPJS_COMPACT_FIELD_CLASS}
-                      />
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setSkdpModalOpen(true)}
-                        disabled={!noKartu}
-                        className={BPJS_ICON_BUTTON_CLASS}
-                      >
-                        <Calendar className="h-4 w-4" />
-                      </Button>
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">Tujuan Kunjungan</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.tujuanKunjungan)}
+                          value={tujuanKunj}
+                          onValueChange={setTujuanKunj}
+                          placeholder="Pilih"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5 lg:col-span-1">
+                        <Label className="text-sm font-medium">No. Telepon</Label>
+                        <Input
+                          value={noTelp}
+                          onChange={(e) => setNoTelp(e.target.value)}
+                          placeholder="08xxxxxxxxxx"
+                          className="h-9"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {skdpData && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {skdpData.namaPoliTujuan} - {skdpData.namaDokter} | Berlaku: {skdpData.tglRencanaKontrol}
-                    {skdpData.noSepAsalKontrol && (
-                      <span className="block">SEP Asal: {skdpData.noSepAsalKontrol}</span>
+                    {tujuanKunj === "1" && (
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                        <div className="space-y-1.5 lg:col-span-1">
+                          <Label className="text-sm font-medium">Flag Procedure</Label>
+                          <Combobox
+                            options={toComboOptions(SEP_OPTIONS.flagProcedure)}
+                            value={flagProcedure}
+                            onValueChange={setFlagProcedure}
+                            placeholder="Pilih"
+                            className="h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5 lg:col-span-1">
+                          <Label className="text-sm font-medium">Penunjang</Label>
+                          <Combobox
+                            options={toComboOptions(SEP_OPTIONS.kdPenunjang)}
+                            value={kdPenunjang}
+                            onValueChange={setKdPenunjang}
+                            placeholder="Pilih"
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
 
-              {/* === JAMINAN === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Coverage" title="Jaminan & Lainnya" />
-                
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kecelakaan Lalu Lintas</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.lakaLantas)}
-                      value={lakaLantas}
-                      onValueChange={setLakaLantas}
-                      placeholder="Pilih"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tujuan Kunjungan</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.tujuanKunjungan)}
-                      value={tujuanKunj}
-                      onValueChange={setTujuanKunj}
-                      placeholder="Pilih"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>No. Telepon</Label>
-                    <Input
-                      value={noTelp}
-                      onChange={(e) => setNoTelp(e.target.value)}
-                      placeholder="08xxxxxxxxxx"
-                      className={BPJS_COMPACT_FIELD_CLASS}
-                    />
-                  </div>
-                </div>
+                    {(tujuanKunj === "2" || tujuanKunj === "0") && (
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">Assessment Pelayanan</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.assesmentPelayanan)}
+                          value={assesmentPel}
+                          onValueChange={setAssesmentPel}
+                          placeholder="Pilih"
+                          className="h-9"
+                        />
+                      </div>
+                    )}
 
-                {tujuanKunj === "1" && (
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                    <div className="space-y-1.5 lg:col-span-1">
-                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Flag Procedure</Label>
-                      <Combobox
-                        options={toComboOptions(SEP_OPTIONS.flagProcedure)}
-                        value={flagProcedure}
-                        onValueChange={setFlagProcedure}
-                        placeholder="Pilih"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-1.5 lg:col-span-1">
-                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Penunjang</Label>
-                      <Combobox
-                        options={toComboOptions(SEP_OPTIONS.kdPenunjang)}
-                        value={kdPenunjang}
-                        onValueChange={setKdPenunjang}
-                        placeholder="Pilih"
-                        className="h-9"
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">Catatan</Label>
+                      <Textarea
+                        value={catatan}
+                        onChange={(e) => setCatatan(e.target.value)}
+                        placeholder="Catatan tambahan..."
+                        rows={2}
+                        className="resize-none bg-background shadow-none"
                       />
                     </div>
                   </div>
-                )}
-
-                {(tujuanKunj === "2" || tujuanKunj === "0") && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Assessment Pelayanan</Label>
-                    <Combobox
-                      options={toComboOptions(SEP_OPTIONS.assesmentPelayanan)}
-                      value={assesmentPel}
-                      onValueChange={setAssesmentPel}
-                      placeholder="Pilih"
-                      className="h-9"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Catatan</Label>
-                  <Textarea
-                    value={catatan}
-                    onChange={(e) => setCatatan(e.target.value)}
-                    placeholder="Catatan tambahan..."
-                    rows={2}
-                    className="resize-none rounded-none border-border/70 bg-background shadow-none"
-                  />
-                </div>
-              </div>
                 </>
               )}
             </div>
           </ScrollArea>
 
-          <SheetFooter className={BPJS_FOOTER_CLASS}>
-            <Button variant="outline" className="rounded-none border-border/70" onClick={() => onOpenChange(false)}>
+          <SheetFooter className="p-4 border-t sm:justify-end gap-2">
+            <Button variant="outline" className="" onClick={() => onOpenChange(false)}>
               Batal
             </Button>
             <Button
               onClick={handleSubmitSEP}
               disabled={loadingSubmit || !peserta || !kodePoli || !diagAwal}
-              className="rounded-none"
+              className=""
             >
               {loadingSubmit ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1062,7 +1104,7 @@ export function SEPFormSheet({
         onSelect={async (skdp: SKDPData) => {
           setNoSuratKontrol(skdp.noSuratKontrol);
           setSkdpData(skdp);
-          
+
           // Auto-fill DPJP dari SKDP
           if (skdp.kodeDokter) {
             setKodeDPJP(skdp.kodeDokter);
@@ -1078,7 +1120,7 @@ export function SEPFormSheet({
           // Jika noSepAsalKontrol kosong, coba fetch dari detail
           let noSepAsal = skdp.noSepAsalKontrol || "";
           let tglSepAsal = skdp.tglSEP || tglSEP;
-          
+
           if (!noSepAsal && skdp.noSuratKontrol) {
             try {
               const res = await vclaimApi.getSuratKontrolDetail(skdp.noSuratKontrol);
@@ -1091,7 +1133,7 @@ export function SEPFormSheet({
               console.error("Failed to fetch SKDP detail for SEP asal:", e);
             }
           }
-          
+
           // Untuk RAWAT INAP: JANGAN ubah noRujukan (sudah auto-generated)
           // Untuk RAWAT JALAN (kontrol): gunakan SEP asal
           if (jnsPelayanan !== "1") {

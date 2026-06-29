@@ -17,6 +17,8 @@ func SetupRoutes(r *gin.Engine) {
 		// Settings (public read)
 		setupPublicSettingsRoutes(api)
 
+
+
 		// Protected routes
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware())
@@ -90,6 +92,9 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Billing & Payment routes
 		SetupBillingRoutes(api)
+
+		// Cashier Shift routes
+		SetupCashierShiftRoutes(api)
 
 		// Inpatient Routes (CPPT, Fluid Balance)
 		RegisterInpatientRoutes(api)

@@ -32,6 +32,9 @@ func GetAdmissionRequests(c *gin.Context) {
 		Preload("Registration").
 		Preload("Registration.Patient").
 		Preload("RequestedBy").
+		Preload("SuggestedBed").
+		Preload("SuggestedBed.RoomUnit").
+		Preload("SuggestedBed.RoomUnit.Room").
 		Preload("ApprovedRoom").
 		Preload("ApprovedBed").
 		Preload("Doctor").
@@ -113,6 +116,9 @@ func GetAdmissionRequest(c *gin.Context) {
 		Preload("Registration").
 		Preload("Registration.Patient").
 		Preload("RequestedBy").
+		Preload("SuggestedBed").
+		Preload("SuggestedBed.RoomUnit").
+		Preload("SuggestedBed.RoomUnit.Room").
 		Preload("ApprovedRoom").
 		Preload("ApprovedRoom.Units").
 		Preload("ApprovedRoom.Units.Beds").
@@ -145,12 +151,13 @@ func CreateAdmissionRequest(c *gin.Context) {
 
 	var input struct {
 		SourceVisitID   uint   `json:"source_visit_id" binding:"required"`
-		AdmissionType   string `json:"admission_type" binding:"required"` // elektif, emergency
+		AdmissionType   string `json:"admission_type"` // elektif, emergency (optional)
 		AdmissionReason string `json:"admission_reason"`
 		Diagnosis       string `json:"diagnosis"`
 		Priority        string `json:"priority"`        // normal, urgent, emergency
 		PreferredClass  string `json:"preferred_class"` // kelas yang diminta
 		SpecialNotes    string `json:"special_notes"`
+		SuggestedBedID  *uint  `json:"suggested_bed_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -194,13 +201,15 @@ func CreateAdmissionRequest(c *gin.Context) {
 		Priority:        input.Priority,
 		PreferredClass:  input.PreferredClass,
 		SpecialNotes:    input.SpecialNotes,
+		SuggestedBedID:  input.SuggestedBedID,
 		Status:          models.AdmissionRequestStatusPending,
 		RequestedByID:   userID,
 		RequestedAt:     now,
 	}
 
 	if err := database.DB.Create(&request).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat permintaan rawat inap"})
+		fmt.Printf("Error creating admission request: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat permintaan rawat inap", "details": err.Error()})
 		return
 	}
 
@@ -211,6 +220,9 @@ func CreateAdmissionRequest(c *gin.Context) {
 		Preload("Registration").
 		Preload("Registration.Patient").
 		Preload("RequestedBy").
+		Preload("SuggestedBed").
+		Preload("SuggestedBed.RoomUnit").
+		Preload("SuggestedBed.RoomUnit.Room").
 		First(&request, request.ID)
 
 	// Send notification to Pendaftaran/Admisi roles
@@ -330,13 +342,20 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		tx.Model(&models.Registration{}).Where("id = ?", request.RegistrationID).Update("payment_method", paymentMethod)
 	}
 
+	// Get class from bed's room unit if available
+	inpatientClass := room.RoomClass
+	var targetBed models.Bed
+	if err := tx.Preload("RoomUnit").First(&targetBed, input.BedID).Error; err == nil && targetBed.RoomUnit != nil && targetBed.RoomUnit.Class != "" {
+		inpatientClass = targetBed.RoomUnit.Class
+	}
+
 	// Update request
 	now := time.Now()
 	request.Status = models.AdmissionRequestStatusApproved
 	request.ApprovedRoomID = &input.RoomID
 	request.ApprovedBedID = &input.BedID
 	request.DoctorID = &input.DoctorID
-	request.InpatientClass = room.RoomClass
+	request.InpatientClass = inpatientClass
 	request.InpatientVisitID = &inpatientVisit.ID
 	request.ProcessedByID = &userID
 	request.ProcessedAt = &now
@@ -504,7 +523,7 @@ func generateAdmissionRequestNumber() string {
 	today := time.Now().Format("20060102")
 	prefix := "ADM" + today
 
-	if err := database.DB.Where("request_number LIKE ?", prefix+"%").
+	if err := database.DB.Unscoped().Where("request_number LIKE ?", prefix+"%").
 		Order("request_number DESC").First(&lastRequest).Error; err != nil {
 		return prefix + "0001"
 	}
@@ -535,6 +554,13 @@ func createInpatientVisitFromRequest(tx *gorm.DB, request *models.AdmissionReque
 		visitNumber = fmt.Sprintf("VIS%s%04d", todayStr, num+1)
 	}
 
+	// Get class from bed's room unit if available
+	inpatientClass := roomClass
+	var targetBed models.Bed
+	if err := tx.Preload("RoomUnit").First(&targetBed, bedID).Error; err == nil && targetBed.RoomUnit != nil && targetBed.RoomUnit.Class != "" {
+		inpatientClass = targetBed.RoomUnit.Class
+	}
+
 	now := time.Now()
 	inpatientVisit := models.Visit{
 		VisitNumber:    visitNumber,
@@ -549,7 +575,7 @@ func createInpatientVisitFromRequest(tx *gorm.DB, request *models.AdmissionReque
 		Complaint:      sourceVisit.Complaint,
 		BedID:          &bedID,
 		AdmissionTime:  &now,
-		InpatientClass: roomClass,
+		InpatientClass: inpatientClass,
 	}
 
 	if err := tx.Create(&inpatientVisit).Error; err != nil {

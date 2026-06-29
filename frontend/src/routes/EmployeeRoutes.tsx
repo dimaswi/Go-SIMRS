@@ -11,7 +11,13 @@ const EmployeesEdit = lazy(() => import('@/pages/employees/edit'));
 export function EmployeeRoutes(ProtectedRoute: React.ComponentType<{ children: React.ReactNode }>) {
   return (
     <>
-      <Route path="/employees" element={<ProtectedRoute><EmployeesIndex /></ProtectedRoute>} />
+      <Route path="/employees" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="employees.view">
+            <EmployeesIndex />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
       <Route path="/employees/create" element={
         <ProtectedRoute>
           <PermissionGuard permission="employees.create">
@@ -19,7 +25,13 @@ export function EmployeeRoutes(ProtectedRoute: React.ComponentType<{ children: R
           </PermissionGuard>
         </ProtectedRoute>
       } />
-      <Route path="/employees/:id" element={<ProtectedRoute><EmployeesShow /></ProtectedRoute>} />
+      <Route path="/employees/:id" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="employees.view">
+            <EmployeesShow />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
       <Route path="/employees/:id/edit" element={
         <ProtectedRoute>
           <PermissionGuard permission="employees.update">

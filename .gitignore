@@ -43,3 +43,5 @@ scripts/
 *.xlsx
 *.csv
 *.pdf
+form/*
+backend/uploads/*

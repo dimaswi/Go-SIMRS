@@ -63,7 +63,7 @@ export function createUserColumns({
       },
     },
     {
-      accessorKey: "email",
+      accessorKey: "employee.nip",
       header: ({ column }) => {
         return (
           <Button
@@ -71,13 +71,14 @@ export function createUserColumns({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             className="h-8 p-0 hover:bg-transparent"
           >
-            Email
+            NIP Pegawai
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         )
       },
       cell: ({ row }) => {
-        return <div className="text-muted-foreground">{row.getValue("email")}</div>
+        const user = row.original;
+        return <div className="text-muted-foreground">{user.employee?.nip || "-"}</div>
       },
     },
     {

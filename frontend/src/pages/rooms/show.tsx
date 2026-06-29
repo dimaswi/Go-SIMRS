@@ -13,14 +13,6 @@ import {
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { bpjsApi, roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
 import type { AplicareBedItem, AplicareRefKelasItem } from "@/lib/api/bpjs";
 import { roomProceduresApi } from "@/lib/api/procedures";
@@ -71,11 +63,11 @@ function mapRoomClassToAplicare(roomClass?: string) {
     case "vip":
       return "VIP";
     case "kelas_1":
-      return "KLS1";
+      return "KL1";
     case "kelas_2":
-      return "KLS2";
+      return "KL2";
     case "kelas_3":
-      return "KLS3";
+      return "KL3";
     case "icu":
       return "ICU";
     case "iccu":
@@ -83,7 +75,7 @@ function mapRoomClassToAplicare(roomClass?: string) {
     case "isolasi":
       return "ISO";
     default:
-      return "";
+      return "NON";
   }
 }
 
@@ -103,8 +95,8 @@ export default function RoomShow() {
   const [aplicareDialogOpen, setAplicareDialogOpen] = useState(false);
   const [aplicareDeleteDialogOpen, setAplicareDeleteDialogOpen] = useState(false);
   const [aplicareRefKelas, setAplicareRefKelas] = useState<AplicareRefKelasItem[]>([]);
-  const [aplicareRefKelasLoading, setAplicareRefKelasLoading] = useState(false);
-  const [useGenderAvailability, setUseGenderAvailability] = useState(false);
+  const [_aplicareRefKelasLoading, setAplicareRefKelasLoading] = useState(false);
+  const [_useGenderAvailability, setUseGenderAvailability] = useState(false);
   const [aplicareForm, setAplicareForm] = useState({
     kodekelas: "",
     koderuang: "",
@@ -303,18 +295,6 @@ export default function RoomShow() {
       tersediapriawanita: tersediapriawanita,
     });
   }, [aplicareMapping, room]);
-
-  const handleGenderAvailabilityChange = (checked: boolean) => {
-    setUseGenderAvailability(checked);
-    if (!checked) {
-      setAplicareForm((current) => ({
-        ...current,
-        tersediapria: "0",
-        tersediawanita: "0",
-        tersediapriawanita: "0",
-      }));
-    }
-  };
 
   useEffect(() => {
     loadData();
@@ -644,6 +624,23 @@ export default function RoomShow() {
     }
   };
 
+  const unitStats = useMemo(() => {
+    if (!room?.units) return [];
+    return room.units.map(unit => {
+      const totalBeds = unit.beds?.length || 0;
+      const availableBeds = unit.beds?.filter(b => b.status === 'available').length || 0;
+      
+      return {
+        unitCode: unit.code || "",
+        unitName: unit.name || "",
+        className: unit.class || "",
+        aplicareKodeKelas: mapRoomClassToAplicare(unit.class),
+        total: totalBeds,
+        available: availableBeds,
+      };
+    });
+  }, [room?.units]);
+
   const getBedStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
       case 'available':
@@ -675,7 +672,6 @@ export default function RoomShow() {
       setRegisteringAplicare(true);
       const response = await bpjsApi.aplicareCreateRoom({
         room_id: room.id,
-        ...aplicareForm,
       });
       toast({
         variant: "success",
@@ -721,22 +717,15 @@ export default function RoomShow() {
     }
   };
 
+
   const totalBeds = room.total_beds || 0;
   const availableBeds = room.available_beds || 0;
-  const aplicareKodeKelas = room.kode_kelas_bpjs || mapRoomClassToAplicare(room.room_class);
-  const aplicareSummary = aplicareMapping
-    ? {
-        kodeRuang: aplicareMapping.koderuang || room.code,
-        namaRuang: aplicareMapping.namaruang || room.name,
-        kodeKelas: aplicareMapping.kodekelas || aplicareKodeKelas,
-        ketersediaan: `${aplicareMapping.tersedia || 0} / ${aplicareMapping.kapasitas || 0}`,
-      }
-    : {
-        kodeRuang: aplicareForm.koderuang || room.code,
-        namaRuang: aplicareForm.namaruang || room.name,
-        kodeKelas: aplicareForm.kodekelas || aplicareKodeKelas,
-        ketersediaan: `${aplicareForm.tersedia || 0} / ${aplicareForm.kapasitas || 0}`,
-      };
+
+  const aplicareSummary = {
+    kodeRuang: aplicareMapping?.koderuang || aplicareForm.koderuang || room.code,
+    namaRuang: aplicareMapping?.namaruang || aplicareForm.namaruang || room.name,
+  };
+
   const aplicareValidations = [
     {
       label: "Ruangan memiliki bed",
@@ -754,14 +743,14 @@ export default function RoomShow() {
       value: room.name || "-",
     },
     {
-      label: "Kode kelas BPJS tersedia",
-      passed: Boolean(aplicareForm.kodekelas || aplicareKodeKelas),
-      value: aplicareForm.kodekelas || aplicareKodeKelas || "Belum ada mapping kelas",
+      label: "Memiliki kelas BPJS",
+      passed: unitStats.length > 0,
+      value: unitStats.length > 0 ? `${unitStats.length} unit/kelas kamar ditemukan` : "Kamar belum memiliki kelas",
     },
     {
       label: "Kapasitas bed siap dikirim",
-      passed: Number(aplicareForm.kapasitas) > 0,
-      value: `${aplicareForm.kapasitas || 0} total bed`,
+      passed: unitStats.some(c => c.total > 0),
+      value: `${totalBeds} total bed`,
     },
   ];
   const canSubmitAplicare = aplicareValidations.every((item) => item.passed);
@@ -836,7 +825,7 @@ export default function RoomShow() {
                     <div>
                       <h3 className="text-sm font-semibold">{selectedUnit.name}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {selectedUnit.code} â€¢ Lantai {selectedUnit.floor} â€¢
+                        {selectedUnit.code} ├óÔé¼┬ó Lantai {selectedUnit.floor} ├óÔé¼┬ó
                         Kapasitas {selectedUnit.capacity} bed
                       </p>
                     </div>
@@ -870,47 +859,47 @@ export default function RoomShow() {
                         </div>
                       </div>
                       <div className="max-h-[26rem] overflow-y-auto pb-3">
-                      <table className="w-full table-fixed text-sm">
-                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
-                          <tr>
-                            <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
-                            <th className="w-[20%] px-3 py-2.5 font-medium">Tipe</th>
-                            <th className="w-[18%] px-3 py-2.5 font-medium">Status</th>
-                            <th className="w-[30%] px-3 py-2.5 font-medium">Catatan</th>
-                            <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/60">
-                          {filteredBeds.map((bed) => (
-                            <tr key={bed.id} className="bg-background align-top">
-                              <td className="px-3 py-3 font-medium break-words">{bed.bed_number}</td>
-                              <td className="px-3 py-3 text-muted-foreground break-words">
-                                {bed.bed_type ? getMasterDataName('bed_type', bed.bed_type) : '-'}
-                              </td>
-                              <td className="px-3 py-3">
-                                <Badge variant={getBedStatusBadgeVariant(bed.status)}>
-                                  {getMasterDataName('bed_status', bed.status)}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-3 text-muted-foreground break-words">{bed.notes || '-'}</td>
-                              <td className="px-3 py-3">
-                                <div className="flex justify-end gap-1">
-                                  {hasPermission('rooms.update') && (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditBed(bed)}>
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  {hasPermission('rooms.update') && bed.status !== 'occupied' && (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteBed(bed.id)}>
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </td>
+                        <table className="w-full table-fixed text-sm">
+                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+                            <tr>
+                              <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
+                              <th className="w-[20%] px-3 py-2.5 font-medium">Tipe</th>
+                              <th className="w-[18%] px-3 py-2.5 font-medium">Status</th>
+                              <th className="w-[30%] px-3 py-2.5 font-medium">Catatan</th>
+                              <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {filteredBeds.map((bed) => (
+                              <tr key={bed.id} className="bg-background align-top">
+                                <td className="px-3 py-3 font-medium break-words">{bed.bed_number}</td>
+                                <td className="px-3 py-3 text-muted-foreground break-words">
+                                  {bed.bed_type ? getMasterDataName('bed_type', bed.bed_type) : '-'}
+                                </td>
+                                <td className="px-3 py-3">
+                                  <Badge variant={getBedStatusBadgeVariant(bed.status)}>
+                                    {getMasterDataName('bed_status', bed.status)}
+                                  </Badge>
+                                </td>
+                                <td className="px-3 py-3 text-muted-foreground break-words">{bed.notes || '-'}</td>
+                                <td className="px-3 py-3">
+                                  <div className="flex justify-end gap-1">
+                                    {hasPermission('rooms.update') && (
+                                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditBed(bed)}>
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    {hasPermission('rooms.update') && bed.status !== 'occupied' && (
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteBed(bed.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </>
                   ) : (
@@ -921,474 +910,480 @@ export default function RoomShow() {
                 </div>
               </div>
             ) : (
-              <Tabs defaultValue="detail" variant="inline" className="min-w-0 w-full overflow-hidden">
-                <TabsList className="mb-4 h-auto flex-wrap gap-1 border-b border-border/70">
-                  <TabsTrigger value="detail" className="px-2.5 py-1.5 text-xs">
+              <Tabs defaultValue="detail" className="flex flex-col md:flex-row min-w-0 w-full gap-4 md:gap-6">
+                <TabsList className="flex flex-row md:flex-col h-auto justify-start w-full md:w-48 shrink-0 overflow-x-auto bg-transparent p-0 space-y-0 md:space-y-1 space-x-1 md:space-x-0">
+                  <TabsTrigger value="detail" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Detail
                   </TabsTrigger>
                   {room.has_bed && (
-                    <TabsTrigger value="units" className="px-2.5 py-1.5 text-xs">
+                    <TabsTrigger value="units" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                       Kamar
                     </TabsTrigger>
                   )}
                   {room.has_schedule && (
-                    <TabsTrigger value="schedules" className="px-2.5 py-1.5 text-xs">
+                    <TabsTrigger value="schedules" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                       Jadwal
                     </TabsTrigger>
                   )}
-                  <TabsTrigger value="staff" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="staff" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Staff
                   </TabsTrigger>
-                  <TabsTrigger value="procedures" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="procedures" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Tindakan
                   </TabsTrigger>
-                  <TabsTrigger value="clinical-packages" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="clinical-packages" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Paket
                   </TabsTrigger>
-                  <TabsTrigger value="inventories" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="inventories" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Inventaris
                   </TabsTrigger>
-                  <TabsTrigger value="medicines" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="medicines" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Obat
                   </TabsTrigger>
-                  <TabsTrigger value="tariffs" className="px-2.5 py-1.5 text-xs">
+                  <TabsTrigger value="tariffs" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Tarif
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="detail" className="mt-0 min-w-0 overflow-hidden">
-                  {/* Room Info */}
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Jenis Layanan</p>
-                      <Badge variant="secondary">{getMasterDataName('service_type', room.service_type)}</Badge>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Tipe Ruangan</p>
-                      <p className="text-sm font-medium">{getMasterDataName('room_type', room.room_type)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Kelas Ruangan</p>
-                      {room.room_class ? (
-                        <Badge variant="outline">{getMasterDataName('room_class', room.room_class)}</Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                    </div>
-                    {/* Registration Fee - untuk semua ruangan */}
-                    <div>
-                      <p className="text-xs text-muted-foreground">Tarif Pendaftaran</p>
-                      <p className="text-sm font-medium">
-                        {new Intl.NumberFormat('id-ID', {
-                          style: 'currency',
-                          currency: 'IDR',
-                          minimumFractionDigits: 0,
-                        }).format(room.registration_fee || 0)}
-                      </p>
-                    </div>
-                    {room.service_type === 'rawat_inap' && (
-                      <>
-                        <div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Layers className="h-3 w-3" /> Jumlah Lantai
-                          </p>
-                          <p className="text-sm font-medium">{room.total_floors} lantai</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Tarif per Hari</p>
-                          <p className="text-sm font-medium">
-                            {new Intl.NumberFormat('id-ID', {
-                              style: 'currency',
-                              currency: 'IDR',
-                              minimumFractionDigits: 0,
-                            }).format(room.tariff_per_day)}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                    <div>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <User className="h-3 w-3" /> Penanggung Jawab
-                      </p>
-                      <p className="text-sm font-medium">
-                        {room.pic_employee?.nama_lengkap || <span className="text-muted-foreground">Belum ditentukan</span>}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Fitur Ruangan</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {room.has_bed && (
-                          <Badge variant="outline" className="text-xs">
-                            <BedDouble className="h-3 w-3 mr-1" />
-                            Ada Bed
-                          </Badge>
-                        )}
-                        {room.has_schedule && (
-                          <Badge variant="outline" className="text-xs">
-                            Jadwal
-                          </Badge>
-                        )}
-                        {!room.has_bed && !room.has_schedule && (
+                <div className="flex-1 min-w-0">
+
+                  <TabsContent value="detail" className="mt-0 min-w-0 overflow-hidden">
+                    {/* Room Info */}
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Jenis Layanan</p>
+                        <Badge variant="secondary">{getMasterDataName('service_type', room.service_type)}</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tipe Ruangan</p>
+                        <p className="text-sm font-medium">{getMasterDataName('room_type', room.room_type)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Kelas Ruangan</p>
+                        {room.room_class ? (
+                          <Badge variant="outline">{getMasterDataName('room_class', room.room_class)}</Badge>
+                        ) : (
                           <span className="text-sm text-muted-foreground">-</span>
                         )}
                       </div>
-                    </div>
-                    {room.has_bed && (
-                      <>
-                        <div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <DoorOpen className="h-3 w-3" /> Jumlah Kamar
-                          </p>
-                          <p className="text-sm font-medium">{units.length} kamar</p>
+                      {/* Registration Fee - untuk semua ruangan */}
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tarif Pendaftaran</p>
+                        <p className="text-sm font-medium">
+                          {new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0,
+                          }).format(room.registration_fee || 0)}
+                        </p>
+                      </div>
+                      {room.service_type === 'rawat_inap' && (
+                        <>
+                          <div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Layers className="h-3 w-3" /> Jumlah Lantai
+                            </p>
+                            <p className="text-sm font-medium">{room.total_floors} lantai</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Tarif per Hari</p>
+                            <p className="text-sm font-medium">
+                              {new Intl.NumberFormat('id-ID', {
+                                style: 'currency',
+                                currency: 'IDR',
+                                minimumFractionDigits: 0,
+                              }).format(room.tariff_per_day)}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <User className="h-3 w-3" /> Penanggung Jawab
+                        </p>
+                        <p className="text-sm font-medium">
+                          {room.pic_employee?.nama_lengkap || <span className="text-muted-foreground">Belum ditentukan</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Fitur Ruangan</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {room.has_bed && (
+                            <Badge variant="outline" className="text-xs">
+                              <BedDouble className="h-3 w-3 mr-1" />
+                              Ada Bed
+                            </Badge>
+                          )}
+                          {room.has_schedule && (
+                            <Badge variant="outline" className="text-xs">
+                              Jadwal
+                            </Badge>
+                          )}
+                          {!room.has_bed && !room.has_schedule && (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </div>
+                      </div>
+                      {room.has_bed && (
+                        <>
+                          <div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <DoorOpen className="h-3 w-3" /> Jumlah Kamar
+                            </p>
+                            <p className="text-sm font-medium">{units.length} kamar</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <BedDouble className="h-3 w-3" /> Ketersediaan Bed
+                            </p>
+                            <p className="text-sm font-medium">
+                              <span className="text-green-600">{availableBeds} tersedia</span>
+                              {" / "}
+                              <span>{totalBeds} total</span>
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {room.facilities && (
+                      <>
+                        <hr className="border-border/50 my-6" />
                         <div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <BedDouble className="h-3 w-3" /> Ketersediaan Bed
-                          </p>
-                          <p className="text-sm font-medium">
-                            <span className="text-green-600">{availableBeds} tersedia</span>
-                            {" / "}
-                            <span>{totalBeds} total</span>
-                          </p>
+                          <p className="text-xs text-muted-foreground mb-1">Fasilitas</p>
+                          <p className="text-sm">{room.facilities}</p>
                         </div>
                       </>
                     )}
-                  </div>
 
-                  {room.facilities && (
-                    <>
-                      <hr className="border-border/50 my-6" />
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Fasilitas</p>
-                        <p className="text-sm">{room.facilities}</p>
-                      </div>
-                    </>
-                  )}
-
-                  {room.description && (
-                    <>
-                      <hr className="border-border/50 my-6" />
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Deskripsi</p>
-                        <p className="text-sm">{room.description}</p>
-                      </div>
-                    </>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="units" className="mt-0 min-w-0 overflow-hidden">
-                  <div className="space-y-4">
-                    {hasPermission('rooms.update') && room.has_bed && (
-                      <div className="flex justify-end">
-                        <Button onClick={handleAddUnit} size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Tambah Kamar
-                        </Button>
-                      </div>
+                    {room.description && (
+                      <>
+                        <hr className="border-border/50 my-6" />
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Deskripsi</p>
+                          <p className="text-sm">{room.description}</p>
+                        </div>
+                      </>
                     )}
-                    {room.has_bed ? (
-                      <div className="min-w-0 overflow-hidden border border-border/70">
-                        {units.length > 0 ? (
-                          <>
-                            <div className="border-b border-border/70 px-3 py-3">
-                              <div className="relative max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                  value={unitSearch}
-                                  onChange={(event) => setUnitSearch(event.target.value)}
-                                  placeholder="Cari kamar, kode, lantai, atau status..."
-                                  className="pl-9"
-                                />
-                              </div>
+                  </TabsContent>
+
+                  <TabsContent value="units" className="mt-0 min-w-0 overflow-hidden">
+                    <div className="space-y-4">
+                      {hasPermission('rooms.update') && room.has_bed && (
+                        <div className="flex justify-between">
+                          <div className="max-w-sm">
+                            <div className="relative">
+                              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                              <Input
+                                value={unitSearch}
+                                onChange={(event) => setUnitSearch(event.target.value)}
+                                placeholder="Cari kamar, kode, lantai, atau status..."
+                                className="pl-9"
+                              />
                             </div>
-                          <div className="max-h-[26rem] overflow-y-auto pb-3">
-                            <table className="w-full table-fixed text-sm">
-                              <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
-                                <tr>
-                                  <th className="w-[34%] px-3 py-2.5 font-medium">Kamar</th>
-                                  <th className="w-[14%] px-3 py-2.5 font-medium">Lantai</th>
-                                  <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
-                                  <th className="w-[20%] px-3 py-2.5 font-medium">Status</th>
-                                  <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border/60">
-                                {filteredUnits.map((unit) => {
-                                  const beds = unit.beds || [];
-                                  const available = beds.filter((bed) => bed.status === 'available').length;
-
-                                  return (
-                                    <tr key={unit.id} className="bg-background align-top">
-                                      <td className="px-3 py-3">
-                                        <div className="font-medium break-words">{unit.name}</div>
-                                        <div className="text-xs text-muted-foreground break-words">{unit.code}</div>
-                                      </td>
-                                      <td className="px-3 py-3 text-muted-foreground">Lantai {unit.floor}</td>
-                                      <td className="px-3 py-3">
-                                        <div className="font-medium">{beds.length}/{unit.capacity}</div>
-                                        <div className="text-xs text-muted-foreground">{available} tersedia</div>
-                                      </td>
-                                      <td className="px-3 py-3">
-                                        <Badge variant={unit.is_active ? 'default' : 'secondary'}>
-                                          {unit.is_active ? 'Aktif' : 'Tidak Aktif'}
-                                        </Badge>
-                                      </td>
-                                      <td className="px-3 py-3">
-                                        <div className="flex justify-end gap-1">
-                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewUnit(unit)}>
-                                            <Eye className="h-4 w-4" />
-                                          </Button>
-                                          {hasPermission('rooms.update') && (
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUnit(unit)}>
-                                              <Pencil className="h-4 w-4" />
-                                            </Button>
-                                          )}
-                                          {hasPermission('rooms.update') && (
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteUnit(unit.id)}>
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </td>
+                          </div>
+                          <Button onClick={handleAddUnit} size="sm">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Tambah Kamar
+                          </Button>
+                        </div>
+                      )}
+                      {room.has_bed ? (
+                        <div className="min-w-0 overflow-hidden border border-border/70">
+                          {units.length > 0 ? (
+                            <>
+                              <div className="max-h-[26rem] overflow-y-auto pb-3">
+                                <table className="w-full table-fixed text-sm">
+                                  <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+                                    <tr>
+                                      <th className="w-[34%] px-3 py-2.5 font-medium">Kamar</th>
+                                      <th className="w-[14%] px-3 py-2.5 font-medium">Lantai</th>
+                                      <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
+                                      <th className="w-[20%] px-3 py-2.5 font-medium">Status</th>
+                                      <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
                                     </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                          </>
-                        ) : (
-                          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                            Belum ada kamar untuk ruangan ini.
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <BedDouble className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>Ruangan ini tidak memiliki fitur tempat tidur</p>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/60">
+                                    {filteredUnits.map((unit) => {
+                                      const beds = unit.beds || [];
+                                      const available = beds.filter((bed) => bed.status === 'available').length;
 
-                {/* Schedules Tab */}
-                <TabsContent value="schedules" className="mt-0 min-w-0 overflow-hidden">
-                  <div className="space-y-6">
-                    {/* Room Schedule (Jadwal Poli) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            Jadwal Operasional
-                          </h4>
-                          <p className="text-xs text-muted-foreground">Jadwal buka ruangan per hari</p>
-                        </div>
-                        {hasPermission('rooms.update') && (
-                          <Button onClick={handleAddSchedule} size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Tambah Jadwal
-                          </Button>
-                        )}
-                      </div>
-
-                      {schedules.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
-                            const dayIdx = idx === 6 ? 0 : idx + 1; // Convert to 0=Sunday format
-                            const daySchedules = schedules.filter(s => s.day_of_week === dayIdx);
-                            return (
-                              <div key={dayName} className="border rounded-lg p-3">
-                                <div className="font-medium text-sm mb-2">{dayName}</div>
-                                {daySchedules.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {daySchedules.map(schedule => (
-                                      <div key={schedule.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
-                                        <span>{schedule.start_time} - {schedule.end_time}</span>
-                                        <div className="flex items-center gap-1">
-                                          {schedule.max_patients > 0 && (
-                                            <Badge variant="outline" className="text-xs">Max {schedule.max_patients}</Badge>
-                                          )}
-                                          {hasPermission('rooms.update') && (
-                                            <>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6"
-                                                onClick={() => handleEditSchedule(schedule)}
-                                              >
-                                                <Pencil className="h-3 w-3" />
+                                      return (
+                                        <tr key={unit.id} className="bg-background align-top">
+                                          <td className="px-3 py-3">
+                                            <div className="font-medium break-words">{unit.name}</div>
+                                            <div className="text-xs text-muted-foreground break-words">{unit.code}</div>
+                                          </td>
+                                          <td className="px-3 py-3 text-muted-foreground">Lantai {unit.floor}</td>
+                                          <td className="px-3 py-3">
+                                            <div className="font-medium">{beds.length}/{unit.capacity}</div>
+                                            <div className="text-xs text-muted-foreground">{available} tersedia</div>
+                                          </td>
+                                          <td className="px-3 py-3">
+                                            <Badge variant={unit.is_active ? 'default' : 'secondary'}>
+                                              {unit.is_active ? 'Aktif' : 'Tidak Aktif'}
+                                            </Badge>
+                                          </td>
+                                          <td className="px-3 py-3">
+                                            <div className="flex justify-end gap-1">
+                                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewUnit(unit)}>
+                                                <Eye className="h-4 w-4" />
                                               </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 text-destructive"
-                                                onClick={() => handleDeleteSchedule(schedule.id)}
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                              </Button>
-                                            </>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Tutup</p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-6 text-muted-foreground border rounded-lg">
-                          <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Belum ada jadwal operasional</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <hr className="border-border/50" />
-
-                    {/* Doctor Schedule (Jadwal Dokter) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            Jadwal Dokter
-                          </h4>
-                          <p className="text-xs text-muted-foreground">Jadwal praktik dokter di ruangan ini</p>
-                        </div>
-                        {hasPermission('rooms.update') && (
-                          <Button onClick={handleAddDoctorSchedule} size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Tambah Jadwal Dokter
-                          </Button>
-                        )}
-                      </div>
-
-                      {doctorSchedules.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
-                            const dayIdx = idx === 6 ? 0 : idx + 1;
-                            const daySchedules = doctorSchedules.filter(s => s.day_of_week === dayIdx);
-                            return (
-                              <div key={dayName} className="border rounded-lg p-3">
-                                <div className="font-medium text-sm mb-2">{dayName}</div>
-                                {daySchedules.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {daySchedules.map(schedule => (
-                                      <div key={schedule.id} className="text-sm bg-muted/50 rounded px-2 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-medium">{schedule.employee?.nama_lengkap || 'Unknown'}</span>
-                                          {hasPermission('rooms.update') && (
-                                            <div className="flex items-center gap-1">
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6"
-                                                onClick={() => handleEditDoctorSchedule(schedule)}
-                                              >
-                                                <Pencil className="h-3 w-3" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 text-destructive"
-                                                onClick={() => handleDeleteDoctorSchedule(schedule.id)}
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                              </Button>
+                                              {hasPermission('rooms.update') && (
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUnit(unit)}>
+                                                  <Pencil className="h-4 w-4" />
+                                                </Button>
+                                              )}
+                                              {hasPermission('rooms.update') && (
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteUnit(unit.id)}>
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              )}
                                             </div>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                          <Clock className="h-3 w-3 text-muted-foreground" />
-                                          <span className="text-xs">{schedule.start_time} - {schedule.end_time}</span>
-                                          {schedule.max_patients > 0 && (
-                                            <Badge variant="outline" className="text-xs">Max {schedule.max_patients}</Badge>
-                                          )}
-                                        </div>
-                                        {schedule.consult_fee > 0 && (
-                                          <p className="text-xs text-muted-foreground mt-1">
-                                            Tarif: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(schedule.consult_fee)}
-                                          </p>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Tidak ada jadwal</p>
-                                )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
-                            );
-                          })}
+                            </>
+                          ) : (
+                            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                              Belum ada kamar untuk ruangan ini.
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="text-center py-6 text-muted-foreground border rounded-lg">
-                          <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Belum ada jadwal dokter</p>
+                        <div className="text-center py-8 text-muted-foreground">
+                          <BedDouble className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p>Ruangan ini tidak memiliki fitur tempat tidur</p>
                         </div>
                       )}
                     </div>
-                  </div>
-                </TabsContent>
+                  </TabsContent>
 
-                <TabsContent value="staff" className="mt-0 min-w-0 overflow-hidden">
-                  <StaffAssignmentPanel
-                    roomId={parseInt(id!)}
-                    masterData={masterData}
-                    staff={staff}
-                    onRefresh={loadData}
-                    hasPermission={hasPermission('rooms.update')}
-                  />
-                </TabsContent>
+                  {/* Schedules Tab */}
+                  <TabsContent value="schedules" className="mt-0 min-w-0 overflow-hidden">
+                    <div className="space-y-6">
+                      {/* Room Schedule (Jadwal Poli) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              Jadwal Operasional
+                            </h4>
+                            <p className="text-xs text-muted-foreground">Jadwal buka ruangan per hari</p>
+                          </div>
+                          {hasPermission('rooms.update') && (
+                            <Button onClick={handleAddSchedule} size="sm">
+                              <Plus className="mr-2 h-4 w-4" />
+                              Tambah Jadwal
+                            </Button>
+                          )}
+                        </div>
 
-                <TabsContent value="procedures" className="mt-0 min-w-0 overflow-hidden">
-                  <ProcedureAssignmentPanel
-                    roomId={parseInt(id!)}
-                    roomProcedures={roomProcedures}
-                    onRefresh={loadData}
-                    hasPermission={hasPermission('rooms.update')}
-                  />
-                </TabsContent>
+                        {schedules.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
+                              const dayIdx = idx === 6 ? 0 : idx + 1; // Convert to 0=Sunday format
+                              const daySchedules = schedules.filter(s => s.day_of_week === dayIdx);
+                              return (
+                                <div key={dayName} className="border rounded-lg p-3">
+                                  <div className="font-medium text-sm mb-2">{dayName}</div>
+                                  {daySchedules.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {daySchedules.map(schedule => (
+                                        <div key={schedule.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
+                                          <span>{schedule.start_time} - {schedule.end_time}</span>
+                                          <div className="flex items-center gap-1">
+                                            {schedule.max_patients > 0 && (
+                                              <Badge variant="outline" className="text-xs">Max {schedule.max_patients}</Badge>
+                                            )}
+                                            {hasPermission('rooms.update') && (
+                                              <>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-6 w-6"
+                                                  onClick={() => handleEditSchedule(schedule)}
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-6 w-6 text-destructive"
+                                                  onClick={() => handleDeleteSchedule(schedule.id)}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Tutup</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Belum ada jadwal operasional</p>
+                          </div>
+                        )}
+                      </div>
 
-                <TabsContent value="clinical-packages" className="mt-0 min-w-0 overflow-hidden">
-                  <ClinicalPackageAssignmentPanel
-                    roomId={parseInt(id!)}
-                    assignments={roomClinicalPackages}
-                    onRefresh={loadData}
-                    hasPermission={hasPermission('rooms.update')}
-                  />
-                </TabsContent>
+                      <hr className="border-border/50" />
 
-                <TabsContent value="inventories" className="mt-0 min-w-0 overflow-hidden">
-                  <InventoryAssignmentPanel
-                    roomId={parseInt(id!)}
-                    roomInventories={roomInventories}
-                    onRefresh={loadData}
-                    hasPermission={hasPermission('inventories.create')}
-                  />
-                </TabsContent>
+                      {/* Doctor Schedule (Jadwal Dokter) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              Jadwal Dokter
+                            </h4>
+                            <p className="text-xs text-muted-foreground">Jadwal praktik dokter di ruangan ini</p>
+                          </div>
+                          {hasPermission('rooms.update') && (
+                            <Button onClick={handleAddDoctorSchedule} size="sm">
+                              <Plus className="mr-2 h-4 w-4" />
+                              Tambah Jadwal Dokter
+                            </Button>
+                          )}
+                        </div>
 
-                <TabsContent value="medicines" className="mt-0 min-w-0 overflow-hidden">
-                  <MedicineAssignmentPanel
-                    roomId={parseInt(id!)}
-                    roomMedicines={roomMedicines}
-                    onRefresh={loadData}
-                    hasPermission={hasPermission('medicines.create')}
-                  />
-                </TabsContent>
+                        {doctorSchedules.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
+                              const dayIdx = idx === 6 ? 0 : idx + 1;
+                              const daySchedules = doctorSchedules.filter(s => s.day_of_week === dayIdx);
+                              return (
+                                <div key={dayName} className="border rounded-lg p-3">
+                                  <div className="font-medium text-sm mb-2">{dayName}</div>
+                                  {daySchedules.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {daySchedules.map(schedule => (
+                                        <div key={schedule.id} className="text-sm bg-muted/50 rounded px-2 py-2">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium">{schedule.employee?.nama_lengkap || 'Unknown'}</span>
+                                            {hasPermission('rooms.update') && (
+                                              <div className="flex items-center gap-1">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-6 w-6"
+                                                  onClick={() => handleEditDoctorSchedule(schedule)}
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-6 w-6 text-destructive"
+                                                  onClick={() => handleDeleteDoctorSchedule(schedule.id)}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <Clock className="h-3 w-3 text-muted-foreground" />
+                                            <span className="text-xs">{schedule.start_time} - {schedule.end_time}</span>
+                                            {schedule.max_patients > 0 && (
+                                              <Badge variant="outline" className="text-xs">Max {schedule.max_patients}</Badge>
+                                            )}
+                                          </div>
+                                          {schedule.consult_fee > 0 && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                              Tarif: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(schedule.consult_fee)}
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Tidak ada jadwal</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                            <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Belum ada jadwal dokter</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
 
-                {/* Room Tariffs Tab (for all room types) */}
-                <TabsContent value="tariffs" className="mt-0 min-w-0 overflow-hidden">
-                  <RoomTariffPanel
-                    roomId={parseInt(id!)}
-                    hasPermission={hasPermission}
-                  />
-                </TabsContent>
+                  <TabsContent value="staff" className="mt-0 min-w-0 overflow-hidden">
+                    <StaffAssignmentPanel
+                      masterData={masterData}
+                      staff={staff}
+                      hasPermission={hasPermission('rooms.update')}
+                      onAdd={() => setStaffDialogOpen(true)}
+                      onDelete={(staffId) => {
+                        setStaffToDelete(staffId);
+                        setDeleteStaffDialogOpen(true);
+                      }}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="procedures" className="mt-0 min-w-0 overflow-hidden">
+                    <ProcedureAssignmentPanel
+                      roomId={parseInt(id!)}
+                      roomProcedures={roomProcedures}
+                      onRefresh={loadData}
+                      hasPermission={hasPermission('rooms.update')}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="clinical-packages" className="mt-0 min-w-0 overflow-hidden">
+                    <ClinicalPackageAssignmentPanel
+                      roomId={parseInt(id!)}
+                      assignments={roomClinicalPackages}
+                      onRefresh={loadData}
+                      hasPermission={hasPermission('rooms.update')}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="inventories" className="mt-0 min-w-0 overflow-hidden">
+                    <InventoryAssignmentPanel
+                      roomId={parseInt(id!)}
+                      roomInventories={roomInventories}
+                      onRefresh={loadData}
+                      hasPermission={hasPermission('inventories.create')}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="medicines" className="mt-0 min-w-0 overflow-hidden">
+                    <MedicineAssignmentPanel
+                      roomId={parseInt(id!)}
+                      roomMedicines={roomMedicines}
+                      onRefresh={loadData}
+                      hasPermission={hasPermission('medicines.create')}
+                    />
+                  </TabsContent>
+
+                  {/* Room Tariffs Tab (for all room types) */}
+                  <TabsContent value="tariffs" className="mt-0 min-w-0 overflow-hidden">
+                    <RoomTariffPanel
+                      roomId={parseInt(id!)}
+                      hasPermission={hasPermission}
+                    />
+                  </TabsContent>
+                </div>
               </Tabs>
             )}
           </div>
@@ -1568,155 +1563,35 @@ export default function RoomShow() {
               </DialogHeader>
 
               <div className="max-h-[calc(85vh-10rem)] space-y-4 overflow-y-auto pr-1">
-                <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruangan</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.kodeRuang || "-"}</div>
+                <div className="rounded-lg border border-border/70 bg-background p-4">
+                  <div className="mb-4">
+                    <div className="text-sm font-semibold text-foreground">Daftar Kamar yang Akan Didaftarkan</div>
+                    <div className="text-xs text-muted-foreground">BPJS Aplicare mewajibkan pendaftaran per Kamar. Berikut daftar kamar dari ruangan ini beserta ketersediaan bed-nya.</div>
                   </div>
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruangan</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.namaRuang || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Kelas BPJS</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.kodeKelas || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Ketersediaan Bed</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.ketersediaan}</div>
+
+                  <div className="max-h-[calc(85vh-10rem)] space-y-4 overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
+                      {unitStats.map((stat, index) => (
+                        <div key={index} className="flex flex-col gap-1 rounded border border-border/70 bg-background p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold">{stat.unitName}</div>
+                            <Badge variant="outline">{stat.aplicareKodeKelas} ({stat.className})</Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">Kode: {stat.unitCode}</div>
+                          <div className="mt-2 text-sm font-medium">
+                            Tersedia: {stat.available} / {stat.total} bed
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
+                {/* Redundant room summary block removed to avoid confusing 'Ruangan' vs 'Kamar' semantics */}
+
                 {!aplicareMapping ? (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-border/70 bg-background p-4">
-                      <div className="mb-4">
-                        <div className="text-sm font-semibold text-foreground">Form Request Aplicare</div>
-                        <div className="text-xs text-muted-foreground">Sesuaikan payload yang akan dikirim ke BPJS sebelum ruangan didaftarkan.</div>
-                      </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-muted-foreground">Kode Kelas</div>
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                              <Select
-                                value={aplicareForm.kodekelas}
-                                onValueChange={(value) => setAplicareForm((current) => ({ ...current, kodekelas: value }))}
-                                disabled={aplicareRefKelasLoading || aplicareRefKelas.length === 0}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue
-                                    placeholder={aplicareRefKelasLoading ? "Memuat kelas Aplicare..." : "Pilih kelas Aplicare"}
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {aplicareRefKelas.map((item) => (
-                                    <SelectItem key={item.kodekelas} value={item.kodekelas}>
-                                      {item.kodekelas} - {item.namakelas}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                          </div>
-                          {!aplicareRefKelasLoading && aplicareRefKelas.length === 0 ? (
-                            <div className="text-[11px] text-amber-600">Referensi kelas Aplicare belum tersedia.</div>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-muted-foreground">Kode Ruang</div>
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                            <Input
-                              value={aplicareForm.koderuang}
-                              onChange={(event) => setAplicareForm((current) => ({ ...current, koderuang: event.target.value.toUpperCase() }))}
-                              placeholder="Kode ruangan di Aplicare"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <div className="text-xs font-medium text-muted-foreground">Nama Ruang</div>
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                            <Input
-                              value={aplicareForm.namaruang}
-                              onChange={(event) => setAplicareForm((current) => ({ ...current, namaruang: event.target.value }))}
-                              placeholder="Nama ruangan yang dikirim ke Aplicare"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-muted-foreground">Kapasitas</div>
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              value={aplicareForm.kapasitas}
-                              onChange={(event) => setAplicareForm((current) => ({ ...current, kapasitas: event.target.value }))}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-muted-foreground">Tersedia</div>
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              value={aplicareForm.tersedia}
-                              onChange={(event) => setAplicareForm((current) => ({ ...current, tersedia: event.target.value }))}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-3 sm:col-span-2">
-                          <div className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/20 p-3">
-                            <Checkbox
-                              id="aplicare-gender-availability"
-                              checked={useGenderAvailability}
-                              onCheckedChange={(checked) => handleGenderAvailabilityChange(checked === true)}
-                            />
-                            <div className="space-y-1">
-                              <div className="text-xs font-medium text-foreground">Pisahkan ketersediaan pria dan wanita</div>
-                              <div className="text-[11px] text-muted-foreground">
-                                Jika dicentang, tampilkan input ketersediaan pria dan wanita. Jika tidak, keduanya dikirim default `0`.
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {useGenderAvailability ? (
-                          <>
-                            <div className="space-y-2">
-                              <div className="text-xs font-medium text-muted-foreground">Tersedia Pria</div>
-                              <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={aplicareForm.tersediapria}
-                                  onChange={(event) => setAplicareForm((current) => ({ ...current, tersediapria: event.target.value, tersediapriawanita: "0" }))}
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="text-xs font-medium text-muted-foreground">Tersedia Wanita</div>
-                              <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={aplicareForm.tersediawanita}
-                                  onChange={(event) => setAplicareForm((current) => ({ ...current, tersediawanita: event.target.value, tersediapriawanita: "0" }))}
-                                />
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
-                        <div className="hidden">
-                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              value={aplicareForm.tersediapriawanita}
-                              onChange={(event) => setAplicareForm((current) => ({ ...current, tersediapriawanita: event.target.value }))}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
 
                     <div className="rounded-lg border border-border/70 bg-background p-4">
                       <div className="mb-4">
@@ -1747,22 +1622,22 @@ export default function RoomShow() {
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruang Aplicare</div>
-                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.koderuang}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruang Aplicare</div>
-                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namaruang}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kelas Aplicare</div>
-                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namakelas || aplicareMapping.kodekelas}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kapasitas / Tersedia</div>
-                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.tersedia} / {aplicareMapping.kapasitas}</div>
-                    </div>
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruang Aplicare</div>
+                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.koderuang}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruang Aplicare</div>
+                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namaruang}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kelas Aplicare</div>
+                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namakelas || aplicareMapping.kodekelas}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kapasitas / Tersedia</div>
+                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.tersedia} / {aplicareMapping.kapasitas}</div>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -96,6 +96,7 @@ func GetRoom(c *gin.Context) {
 		Preload("PICEmployee").Preload("PICEmployee.User").
 		Preload("Units", "deleted_at IS NULL").
 		Preload("Units.Beds", "deleted_at IS NULL").
+		Preload("Tariffs", "deleted_at IS NULL").
 		First(&room, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
 		return
@@ -232,15 +233,16 @@ type CreateRoomRequest struct {
 	ServiceType   string  `json:"service_type" binding:"required"`
 	RoomType      string  `json:"room_type" binding:"required"`
 	RoomClass     string  `json:"room_class"`
-	KodeKelasBPJS string  `json:"kode_kelas_bpjs"`
-	TotalFloors   int     `json:"total_floors"`
-	TariffPerDay  float64 `json:"tariff_per_day"`
-	Facilities    string  `json:"facilities"`
-	Description   string  `json:"description"`
-	HasBed        bool    `json:"has_bed"`
-	HasSchedule   bool    `json:"has_schedule"`
-	IsActive      bool    `json:"is_active"`
-	PICEmployeeID *uint   `json:"pic_employee_id"`
+	TotalFloors     int     `json:"total_floors"`
+	TariffPerDay    float64 `json:"tariff_per_day"`
+	RegistrationFee float64 `json:"registration_fee"`
+	Facilities      string  `json:"facilities"`
+	Description     string                    `json:"description"`
+	HasBed          bool                      `json:"has_bed"`
+	HasSchedule     bool                      `json:"has_schedule"`
+	IsActive        bool                      `json:"is_active"`
+	PICEmployeeID   *uint                     `json:"pic_employee_id"`
+	Tariffs         []CreateRoomTariffRequest `json:"tariffs"`
 }
 
 // CreateRoom creates a new room
@@ -281,27 +283,57 @@ func CreateRoom(c *gin.Context) {
 	}
 
 	room := models.Room{
-		Code:          code,
-		Name:          req.Name,
-		QueueCode:     req.QueueCode,
-		ServiceType:   req.ServiceType,
-		RoomType:      req.RoomType,
-		RoomClass:     req.RoomClass,
-		KodeKelasBPJS: req.KodeKelasBPJS,
-		TotalFloors:   totalFloors,
-		TariffPerDay:  req.TariffPerDay,
-		Facilities:    req.Facilities,
-		Description:   req.Description,
-		HasBed:        req.HasBed,
-		HasSchedule:   req.HasSchedule,
-		IsActive:      req.IsActive,
-		PICEmployeeID: req.PICEmployeeID,
+		Code:            code,
+		Name:            req.Name,
+		QueueCode:       req.QueueCode,
+		ServiceType:     req.ServiceType,
+		RoomType:        req.RoomType,
+		RoomClass:       req.RoomClass,
+		TotalFloors:     totalFloors,
+		TariffPerDay:    req.TariffPerDay,
+		RegistrationFee: req.RegistrationFee,
+		Facilities:      req.Facilities,
+		Description:     req.Description,
+		HasBed:          req.HasBed,
+		HasSchedule:     req.HasSchedule,
+		IsActive:        req.IsActive,
+		PICEmployeeID:   req.PICEmployeeID,
 	}
 
-	if err := database.DB.Create(&room).Error; err != nil {
+	tx := database.DB.Begin()
+
+	if err := tx.Create(&room).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat ruangan"})
 		return
 	}
+
+	// Create tariffs
+	for _, t := range req.Tariffs {
+		isActive := true
+		if t.IsActive != nil {
+			isActive = *t.IsActive
+		}
+
+		tariff := models.RoomTariff{
+			RoomID:       room.ID,
+			PatientClass: t.PatientClass,
+			Akomodasi:    t.Akomodasi,
+			Makan:        t.Makan,
+			Perawatan:    t.Perawatan,
+			Administrasi: t.Administrasi,
+			Lainnya:      t.Lainnya,
+			IsActive:     isActive,
+		}
+
+		if err := tx.Create(&tariff).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan tarif ruangan: " + err.Error()})
+			return
+		}
+	}
+
+	tx.Commit()
 
 	// Reload with PIC
 	database.DB.Preload("PICEmployee").Preload("PICEmployee.User").First(&room, room.ID)
@@ -311,21 +343,22 @@ func CreateRoom(c *gin.Context) {
 
 // UpdateRoomRequest represents the request to update a room
 type UpdateRoomRequest struct {
-	Code          string  `json:"code"`
-	Name          string  `json:"name" binding:"required"`
-	QueueCode     string  `json:"queue_code"`
-	ServiceType   string  `json:"service_type" binding:"required"`
-	RoomType      string  `json:"room_type" binding:"required"`
-	RoomClass     string  `json:"room_class"`
-	KodeKelasBPJS string  `json:"kode_kelas_bpjs"`
-	TotalFloors   int     `json:"total_floors"`
-	TariffPerDay  float64 `json:"tariff_per_day"`
-	Facilities    string  `json:"facilities"`
-	Description   string  `json:"description"`
-	HasBed        bool    `json:"has_bed"`
-	HasSchedule   bool    `json:"has_schedule"`
-	IsActive      bool    `json:"is_active"`
-	PICEmployeeID *uint   `json:"pic_employee_id"`
+	Code            string  `json:"code"`
+	Name            string  `json:"name" binding:"required"`
+	QueueCode       string  `json:"queue_code"`
+	ServiceType     string  `json:"service_type" binding:"required"`
+	RoomType        string  `json:"room_type" binding:"required"`
+	RoomClass       string  `json:"room_class"`
+	TotalFloors     int     `json:"total_floors"`
+	TariffPerDay    float64 `json:"tariff_per_day"`
+	RegistrationFee float64 `json:"registration_fee"`
+	Facilities      string  `json:"facilities"`
+	Description     string  `json:"description"`
+	HasBed          bool    `json:"has_bed"`
+	HasSchedule     bool                      `json:"has_schedule"`
+	IsActive        bool                      `json:"is_active"`
+	PICEmployeeID   *uint                     `json:"pic_employee_id"`
+	Tariffs         []CreateRoomTariffRequest `json:"tariffs"`
 }
 
 // UpdateRoom updates an existing room
@@ -372,9 +405,9 @@ func UpdateRoom(c *gin.Context) {
 	room.ServiceType = req.ServiceType
 	room.RoomType = req.RoomType
 	room.RoomClass = req.RoomClass
-	room.KodeKelasBPJS = req.KodeKelasBPJS
 	room.TotalFloors = totalFloors
 	room.TariffPerDay = req.TariffPerDay
+	room.RegistrationFee = req.RegistrationFee
 	room.Facilities = req.Facilities
 	room.Description = req.Description
 	room.HasBed = req.HasBed
@@ -382,10 +415,47 @@ func UpdateRoom(c *gin.Context) {
 	room.IsActive = req.IsActive
 	room.PICEmployeeID = req.PICEmployeeID
 
-	if err := database.DB.Save(&room).Error; err != nil {
+	tx := database.DB.Begin()
+
+	if err := tx.Save(&room).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui ruangan"})
 		return
 	}
+
+	// Delete existing tariffs
+	if err := tx.Exec("DELETE FROM room_tariffs WHERE room_id = ?", room.ID).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus tarif lama: " + err.Error()})
+		return
+	}
+
+	// Create new tariffs
+	for _, t := range req.Tariffs {
+		isActive := true
+		if t.IsActive != nil {
+			isActive = *t.IsActive
+		}
+
+		tariff := models.RoomTariff{
+			RoomID:       room.ID,
+			PatientClass: t.PatientClass,
+			Akomodasi:    t.Akomodasi,
+			Makan:        t.Makan,
+			Perawatan:    t.Perawatan,
+			Administrasi: t.Administrasi,
+			Lainnya:      t.Lainnya,
+			IsActive:     isActive,
+		}
+
+		if err := tx.Create(&tariff).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui tarif ruangan: " + err.Error()})
+			return
+		}
+	}
+
+	tx.Commit()
 
 	// Reload with PIC
 	database.DB.Preload("PICEmployee").Preload("PICEmployee.User").First(&room, room.ID)
@@ -470,6 +540,7 @@ type CreateRoomUnitRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Floor    int    `json:"floor"`
 	Capacity int    `json:"capacity"`
+	Class    string `json:"class"`
 	IsActive bool   `json:"is_active"`
 	Notes    string `json:"notes"`
 }
@@ -528,12 +599,13 @@ func CreateRoomUnit(c *gin.Context) {
 		Name:     req.Name,
 		Floor:    floor,
 		Capacity: capacity,
+		Class:    req.Class,
 		IsActive: req.IsActive,
 		Notes:    req.Notes,
 	}
 
 	if err := database.DB.Create(&unit).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kamar"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kamar: " + err.Error()})
 		return
 	}
 
@@ -546,6 +618,7 @@ type UpdateRoomUnitRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Floor    int    `json:"floor"`
 	Capacity int    `json:"capacity"`
+	Class    string `json:"class"`
 	IsActive bool   `json:"is_active"`
 	Notes    string `json:"notes"`
 }
@@ -597,14 +670,18 @@ func UpdateRoomUnit(c *gin.Context) {
 		capacity = 1
 	}
 
+	if req.Code != "" {
+		unit.Code = req.Code
+	}
 	unit.Name = req.Name
 	unit.Floor = floor
 	unit.Capacity = capacity
+	unit.Class = req.Class
 	unit.IsActive = req.IsActive
 	unit.Notes = req.Notes
 
 	if err := database.DB.Save(&unit).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui kamar"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui kamar: " + err.Error()})
 		return
 	}
 

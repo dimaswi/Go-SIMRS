@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { PageContent, PageHeader, PageShell } from "@/components/layout/page-shell";
@@ -25,6 +25,7 @@ export default function UserEdit() {
     full_name: "",
     role_id: "",
     employee_id: "",
+    password: "",
     is_active: true,
   });
 
@@ -45,6 +46,7 @@ export default function UserEdit() {
         full_name: user.full_name,
         role_id: String(user.role_id),
         employee_id: user.employee_id ? String(user.employee_id) : "",
+        password: "",
         is_active: user.is_active,
       });
       setRoles(rolesRes.data.data);
@@ -123,19 +125,34 @@ export default function UserEdit() {
             <SectionPanel
               icon={User}
               title="Profil User"
-              description="Perbarui nama yang tampil di aplikasi untuk akun ini."
+              description="Perbarui nama yang tampil di aplikasi untuk akun ini atau ubah password jika diperlukan."
             >
-              <div className="space-y-2">
-                <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Nama Lengkap
-                </Label>
-                <Input
-                  id="full_name"
-                  required
-                  placeholder="Masukkan nama lengkap"
-                  value={formData.full_name}
-                  onChange={(event) => setFormData((current) => ({ ...current, full_name: event.target.value }))}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Nama Lengkap
+                  </Label>
+                  <Input
+                    id="full_name"
+                    required
+                    placeholder="Masukkan nama lengkap"
+                    value={formData.full_name}
+                    onChange={(event) => setFormData((current) => ({ ...current, full_name: event.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Ganti Password (Opsional)
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Kosongkan jika tidak ingin mengubah password"
+                    value={formData.password || ""}
+                    onChange={(event) => setFormData((current) => ({ ...current, password: event.target.value }))}
+                  />
+                </div>
               </div>
             </SectionPanel>
 

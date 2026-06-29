@@ -43,19 +43,19 @@ func SetupProcedureOrderRoutes(r *gin.RouterGroup) {
 		procedureOrders.POST("/:id/validate", middleware.RequirePermission("procedure_orders.validate"), handlers.ValidateProcedureResult)
 
 		// Print result
-		procedureOrders.GET("/:id/print", middleware.RequirePermission("procedure_orders.view"), handlers.PrintProcedureOrderResult)
+		procedureOrders.GET("/:id/print", middleware.RequirePermission("procedure_orders.view"), handlers.PrintMR28OperativeReport)
 
 		// Print laboratory result (all items)
-		procedureOrders.GET("/:id/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintLaboratoryResult)
+		procedureOrders.GET("/:id/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintMR16LaboratoryResult)
 
 		// Print radiology result (all items)
-		procedureOrders.GET("/:id/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintRadiologyResult)
+		procedureOrders.GET("/:id/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintMR17RadiologyResult)
 
 		// Print single laboratory result item
-		procedureOrders.GET("/items/:itemId/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintLaboratoryResultItem)
+		procedureOrders.GET("/items/:itemId/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintMR16LaboratoryResultItem)
 
 		// Print single radiology result item
-		procedureOrders.GET("/items/:itemId/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintRadiologyResultItem)
+		procedureOrders.GET("/items/:itemId/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintMR17RadiologyResultItem)
 
 		// Get orders by source visit
 		procedureOrders.GET("/by-visit/:visit_id", middleware.RequirePermission("procedure_orders.view"), handlers.GetOrdersBySourceVisit)

@@ -124,10 +124,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       
       // Show toast using sonner
       console.log("[handleSSENotification] Showing toast:", data.title, data.message);
-      toast.info(data.title || "Notifikasi Baru", {
+      
+      const toastOpts = {
         description: data.message || "Ada notifikasi baru",
         duration: 5000,
-      });
+      };
+
+      if (data.type === "success") {
+        toast.success(data.title || "Sukses", toastOpts);
+      } else if (data.type === "error") {
+        toast.error(data.title || "Error", toastOpts);
+      } else if (data.type === "warning") {
+        toast.warning(data.title || "Peringatan", toastOpts);
+      } else {
+        toast.info(data.title || "Notifikasi Baru", toastOpts);
+      }
 
       // Add to notifications list if has ID
       if (data.id) {

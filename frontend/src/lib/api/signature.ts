@@ -57,6 +57,7 @@ export interface DocumentSignatureStatus {
     full_name: string;
   };
   signed_slots?: Record<string, boolean>;
+  slot_details?: Record<string, any>;
 }
 
 export interface DocumentSignatureRule {
@@ -174,6 +175,7 @@ export const DOCUMENT_TYPES = {
   DEATH_CERTIFICATE: 'death_certificate',
   REFERRAL_LETTER: 'referral_letter',
   GENERAL_CONSENT: 'general_consent',
+  GENERAL_CONSENT_INPATIENT: 'general_consent_inpatient',
   INFORMED_CONSENT: 'informed_consent',
   CPPT: 'cppt',
   NURSING_CARE: 'nursing_care',
@@ -188,6 +190,7 @@ export const DOCUMENT_TYPES = {
   PHARMACY_HANDOVER: 'pharmacy_handover',
   SPRI: 'spri',
   SURAT_KONTROL: 'surat_kontrol',
+  BERSALIN: 'bersalin',
   // RM Duplicate (E-Klaim)
   RM_DUP_LAB_RESULT: 'rm_dup_lab_result',
   RM_DUP_RADIOLOGY_RESULT: 'rm_dup_radiology_result',
@@ -210,6 +213,7 @@ export const DOCUMENT_TYPES = {
   RM_DUP_VITAL_SIGN: 'rm_dup_vital_sign',
   RM_DUP_INPATIENT_CERT: 'rm_dup_inpatient_cert',
   RM_DUP_BILLING: 'rm_dup_billing',
+  RM_DUP_BERSALIN: 'rm_dup_bersalin',
 } as const;
 
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
@@ -225,6 +229,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   death_certificate: 'Surat Kematian',
   referral_letter: 'Surat Rujukan',
   general_consent: 'General Consent',
+  general_consent_inpatient: 'Persetujuan Rawat Inap',
   informed_consent: 'Informed Consent',
   cppt: 'CPPT',
   nursing_care: 'Asuhan Keperawatan',
@@ -239,6 +244,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   pharmacy_handover: 'Serah Terima Obat',
   spri: 'SPRI',
   surat_kontrol: 'Surat Kontrol',
+  bersalin: 'Catatan Persalinan',
 };
 
 // ==================== API Functions ====================
@@ -261,7 +267,7 @@ export const signatureApi = {
   signDocument: (data: SignDocumentRequest) =>
     api.post<SignatureResponse>('/signature/sign', data),
 
-  revokeSignature: (data: { document_type: string; document_id: number; pin: string; reason?: string }) =>
+  revokeSignature: (data: { document_type: string; document_id: number; pin: string; reason?: string; slot?: string }) =>
     api.post<{ message: string; revoked_at: string; revoked_by: string }>('/signature/revoke', data),
 
   getDocumentSignature: (documentType: string, documentId: number) =>
@@ -272,6 +278,11 @@ export const signatureApi = {
   canSignDocument: (documentType: string, documentId: number) =>
     api.get<CanSignResponse>('/signature/can-sign', {
       params: { document_type: documentType, document_id: documentId }
+    }),
+
+  getPatientLink: (documentType: string, documentId: number, patientName: string, slot: string) =>
+    api.get<{ token: string }>('/signature/patient-link', {
+      params: { document_type: documentType, document_id: documentId, patient_name: patientName, slot }
     }),
 
   checkPINRequired: () =>

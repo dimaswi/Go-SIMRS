@@ -10,10 +10,10 @@ import (
 func setupPatientRoutes(rg *gin.RouterGroup) {
 	// Patient list and CRUD
 	rg.GET("/patients", middleware.RequirePermission("patients.view"), handlers.GetPatients)
-	rg.GET("/patients/search", middleware.RequirePermission("patients.view"), handlers.SearchPatients)
+	rg.GET("/patients/search", middleware.RequireAnyPermission("patients.view", "visits.view", "registrations.view", "medical_records.view"), handlers.SearchPatients)
 	rg.GET("/patients/stats", middleware.RequirePermission("patients.view"), handlers.GetPatientStats)
-	rg.GET("/patients/by-rm/:no_rm", middleware.RequirePermission("patients.view"), handlers.GetPatientByNoRM)
-	rg.GET("/patients/:id", middleware.RequirePermission("patients.view"), handlers.GetPatient)
+	rg.GET("/patients/by-rm/:no_rm", middleware.RequireAnyPermission("patients.view", "visits.view", "registrations.view", "medical_records.view"), handlers.GetPatientByNoRM)
+	rg.GET("/patients/:id", middleware.RequireAnyPermission("patients.view", "visits.view", "registrations.view", "medical_records.view"), handlers.GetPatient)
 	rg.POST("/patients", middleware.RequirePermission("patients.create"), handlers.CreatePatient)
 	rg.PUT("/patients/:id", middleware.RequirePermission("patients.update"), handlers.UpdatePatient)
 	rg.DELETE("/patients/:id", middleware.RequirePermission("patients.delete"), handlers.DeletePatient)

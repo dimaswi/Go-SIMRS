@@ -387,12 +387,14 @@ type AdmissionRequest struct {
 	Registration   *Registration `gorm:"foreignKey:RegistrationID" json:"registration,omitempty"`
 
 	// Request Details from Doctor/Nurse
-	AdmissionType   string `gorm:"size:30;not null" json:"admission_type"`   // elektif, emergency
+	AdmissionType   string `gorm:"size:30" json:"admission_type,omitempty"`   // elektif, emergency (now optional)
 	AdmissionReason string `gorm:"type:text" json:"admission_reason"`        // Alasan rawat inap
 	Diagnosis       string `gorm:"type:text" json:"diagnosis,omitempty"`     // Diagnosis sementara
 	Priority        string `gorm:"size:20;default:'normal'" json:"priority"` // normal, urgent, emergency
 	PreferredClass  string `gorm:"size:30" json:"preferred_class,omitempty"` // Kelas yang diminta (vvip, vip, 1, 2, 3)
 	SpecialNotes    string `gorm:"type:text" json:"special_notes,omitempty"` // Catatan khusus (isolasi, dll)
+	SuggestedBedID  *uint  `gorm:"index" json:"suggested_bed_id,omitempty"`  // Saran bed dari dokter/perawat
+	SuggestedBed    *Bed   `gorm:"foreignKey:SuggestedBedID" json:"suggested_bed,omitempty"`
 
 	// Status
 	Status AdmissionRequestStatus `gorm:"size:20;default:'pending';index" json:"status"`

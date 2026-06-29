@@ -149,6 +149,12 @@ type BillingItem struct {
 	UnitPrice float64 `gorm:"type:decimal(15,2);not null" json:"unit_price"`
 	Subtotal  float64 `gorm:"type:decimal(15,2);not null" json:"subtotal"`
 
+	// Discount Info
+	DiscountType   string  `gorm:"size:20" json:"discount_type,omitempty"`     // percentage, fixed, full
+	DiscountValue  float64 `gorm:"type:decimal(15,2);default:0" json:"discount_value,omitempty"`
+	DiscountAmount float64 `gorm:"type:decimal(15,2);default:0" json:"discount_amount,omitempty"`
+	DiscountNote   string  `gorm:"size:255" json:"discount_note,omitempty"`
+
 	// Tariff Components (for procedures)
 	Administrasi   float64 `gorm:"type:decimal(15,2);default:0" json:"administrasi"`
 	Sarana         float64 `gorm:"type:decimal(15,2);default:0" json:"sarana"`
@@ -222,6 +228,10 @@ type BillingPayment struct {
 	// Cashier
 	CashierID uint  `gorm:"not null;index" json:"cashier_id"`
 	Cashier   *User `gorm:"foreignKey:CashierID" json:"cashier,omitempty"`
+
+	// Cashier Shift Reference
+	CashierShiftID *uint         `gorm:"index" json:"cashier_shift_id"`
+	CashierShift   *CashierShift `gorm:"foreignKey:CashierShiftID" json:"cashier_shift,omitempty"`
 
 	// Status
 	Status string `gorm:"size:20;default:'completed'" json:"status"` // completed, voided, refunded

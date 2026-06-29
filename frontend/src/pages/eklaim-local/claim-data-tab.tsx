@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-// Collapsible removed â€” all sections always visible
+// Collapsible removed - all sections always visible
 import {
   caraMasukOptions,
   jenisRawatOptions,
@@ -305,7 +305,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
           setKodeTarif(defaults.kode_tarif);
         }
       } catch {
-        // Silent fail â€” defaults are optional
+        // Silent fail - defaults are optional
       }
     };
     loadDefaults();

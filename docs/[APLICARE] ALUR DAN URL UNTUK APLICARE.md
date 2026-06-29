@@ -112,7 +112,7 @@ Request :
 - Klik tombol **"Daftarkan Ruangan"** di pojok kanan atas
 - Pilih ruangan rawat inap SIMRS dari dropdown (hanya ruangan yang `has_bed = true`)
 - Kode kelas BPJS di-mapping otomatis dari `room_class` SIMRS:
-  - `vvip` → `VVP`, `vip` → `VIP`, `kelas_1` → `KLS1`, `kelas_2` → `KLS2`, `kelas_3` → `KLS3`, `icu` → `ICU`
+  - `vvip` → `VVP`, `vip` → `VIP`, `kelas_1` → `KL1`, `kelas_2` → `KL2`, `kelas_3` → `KL3`, `icu` → `ICU`
 - Data kapasitas dan ketersediaan tempat tidur diambil langsung dari SIMRS
 - Klik **"Daftarkan"** untuk mengirim ke BPJS via API `bed/create`
 

@@ -32,22 +32,12 @@ import {
 import { medicineOrdersApi } from "@/lib/api";
 import type { MedicineOrder, MedicineOrderItem, MedicineReturn } from "@/lib/api";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
+import { getPharmacyOrderStatusMeta } from "./pharmacy-status";
 
 interface PharmacyReturnProps {
   visitId: number;
   readOnly?: boolean;
 }
-
-const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending: { label: "Menunggu Telaah", variant: "secondary" },
-  reviewed: { label: "Sudah Ditelaah", variant: "default" },
-  preparing: { label: "Disiapkan", variant: "default" },
-  ready: { label: "Siap Diserahkan", variant: "default" },
-  delivered: { label: "Sudah Diserahkan", variant: "default" },
-  cancelled: { label: "Dibatalkan", variant: "destructive" },
-  partial: { label: "Sebagian", variant: "outline" },
-  returned: { label: "Ada Return", variant: "outline" },
-};
 
 const formatRupiah = (value: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -273,14 +263,17 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
                   <SelectContent>
                     {orders.map((order) => (
                       <SelectItem key={order.id} value={String(order.id)}>
-                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                        {order.order_number} - {getPharmacyOrderStatusMeta(order.status).label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {selectedOrder && (
-                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  <Badge
+                    variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                    className={getPharmacyOrderStatusMeta(selectedOrder.status).className}
+                  >
+                    {getPharmacyOrderStatusMeta(selectedOrder.status).label}
                   </Badge>
                 )}
               </div>
@@ -365,8 +358,11 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
                     </Button>
                   )}
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
-                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                    <Badge
+                      variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                      className={`h-5 px-1.5 py-0 text-[10px] ${getPharmacyOrderStatusMeta(selectedOrder.status).className}`}
+                    >
+                      {getPharmacyOrderStatusMeta(selectedOrder.status).label}
                     </Badge>
                     <OrderDetailInfoButton
                       title="Detail Order Farmasi"

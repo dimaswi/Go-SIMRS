@@ -214,14 +214,14 @@ func GenerateBilling(c *gin.Context) {
 		return
 	}
 
-	// Check if registration is completed
-	if registration.Status != "completed" && registration.Status != "discharged" {
-		// Also check if main visit is completed
-		if visit.Status != models.VisitStatusCompleted {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran atau kunjungan utama harus dalam status selesai untuk membuat billing"})
-			return
-		}
-	}
+	// Check if registration is completed (REMOVED: User wants to allow billing before final)
+	// if registration.Status != "completed" && registration.Status != "discharged" {
+	// 	// Also check if main visit is completed
+	// 	if visit.Status != models.VisitStatusCompleted {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran atau kunjungan utama harus dalam status selesai untuk membuat billing"})
+	// 		return
+	// 	}
+	// }
 
 	// Check if billing already exists for this registration
 	var existingBilling models.Billing
@@ -628,55 +628,29 @@ func generateAdministrasiFee(tx *gorm.DB, billing *models.Billing, visit *models
 	}
 
 	if !foundTariff {
-		// Use legacy registration_fee
-		if room.RegistrationFee > 0 {
-			item := models.BillingItem{
-				BillingID:     billing.ID,
-				SourceVisitID: &visit.ID,
-				ItemType:      models.BillingItemTypeRegistration,
-				ReferenceID:   room.ID,
-				ReferenceType: "room",
-				Description:   fmt.Sprintf("Biaya Pendaftaran %s", room.Name),
-				Quantity:      1,
-				Unit:          "kali",
-				UnitPrice:     room.RegistrationFee,
-				Subtotal:      room.RegistrationFee,
-			}
-			// Set registrar info
-			if registration.RegisteredBy != nil {
-				item.PerformedByID = &registration.RegisteredByID
-				item.PerformedByName = registration.RegisteredBy.FullName
-				item.PerformedByRole = "admin"
-			}
-			if err := tx.Create(&item).Error; err != nil {
-				return err
-			}
-			fmt.Printf("[BILLING] Created legacy registration fee: %.0f\n", room.RegistrationFee)
-		} else {
-			// No tariff and no legacy fee - create 0 amount registration item
-			item := models.BillingItem{
-				BillingID:     billing.ID,
-				SourceVisitID: &visit.ID,
-				ItemType:      models.BillingItemTypeRegistration,
-				ReferenceID:   room.ID,
-				ReferenceType: "room",
-				Description:   fmt.Sprintf("Biaya Pendaftaran %s", room.Name),
-				Quantity:      1,
-				Unit:          "kali",
-				UnitPrice:     0,
-				Subtotal:      0,
-			}
-			// Set registrar info
-			if registration.RegisteredBy != nil {
-				item.PerformedByID = &registration.RegisteredByID
-				item.PerformedByName = registration.RegisteredBy.FullName
-				item.PerformedByRole = "admin"
-			}
-			if err := tx.Create(&item).Error; err != nil {
-				return err
-			}
-			fmt.Printf("[BILLING] Created 0 registration fee (no tariff found) for room: %s\n", room.Name)
+		// No tariff found - create 0 amount administration item
+		item := models.BillingItem{
+			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
+			ItemType:      models.BillingItemTypeRegistration,
+			ReferenceID:   room.ID,
+			ReferenceType: "room",
+			Description:   fmt.Sprintf("Biaya Administrasi %s", room.Name),
+			Quantity:      1,
+			Unit:          "kali",
+			UnitPrice:     0,
+			Subtotal:      0,
 		}
+		// Set registrar info
+		if registration.RegisteredBy != nil {
+			item.PerformedByID = &registration.RegisteredByID
+			item.PerformedByName = registration.RegisteredBy.FullName
+			item.PerformedByRole = "admin"
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		fmt.Printf("[BILLING] Created 0 administration fee (no tariff found) for room: %s\n", room.Name)
 		return nil
 	}
 
@@ -917,8 +891,32 @@ func generateVisitProcedureItems(tx *gorm.DB, billing *models.Billing, visit *mo
 			billingItem.NonMedis = tariff.NonMedis
 		}
 
+		// Apply discount if any
+		var discountAmount float64 = 0
+		if vp.DiscountType != "" {
+			switch vp.DiscountType {
+			case "percentage":
+				discountAmount = (unitPrice * vp.DiscountValue) / 100
+			case "fixed":
+				discountAmount = vp.DiscountValue
+			case "full":
+				discountAmount = unitPrice
+			}
+		}
+		
+		// If the original discount amount was already calculated on frontend/backend differently, we can use it, but recalc is safer.
+		// We'll use the calculated discountAmount. Make sure it doesn't exceed unitPrice
+		if discountAmount > unitPrice {
+			discountAmount = unitPrice
+		}
+
+		billingItem.DiscountType = vp.DiscountType
+		billingItem.DiscountValue = vp.DiscountValue
+		billingItem.DiscountAmount = discountAmount
+		billingItem.DiscountNote = vp.DiscountNote
+
 		billingItem.UnitPrice = unitPrice
-		billingItem.Subtotal = unitPrice
+		billingItem.Subtotal = unitPrice - discountAmount
 
 		if err := tx.Create(&billingItem).Error; err != nil {
 			return err
@@ -1391,6 +1389,18 @@ func CreatePayment(c *gin.Context) {
 		return
 	}
 
+	// === CEK SHIFT KASIR AKTIF ===
+	var activeShift models.CashierShift
+	if err := database.DB.Where("status = ? AND cashier_id = ?", "active", userID.(uint)).First(&activeShift).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Anda belum membuka shift kasir. Harap buka shift terlebih dahulu."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengecek shift aktif: " + err.Error()})
+		return
+	}
+	// ===============================
+
 	var billing models.Billing
 	if err := database.DB.First(&billing, billingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Billing not found"})
@@ -1511,6 +1521,7 @@ func CreatePayment(c *gin.Context) {
 		CardNumber:         input.CardNumber,
 		ReferenceNumber:    input.ReferenceNumber,
 		CashierID:          userID.(uint),
+		CashierShiftID:     &activeShift.ID,
 		Status:             "completed",
 		Notes:              input.Notes,
 	}

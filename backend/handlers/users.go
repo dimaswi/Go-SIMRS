@@ -32,7 +32,7 @@ func GetUser(c *gin.Context) {
 }
 
 type CreateUserRequest struct {
-	Email      string `json:"email" binding:"required,email"`
+	Email      string `json:"email" binding:"omitempty,email"`
 	Username   string `json:"username" binding:"required"`
 	Password   string `json:"password" binding:"required,min=6"`
 	FullName   string `json:"full_name" binding:"required"`
@@ -45,6 +45,10 @@ func CreateUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	if req.Email == "" {
+		req.Email = req.Username + "@simrs.local"
 	}
 
 	user := models.User{
@@ -75,6 +79,7 @@ type UpdateUserRequest struct {
 	RoleID     uint   `json:"role_id"`
 	EmployeeID *uint  `json:"employee_id"`
 	IsActive   *bool  `json:"is_active"`
+	Password   string `json:"password,omitempty"`
 }
 
 func UpdateUser(c *gin.Context) {
@@ -103,6 +108,13 @@ func UpdateUser(c *gin.Context) {
 
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive
+	}
+
+	if req.Password != "" {
+		if err := user.HashPassword(req.Password); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			return
+		}
 	}
 
 	if err := database.DB.Save(&user).Error; err != nil {

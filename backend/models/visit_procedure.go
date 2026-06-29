@@ -39,6 +39,12 @@ type VisitProcedure struct {
 	// Notes
 	Notes string `gorm:"type:text" json:"notes,omitempty"` // Catatan tambahan
 
+	// Discount Info
+	DiscountType   string  `gorm:"size:20" json:"discount_type,omitempty"`     // percentage, fixed, full
+	DiscountValue  float64 `gorm:"type:decimal(15,2);default:0" json:"discount_value,omitempty"`
+	DiscountAmount float64 `gorm:"type:decimal(15,2);default:0" json:"discount_amount,omitempty"`
+	DiscountNote   string  `gorm:"size:255" json:"discount_note,omitempty"`
+
 	// SatuSehat Integration
 	SatusehatProcedureID        string `gorm:"size:100" json:"satusehat_procedure_id"`        // FHIR Procedure ID
 	SatusehatServiceRequestID   string `gorm:"size:100" json:"satusehat_servicerequest_id"`   // FHIR ServiceRequest ID

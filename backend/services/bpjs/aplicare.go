@@ -403,11 +403,11 @@ func MapRoomClassToAplicare(roomClass string) string {
 	case "vip":
 		return "VIP"
 	case "kelas_1":
-		return "KLS1"
+		return "KL1"
 	case "kelas_2":
-		return "KLS2"
+		return "KL2"
 	case "kelas_3":
-		return "KLS3"
+		return "KL3"
 	case "icu":
 		return "ICU"
 	default:
@@ -437,8 +437,8 @@ func UpdateRoomBedAvailability(roomID uint, source string) {
 			return
 		}
 
-		room.ComputeBedStats(database.DB)
-		fmt.Printf("[Aplicare] Mulai sync room %s source=%s kapasitas=%d tersedia=%d\n", room.Code, source, room.TotalBeds, room.AvailableBeds)
+		unitStats := room.ComputeBedStatsByUnit(database.DB)
+		fmt.Printf("[Aplicare] Mulai sync room %s source=%s\n", room.Code, source)
 
 		client, err := NewAplicareClient()
 		if err != nil {
@@ -446,40 +446,51 @@ func UpdateRoomBedAvailability(roomID uint, source string) {
 			return
 		}
 
-		mapped, existingRoom, err := client.IsRoomMappedInAplicare(room.Code)
-		if err != nil {
-			fmt.Printf("[Aplicare] Gagal cek mapping room %s source=%s: %v\n", room.Code, source, err)
-			return
-		}
-		if !mapped {
-			fmt.Printf("[Aplicare] Skip update room %s source=%s karena belum termapping di Aplicare\n", room.Code, source)
-			return
-		}
+		for _, stat := range unitStats {
+			kodeKelas := MapRoomClassToAplicare(stat.Class)
 
-		kodeKelas := room.KodeKelasBPJS
-		if kodeKelas == "" {
-			kodeKelas = MapRoomClassToAplicare(room.RoomClass)
-		}
-		if existingRoom != nil && existingRoom.KodeKelas != "" {
-			kodeKelas = existingRoom.KodeKelas
-		}
+			kodeRuang := stat.UnitCode
+			if kodeRuang == "" {
+				kodeRuang = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
+			}
+			
+			// BPJS Aplicare implicitly truncates KodeRuang to 10 characters
+			if len(kodeRuang) > 10 {
+				kodeRuang = kodeRuang[:10]
+			}
 
-		req := AplicareBedRequest{
-			KodeKelas:          kodeKelas,
-			KodeRuang:          room.Code,
-			NamaRuang:          room.Name,
-			Kapasitas:          strconv.Itoa(room.TotalBeds),
-			Tersedia:           strconv.Itoa(room.AvailableBeds),
-			TersediaPria:       "0",
-			TersediaWanita:     "0",
-			TersediaPriaWanita: "0",
-		}
+			namaRuang := stat.UnitName
+			if namaRuang == "" {
+				namaRuang = room.Name
+			}
 
-		if err := client.UpdateBed(req); err != nil {
-			fmt.Printf("[Aplicare] Gagal update bed availability room %s source=%s: %v\n", room.Code, source, err)
-			return
-		}
+			mapped, _, err := client.IsRoomMappedInAplicare(kodeRuang)
+			if err != nil {
+				fmt.Printf("[Aplicare] Gagal cek mapping kamar %s source=%s: %v\n", kodeRuang, source, err)
+				continue
+			}
+			if !mapped {
+				fmt.Printf("[Aplicare] Skip update kamar %s source=%s karena belum termapping di Aplicare\n", kodeRuang, source)
+				continue
+			}
 
-		fmt.Printf("[Aplicare] Berhasil update bed availability room %s source=%s: kapasitas=%d tersedia=%d\n", room.Code, source, room.TotalBeds, room.AvailableBeds)
+			req := AplicareBedRequest{
+				KodeKelas:          kodeKelas,
+				KodeRuang:          kodeRuang,
+				NamaRuang:          namaRuang,
+				Kapasitas:          strconv.Itoa(stat.TotalBeds),
+				Tersedia:           strconv.Itoa(stat.AvailableBeds),
+				TersediaPria:       "0",
+				TersediaWanita:     "0",
+				TersediaPriaWanita: "0",
+			}
+
+			if err := client.UpdateBed(req); err != nil {
+				fmt.Printf("[Aplicare] Gagal update bed availability kamar %s kelas %s source=%s: %v\n", kodeRuang, stat.Class, source, err)
+				continue
+			}
+
+			fmt.Printf("[Aplicare] Berhasil update bed availability kamar %s kelas %s source=%s: kapasitas=%d tersedia=%d\n", kodeRuang, stat.Class, source, stat.TotalBeds, stat.AvailableBeds)
+		}
 	}()
 }

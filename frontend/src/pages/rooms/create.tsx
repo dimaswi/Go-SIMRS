@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { roomsApi, masterDataApi, employeesApi, type MasterData, type Employee } from "@/lib/api";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { roomsApi, masterDataApi, employeesApi, ROOM_TARIFF_COMPONENTS, type MasterData, type Employee, type RoomTariffRequest } from "@/lib/api";
 import { bpjsApi, type AplicareRefKelasItem } from "@/lib/api/bpjs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Building2, DollarSign, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function RoomCreate() {
@@ -19,7 +20,7 @@ export default function RoomCreate() {
   const [loading, setLoading] = useState(false);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [refKelasBpjs, setRefKelasBpjs] = useState<AplicareRefKelasItem[]>([]);
+  const [_refKelasBpjs, setRefKelasBpjs] = useState<AplicareRefKelasItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const [formData, setFormData] = useState({
@@ -27,17 +28,16 @@ export default function RoomCreate() {
     queue_code: "",
     service_type: "",
     room_type: "",
-    room_class: "",
-    kode_kelas_bpjs: "",
     total_floors: 1,
-    registration_fee: 0,
     tariff_per_day: 0,
+    registration_fee: 0,
     facilities: "",
     description: "",
     has_bed: false,
     has_schedule: false,
     is_active: true,
     pic_employee_id: null as number | null,
+    tariffs: [] as RoomTariffRequest[],
   });
 
   useEffect(() => {
@@ -48,11 +48,26 @@ export default function RoomCreate() {
   const loadData = async () => {
     try {
       const [masterDataRes, employeesRes] = await Promise.all([
-        masterDataApi.getMultiple(['service_type', 'room_type', 'room_class']),
+        masterDataApi.getMultiple(['service_type', 'room_type', 'patient_class']),
         employeesApi.getAll({ limit: 1000 }),
       ]);
-      setMasterData(masterDataRes.data.data || {});
+      const data = masterDataRes.data.data || {};
+      setMasterData(data);
       setEmployees(employeesRes.data.data || []);
+
+      // Initialize tariffs based on patient_class master data
+      if (data.patient_class && data.patient_class.length > 0) {
+        const initialTariffs: RoomTariffRequest[] = data.patient_class.map((pc: { code: string; name: string }) => ({
+          patient_class: pc.code,
+          akomodasi: 0,
+          makan: 0,
+          perawatan: 0,
+          administrasi: 0,
+          lainnya: 0,
+          is_active: true,
+        }));
+        setFormData(prev => ({ ...prev, tariffs: initialTariffs }));
+      }
       // Load BPJS ref kelas (silent fail)
       try {
         const refRes = await bpjsApi.aplicareGetRefKelas();
@@ -75,17 +90,16 @@ export default function RoomCreate() {
         queue_code: formData.queue_code,
         service_type: formData.service_type,
         room_type: formData.room_type,
-        room_class: formData.room_class || undefined,
-        kode_kelas_bpjs: formData.kode_kelas_bpjs || undefined,
         total_floors: formData.total_floors,
-        registration_fee: formData.registration_fee,
         tariff_per_day: formData.tariff_per_day,
+        registration_fee: formData.registration_fee,
         facilities: formData.facilities,
         description: formData.description,
         has_bed: formData.has_bed,
         has_schedule: formData.has_schedule,
         is_active: formData.is_active,
         pic_employee_id: formData.pic_employee_id,
+        tariffs: formData.tariffs,
       });
 
       toast({
@@ -94,11 +108,12 @@ export default function RoomCreate() {
         description: "Ruangan berhasil ditambahkan.",
       });
       navigate("/rooms");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
       toast({
         variant: "destructive",
         title: "Error!",
-        description: error.response?.data?.error || "Gagal menambahkan ruangan.",
+        description: err.response?.data?.error || "Gagal menambahkan ruangan.",
       });
     } finally {
       setLoading(false);
@@ -116,15 +131,41 @@ export default function RoomCreate() {
     label: item.name,
   }));
 
-  const roomClassOptions: ComboboxOption[] = (masterData.room_class || []).map(item => ({
-    value: item.code,
-    label: item.name,
-  }));
-
   const employeeOptions: ComboboxOption[] = employees.map(emp => ({
     value: emp.id.toString(),
     label: `${emp.nama_lengkap} (${emp.nik})`,
   }));
+
+  const updateTariff = (patientClass: string, component: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      tariffs: prev.tariffs?.map((t) =>
+        t.patient_class === patientClass
+          ? ({ ...t, [component]: value } as unknown as RoomTariffRequest)
+          : t
+      ) || [],
+    }));
+  };
+
+  const getTariffValue = (patientClass: string, component: string): number => {
+    const tariff = formData.tariffs?.find((t) => t.patient_class === patientClass);
+    return tariff ? (tariff[component as keyof RoomTariffRequest] as number) || 0 : 0;
+  };
+
+  const calculateRowTotal = (patientClass: string): number => {
+    const tariff = formData.tariffs?.find((t) => t.patient_class === patientClass);
+    if (!tariff) return 0;
+    return ROOM_TARIFF_COMPONENTS.reduce((sum: number, comp: any) => sum + ((tariff[comp.key as keyof RoomTariffRequest] as number) || 0), 0);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
 
   if (loadingData) {
     return (
@@ -152,12 +193,12 @@ export default function RoomCreate() {
         }
       />
       <PageContent>
-      <div className="border border-border/70 bg-background">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-          <Building2 className="h-3 w-3" />
-          DATA RUANGAN
-        </div>
-        <div className="p-3 sm:p-4">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Building2 className="h-3 w-3" />
+            DATA RUANGAN
+          </div>
+          <div className="p-3 sm:p-4">
             <form onSubmit={handleSubmit} className="space-y-5 [&_input]:h-9 [&_[role=combobox]]:h-9">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -168,9 +209,8 @@ export default function RoomCreate() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="name"
-                    className="text-xs font-medium flex items-center gap-2"
+                    className="text-xs font-medium"
                   >
-                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                     Nama Ruangan *
                   </Label>
                   <Input
@@ -213,7 +253,7 @@ export default function RoomCreate() {
               <hr className="border-border/50" />
 
               {/* Service Type and Room Type */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Jenis Layanan *</Label>
                   <Combobox
@@ -232,16 +272,6 @@ export default function RoomCreate() {
                     onValueChange={(value) => setFormData({ ...formData, room_type: value })}
                     placeholder="Pilih tipe ruangan"
                     searchPlaceholder="Cari tipe..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Kelas Ruangan</Label>
-                  <Combobox
-                    options={roomClassOptions}
-                    value={formData.room_class}
-                    onValueChange={(value) => setFormData({ ...formData, room_class: value })}
-                    placeholder="Pilih kelas ruangan"
-                    searchPlaceholder="Cari kelas..."
                   />
                 </div>
               </div>
@@ -288,97 +318,31 @@ export default function RoomCreate() {
                 </div>
               </div>
 
-              {/* Kode Kelas BPJS Aplicare - muncul setelah has_bed diaktifkan */}
-              {formData.has_bed && refKelasBpjs.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-                      Kode Kelas BPJS Aplicare
-                    </Label>
-                    <Combobox
-                      options={refKelasBpjs.map(k => ({
-                        value: k.kodekelas,
-                        label: `${k.kodekelas} â€” ${k.namakelas}`,
-                      }))}
-                      value={formData.kode_kelas_bpjs}
-                      onValueChange={(value) => setFormData({ ...formData, kode_kelas_bpjs: value })}
-                      placeholder="Pilih kode kelas BPJS"
-                      searchPlaceholder="Cari kode kelas..."
-                    />
-                    <p className="text-xs text-muted-foreground">Digunakan untuk integrasi BPJS Aplicare (ketersediaan tempat tidur)</p>
-                  </div>
-                </div>
-              )}
 
               <hr className="border-border/50" />
 
-              {/* Total Floors, Registration Fee, Tariff (only for rawat_inap) and PIC */}
+              {/* Total Floors and PIC */}
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {/* Registration Fee - untuk semua ruangan */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="registration_fee"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                    Tarif Pendaftaran (Rp)
-                  </Label>
-                  <Input
-                    id="registration_fee"
-                    type="number"
-                    min={0}
-                    value={formData.registration_fee}
-                    onChange={(e) =>
-                      setFormData({ ...formData, registration_fee: parseFloat(e.target.value) || 0 })
-                    }
-                    className="h-9 text-sm"
-                    placeholder="0"
-                  />
-                  <p className="text-xs text-muted-foreground">Tarif pendaftaran per kunjungan ke ruangan ini</p>
-                </div>
-
                 {formData.service_type === 'rawat_inap' && (
-                  <>
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="total_floors"
-                        className="text-xs font-medium flex items-center gap-2"
-                      >
-                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                        Jumlah Lantai
-                      </Label>
-                      <Input
-                        id="total_floors"
-                        type="number"
-                        min={1}
-                        value={formData.total_floors}
-                        onChange={(e) =>
-                          setFormData({ ...formData, total_floors: parseInt(e.target.value) || 1 })
-                        }
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="tariff_per_day"
-                        className="text-xs font-medium flex items-center gap-2"
-                      >
-                        <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                        Tarif per Hari (Rp)
-                      </Label>
-                      <Input
-                        id="tariff_per_day"
-                        type="number"
-                        min={0}
-                        value={formData.tariff_per_day}
-                        onChange={(e) =>
-                          setFormData({ ...formData, tariff_per_day: parseFloat(e.target.value) || 0 })
-                        }
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                  </>
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="total_floors"
+                      className="text-xs font-medium flex items-center gap-2"
+                    >
+                      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                      Jumlah Lantai
+                    </Label>
+                    <Input
+                      id="total_floors"
+                      type="number"
+                      min={1}
+                      value={formData.total_floors}
+                      onChange={(e) =>
+                        setFormData({ ...formData, total_floors: parseInt(e.target.value) || 1 })
+                      }
+                      className="h-9 text-sm"
+                    />
+                  </div>
                 )}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium flex items-center gap-2">
@@ -388,9 +352,9 @@ export default function RoomCreate() {
                   <Combobox
                     options={employeeOptions}
                     value={formData.pic_employee_id?.toString() || ""}
-                    onValueChange={(value) => setFormData({ 
-                      ...formData, 
-                      pic_employee_id: value ? parseInt(value) : null 
+                    onValueChange={(value) => setFormData({
+                      ...formData,
+                      pic_employee_id: value ? parseInt(value) : null
                     })}
                     placeholder="Pilih penanggung jawab"
                     searchPlaceholder="Cari karyawan..."
@@ -443,6 +407,57 @@ export default function RoomCreate() {
 
               <hr className="border-border/50" />
 
+              {/* Tarif Per Kelas Pasien */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Tarif Per Kelas Pasien</h3>
+                {masterData.patient_class?.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">Tidak ada data kelas pasien</div>
+                ) : (
+                  <div className="border rounded-lg overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="font-semibold min-w-[120px] sticky left-0 bg-muted/50">Kelas Pasien</TableHead>
+                          {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
+                            <TableHead key={comp.key} className="text-center min-w-[120px]">
+                              {comp.label}
+                            </TableHead>
+                          ))}
+                          <TableHead className="text-center min-w-[130px] font-semibold bg-muted/50">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {masterData.patient_class?.map((pc: { code: string; name: string }) => (
+                          <TableRow key={pc.code}>
+                            <TableCell className="font-medium sticky left-0 bg-background">
+                              {pc.name}
+                            </TableCell>
+                            {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
+                              <TableCell key={comp.key} className="p-1">
+                                <Input
+                                  type="number"
+                                  className="h-8 text-right text-sm"
+                                  value={getTariffValue(pc.code, comp.key) || ""}
+                                  onChange={(e) =>
+                                    updateTariff(pc.code, comp.key, Number(e.target.value) || 0)
+                                  }
+                                  placeholder="0"
+                                />
+                              </TableCell>
+                            ))}
+                            <TableCell className="text-right font-semibold bg-muted/30">
+                              {formatCurrency(calculateRowTotal(pc.code))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              <hr className="border-border/50" />
+
               {/* Status */}
               <div className="flex items-center gap-3">
                 <Switch
@@ -473,8 +488,8 @@ export default function RoomCreate() {
                 </Button>
               </div>
             </form>
+          </div>
         </div>
-      </div>
       </PageContent>
     </PageShell>
   );

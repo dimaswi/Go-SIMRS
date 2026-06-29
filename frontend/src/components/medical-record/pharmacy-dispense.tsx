@@ -27,8 +27,11 @@ import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { MedicineOrder, MedicineOrderItem, PrescriptionReview } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
+import { getPharmacyItemStatusMeta, getPharmacyOrderStatusMeta } from "./pharmacy-status";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+const PHARMACY_OPEN_FINAL_REVIEW_EVENT = "pharmacy-open-final-review";
+const PHARMACY_FINAL_REVIEW_SAVED_EVENT = "pharmacy-final-review-saved";
 
 interface PharmacyDispenseProps {
   visitId: number;
@@ -36,26 +39,6 @@ interface PharmacyDispenseProps {
   rmDuplicateMode?: boolean;
   apiAdapter?: Pick<typeof medicineOrdersApi, "getAll" | "dispense">;
 }
-
-const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending: { label: "Menunggu Telaah", variant: "secondary" },
-  reviewed: { label: "Sudah Ditelaah", variant: "default" },
-  preparing: { label: "Disiapkan", variant: "default" },
-  ready: { label: "Siap Diserahkan", variant: "default" },
-  delivered: { label: "Sudah Diserahkan", variant: "default" },
-  cancelled: { label: "Dibatalkan", variant: "destructive" },
-  partial: { label: "Sebagian", variant: "outline" },
-  returned: { label: "Ada Return", variant: "outline" },
-};
-
-const ITEM_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  ordered: { label: "Dipesan", variant: "secondary" },
-  available: { label: "Tersedia", variant: "default" },
-  ready: { label: "Siap", variant: "default" },
-  delivered: { label: "Diserahkan", variant: "default" },
-  returned: { label: "Dikembalikan", variant: "outline" },
-  cancelled: { label: "Dibatalkan", variant: "destructive" },
-};
 
 interface DispenseItem {
   item_id: number;
@@ -103,6 +86,7 @@ export function PharmacyDispense({
   const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
   const [showDeliveredRows, setShowDeliveredRows] = useState(false);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  const [pendingFinalReviewToken, setPendingFinalReviewToken] = useState<string | null>(null);
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
@@ -140,6 +124,36 @@ export function PharmacyDispense({
       void checkReviewStatus(selectedOrder.id);
     }
   }, [selectedOrder]);
+
+  useEffect(() => {
+    const handleFinalReviewSaved = (event: Event) => {
+      const customEvent = event as CustomEvent<{ token?: string; orderId?: number }>;
+      if (!pendingFinalReviewToken || customEvent.detail?.token !== pendingFinalReviewToken) {
+        return;
+      }
+      if (!selectedOrder || customEvent.detail?.orderId !== selectedOrder.id) {
+        return;
+      }
+
+      setPendingFinalReviewToken(null);
+      void checkReviewStatus(selectedOrder.id).finally(() => {
+        window.setTimeout(() => {
+          void requestPINVerification(handleSubmitDispense);
+        }, 80);
+      });
+    };
+
+    window.addEventListener(
+      PHARMACY_FINAL_REVIEW_SAVED_EVENT,
+      handleFinalReviewSaved as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        PHARMACY_FINAL_REVIEW_SAVED_EVENT,
+        handleFinalReviewSaved as EventListener,
+      );
+    };
+  }, [pendingFinalReviewToken, requestPINVerification, selectedOrder]);
 
   const checkReviewStatus = async (orderId: number) => {
     try {
@@ -283,11 +297,21 @@ export function PharmacyDispense({
 
   const hasDispensePermission = hasPermission("pharmacy.dispense");
   const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
+  const isInitialReviewComplete =
+    selectedOrderReview?.initial_review_completed === true ||
+    !!selectedOrder?.reviewed_at ||
+    !!selectedOrder?.reviewed_by_id ||
+    ["reviewed", "preparing", "partial", "ready", "delivered", "returned"].includes(selectedOrder?.status || "");
   const isFinalReviewComplete = selectedOrderReview?.final_review_completed === true;
-  const canDispense = hasDispensePermission &&
+  const canDispenseByStatus = hasDispensePermission &&
     selectedOrder &&
-    ["reviewed", "preparing", "partial"].includes(selectedOrder.status) &&
-    isFinalReviewComplete;
+    ["reviewed", "preparing", "partial"].includes(selectedOrder.status);
+  const canDispense = canDispenseByStatus && isFinalReviewComplete;
+  const reviewGuardMessage = !isInitialReviewComplete
+    ? "Telaah Awal resep belum diselesaikan."
+    : !isFinalReviewComplete
+      ? "Telaah Akhir (Verifikasi Akhir dan PIO) belum diselesaikan."
+      : null;
   const allDelivered = dispenseItems.every((item) => item.remaining === 0) || isOrderDelivered;
   const orderedGrandTotal = dispenseItems.reduce((total, dispenseItem) => {
     const unitPrice = Number((dispenseItem.item as any).unit_price ?? (dispenseItem.item as any).price ?? (dispenseItem.item.medicine as any)?.selling_price ?? 0);
@@ -318,22 +342,50 @@ export function PharmacyDispense({
       customEvent.detail.handled = true;
 
       if (submitting || readOnly) return;
-      if (!canDispense || allDelivered) {
+      if (!selectedOrder) {
+        toast({
+          title: "Info",
+          description: "Tidak ada order obat yang bisa diproses.",
+        });
+        return;
+      }
+      if (allDelivered) {
         toast({
           title: "Info",
           description: "Tidak ada obat yang perlu diserahkan.",
         });
         return;
       }
-
-      void requestPINVerification(handleSubmitDispense);
+      if (!canDispenseByStatus) {
+        toast({
+          title: "Info",
+          description: "Order belum siap untuk proses penyerahan.",
+        });
+        return;
+      }
+      const nextToken = `${selectedOrder.id}-${Date.now()}`;
+      setPendingFinalReviewToken(nextToken);
+      window.dispatchEvent(
+        new CustomEvent(PHARMACY_OPEN_FINAL_REVIEW_EVENT, {
+          detail: { token: nextToken },
+        }),
+      );
     };
 
     window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
     return () => {
       window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
     };
-  }, [submitting, readOnly, canDispense, allDelivered, requestPINVerification]);
+  }, [
+    submitting,
+    readOnly,
+    allDelivered,
+    selectedOrder,
+    canDispenseByStatus,
+    requestPINVerification,
+    handleSubmitDispense,
+    selectedOrder?.id,
+  ]);
 
   if (loading) {
     return (
@@ -500,14 +552,17 @@ export function PharmacyDispense({
                   <SelectContent>
                     {orders.map((order) => (
                       <SelectItem key={order.id} value={String(order.id)}>
-                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                        {order.order_number} - {getPharmacyOrderStatusMeta(order.status).label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {selectedOrder && (
-                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  <Badge
+                    variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                    className={getPharmacyOrderStatusMeta(selectedOrder.status).className}
+                  >
+                    {getPharmacyOrderStatusMeta(selectedOrder.status).label}
                   </Badge>
                 )}
               </div>
@@ -518,12 +573,12 @@ export function PharmacyDispense({
         {selectedOrder && (
           <>
             {/* Status Warning */}
-            {!canDispense && !allDelivered && (
+            {reviewGuardMessage && !canDispense && !allDelivered && (
               <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950 rounded-lg p-3">
                 <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
                   <AlertCircle className="h-4 w-4" />
                   <p className="text-sm">
-                    Order belum memenuhi syarat telaah. Selesaikan Telaah Awal, Verifikasi Akhir, dan PIO terlebih dahulu.
+                    {reviewGuardMessage} Lanjutkan dengan tombol Simpan untuk membuka telaah yang masih diperlukan.
                   </p>
                 </div>
               </div>
@@ -531,13 +586,12 @@ export function PharmacyDispense({
 
             {/* Dispense Items */}
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
-                <span className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                   <Package className="h-3 w-3" />
                   Daftar Obat untuk Diserahkan
                 </span>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[360px] sm:items-end">
-                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="show_selected_only"
@@ -570,71 +624,71 @@ export function PharmacyDispense({
                         </Label>
                       </div>
                     )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {rmDuplicateMode && <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px]">Mode RM Duplikat</Badge>}
-                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
-                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                    </Badge>
-                    <OrderDetailInfoButton
-                      title="Detail Order Farmasi"
-                      tooltip="Lihat detail order farmasi"
-                      className="h-6 w-6 rounded-md"
-                    >
-                      <table className="w-full table-fixed text-xs">
-                        <tbody>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
-                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
-                            <td className="py-1.5 font-medium break-words">
-                              <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                            </td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="w-28 py-1.5 align-top text-muted-foreground">Diagnosis</td>
-                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 align-top text-muted-foreground">Ruang Asal</td>
-                            <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 align-top text-muted-foreground">Waktu Order</td>
-                            <td className="py-1.5 font-medium break-words">
-                              {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="py-1.5 align-top text-muted-foreground">Prioritas</td>
-                            <td className="py-1.5">
-                              <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                                {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                              </Badge>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </OrderDetailInfoButton>
-                  </div>
+                  {rmDuplicateMode && <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px]">Mode RM Duplikat</Badge>}
+                  <Badge
+                    variant={getPharmacyOrderStatusMeta(selectedOrder.status).variant}
+                    className={`h-5 px-1.5 py-0 text-[10px] ${getPharmacyOrderStatusMeta(selectedOrder.status).className}`}
+                  >
+                    {getPharmacyOrderStatusMeta(selectedOrder.status).label}
+                  </Badge>
+                  <OrderDetailInfoButton
+                    title="Detail Order Farmasi"
+                    tooltip="Lihat detail order farmasi"
+                    className="h-9 w-9 rounded-md"
+                  >
+                    <table className="w-full table-fixed text-xs">
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                          <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                          <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                          <td className="py-1.5 font-medium break-words">
+                            <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                          <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 align-top text-muted-foreground">Ruang Asal</td>
+                          <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 align-top text-muted-foreground">Waktu Order</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-1.5 align-top text-muted-foreground">Prioritas</td>
+                          <td className="py-1.5">
+                            <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                              {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </OrderDetailInfoButton>
                 </div>
               </div>
               <div className="p-3 pb-0">
                 <div className="mb-2 text-xs text-muted-foreground">
                   Menampilkan {visibleDispenseItems.length} dari {dispenseItems.length} item.
                 </div>
-                {allDelivered && (
+                {/* {allDelivered && (
                   <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded mb-4 border border-green-200">
                     <CheckCircle2 className="h-5 w-5" />
                     <span className="font-medium">Semua obat sudah diserahkan kepada pasien</span>
                   </div>
-                )}
+                )} */}
               </div>
               
               <div className="overflow-x-auto">
@@ -714,8 +768,11 @@ export function PharmacyDispense({
                             <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap hidden lg:table-cell">{formatRupiah(unitPrice)}</td>
                             <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap">{formatRupiah(orderedSubtotal)}</td>
                             <td className="py-1.5 px-2 align-top">
-                              <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
-                                {ITEM_STATUS_LABELS[item.status]?.label || item.status}
+                              <Badge
+                                variant={getPharmacyItemStatusMeta(item.status).variant}
+                                className={getPharmacyItemStatusMeta(item.status).className}
+                              >
+                                {getPharmacyItemStatusMeta(item.status).label}
                               </Badge>
                             </td>
                           </tr>

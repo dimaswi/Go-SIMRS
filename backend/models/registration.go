@@ -1,4 +1,4 @@
-﻿package models
+package models
 
 import (
 	"time"
@@ -55,6 +55,9 @@ type Registration struct {
 
 	// SEP relation
 	SEP *SEP `json:"sep,omitempty" gorm:"foreignKey:RegistrationID"`
+
+	// Surat Kontrol relation
+	SuratKontrol *SuratKontrol `json:"surat_kontrol,omitempty" gorm:"foreignKey:RegistrationID"`
 }
 
 // Registration Status constants

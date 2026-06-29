@@ -2230,6 +2230,12 @@ func VClaimUpdateSuratKontrol(c *gin.Context) {
 		PoliKontrol       string `json:"poli_kontrol" binding:"required"`
 		NamaPoli          string `json:"nama_poli"`
 		TglRencanaKontrol string `json:"tgl_rencana_kontrol" binding:"required"`
+		
+		// PRB
+		IsPRB       bool                   `json:"is_prb"`
+		KdStatusPRB string                 `json:"kd_status_prb"`
+		DataPRB     map[string]interface{} `json:"data_prb"`
+		Version     string                 `json:"version"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -2259,7 +2265,22 @@ func VClaimUpdateSuratKontrol(c *gin.Context) {
 		return
 	}
 
-	result, err := client.UpdateSuratKontrol(noSuratKontrol, sk.NoSEP, input.KodeDokter, input.PoliKontrol, input.TglRencanaKontrol, user.Username)
+	// Prepare PRB data jika ada
+	var formPRB *bpjs.SuratKontrolPRB
+	if input.IsPRB && input.KdStatusPRB != "" {
+		formPRB = &bpjs.SuratKontrolPRB{
+			KdStatusPRB: input.KdStatusPRB,
+			Data:        input.DataPRB,
+		}
+	}
+
+	// Determine version (default: v2)
+	version := input.Version
+	if version == "" {
+		version = "v2"
+	}
+
+	result, err := client.UpdateSuratKontrol(noSuratKontrol, sk.NoSEP, input.KodeDokter, input.PoliKontrol, input.TglRencanaKontrol, user.Username, formPRB, version)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal update Surat Kontrol di BPJS: " + err.Error()})
 		return
@@ -2272,12 +2293,35 @@ func VClaimUpdateSuratKontrol(c *gin.Context) {
 		"kode_poli":           input.PoliKontrol,
 		"nama_poli":           input.NamaPoli,
 		"tgl_rencana_kontrol": input.TglRencanaKontrol,
+		"is_prb":              input.IsPRB,
+		"kd_status_prb":       input.KdStatusPRB,
 	}
 	if result.NamaDokter != "" {
 		updates["nama_dokter"] = result.NamaDokter
 	}
 	if result.NamaDiagnosa != "" {
 		updates["nama_diagnosa"] = result.NamaDiagnosa
+	}
+
+	if input.IsPRB {
+		// Get nama status PRB
+		namaStatusPRB := ""
+		for _, prb := range models.PRBStatusOptions {
+			if prb.Kode == input.KdStatusPRB {
+				namaStatusPRB = prb.Nama
+				break
+			}
+		}
+		updates["nama_status_prb"] = namaStatusPRB
+		
+		if input.DataPRB != nil {
+			if jsonBytes, err := json.Marshal(input.DataPRB); err == nil {
+				updates["data_prb"] = string(jsonBytes)
+			}
+		}
+	} else {
+		updates["nama_status_prb"] = ""
+		updates["data_prb"] = "{}"
 	}
 
 	if err := database.DB.Model(&sk).Updates(updates).Error; err != nil {

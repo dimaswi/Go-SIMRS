@@ -389,6 +389,11 @@ export interface VClaimSuratKontrolDetail {
     kode?: string;
     nama?: string;
   };
+  // API returns these fields directly instead of inside poli/dokter
+  poliTujuan?: string;
+  namaPoliTujuan?: string;
+  kodeDokter?: string;
+  namaDokter?: string;
   sep?: {
     noSep?: string;
     tglSep?: string;
@@ -403,8 +408,11 @@ export interface VClaimSuratKontrolDetail {
   };
   statusKontrol?: string;
   terbitSEP?: string;
-  // Additional fields from list response
-  namaPoliTujuan?: string;
+  // PRB Data
+  formPRB?: {
+    kdStatusPRB?: string;
+    data?: PRBFormData;
+  };
 }
 
 // SEP Kontrol Request (using Surat Kontrol for check-in)
@@ -924,7 +932,7 @@ export const vclaimApi = {
   deleteSuratKontrolLocal: (noSuratKontrol: string) =>
     api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}/local`),
 
-  updateSuratKontrol: (noSuratKontrol: string, data: { kode_dokter: string; nama_dokter: string; poli_kontrol: string; nama_poli: string; tgl_rencana_kontrol: string }) =>
+  updateSuratKontrol: (noSuratKontrol: string, data: { kode_dokter: string; nama_dokter?: string; poli_kontrol: string; nama_poli?: string; tgl_rencana_kontrol: string; is_prb?: boolean; kd_status_prb?: string; data_prb?: any; version?: string }) =>
     api.put<{ data: SuratKontrolResponse; message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`, data),
 
   getSuratKontrolByVisit: (visitId: number) =>

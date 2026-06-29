@@ -13,24 +13,24 @@ func SetupBuildingRoutes(r *gin.Engine) {
 	buildings.Use(middleware.AuthMiddleware())
 	{
 		// Building CRUD
-		buildings.GET("", handlers.GetBuildings)
-		buildings.GET("/:id", handlers.GetBuilding)
-		buildings.POST("", handlers.CreateBuilding)
-		buildings.PUT("/:id", handlers.UpdateBuilding)
-		buildings.DELETE("/:id", handlers.DeleteBuilding)
+		buildings.GET("", middleware.RequirePermission("buildings.view"), handlers.GetBuildings)
+		buildings.GET("/:id", middleware.RequirePermission("buildings.view"), handlers.GetBuilding)
+		buildings.POST("", middleware.RequirePermission("buildings.create"), handlers.CreateBuilding)
+		buildings.PUT("/:id", middleware.RequirePermission("buildings.update"), handlers.UpdateBuilding)
+		buildings.DELETE("/:id", middleware.RequirePermission("buildings.delete"), handlers.DeleteBuilding)
 
 		// Building-Room assignment
-		buildings.POST("/:id/rooms", handlers.AssignRoomToBuilding)
-		buildings.DELETE("/:id/rooms/:room_id", handlers.UnassignRoomFromBuilding)
-		buildings.GET("/:id/rooms", handlers.GetBuildingRooms)
+		buildings.POST("/:id/rooms", middleware.RequirePermission("buildings.update"), handlers.AssignRoomToBuilding)
+		buildings.DELETE("/:id/rooms/:room_id", middleware.RequirePermission("buildings.update"), handlers.UnassignRoomFromBuilding)
+		buildings.GET("/:id/rooms", middleware.RequirePermission("buildings.view"), handlers.GetBuildingRooms)
 	}
 
 	// Floor Plan Layout (shared across buildings)
 	floorPlan := r.Group("/api/floor-plan")
 	floorPlan.Use(middleware.AuthMiddleware())
 	{
-		floorPlan.GET("/layout", handlers.GetFloorPlanLayout)
-		floorPlan.PUT("/layout", handlers.SaveFloorPlanLayout)
+		floorPlan.GET("/layout", middleware.RequirePermission("buildings.view"), handlers.GetFloorPlanLayout)
+		floorPlan.PUT("/layout", middleware.RequirePermission("buildings.update"), handlers.SaveFloorPlanLayout)
 	}
 
 	// Bedside Summary (under visits)

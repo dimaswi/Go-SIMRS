@@ -1245,7 +1245,7 @@ func ActivateBPJSQueueCheckin(c *gin.Context) {
 
 	// Validate status
 	if queue.Status != "booking" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Status antrian bukan 'booking', tidak dapat diaktifkan"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status mobile JKN berubah, tidak dapat diaktifkan"})
 		return
 	}
 
@@ -1411,8 +1411,13 @@ func SendBPJSTaskManual(c *gin.Context) {
 		}
 	}
 	if prevTaskMissing != "" {
+		errMsg := fmt.Sprintf("Tidak dapat mengirim Task %d karena %s belum dikirim", req.TaskID, prevTaskMissing)
+		
+		// Update error locally in DB so it appears in the queue list
+		bpjs.UpdateSyncError(queue.KodeBooking, req.TaskID, errMsg)
+		
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Tidak dapat mengirim Task %d karena %s belum dikirim", req.TaskID, prevTaskMissing),
+			"error": errMsg,
 		})
 		return
 	}

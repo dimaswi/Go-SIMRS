@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -21,14 +21,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
-  Search,
   FileCheck,
-  CheckCircle2,
-  XCircle,
-  ClipboardList,
   Calendar,
   HeartPulse,
-  Smartphone,
+  ChevronUp,
+  ChevronDown,
+  Stethoscope,
+  ClipboardList,
 } from "lucide-react";
 import {
   vclaimApi,
@@ -48,14 +47,14 @@ import {
   BPJS_SECTION_CLASS,
   BPJSSectionHeader,
   BPJSSheetHero,
-  BPJSStatePanel,
   BPJS_SHEET_MONO_FAMILY,
 } from "./bpjs-sheet-chrome";
+import { Switch } from "../ui/switch";
 
 interface SuratKontrolFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  activeSEP: SEPLocal;
+  activeSEP?: SEPLocal;
   patient: {
     id: number;
     no_rm: string;
@@ -65,8 +64,10 @@ interface SuratKontrolFormSheetProps {
     tanggal_lahir?: string;
     jenis_kelamin?: string;
   };
-  visitId: number;
+  visitId?: number;
   onSuratKontrolCreated?: (data: SuratKontrolResponse) => void;
+  editNoSuratKontrol?: string;
+  onSuratKontrolUpdated?: (data: SuratKontrolResponse) => void;
 }
 
 // PRB field definitions per status
@@ -142,19 +143,21 @@ export function SuratKontrolFormSheet({
   patient,
   visitId,
   onSuratKontrolCreated,
+  editNoSuratKontrol,
+  onSuratKontrolUpdated,
 }: SuratKontrolFormSheetProps) {
   const { toast } = useToast();
-  const today = format(new Date(), "yyyy-MM-dd");
 
   // Loading states
-  const [loadingPeserta, setLoadingPeserta] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Peserta state
   const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
-  const [pesertaError, setPesertaError] = useState<string | null>(null);
 
-  // Modal states (managed by PoliDokterSelector now)
+  // Detail Surat Kontrol state (for rendering Context)
+  const [detailSuratKontrol, setDetailSuratKontrol] = useState<any | null>(null);
+  const [showDetailSuratKontrol, setShowDetailSuratKontrol] = useState(false);
 
   // Form fields
   const [tglRencanaKontrol, setTglRencanaKontrol] = useState("");
@@ -178,10 +181,9 @@ export function SuratKontrolFormSheet({
   // Reset form when sheet opens
   useEffect(() => {
     if (open) {
-      hasFetchedRef.current = false;
       // Reset semua state
       setPeserta(null);
-      setPesertaError(null);
+      setDetailSuratKontrol(null);
       setTglRencanaKontrol("");
       setKodePoli("");
       setNamaPoli("");
@@ -191,20 +193,57 @@ export function SuratKontrolFormSheet({
       setIsPRB(false);
       setKdStatusPRB("");
       setDataPRB({});
+      hasFetchedRef.current = false;
+
       // Fetch PRB options
       fetchPRBOptions();
+
+      if (editNoSuratKontrol) {
+        fetchDetailSuratKontrol(editNoSuratKontrol);
+      }
     } else {
       hasFetchedRef.current = false;
     }
-  }, [open]);
+  }, [open, editNoSuratKontrol]);
 
-  // Auto fetch kepesertaan saat drawer buka (sekali saja)
-  useEffect(() => {
-    if (open && activeSEP?.no_kartu && !hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      fetchKepesertaan(activeSEP.no_kartu, today);
+  const fetchDetailSuratKontrol = async (noSuratKontrol: string) => {
+    setLoadingDetail(true);
+    try {
+      const res = await vclaimApi.getSuratKontrolDetail(noSuratKontrol);
+      const data = res.data.data;
+      if (data) {
+        setDetailSuratKontrol(data);
+        setTglRencanaKontrol(data.tglRencanaKontrol || "");
+        if (data.poliTujuan) {
+          setKodePoli(data.poliTujuan);
+          setNamaPoli(data.namaPoliTujuan || "");
+        }
+        if (data.kodeDokter) {
+          setKodeDokter(data.kodeDokter);
+          setNamaDokter(data.namaDokter || "");
+        }
+        if (data.formPRB && data.formPRB.kdStatusPRB) {
+          setIsPRB(true);
+          setKdStatusPRB(data.formPRB.kdStatusPRB);
+          setDataPRB(data.formPRB.data || {});
+        }
+        if (data.noKartu && !hasFetchedRef.current) {
+          hasFetchedRef.current = true;
+        }
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Gagal mengambil detail Surat Kontrol" });
+    } finally {
+      setLoadingDetail(false);
     }
-  }, [open, activeSEP?.no_kartu]);
+  };
+
+  // Auto fetch kepesertaan saat drawer buka (sekali saja) jika bukan mode edit
+  useEffect(() => {
+    if (open && !editNoSuratKontrol && activeSEP?.no_kartu && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+    }
+  }, [open, activeSEP?.no_kartu, editNoSuratKontrol]);
 
   // Fetch PRB options
   const fetchPRBOptions = async () => {
@@ -225,39 +264,6 @@ export function SuratKontrolFormSheet({
         { kode: "09", nama: "SLE" },
       ]);
     }
-  };
-
-  // Function untuk fetch kepesertaan
-  const fetchKepesertaan = async (kartuBpjs: string, tglPelayanan: string) => {
-    setLoadingPeserta(true);
-    setPesertaError(null);
-    try {
-      const res = await vclaimApi.getPesertaByNoKartu(kartuBpjs, tglPelayanan);
-      const data = res.data.data;
-      if (!data) throw new Error("Data peserta tidak ditemukan");
-
-      setPeserta(data);
-
-      toast({
-        title: "Peserta Ditemukan",
-        description: `${data.nama || 'N/A'} - ${data.statusPeserta?.keterangan || 'N/A'} - Kelas ${data.hakKelas?.keterangan || 'N/A'}`,
-      });
-    } catch (error: unknown) {
-      setPeserta(null);
-      const err = error as { response?: { data?: { error?: string } }; message?: string };
-      setPesertaError(err.response?.data?.error || err.message || "Gagal mengambil data peserta");
-    } finally {
-      setLoadingPeserta(false);
-    }
-  };
-
-  // Handler untuk tombol cek peserta manual
-  const handleCekPeserta = () => {
-    if (!activeSEP?.no_kartu) {
-      toast({ variant: "destructive", title: "Error", description: "Data SEP tidak valid" });
-      return;
-    }
-    fetchKepesertaan(activeSEP.no_kartu, today);
   };
 
   // Search Poli untuk Surat Kontrol (rawat jalan)
@@ -321,52 +327,81 @@ export function SuratKontrolFormSheet({
 
     setLoadingSubmit(true);
     try {
-      const res = await vclaimApi.createSuratKontrol({
-        no_sep: activeSEP.no_sep,
-        patient_id: patient.id,
-        visit_id: visitId,
-        registration_id: activeSEP.registration_id,
-        sep_id: activeSEP.id,
-        tgl_rencana_kontrol: tglRencanaKontrol,
-        kode_poli: kodePoli,
-        nama_poli: namaPoli,
-        kode_dokter: kodeDokter,
-        nama_dokter: namaDokter,
-        is_prb: isPRB,
-        kd_status_prb: isPRB ? kdStatusPRB : undefined,
-        data_prb: isPRB && kdStatusPRB ? dataPRB : undefined,
-        buatkan_antrean: buatkanAntrean,
-      });
+      if (editNoSuratKontrol) {
+        // Mode Edit (Update)
+        const res = await vclaimApi.updateSuratKontrol(editNoSuratKontrol, {
+          kode_dokter: kodeDokter,
+          nama_dokter: namaDokter,
+          poli_kontrol: kodePoli,
+          nama_poli: namaPoli,
+          tgl_rencana_kontrol: tglRencanaKontrol,
+          is_prb: isPRB,
+          kd_status_prb: isPRB ? kdStatusPRB : undefined,
+          data_prb: isPRB && kdStatusPRB ? dataPRB : undefined,
+          version: "v2"
+        });
 
-      const data = res.data.data;
-      const antrean = res.data.antrean;
+        toast({
+          title: "Surat Kontrol Berhasil Diupdate",
+          description: `Data Surat Kontrol ${editNoSuratKontrol} berhasil diperbarui di BPJS.`,
+        });
 
-      // Build description with antrean info if available
-      let toastDesc = `No. Surat Kontrol: ${data.noSuratKontrol}`;
-      if (antrean) {
-        if (antrean.success) {
-          toastDesc += `\nAntrean MJKN: ${antrean.kode_booking} (No. ${antrean.nomor_antrean})`;
-        } else {
-          toastDesc += `\nAntrean MJKN gagal: ${antrean.message}`;
+        if (onSuratKontrolUpdated) {
+          onSuratKontrolUpdated(res.data.data);
         }
+        onOpenChange(false);
+      } else {
+        // Mode Create
+        if (!activeSEP || !visitId) {
+          toast({ variant: "destructive", title: "Error", description: "Data SEP/Visit tidak lengkap" });
+          return;
+        }
+        const res = await vclaimApi.createSuratKontrol({
+          no_sep: activeSEP.no_sep,
+          patient_id: patient.id,
+          visit_id: visitId,
+          registration_id: activeSEP.registration_id,
+          sep_id: activeSEP.id,
+          tgl_rencana_kontrol: tglRencanaKontrol,
+          kode_poli: kodePoli,
+          nama_poli: namaPoli,
+          kode_dokter: kodeDokter,
+          nama_dokter: namaDokter,
+          is_prb: isPRB,
+          kd_status_prb: isPRB ? kdStatusPRB : undefined,
+          data_prb: isPRB && kdStatusPRB ? dataPRB : undefined,
+          buatkan_antrean: buatkanAntrean,
+        });
+
+        const data = res.data.data;
+        const antrean = res.data.antrean;
+
+        // Build description with antrean info if available
+        let toastDesc = `No. Surat Kontrol: ${data.noSuratKontrol}`;
+        if (antrean) {
+          if (antrean.success) {
+            toastDesc += `\nAntrean MJKN: ${antrean.kode_booking} (No. ${antrean.nomor_antrean})`;
+          } else {
+            toastDesc += `\nAntrean MJKN gagal: ${antrean.message}`;
+          }
+        }
+
+        toast({
+          title: "Surat Kontrol Berhasil Dibuat",
+          description: toastDesc,
+          duration: antrean ? 8000 : 5000,
+        });
+
+        if (onSuratKontrolCreated) {
+          onSuratKontrolCreated(data);
+        }
+        onOpenChange(false);
       }
-
-      toast({
-        title: "Surat Kontrol Berhasil Dibuat",
-        description: toastDesc,
-        duration: antrean ? 8000 : 5000,
-      });
-
-      if (onSuratKontrolCreated) {
-        onSuratKontrolCreated(data);
-      }
-
-      onOpenChange(false);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
       toast({
         variant: "destructive",
-        title: "Gagal Membuat Surat Kontrol",
+        title: editNoSuratKontrol ? "Gagal Update Surat Kontrol" : "Gagal Membuat Surat Kontrol",
         description: err.response?.data?.error || err.message || "Terjadi kesalahan",
       });
     } finally {
@@ -388,7 +423,7 @@ export function SuratKontrolFormSheet({
         <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
           <BPJSSheetHero
             eyebrow="Bridging BPJS"
-            title="Form Surat Kontrol"
+            title={editNoSuratKontrol ? "Edit Surat Kontrol" : "Form Surat Kontrol"}
             description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
             icon={FileCheck}
             meta={
@@ -399,261 +434,263 @@ export function SuratKontrolFormSheet({
           />
 
           <ScrollArea className="flex-1">
-            <div className="space-y-6 p-6">
-              {/* === SEP AKTIF === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Context" title="SEP Aktif" />
-                <BPJSInfoGrid
-                  items={[
-                    { label: "No. SEP", value: activeSEP.no_sep, mono: true },
-                    { label: "No. Kartu BPJS", value: activeSEP.no_kartu, mono: true },
-                    { label: "Tanggal SEP", value: activeSEP.tgl_sep },
-                    { label: "Poli Asal", value: activeSEP.nama_poli || activeSEP.kode_poli || "-" },
-                    { label: "Diagnosa Awal", value: activeSEP.nama_diagnosa || activeSEP.diag_awal || "-", span: 2 },
-                  ]}
-                />
-              </div>
-
-              {/* === KEPESERTAAN === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Verification" title="Kepesertaan BPJS" action={
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={handleCekPeserta} 
-                    disabled={loadingPeserta}
-                    className="h-8 rounded-none border-border/70 px-3"
-                  >
-                    {loadingPeserta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                    Cek Ulang
-                  </Button>
-                } />
-
-                {loadingPeserta && (
-                  <BPJSStatePanel
-                    icon={<Loader2 className="h-4 w-4 animate-spin" />}
-                    title="Mengecek kepesertaan..."
-                    description="Hak kelas dan status peserta sedang diverifikasi dari BPJS."
-                  />
-                )}
-
-                {/* Status Peserta */}
-                {peserta && !loadingPeserta && (
-                  <BPJSStatePanel
-                    tone="success"
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    title={
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{peserta.nama}</span>
-                        <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.18em]">{peserta.statusPeserta?.keterangan}</Badge>
-                      </div>
-                    }
-                    extra={
-                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
-                        <span>NIK: {peserta.nik}</span>
-                        <span>Kelas Hak: {peserta.hakKelas?.keterangan}</span>
-                        <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>
-                        <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
-                      </div>
-                    }
-                  />
-                )}
-                {pesertaError && !loadingPeserta && (
-                  <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Data peserta tidak dapat diverifikasi" description={pesertaError} />
-                )}
-              </div>
-
-              {/* === FORM SURAT KONTROL === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Planning" title="Rencana Kontrol" />
-                
-                {/* Tanggal Rencana Kontrol */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Tanggal Rencana Kontrol <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="date"
-                    value={tglRencanaKontrol}
-                    onChange={(e) => {
-                      setTglRencanaKontrol(e.target.value);
-                      // Reset dokter when date changes
-                      setKodeDokter("");
-                      setNamaDokter("");
-                    }}
-                    min={getMinDate()}
-                    className={BPJS_FIELD_CLASS}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Tanggal kontrol bisa hari ini atau hari berikutnya
-                  </p>
+            <div className="flex flex-col gap-4 p-4 pt-0 sm:p-4 sm:pt-0 lg:p-4 lg:pt-0">
+              {loadingDetail ? (
+                <div className="flex flex-col items-center justify-center py-2 text-muted-foreground">
+                  <Loader2 className="mb-2 h-8 w-8 animate-spin" />
+                  <p className="text-sm">Memuat detail Surat Kontrol dari BPJS...</p>
                 </div>
-
-                {/* Poli & Dokter Selector with Tabs */}
-                <div className={`${BPJS_PANEL_CLASS} p-4`}>
-                  <PoliDokterSelector
-                    kodePoli={kodePoli}
-                    namaPoli={namaPoli}
-                    kodeDokter={kodeDokter}
-                    namaDokter={namaDokter}
-                    tglRencanaKontrol={tglRencanaKontrol}
-                    onPoliChange={(kode, nama) => {
-                      setKodePoli(kode);
-                      setNamaPoli(nama);
-                      setKodeDokter("");
-                      setNamaDokter("");
-                    }}
-                    onDokterChange={(kode, nama) => {
-                      setKodeDokter(kode);
-                      setNamaDokter(nama);
-                    }}
-                    searchPoliBPJS={handleSearchPoli}
-                    searchDokterBPJS={handleSearchDokter}
-                    poliModalTitle="Cari Poli Surat Kontrol BPJS"
-                    dokterModalTitle="Cari Dokter Surat Kontrol BPJS"
-                  />
-                </div>
-              </div>
-
-              {/* === PRB (Program Rujuk Balik) === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <div className="flex items-center justify-between border-b border-border/70 pb-3">
-                  <h3 className="font-semibold text-sm uppercase tracking-[0.18em] text-foreground/80 flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                    <HeartPulse className="h-4 w-4" />
-                    Program Rujuk Balik
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="is-prb" className="text-sm">Aktifkan PRB</Label>
-                    <Switch
-                      id="is-prb"
-                      checked={isPRB}
-                      onCheckedChange={(checked) => {
-                        setIsPRB(checked);
-                        if (!checked) {
-                          setKdStatusPRB("");
-                          setDataPRB({});
+              ) : (
+                <>
+                  {/* === DETAIL SURAT KONTROL (Only in Edit Mode) === */}
+                  {editNoSuratKontrol && detailSuratKontrol && (
+                    <div className={BPJS_SECTION_CLASS}>
+                      <BPJSSectionHeader
+                        eyebrow="Context"
+                        title="Surat Kontrol Aktif"
+                        action={
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowDetailSuratKontrol(!showDetailSuratKontrol)}
+                            className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showDetailSuratKontrol ? (
+                              <><ChevronUp className="h-4 w-4" /> </>
+                            ) : (
+                              <><ChevronDown className="h-4 w-4" /> </>
+                            )}
+                          </Button>
                         }
-                      }}
-                    />
-                  </div>
-                </div>
+                      />
+                      {showDetailSuratKontrol && (
+                        <div className="mt-3 overflow-hidden rounded-xl border border-sky-200/60 bg-gradient-to-br from-sky-50/50 via-white to-slate-50/50 shadow-sm ring-1 ring-sky-900/5 relative">
+                          {/* Accent bar */}
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-sky-400 to-blue-600" />
 
-                {isPRB && (
-                  <div className={`${BPJS_MUTED_PANEL_CLASS} space-y-4 p-4`}>
-                    {/* Status PRB */}
+                          <div className="flex items-center gap-2 border-b border-sky-100/60 bg-sky-50/40 px-5 py-3 ml-1.5">
+                            <FileCheck className="h-4 w-4 text-sky-600" />
+                            <span className="text-[13px] font-semibold text-sky-900 tracking-wide">Data Surat Kontrol Sebelumnya</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-y-5 gap-x-6 p-5 ml-1.5">
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] font-bold tracking-widest text-sky-600/70 uppercase flex items-center gap-1.5">
+                                <FileCheck className="h-3 w-3" /> No. Surat
+                              </div>
+                              <div className="text-[14px] font-mono font-medium text-slate-700 bg-slate-50/50 px-2 py-1 rounded-md border border-slate-100 w-fit">{detailSuratKontrol.noSuratKontrol}</div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] font-bold tracking-widest text-sky-600/70 uppercase flex items-center gap-1.5">
+                                <Calendar className="h-3 w-3" /> Tgl Rencana Kontrol
+                              </div>
+                              <div className="text-[14px] font-medium text-slate-700 px-2 py-1">{detailSuratKontrol.tglRencanaKontrol}</div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] font-bold tracking-widest text-sky-600/70 uppercase flex items-center gap-1.5">
+                                <HeartPulse className="h-3 w-3" /> Poli Tujuan
+                              </div>
+                              <div className="text-[14px] font-medium text-slate-700 px-2 py-1">{detailSuratKontrol.namaPoliTujuan || detailSuratKontrol.poliTujuan || "-"}</div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] font-bold tracking-widest text-sky-600/70 uppercase flex items-center gap-1.5">
+                                <Stethoscope className="h-3 w-3" /> Dokter
+                              </div>
+                              <div className="text-[14px] font-medium text-slate-700 px-2 py-1">{detailSuratKontrol.namaDokter || detailSuratKontrol.kodeDokter || "-"}</div>
+                            </div>
+                            <div className="space-y-1.5 col-span-2 pt-3 border-t border-dashed border-sky-100">
+                              <div className="text-[10px] font-bold tracking-widest text-sky-600/70 uppercase flex items-center gap-1.5">
+                                <ClipboardList className="h-3 w-3" /> SEP Asal
+                              </div>
+                              <div className="text-[14px] font-mono font-medium text-slate-700 bg-slate-50/50 px-2 py-1 rounded-md border border-slate-100 w-fit">{detailSuratKontrol.sep?.noSep || "-"}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* === SEP AKTIF (Only in Create Mode) === */}
+                  {!editNoSuratKontrol && activeSEP && (
+                    <div className={BPJS_SECTION_CLASS}>
+                      <BPJSSectionHeader eyebrow="Context" title="SEP Aktif" />
+                      <BPJSInfoGrid
+                        items={[
+                          { label: "No. SEP", value: activeSEP.no_sep, mono: true },
+                          { label: "No. Kartu BPJS", value: activeSEP.no_kartu, mono: true },
+                          { label: "Tanggal SEP", value: activeSEP.tgl_sep },
+                          { label: "Poli Asal", value: activeSEP.nama_poli || activeSEP.kode_poli || "-" },
+                          { label: "Diagnosa Awal", value: activeSEP.nama_diagnosa || activeSEP.diag_awal || "-", span: 2 },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {/* === FORM SURAT KONTROL === */}
+                  <div className={BPJS_SECTION_CLASS}>
+                    <BPJSSectionHeader eyebrow="" title="" />
+
+                    {/* Tanggal Rencana Kontrol */}
                     <div className="space-y-2">
-                      <Label className="text-sm">Jenis Penyakit PRB <span className="text-destructive">*</span></Label>
-                      <Select value={kdStatusPRB} onValueChange={(value) => {
-                        setKdStatusPRB(value);
-                        setDataPRB({}); // Reset data when status changes
-                      }}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue placeholder="Pilih jenis penyakit PRB" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {prbOptions.map((opt) => (
-                            <SelectItem key={opt.kode} value={opt.kode}>
-                              {opt.kode} - {opt.nama}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-sm flex items-center gap-2 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        Tanggal Rencana Kontrol <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="date"
+                        value={tglRencanaKontrol}
+                        onChange={(e) => {
+                          setTglRencanaKontrol(e.target.value);
+                          // Reset dokter when date changes
+                          setKodeDokter("");
+                          setNamaDokter("");
+                        }}
+                        min={getMinDate()}
+                        className={BPJS_FIELD_CLASS}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Tanggal kontrol bisa hari ini atau hari berikutnya
+                      </p>
                     </div>
 
-                    {/* PRB Data Fields */}
-                    {kdStatusPRB && currentPRBFields.length > 0 && (
-                      <div className="space-y-3">
-                        <Label className="text-sm font-medium">Data Klinis</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {currentPRBFields.map((field) => (
-                            <div key={field.field} className="space-y-1">
-                              <Label className="text-xs">{field.label}</Label>
-                              {field.type === "boolean" ? (
-                                <Select
-                                  value={dataPRB[field.field]?.toString() || ""}
-                                  onValueChange={(value) => handlePRBDataChange(field.field, value === "" ? null : parseInt(value))}
-                                >
-                                  <SelectTrigger className="h-9 rounded-none border-border/70">
-                                    <SelectValue placeholder="Pilih" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="0">Tidak</SelectItem>
-                                    <SelectItem value="1">Ya</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  type="number"
-                                  min={field.min}
-                                  max={field.max}
-                                  step="0.1"
-                                  value={dataPRB[field.field] ?? ""}
-                                  onChange={(e) => handlePRBDataChange(field.field, e.target.value === "" ? null : parseFloat(e.target.value))}
-                                  placeholder={`${field.min} - ${field.max}`}
-                                  className="h-9 rounded-none border-border/70"
-                                />
-                              )}
-                            </div>
-                          ))}
+                    {/* Poli & Dokter Selector with Tabs */}
+                    <div className={`${BPJS_PANEL_CLASS} p-4`}>
+                      <PoliDokterSelector
+                        kodePoli={kodePoli}
+                        namaPoli={namaPoli}
+                        kodeDokter={kodeDokter}
+                        namaDokter={namaDokter}
+                        tglRencanaKontrol={tglRencanaKontrol}
+                        onPoliChange={(kode, nama) => {
+                          setKodePoli(kode);
+                          setNamaPoli(nama);
+                          setKodeDokter("");
+                          setNamaDokter("");
+                        }}
+                        onDokterChange={(kode, nama) => {
+                          setKodeDokter(kode);
+                          setNamaDokter(nama);
+                        }}
+                        searchPoliBPJS={handleSearchPoli}
+                        searchDokterBPJS={handleSearchDokter}
+                        poliModalTitle="Cari Poli Surat Kontrol BPJS"
+                        dokterModalTitle="Cari Dokter Surat Kontrol BPJS"
+                      />
+                    </div>
+                  </div>
+
+                  {/* === PRB (Program Rujuk Balik) === */}
+                  <div className={BPJS_SECTION_CLASS}>
+                    <div className="flex items-center justify-between border-b border-border/70 pb-3">
+                      <h3 className="font-semibold text-sm uppercase tracking-[0.18em] text-foreground/80 flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                        <HeartPulse className="h-4 w-4" />
+                        Program Rujuk Balik
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="is-prb" className="text-sm">Aktifkan PRB</Label>
+                        <Switch
+                          id="is-prb"
+                          checked={isPRB}
+                          onCheckedChange={(checked) => {
+                            setIsPRB(checked);
+                            if (!checked) {
+                              setKdStatusPRB("");
+                              setDataPRB({});
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {isPRB && (
+                      <div className={`${BPJS_MUTED_PANEL_CLASS} space-y-4 p-4`}>
+                        {/* Status PRB */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Jenis Penyakit PRB <span className="text-destructive">*</span></Label>
+                          <Select value={kdStatusPRB} onValueChange={(value) => {
+                            setKdStatusPRB(value);
+                            setDataPRB({}); // Reset data when status changes
+                          }}>
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Pilih jenis penyakit PRB" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {prbOptions.map((opt) => (
+                                <SelectItem key={opt.kode} value={opt.kode}>
+                                  {opt.kode} - {opt.nama}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
+
+                        {/* PRB Data Fields */}
+                        {kdStatusPRB && currentPRBFields.length > 0 && (
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Data Klinis</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {currentPRBFields.map((field) => (
+                                <div key={field.field} className="space-y-1">
+                                  <Label className="text-xs">{field.label}</Label>
+                                  {field.type === "boolean" ? (
+                                    <Select
+                                      value={dataPRB[field.field]?.toString() || ""}
+                                      onValueChange={(value) => handlePRBDataChange(field.field, value === "" ? null : parseInt(value))}
+                                    >
+                                      <SelectTrigger className="h-9 rounded-none border-border/70">
+                                        <SelectValue placeholder="Pilih" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="0">Tidak</SelectItem>
+                                        <SelectItem value="1">Ya</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Input
+                                      type="number"
+                                      min={field.min}
+                                      max={field.max}
+                                      step="0.1"
+                                      value={dataPRB[field.field] ?? ""}
+                                      onChange={(e) => handlePRBDataChange(field.field, e.target.value === "" ? null : parseFloat(e.target.value))}
+                                      placeholder={`${field.min} - ${field.max}`}
+                                      className="h-9 rounded-none border-border/70"
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* === ANTREAN MJKN (Optional) === */}
-              <div className={BPJS_SECTION_CLASS}>
-                <div className="flex items-center justify-between border-b border-border/70 pb-3">
-                  <h3 className="font-semibold text-sm uppercase tracking-[0.18em] text-foreground/80 flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                    <Smartphone className="h-4 w-4" />
-                    Antrean Mobile JKN
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="buatkan-antrean" className="text-sm">Buatkan Antrean</Label>
-                    <Switch
-                      id="buatkan-antrean"
-                      checked={buatkanAntrean}
-                      onCheckedChange={setBuatkanAntrean}
-                    />
-                  </div>
-                </div>
-                {buatkanAntrean && (
-                  <BPJSStatePanel
-                    icon={<Smartphone className="h-4 w-4" />}
-                    title="Antrean Mobile JKN akan dibuat"
-                    description={
-                      <>
-                      Antrean akan didaftarkan ke BPJS Antrian Online sehingga pasien dapat melihat jadwal kontrol di aplikasi Mobile JKN.
-                      Pastikan mapping poli dan dokter BPJS sudah dikonfigurasi.
-                      </>
-                    }
-                  />
-                )}
-              </div>
-
-              {/* === INFO RINGKASAN === */}
-              {tglRencanaKontrol && kodePoli && kodeDokter && (
-                <BPJSStatePanel
-                  icon={<ClipboardList className="h-4 w-4" />}
-                  title="Ringkasan Surat Kontrol"
-                  extra={
-                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <div>Tanggal Kontrol: <strong>{tglRencanaKontrol}</strong></div>
-                      <div>Poli: <strong>{namaPoli || kodePoli}</strong></div>
-                      <div className="col-span-2">Dokter: <strong>{namaDokter || kodeDokter}</strong></div>
-                      {isPRB && kdStatusPRB && (
-                        <div className="col-span-2">
-                          PRB: <strong>{prbOptions.find(p => p.kode === kdStatusPRB)?.nama || kdStatusPRB}</strong>
+                  {/* === ANTREAN MJKN (Optional) === */}
+                  {!editNoSuratKontrol && (
+                    <div className="space-y-4">
+                      <Label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Antrean Mobile JKN</Label>
+                      <div className="flex items-start space-x-3 rounded-md border border-border/70 p-4">
+                        <Checkbox
+                          id="buatkan_antrean"
+                          checked={buatkanAntrean}
+                          onCheckedChange={(checked) => setBuatkanAntrean(checked === true)}
+                          className="mt-1"
+                        />
+                        <div className="space-y-1 leading-none">
+                          <label
+                            htmlFor="buatkan_antrean"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            Buatkan Antrean Online Otomatis
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Jika dicentang, sistem akan mengirim task antrean (AddAntrean) ke VClaim Mobile JKN untuk tanggal kontrol yang dipilih. Pastikan poli & dokter sudah ter-mapping.
+                          </p>
                         </div>
-                      )}
-                      <div className="col-span-2">
-                        Antrean MJKN: <strong>{buatkanAntrean ? "Ya, buatkan antrean" : "Tidak"}</strong>
                       </div>
                     </div>
-                  }
-                />
+                  )}
+                </>
               )}
             </div>
           </ScrollArea>
@@ -664,7 +701,7 @@ export function SuratKontrolFormSheet({
             </Button>
             <Button
               onClick={handleSubmitSuratKontrol}
-              disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || (isPRB && !kdStatusPRB)}
+              disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || (isPRB && !kdStatusPRB) || loadingDetail}
               className="rounded-none"
             >
               {loadingSubmit ? (
@@ -672,7 +709,7 @@ export function SuratKontrolFormSheet({
               ) : (
                 <FileCheck className="h-4 w-4 mr-2" />
               )}
-              Buat Surat Kontrol
+              {editNoSuratKontrol ? "Update Surat Kontrol" : "Buat Surat Kontrol"}
             </Button>
           </SheetFooter>
         </SheetContent>

@@ -8,6 +8,13 @@ const getBaseUrl = () => {
   return apiUrl.replace(/\/api$/, '');
 };
 
+interface SignerDetail {
+  name: string;
+  role: string;
+  date: string;
+  hash: string;
+}
+
 interface VerifyResult {
   valid: boolean;
   message: string;
@@ -20,6 +27,7 @@ interface VerifyResult {
   signature_hash?: string;
   patient_name?: string;
   patient_mr?: string;
+  signers?: SignerDetail[];
 }
 
 const documentTypeLabels: Record<string, string> = {
@@ -82,7 +90,7 @@ export default function VerifySignaturePage() {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_URL || '/api';
+    const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080/api` : 'http://localhost:8080/api');
     fetch(`${apiBase}/signature/verify/${hash}`)
       .then((res) => res.json())
       .then((data) => {
@@ -201,39 +209,79 @@ export default function VerifySignaturePage() {
                     </div>
                   )}
 
-                  {/* Signer */}
-                  {result.signer_name && (
-                    <div className="px-6 py-4 flex items-start gap-4">
-                      <div className="h-9 w-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                        <User className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-400 font-medium">Ditandatangani Oleh</p>
-                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{result.signer_name}</p>
-                        {result.signer_role && (
-                          <p className="text-xs text-slate-500">{result.signer_role}</p>
-                        )}
-                        {result.signer_nip && (
-                          <p className="text-xs text-slate-400 mt-1">NIP: {result.signer_nip}</p>
-                        )}
-                        {result.signer_str && (
-                          <p className="text-xs text-slate-400">STR: {result.signer_str}</p>
-                        )}
+                  {/* Signers */}
+                  {result.signers && result.signers.length > 0 ? (
+                    <div className="px-6 py-4">
+                      <p className="text-xs text-slate-400 font-medium mb-3 uppercase tracking-wide">Daftar Penanda Tangan</p>
+                      <div className="space-y-3">
+                        {result.signers.map((s, idx) => (
+                          <div key={idx} className={`flex items-start gap-3 p-3 rounded-xl border ${s.hash === result.signature_hash ? 'bg-emerald-50/50 border-emerald-200 shadow-sm' : 'bg-slate-50 border-slate-200/60'}`}>
+                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${s.hash === result.signature_hash ? 'bg-emerald-100 text-emerald-600' : 'bg-white shadow-sm border border-slate-200 text-slate-500'}`}>
+                              <User className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">{s.name}</p>
+                                  {s.role && <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">{s.role}</p>}
+                                </div>
+                                {s.hash === result.signature_hash && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Scanned
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
+                                <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span className="truncate">{formatDate(s.date)}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono text-slate-400">
+                                <Hash className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span className="truncate">{s.hash.substring(0, 32)}...</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {/* Signer */}
+                      {result.signer_name && (
+                        <div className="px-6 py-4 flex items-start gap-4">
+                          <div className="h-9 w-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                            <User className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-400 font-medium">Ditandatangani Oleh</p>
+                            <p className="text-sm font-semibold text-slate-900 mt-0.5">{result.signer_name}</p>
+                            {result.signer_role && (
+                              <p className="text-xs text-slate-500">{result.signer_role}</p>
+                            )}
+                            {result.signer_nip && (
+                              <p className="text-xs text-slate-400 mt-1">NIP: {result.signer_nip}</p>
+                            )}
+                            {result.signer_str && (
+                              <p className="text-xs text-slate-400">STR: {result.signer_str}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Signed Date */}
-                  {result.signed_at && (
-                    <div className="px-6 py-4 flex items-start gap-4">
-                      <div className="h-9 w-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                        <Calendar className="h-4 w-4 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-400 font-medium">Tanggal Tanda Tangan</p>
-                        <p className="text-sm font-semibold text-slate-900 mt-0.5">{formatDate(result.signed_at)}</p>
-                      </div>
-                    </div>
+                      {/* Signed Date */}
+                      {result.signed_at && (
+                        <div className="px-6 py-4 flex items-start gap-4">
+                          <div className="h-9 w-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <Calendar className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-400 font-medium">Tanggal Tanda Tangan</p>
+                            <p className="text-sm font-semibold text-slate-900 mt-0.5">{formatDate(result.signed_at)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Patient */}

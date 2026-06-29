@@ -229,6 +229,10 @@ func SaveVisitProcedureResults(c *gin.Context) {
 			IsAbnormal  bool    `json:"is_abnormal"`
 			IsCritical  bool    `json:"is_critical"`
 		} `json:"results"`
+		DiscountType   string  `json:"discount_type"`
+		DiscountValue  float64 `json:"discount_value"`
+		DiscountAmount float64 `json:"discount_amount"`
+		DiscountNote   string  `json:"discount_note"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -257,8 +261,12 @@ func SaveVisitProcedureResults(c *gin.Context) {
 
 	now := time.Now()
 	updates := map[string]interface{}{
-		"filled_by_id": filledByID,
-		"notes":        input.Notes,
+		"filled_by_id":    filledByID,
+		"notes":           input.Notes,
+		"discount_type":   input.DiscountType,
+		"discount_value":  input.DiscountValue,
+		"discount_amount": input.DiscountAmount,
+		"discount_note":   input.DiscountNote,
 	}
 
 	if input.Status != "" {

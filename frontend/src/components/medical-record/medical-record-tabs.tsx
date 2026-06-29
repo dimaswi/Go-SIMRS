@@ -11,7 +11,6 @@ import {
   ClipboardList,
   LogOut,
   Pill,
-  FileCheck,
   Package,
   RotateCcw,
   FileImage,
@@ -27,11 +26,17 @@ import {
   Repeat,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Clock3,
   MapPin,
   Cloud,
   Wind,
 } from "lucide-react";
+
+interface SubTab {
+  id: string;
+  label: string;
+}
 
 interface Tab {
   id: string;
@@ -39,6 +44,7 @@ interface Tab {
   icon: React.ReactNode;
   permission: string;
   section: string;
+  subTabs?: SubTab[];
 }
 
 interface MedicalRecordTabsProps {
@@ -57,6 +63,7 @@ interface MedicalRecordTabsProps {
   isSurgery?: boolean; // Show surgery workstation tabs for surgery visits
   showProcedureTab?: boolean; // Show procedure tab for rawat_jalan, rawat_inap, gawat_darurat
   isInpatient?: boolean; // Show inpatient tabs (CPPT, Fluid Balance) for rawat_inap
+  isFemale?: boolean; // Show bersalin and kandungan tabs for female patients
   casemixMode?: boolean; // E-Klaim RM duplicate mode has a fixed tab set.
 }
 
@@ -78,6 +85,7 @@ export function MedicalRecordTabs({
   isSurgery = false,
   showProcedureTab = false,
   isInpatient = false,
+  isFemale = false,
   casemixMode = false,
 }: MedicalRecordTabsProps) {
   const { hasPermission } = usePermission();
@@ -89,6 +97,14 @@ export function MedicalRecordTabs({
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"before" | "after">("before");
+  const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({});
+  
+  useEffect(() => {
+    // Clear local expansion state when navigating. 
+    // The active parent will stay open automatically because of hasActiveSubTab check.
+    setExpandedTabs({});
+  }, [activeTab]);
+
   const showsInpatientOrEmergencyCareTabs = isInpatient || isEmergency;
   const showTriageTab = isEmergency || casemixMode;
 
@@ -99,13 +115,6 @@ export function MedicalRecordTabs({
       label: "Edit Resep",
       icon: <Pill />,
       permission: "pharmacy.edit",
-      section: "pharmacy",
-    },
-    {
-      id: "prescription-review",
-      label: "Telaah Resep",
-      icon: <FileCheck />,
-      permission: "pharmacy.review",
       section: "pharmacy",
     },
     {
@@ -233,6 +242,24 @@ export function MedicalRecordTabs({
       permission: "medical_records.physical_exam",
       section: "assessment",
     },
+    ...(isInpatient && isFemale ? [
+      {
+        id: "bersalin",
+        label: "Bersalin",
+        icon: <Users />,
+        permission: "medical_records.anamnesis",
+        section: "assessment",
+        subTabs: [
+          { id: "bersalin-asesmen", label: "Asesmen Awal" },
+          { id: "bersalin-skrining", label: "Skrining Risiko" },
+          { id: "bersalin-medis", label: "Riwayat & Medis" },
+          { id: "bersalin-observasi", label: "Observasi" },
+          { id: "bersalin-partograf", label: "Partograf" },
+          { id: "bersalin-catatan", label: "Catatan Kala 1-4" },
+          { id: "bersalin-bayi", label: "Bayi Baru Lahir" },
+        ]
+      } as Tab
+    ] : []),
     {
       id: "body-marker",
       label: "Marker Tubuh",
@@ -517,16 +544,16 @@ export function MedicalRecordTabs({
   const allTabs = casemixMode
     ? casemixClinicalTabs
     : isPharmacy
-    ? pharmacyTabs
-    : isRadiology
-    ? radiologyTabs
-    : isLaboratory
-    ? laboratoryTabs
-    : isConsultation
-    ? consultationTabs
-    : isSurgery
-    ? surgeryTabs
-    : clinicalTabs;
+      ? pharmacyTabs
+      : isRadiology
+        ? radiologyTabs
+        : isLaboratory
+          ? laboratoryTabs
+          : isConsultation
+            ? consultationTabs
+            : isSurgery
+              ? surgeryTabs
+              : clinicalTabs;
 
   // Filter tabs based on permissions
   const tabs = allTabs.filter(tab => hasPermission(tab.permission));
@@ -537,16 +564,16 @@ export function MedicalRecordTabs({
     const mode = casemixMode
       ? "casemix"
       : isPharmacy
-      ? "pharmacy"
-      : isRadiology
-      ? "radiology"
-      : isLaboratory
-      ? "laboratory"
-      : isConsultation
-      ? "consultation"
-      : isSurgery
-      ? "surgery"
-      : `clinical-${isEmergency ? "emergency" : "regular"}-${isInpatient ? "inpatient" : "noninpatient"}-${showProcedureTab ? "procedure" : "noprocedure"}`;
+        ? "pharmacy"
+        : isRadiology
+          ? "radiology"
+          : isLaboratory
+            ? "laboratory"
+            : isConsultation
+              ? "consultation"
+              : isSurgery
+                ? "surgery"
+                : `clinical-${isEmergency ? "emergency" : "regular"}-${isInpatient ? "inpatient" : "noninpatient"}-${showProcedureTab ? "procedure" : "noprocedure"}`;
 
     return mode;
   }, [casemixMode, isConsultation, isEmergency, isInpatient, isLaboratory, isPharmacy, isRadiology, isSurgery, showProcedureTab]);
@@ -970,7 +997,7 @@ export function MedicalRecordTabs({
           </div>
           <span className="truncate text-left text-[13px] leading-tight" title={tab.label}>{tab.label}</span>
         </div>
-        {indicatorValue && (
+        {indicatorValue && !tab.subTabs && (
           <span
             className={cn(
               "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
@@ -980,14 +1007,22 @@ export function MedicalRecordTabs({
             {indicatorValue}
           </span>
         )}
+        {tab.subTabs && tab.subTabs.length > 0 && (
+          <div className="ml-auto flex items-center justify-center shrink-0">
+            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", (expandedTabs[tab.id] || activeTab === tab.id || (tab.subTabs && tab.subTabs.some(st => activeTab === st.id))) ? "rotate-180" : "")} />
+          </div>
+        )}
       </>
     );
+
+    const hasActiveSubTab = tab.subTabs && tab.subTabs.some(st => activeTab === st.id);
+    const isExpanded = expandedTabs[tab.id] || activeTab === tab.id || hasActiveSubTab;
 
     return (
       <div
         key={tab.id}
-          className={cn(
-            "mr-tab-item relative",
+        className={cn(
+          "mr-tab-item relative",
           isDraggingThis && "opacity-40",
           isDragOverThis && dragOverPosition === "before" && (layout === "horizontal" ? "border-l-2 border-primary" : "border-t-2 border-primary"),
           isDragOverThis && dragOverPosition === "after" && (layout === "horizontal" ? "border-r-2 border-primary" : "border-b-2 border-primary"),
@@ -997,7 +1032,12 @@ export function MedicalRecordTabs({
           data-tab-id={tab.id}
           onClick={() => {
             if (!isDisabled) {
-              onTabChange(tab.id);
+              if (tab.subTabs && tab.subTabs.length > 0) {
+                // Just toggle expansion locally without triggering a route change/API call
+                setExpandedTabs(prev => ({ ...prev, [tab.id]: !isExpanded }));
+              } else {
+                onTabChange(tab.id);
+              }
             }
           }}
           title={isDisabled ? (disabledTabReason || "Tab dikunci sampai telaah awal selesai") : tab.label}
@@ -1017,19 +1057,54 @@ export function MedicalRecordTabs({
           className={cn(
             "mr-tab-chip flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
             isDisabled && "cursor-not-allowed opacity-60",
-            isActive
+            (isActive || isExpanded)
               ? "bg-primary/10 font-semibold text-primary"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
           )}
         >
           {tabContent}
         </button>
+
+        {tab.subTabs && isExpanded && layout === "vertical" && (
+          <div className="mt-1 flex flex-col gap-1 relative before:absolute before:left-[19px] before:top-0 before:bottom-3 before:w-px before:bg-border">
+            {tab.subTabs.map(subTab => {
+              const isSubActive = activeTab === subTab.id;
+              const isSubSaved = savedStates[subTab.id];
+              
+              return (
+                <button
+                  key={subTab.id}
+                  onClick={() => onTabChange(subTab.id)}
+                  className={cn(
+                    "mr-tab-chip flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors relative",
+                    isSubActive
+                      ? "bg-primary/10 font-semibold text-primary"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  )}
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center shrink-0 z-10">
+                      <div className="w-1.5 h-1.5 rounded-full bg-border mr-1"></div>
+                    </div>
+                    <span className="truncate text-left text-[13px] leading-tight">{subTab.label}</span>
+                  </div>
+                  {isSubSaved && (
+                    <span className="ml-auto shrink-0 flex h-6 w-6 items-center justify-center">
+                      <Check className="h-4 w-4 text-primary" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
 
   const sectionLabels: Record<string, string> = {
     assessment: "Asesmen",
+    bersalin: "Bersalin",
     order: "Order",
     care: "Perawatan & Tindakan",
     administrative: "Administratif",

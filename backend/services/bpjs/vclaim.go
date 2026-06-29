@@ -72,12 +72,12 @@ func NewVClaimClient() (*VClaimClient, error) {
 	if environment == "production" {
 		baseURL = configMap["base_url_prod"]
 		if baseURL != "" {
-			baseURL = baseURL + "/vclaim-rest"
+			baseURL = baseURL
 		}
 	} else {
 		baseURL = configMap["base_url_dev"]
 		if baseURL != "" {
-			baseURL = baseURL + "/vclaim-rest-dev"
+			baseURL = baseURL
 		}
 	}
 
@@ -1659,20 +1659,32 @@ func (c *VClaimClient) InsertSuratKontrol(noSEP, kodeDokter, poliKontrol, tglRen
 }
 
 // UpdateSuratKontrol mengupdate surat kontrol
-// Endpoint: PUT /RencanaKontrol/v2/Update
-func (c *VClaimClient) UpdateSuratKontrol(noSuratKontrol, noSEP, kodeDokter, poliKontrol, tglRencanaKontrol, user string) (*SuratKontrolResponse, error) {
-	reqBody := map[string]interface{}{
-		"request": map[string]interface{}{
-			"noSuratKontrol":    noSuratKontrol,
-			"noSEP":             noSEP,
-			"kodeDokter":        kodeDokter,
-			"poliKontrol":       poliKontrol,
-			"tglRencanaKontrol": tglRencanaKontrol,
-			"user":              user,
-		},
+// Endpoint: PUT /RencanaKontrol/Update (v1) atau /RencanaKontrol/v2/Update (v2)
+func (c *VClaimClient) UpdateSuratKontrol(noSuratKontrol, noSEP, kodeDokter, poliKontrol, tglRencanaKontrol, user string, formPRB *SuratKontrolPRB, version string) (*SuratKontrolResponse, error) {
+	reqData := map[string]interface{}{
+		"noSuratKontrol":    noSuratKontrol,
+		"noSEP":             noSEP,
+		"kodeDokter":        kodeDokter,
+		"poliKontrol":       poliKontrol,
+		"tglRencanaKontrol": tglRencanaKontrol,
+		"user":              user,
 	}
 
-	respBody, code, err := c.Request("PUT", "/RencanaKontrol/v2/Update", reqBody)
+	var endpoint string
+	if version == "v1" {
+		endpoint = "/RencanaKontrol/Update"
+	} else {
+		endpoint = "/RencanaKontrol/v2/Update"
+		if formPRB != nil && formPRB.KdStatusPRB != "" {
+			reqData["formPRB"] = formPRB
+		}
+	}
+
+	reqBody := map[string]interface{}{
+		"request": reqData,
+	}
+
+	respBody, code, err := c.Request("PUT", endpoint, reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -1737,6 +1749,7 @@ type SuratKontrolDetailResponse struct {
 	KodeDokterPembuat string `json:"kodeDokterPembuat"` // Kode dokter pembuat
 	NamaDokterPembuat string `json:"namaDokterPembuat"` // Nama dokter pembuat
 	NamaJnsKontrol    string `json:"namaJnsKontrol"`    // "SPRI" atau "Kontrol"
+	FormPRB           *SuratKontrolPRB `json:"formPRB"`
 	Sep               *struct {
 		NoSep        string `json:"noSep"`
 		TglSep       string `json:"tglSep"`

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CheckSquare, Info, Layers3, Search, ShieldCheck } from "lucide-react";
+import { Info, Search } from "lucide-react";
 
 type PermissionItem = {
   id: number;
@@ -34,6 +34,7 @@ export function PermissionAssignmentPanel({
 }: PermissionAssignmentPanelProps) {
   const [search, setSearch] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   const moduleEntries = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -57,11 +58,6 @@ export function PermissionAssignmentPanel({
       .sort(([left], [right]) => left.localeCompare(right));
   }, [groupedPermissions, search, selectedOnly, selectedPermissionIds]);
 
-  const totalPermissions = useMemo(
-    () => Object.values(groupedPermissions).reduce((total, permissions) => total + permissions.length, 0),
-    [groupedPermissions]
-  );
-
   const allPermissionIds = useMemo(
     () => Object.values(groupedPermissions).flatMap((permissions) => permissions.map((permission) => permission.id)),
     [groupedPermissions]
@@ -73,13 +69,6 @@ export function PermissionAssignmentPanel({
   );
 
   const visibleSelectedCount = visiblePermissionIds.filter((permissionId) => selectedPermissionIds.includes(permissionId)).length;
-  const selectedModules = useMemo(
-    () => Object.entries(groupedPermissions)
-      .filter(([, permissions]) => permissions.some((permission) => selectedPermissionIds.includes(permission.id)))
-      .map(([module]) => module)
-      .sort((left, right) => left.localeCompare(right)),
-    [groupedPermissions, selectedPermissionIds]
-  );
 
   const selectVisiblePermissions = () => {
     onReplaceSelection([...new Set([...selectedPermissionIds, ...visiblePermissionIds])]);
@@ -110,31 +99,7 @@ export function PermissionAssignmentPanel({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="border border-border/70 bg-muted/20 px-4 py-3">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <Layers3 className="h-3.5 w-3.5" /> Modul
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-foreground">{Object.keys(groupedPermissions).length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">Kelompok akses yang bisa diatur per area kerja.</p>
-        </div>
-        <div className="border border-border/70 bg-muted/20 px-4 py-3">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" /> Total Permission
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-foreground">{totalPermissions}</div>
-          <p className="mt-1 text-xs text-muted-foreground">Hak akses tersedia dari seluruh modul yang sudah terdaftar.</p>
-        </div>
-        <div className="border border-border/70 bg-foreground px-4 py-3 text-background">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-background/70">
-            <CheckSquare className="h-3.5 w-3.5" /> Dipilih
-          </div>
-          <div className="mt-2 text-2xl font-semibold">{selectedPermissionIds.length}</div>
-          <p className="mt-1 text-xs text-background/80">Permission aktif untuk role ini saat disimpan.</p>
-        </div>
-      </div>
-
+    <div className={cn("", className)}>
       <div className="space-y-4 border border-border/70 bg-background">
         <div className="border-b border-border/70 bg-muted/10 px-4 py-4">
           <div className="space-y-3">
@@ -174,114 +139,142 @@ export function PermissionAssignmentPanel({
               </Button>
             </div>
           </div>
-
-          <div className="mt-3 flex flex-col gap-2 border-t border-border/70 pt-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Modul Aktif</p>
-              <p className="mt-1 text-xs text-muted-foreground">Modul yang sudah memiliki permission terpilih untuk role ini.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 lg:max-w-[70%] lg:justify-end">
-              {selectedModules.length > 0 ? (
-                selectedModules.map((module) => (
-                  <Badge key={module} variant="secondary" className="rounded-none px-2.5 py-1 text-[10px] uppercase tracking-[0.16em]">
-                    {module}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-xs text-muted-foreground">Belum ada modul yang aktif.</span>
-              )}
-            </div>
-          </div>
         </div>
 
-        <div className="px-4 pb-4">
+        <div className="flex flex-col md:flex-row border-t border-border/70">
           {moduleEntries.length > 0 ? (
-            <div className="grid gap-4 xl:grid-cols-2">
-              {moduleEntries.map(([module, modulePermissions]) => {
-                const selectedCount = modulePermissions.filter((permission) => selectedPermissionIds.includes(permission.id)).length;
-                const allSelected = modulePermissions.every((permission) => selectedPermissionIds.includes(permission.id));
+            <>
+              {/* Sidebar (Vertical Tabs) */}
+              <div className="w-full md:w-64 border-r border-border/70 bg-muted/10 shrink-0 h-[40rem] overflow-y-auto flex flex-col relative">
+                <div className="p-3 border-b border-border/70 bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Daftar Modul</p>
+                </div>
+                <div className="p-2 space-y-1">
+                  {moduleEntries.map(([module, modulePermissions]) => {
+                    const selectedCount = modulePermissions.filter((permission) => selectedPermissionIds.includes(permission.id)).length;
+                    const isActive = module === (activeTab || moduleEntries[0]?.[0]);
+                    return (
+                      <button
+                        key={module}
+                        type="button"
+                        onClick={() => setActiveTab(module)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm font-medium transition-colors flex items-center justify-between rounded-md",
+                          isActive
+                            ? "bg-foreground text-background"
+                            : "hover:bg-muted text-foreground/80"
+                        )}
+                      >
+                        <span className="truncate mr-2">{module}</span>
+                        {selectedCount > 0 && (
+                          <Badge
+                            variant={isActive ? "secondary" : "default"}
+                            className={cn(
+                              "shrink-0 h-5 px-1.5 text-[10px] rounded-full",
+                              isActive ? "bg-background text-foreground hover:bg-background" : ""
+                            )}
+                          >
+                            {selectedCount}
+                          </Badge>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                return (
-                  <div key={module} className="min-w-0 border border-border/70 bg-background/95">
-                    <div className="border-b border-border/70 bg-muted/30 px-4 py-3">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="text-sm font-semibold text-foreground">{module}</h4>
-                            <Badge variant="outline" className="rounded-none text-[11px]">
-                              {selectedCount}/{modulePermissions.length}
-                            </Badge>
+              {/* Content Area */}
+              <div className="flex-1 min-w-0 bg-background h-[40rem] flex flex-col">
+                {(() => {
+                  const activeModuleEntry = moduleEntries.find(([m]) => m === (activeTab || moduleEntries[0]?.[0])) || moduleEntries[0];
+                  if (!activeModuleEntry) return null;
+
+                  const [module, modulePermissions] = activeModuleEntry;
+                  const selectedCount = modulePermissions.filter((permission) => selectedPermissionIds.includes(permission.id)).length;
+                  const allSelected = modulePermissions.every((permission) => selectedPermissionIds.includes(permission.id));
+
+                  return (
+                    <div className="flex flex-col h-full min-h-0">
+                      <div className="border-b border-border/70 bg-muted/10 px-5 py-4 shrink-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-base font-semibold text-foreground">{module}</h4>
+                              <Badge variant="outline" className="rounded-none text-[11px] bg-background">
+                                {selectedCount}/{modulePermissions.length} Dipilih
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground">Centang kotak untuk memberikan hak akses pada modul ini.</p>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">Atur permission untuk modul ini tanpa pindah halaman.</p>
+
+                          <Button type="button" variant="outline" size="sm" onClick={() => toggleModulePermissions(modulePermissions)} className="bg-background">
+                            {allSelected ? "Kosongkan Modul" : "Pilih Semua di Modul Ini"}
+                          </Button>
                         </div>
-
-                        <Button type="button" variant="ghost" size="sm" onClick={() => toggleModulePermissions(modulePermissions)}>
-                          {allSelected ? "Kosongkan Modul" : "Pilih Modul"}
-                        </Button>
                       </div>
-                    </div>
 
-                    <div className="max-h-[32rem] overflow-y-auto p-3">
-                      <div className="space-y-2 pb-2">
-                        {modulePermissions.map((permission) => {
-                          const isSelected = selectedPermissionIds.includes(permission.id);
+                      <div className="flex-1 overflow-y-auto p-5">
+                        <div className="grid gap-3 xl:grid-cols-2">
+                          {modulePermissions.map((permission) => {
+                            const isSelected = selectedPermissionIds.includes(permission.id);
 
-                          return (
-                            <div
-                              key={permission.id}
-                              className={cn(
-                                "flex items-start gap-3 border px-3 py-3 transition-colors",
-                                isSelected ? "border-foreground/30 bg-muted/30" : "border-border/70 bg-background hover:bg-muted/20"
-                              )}
-                            >
-                              <Checkbox
-                                id={`permission-${permission.id}`}
-                                checked={isSelected}
-                                onCheckedChange={() => onTogglePermission(permission.id)}
-                                className="mt-1"
-                              />
+                            return (
+                              <div
+                                key={permission.id}
+                                className={cn(
+                                  "flex items-start gap-3 border px-4 py-3.5 transition-colors rounded-md",
+                                  isSelected ? "border-foreground/30 bg-muted/30" : "border-border/70 bg-background hover:bg-muted/10"
+                                )}
+                              >
+                                <Checkbox
+                                  id={`permission-${permission.id}`}
+                                  checked={isSelected}
+                                  onCheckedChange={() => onTogglePermission(permission.id)}
+                                  className="mt-1"
+                                />
 
-                              <div className="min-w-0 flex-1">
-                                <label htmlFor={`permission-${permission.id}`} className="cursor-pointer text-sm font-medium leading-5 text-foreground">
-                                  {permission.name}
-                                </label>
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  {permission.category ? (
-                                    <Badge variant="secondary" className="rounded-none text-[10px] uppercase tracking-[0.16em]">
-                                      {permission.category}
-                                    </Badge>
-                                  ) : null}
-                                  {isSelected ? (
-                                    <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.16em]">
-                                      dipilih
-                                    </Badge>
+                                <div className="min-w-0 flex-1">
+                                  <label htmlFor={`permission-${permission.id}`} className="cursor-pointer text-sm font-medium leading-5 text-foreground block">
+                                    {permission.name}
+                                  </label>
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                    {permission.category ? (
+                                      <Badge variant="secondary" className="rounded-none text-[10px] uppercase tracking-[0.16em]">
+                                        {permission.category}
+                                      </Badge>
+                                    ) : null}
+                                    {isSelected ? (
+                                      <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.16em] border-green-500 text-green-600 bg-green-50">
+                                        Aktif
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  {permission.description ? (
+                                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{permission.description}</p>
                                   ) : null}
                                 </div>
-                                {permission.description ? (
-                                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{permission.description}</p>
+
+                                {onShowPermissionInfo ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onShowPermissionInfo(permission)}
+                                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Info className="h-4 w-4" />
+                                  </Button>
                                 ) : null}
                               </div>
-
-                              {onShowPermissionInfo ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => onShowPermissionInfo(permission)}
-                                  className="h-8 w-8 shrink-0 rounded-none"
-                                >
-                                  <Info className="h-4 w-4" />
-                                </Button>
-                              ) : null}
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })()}
+              </div>
+            </>
           ) : (
             <div className="border border-dashed border-border/70 px-6 py-12 text-center">
               <p className="text-sm font-medium text-foreground">Tidak ada permission yang cocok.</p>

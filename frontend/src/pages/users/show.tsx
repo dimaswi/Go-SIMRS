@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -149,7 +149,7 @@ export default function UserShow() {
             <div className="grid gap-5 md:grid-cols-2">
               <DetailField label="Nama Lengkap" value={user.full_name || "-"} />
               <DetailField label="Username" value={user.username ? `@${user.username}` : "-"} mono />
-              <DetailField label="Email" value={user.email || "-"} />
+              <DetailField label="NIP Pegawai" value={user.employee?.nip || "-"} />
               <DetailField label="Pegawai Terkait" value={user.employee?.nama_lengkap || "-"} />
             </div>
           </SectionPanel>

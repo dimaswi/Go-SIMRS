@@ -120,7 +120,7 @@ export default function UsersPage() {
     <DataTable
           columns={columns}
           data={users}
-          searchPlaceholder="Search users by name, username, or email..."
+          searchPlaceholder="Search users by name, username, or NIP..."
           pageSize={10}
           tableId="users"
         />

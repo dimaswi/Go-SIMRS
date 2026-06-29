@@ -1054,32 +1054,32 @@ func ReviewPrescription(c *gin.Context) {
 	}
 
 	var input struct {
-		PatientIdentityCheck       bool   `json:"patient_identity_check"`
-		DoctorNameSignCheck        bool   `json:"doctor_name_sign_check"`
-		PrescriptionDateCheck      bool   `json:"prescription_date_check"`
-		MedicineDataCheck          bool   `json:"medicine_data_check"`
-		DrugInteractionCheck       bool   `json:"drug_interaction_check"`
-		DoseCheck                  bool   `json:"dose_check"`
-		DuplicationCheck           bool   `json:"duplication_check"`
-		AllergyCheck               bool   `json:"allergy_check"`
-		ContraindicationCheck      bool   `json:"contraindication_check"`
-		IndicationCheck            bool   `json:"indication_check"`
-		AdministrationRouteCheck   bool   `json:"administration_route_check"`
-		IsApproved                 bool   `json:"is_approved"`
-		Notes                      string `json:"notes"`
-		Warnings                   string `json:"warnings"`
-		Suggestion                 string `json:"suggestion"`
-		RequiresDoctorConfirmation bool   `json:"requires_doctor_confirmation"`
-		FinalPatientCheck          bool   `json:"final_patient_check"`
-		FinalMedicineCheck         bool   `json:"final_medicine_check"`
-		FinalDoseCheck             bool   `json:"final_dose_check"`
-		FinalTimeCheck             bool   `json:"final_time_check"`
-		FinalRouteCheck            bool   `json:"final_route_check"`
-		PIONameCheck               bool   `json:"pio_name_check"`
-		PIOUsageCheck              bool   `json:"pio_usage_check"`
-		PIOBenefitCheck            bool   `json:"pio_benefit_check"`
-		PIOStorageCheck            bool   `json:"pio_storage_check"`
-		PIOOtherCheck              bool   `json:"pio_other_check"`
+		PatientIdentityCheck       *bool   `json:"patient_identity_check"`
+		DoctorNameSignCheck        *bool   `json:"doctor_name_sign_check"`
+		PrescriptionDateCheck      *bool   `json:"prescription_date_check"`
+		MedicineDataCheck          *bool   `json:"medicine_data_check"`
+		DrugInteractionCheck       *bool   `json:"drug_interaction_check"`
+		DoseCheck                  *bool   `json:"dose_check"`
+		DuplicationCheck           *bool   `json:"duplication_check"`
+		AllergyCheck               *bool   `json:"allergy_check"`
+		ContraindicationCheck      *bool   `json:"contraindication_check"`
+		IndicationCheck            *bool   `json:"indication_check"`
+		AdministrationRouteCheck   *bool   `json:"administration_route_check"`
+		IsApproved                 *bool   `json:"is_approved"`
+		Notes                      *string `json:"notes"`
+		Warnings                   *string `json:"warnings"`
+		Suggestion                 *string `json:"suggestion"`
+		RequiresDoctorConfirmation *bool   `json:"requires_doctor_confirmation"`
+		FinalPatientCheck          *bool   `json:"final_patient_check"`
+		FinalMedicineCheck         *bool   `json:"final_medicine_check"`
+		FinalDoseCheck             *bool   `json:"final_dose_check"`
+		FinalTimeCheck             *bool   `json:"final_time_check"`
+		FinalRouteCheck            *bool   `json:"final_route_check"`
+		PIONameCheck               *bool   `json:"pio_name_check"`
+		PIOUsageCheck              *bool   `json:"pio_usage_check"`
+		PIOBenefitCheck            *bool   `json:"pio_benefit_check"`
+		PIOStorageCheck            *bool   `json:"pio_storage_check"`
+		PIOOtherCheck              *bool   `json:"pio_other_check"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -1113,69 +1113,122 @@ func ReviewPrescription(c *gin.Context) {
 		}
 	}
 
-	// Update review fields
-	review.PatientIdentityCheck = input.PatientIdentityCheck
-	review.DoctorNameSignCheck = input.DoctorNameSignCheck
-	review.PrescriptionDateCheck = input.PrescriptionDateCheck
-	review.MedicineDataCheck = input.MedicineDataCheck
-	review.DrugInteractionCheck = input.DrugInteractionCheck
-	review.DoseCheck = input.DoseCheck
-	review.DuplicationCheck = input.DuplicationCheck
-	review.AllergyCheck = input.AllergyCheck
-	review.ContraindicationCheck = input.ContraindicationCheck
-	review.IndicationCheck = input.IndicationCheck
-	review.AdministrationRouteCheck = input.AdministrationRouteCheck
-	review.IsApproved = input.IsApproved
-	review.Notes = input.Notes
-	review.Warnings = input.Warnings
-	review.Suggestion = input.Suggestion
-	review.RequiresDoctorConfirmation = input.RequiresDoctorConfirmation
-	review.FinalPatientCheck = input.FinalPatientCheck
-	review.FinalMedicineCheck = input.FinalMedicineCheck
-	review.FinalDoseCheck = input.FinalDoseCheck
-	review.FinalTimeCheck = input.FinalTimeCheck
-	review.FinalRouteCheck = input.FinalRouteCheck
-	review.PIONameCheck = input.PIONameCheck
-	review.PIOUsageCheck = input.PIOUsageCheck
-	review.PIOBenefitCheck = input.PIOBenefitCheck
-	review.PIOStorageCheck = input.PIOStorageCheck
-	review.PIOOtherCheck = input.PIOOtherCheck
+	// Update review fields partially to avoid wiping previous checklist
+	// values when frontend submits only telaah akhir payload.
+	if input.PatientIdentityCheck != nil {
+		review.PatientIdentityCheck = *input.PatientIdentityCheck
+	}
+	if input.DoctorNameSignCheck != nil {
+		review.DoctorNameSignCheck = *input.DoctorNameSignCheck
+	}
+	if input.PrescriptionDateCheck != nil {
+		review.PrescriptionDateCheck = *input.PrescriptionDateCheck
+	}
+	if input.MedicineDataCheck != nil {
+		review.MedicineDataCheck = *input.MedicineDataCheck
+	}
+	if input.DrugInteractionCheck != nil {
+		review.DrugInteractionCheck = *input.DrugInteractionCheck
+	}
+	if input.DoseCheck != nil {
+		review.DoseCheck = *input.DoseCheck
+	}
+	if input.DuplicationCheck != nil {
+		review.DuplicationCheck = *input.DuplicationCheck
+	}
+	if input.AllergyCheck != nil {
+		review.AllergyCheck = *input.AllergyCheck
+	}
+	if input.ContraindicationCheck != nil {
+		review.ContraindicationCheck = *input.ContraindicationCheck
+	}
+	if input.IndicationCheck != nil {
+		review.IndicationCheck = *input.IndicationCheck
+	}
+	if input.AdministrationRouteCheck != nil {
+		review.AdministrationRouteCheck = *input.AdministrationRouteCheck
+	}
+	if input.IsApproved != nil {
+		review.IsApproved = *input.IsApproved
+	}
+	if input.Notes != nil {
+		review.Notes = *input.Notes
+	}
+	if input.Warnings != nil {
+		review.Warnings = *input.Warnings
+	}
+	if input.Suggestion != nil {
+		review.Suggestion = *input.Suggestion
+	}
+	if input.RequiresDoctorConfirmation != nil {
+		review.RequiresDoctorConfirmation = *input.RequiresDoctorConfirmation
+	}
+	if input.FinalPatientCheck != nil {
+		review.FinalPatientCheck = *input.FinalPatientCheck
+	}
+	if input.FinalMedicineCheck != nil {
+		review.FinalMedicineCheck = *input.FinalMedicineCheck
+	}
+	if input.FinalDoseCheck != nil {
+		review.FinalDoseCheck = *input.FinalDoseCheck
+	}
+	if input.FinalTimeCheck != nil {
+		review.FinalTimeCheck = *input.FinalTimeCheck
+	}
+	if input.FinalRouteCheck != nil {
+		review.FinalRouteCheck = *input.FinalRouteCheck
+	}
+	if input.PIONameCheck != nil {
+		review.PIONameCheck = *input.PIONameCheck
+	}
+	if input.PIOUsageCheck != nil {
+		review.PIOUsageCheck = *input.PIOUsageCheck
+	}
+	if input.PIOBenefitCheck != nil {
+		review.PIOBenefitCheck = *input.PIOBenefitCheck
+	}
+	if input.PIOStorageCheck != nil {
+		review.PIOStorageCheck = *input.PIOStorageCheck
+	}
+	if input.PIOOtherCheck != nil {
+		review.PIOOtherCheck = *input.PIOOtherCheck
+	}
 
-	allInitialChecklist := input.PatientIdentityCheck &&
-		input.DoctorNameSignCheck &&
-		input.PrescriptionDateCheck &&
-		input.MedicineDataCheck &&
-		input.DoseCheck &&
-		input.AdministrationRouteCheck &&
-		input.DrugInteractionCheck &&
-		input.DuplicationCheck &&
-		input.ContraindicationCheck &&
-		input.AllergyCheck
+	allInitialChecklist := review.PatientIdentityCheck &&
+		review.DoctorNameSignCheck &&
+		review.PrescriptionDateCheck &&
+		review.MedicineDataCheck &&
+		review.DoseCheck &&
+		review.AdministrationRouteCheck &&
+		review.DrugInteractionCheck &&
+		review.DuplicationCheck &&
+		review.ContraindicationCheck &&
+		review.AllergyCheck
 
-	if input.IsApproved && !allInitialChecklist {
+	if review.IsApproved && !allInitialChecklist {
 		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Checklist telaah awal harus lengkap sebelum disetujui"})
 		return
 	}
 
 	now := time.Now()
-	review.InitialReviewCompleted = input.IsApproved && allInitialChecklist
+	review.InitialReviewCompleted = review.IsApproved && allInitialChecklist
 	if review.InitialReviewCompleted {
 		review.InitialReviewedAt = &now
 	} else {
 		review.InitialReviewedAt = nil
 	}
 
-	finalVerificationCompleted := input.FinalPatientCheck &&
-		input.FinalMedicineCheck &&
-		input.FinalDoseCheck &&
-		input.FinalTimeCheck &&
-		input.FinalRouteCheck
-	pioCompleted := input.PIONameCheck ||
-		input.PIOUsageCheck ||
-		input.PIOBenefitCheck ||
-		input.PIOStorageCheck ||
-		input.PIOOtherCheck
+	finalVerificationCompleted := review.FinalPatientCheck &&
+		review.FinalMedicineCheck &&
+		review.FinalDoseCheck &&
+		review.FinalTimeCheck &&
+		review.FinalRouteCheck
+	pioCompleted := review.PIONameCheck ||
+		review.PIOUsageCheck ||
+		review.PIOBenefitCheck ||
+		review.PIOStorageCheck ||
+		review.PIOOtherCheck
 
 	review.FinalVerificationCompleted = finalVerificationCompleted
 	review.PIOCompleted = pioCompleted
@@ -1198,8 +1251,10 @@ func ReviewPrescription(c *gin.Context) {
 		orderStatus = models.OrderStatusReviewed
 	}
 	updates := map[string]interface{}{
-		"status":       orderStatus,
-		"review_notes": input.Notes,
+		"status": orderStatus,
+	}
+	if input.Notes != nil {
+		updates["review_notes"] = *input.Notes
 	}
 	if review.InitialReviewCompleted {
 		updates["reviewed_by_id"] = *user.EmployeeID

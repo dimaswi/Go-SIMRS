@@ -814,6 +814,11 @@ func BPJSWebhookSisaAntrean(c *gin.Context) {
 		return
 	}
 
+	if queue.Status == "batal" {
+		c.JSON(http.StatusOK, newBPJSResponse(201, "Antrean sudah dibatalkan", nil))
+		return
+	}
+
 	// Hitung sisa antrean
 	var sisaAntrean int64
 	database.DB.Model(&models.BPJSQueue{}).
@@ -1160,7 +1165,7 @@ func BPJSWebhookPasienBaru(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, newBPJSResponse(200, "Harap datang ke admisi untuk melengkapi data rekam medis", gin.H{
+	c.JSON(http.StatusOK, newBPJSResponse(200, "Silahkan ke Klinik Rawat Inap Utama Muhammadiyah Kedungadem untuk mengisi data pasien!", gin.H{
 		"norm": patient.NoRM,
 	}))
 }

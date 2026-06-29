@@ -2,7 +2,8 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { BreadcrumbProvider } from "@/contexts/breadcrumb-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuthStore } from "@/lib/store";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   // Get initial state from localStorage, default to true
@@ -12,6 +13,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const [open, setOpen] = useState(getInitialState);
+
+  // Automatically refresh profile on mount to ensure we have the latest data (e.g. employee object)
+  const { setUser } = useAuthStore();
+  useEffect(() => {
+    import("@/lib/api").then(({ authApi }) => {
+      authApi.getProfile().then(res => {
+        if (res.data) setUser(res.data);
+      }).catch(console.error);
+    });
+  }, [setUser]);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);

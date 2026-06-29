@@ -69,7 +69,7 @@ interface CreateColumnsProps {
   onRecallQueue: (visit: Visit) => void;
   onAcceptPatient: (visit: Visit) => void;
   onCancelVisit: (visit: Visit) => void;
-  onViewDetail: (id: number) => void;
+  onViewDetail: (visit: Visit) => void;
   callingId: number | null;
   recallingId: number | null;
   acceptingId: number | null;
@@ -451,7 +451,7 @@ export const createVisitColumns = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onViewDetail(visit.id)}
+                onClick={() => onViewDetail(visit)}
               >
                 <Eye className="h-4 w-4" />
               </Button>

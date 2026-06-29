@@ -25,15 +25,14 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Loader2, Printer, ShieldCheck, ShieldX, FileText, FolderOpen, CheckCircle2 } from "lucide-react";
-import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { Loader2, Printer, ShieldCheck, ShieldX } from "lucide-react";
+import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { unitTransferApi } from "@/lib/api/inpatient";
 import { vclaimApi, type SPRILocal, type SuratKontrolLocal } from "@/lib/api/vclaim";
 import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
 import { useAuthStore } from "@/lib/store";
-import { format } from "date-fns";
-import { id as localeId } from "date-fns/locale";
+import { buildMRPrintEntries, type MRPrintEntry, type MRPrintStatus } from "@/components/medical-record/mr-print-registry";
 
 interface PrintSelectProps {
   visitId: number;
@@ -42,16 +41,6 @@ interface PrintSelectProps {
   refreshTrigger?: number; // Increment this to trigger data reload
   iconOnly?: boolean;
   triggerClassName?: string;
-}
-
-interface PrintOption {
-  value: string;
-  label: string;
-  category: string;
-  handler: () => Promise<void>;
-  documentType?: string; // For signature
-  documentId?: number;   // For signature
-  sourceVisitId?: number; // For order-based docs: the orderer's visit
 }
 
 
@@ -68,18 +57,8 @@ const ELIGIBILITY_DOC_TYPES = new Set<string>([
   DOCUMENT_TYPES.SURAT_KONTROL,
 ]);
 
-// Format date to Indonesian short
-function formatDateShort(dateStr?: string) {
-  if (!dateStr) return "";
-  try {
-    return format(new Date(dateStr), "dd/MM/yy", { locale: localeId });
-  } catch {
-    return "";
-  }
-}
-
-export function MedicalRecordPrintSelect({ 
-  visitId, 
+export function MedicalRecordPrintSelect({
+  visitId,
   isInpatient = false,
   isEmergency = false,
   refreshTrigger = 0,
@@ -89,7 +68,7 @@ export function MedicalRecordPrintSelect({
   const { toast } = useToast();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
-  
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -106,7 +85,7 @@ export function MedicalRecordPrintSelect({
   const [unitTransfers, setUnitTransfers] = useState<any[]>([]);
   const [spriDoc, setSpriDoc] = useState<SPRILocal | null>(null);
   const [suratKontrolDoc, setSuratKontrolDoc] = useState<SuratKontrolLocal | null>(null);
-  
+
   // Signature state
   const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string; required_signatures?: number; signed_signatures?: number; is_fully_signed?: boolean; signed_slots?: Record<string, boolean> }>>({});
   const [signEligibility, setSignEligibility] = useState<Record<string, { allowed: boolean; reason?: string }>>({});
@@ -132,7 +111,7 @@ export function MedicalRecordPrintSelect({
         loadData();
       }
     };
-    
+
     window.addEventListener("refresh-print-options", handleRefresh);
     return () => {
       window.removeEventListener("refresh-print-options", handleRefresh);
@@ -181,7 +160,7 @@ export function MedicalRecordPrintSelect({
         // For pharmacy visits, load orders by pharmacy_visit_id (current visit)
         // For other visits, load orders by source_visit_id (orders created from this visit)
         const isPharmacy = visitRes.data?.visit_type === "pharmacy" || visitRes.data?.room?.service_type === "farmasi";
-        const moRes = isPharmacy 
+        const moRes = isPharmacy
           ? await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId })
           : await medicineOrdersApi.getAll({ source_visit_id: visitId });
         setMedicineOrders(moRes.data || []);
@@ -312,7 +291,7 @@ export function MedicalRecordPrintSelect({
     const key = `${docType}-${docId}`;
     const now = Date.now();
     const prevAt = statusFetchAtRef.current[key] || 0;
-    if (!force && now-prevAt < 8000) return; // dedupe aggressive polling
+    if (!force && now - prevAt < 8000) return; // dedupe aggressive polling
     statusFetchAtRef.current[key] = now;
     try {
       const res = await signatureApi.getDocumentSignature(docType, docId);
@@ -407,10 +386,10 @@ export function MedicalRecordPrintSelect({
     setRevokeDoc(null);
   };
 
-  const isDocumentSigned = (docType: string, docId: number) => {
-    const status = signatureStatuses[`${docType}-${docId}`];
-    return status?.is_fully_signed ?? status?.is_signed ?? false;
-  };
+  // const isDocumentSigned = (docType: string, docId: number) => {
+  //   const status = signatureStatuses[`${docType}-${docId}`];
+  //   return status?.is_fully_signed ?? status?.is_signed ?? false;
+  // };
 
   const getSignatureProgress = (docType?: string, docId?: number) => {
     if (!docType || !docId) return { signed: 0, required: 1 };
@@ -476,7 +455,7 @@ export function MedicalRecordPrintSelect({
   const isUGDVisit = isEmergency || roomType === "igd" || roomType === "emergency";
   const isInpatientVisit = isInpatient || roomType === "inpatient" || roomType === "rawat_inap";
   const isPharmacyVisit = visit?.visit_type === "pharmacy" || serviceType === "farmasi";
-  
+
   // Check data availability
   const hasAnamnesis = medicalRecord?.anamnesis?.id > 0;
   const hasDiagnosis = (medicalRecord?.diagnoses?.length || 0) > 0;
@@ -484,18 +463,18 @@ export function MedicalRecordPrintSelect({
   const hasTriage = medicalRecord?.triage?.id > 0;
   const hasReferral = medicalRecord?.disposition?.disposition_type === "rujuk";
   const followUpRegistrationId = medicalRecord?.disposition?.follow_up_registration_id;
-  
+
   // Completed orders - include orders with completed/validated items too
-  const completedLabOrders = procedureOrders.filter(o => 
-    o.order_type === "laboratory" && 
+  const completedLabOrders = procedureOrders.filter(o =>
+    o.order_type === "laboratory" &&
     (o.status === "completed" || o.status === "validated" || o.items?.some((i: any) => i.status === "completed" || i.status === "validated"))
   );
-  const completedRadiologyOrders = procedureOrders.filter(o => 
-    o.order_type === "radiology" && 
+  const completedRadiologyOrders = procedureOrders.filter(o =>
+    o.order_type === "radiology" &&
     (o.status === "completed" || o.status === "validated" || o.items?.some((i: any) => i.status === "completed" || i.status === "validated"))
   );
-  const completedSurgeryOrders = procedureOrders.filter(o => 
-    o.order_type === "surgery" && 
+  const completedSurgeryOrders = procedureOrders.filter(o =>
+    o.order_type === "surgery" &&
     (o.status === "completed" || o.status === "validated" || o.items?.some((i: any) => i.status === "completed" || i.status === "validated"))
   );
   const completedConsultationOrders = procedureOrders.filter(o =>
@@ -506,380 +485,72 @@ export function MedicalRecordPrintSelect({
   // For pharmacy visit - show all orders that have items
   const pharmacyMedicineOrders = medicineOrders.filter(o => (o.items?.length || 0) > 0);
 
-  // Build print options
-  const buildPrintOptions = (): PrintOption[] => {
-    const options: PrintOption[] = [];
-
-    // ============ FARMASI (only for pharmacy visits) ============
-    if (isPharmacyVisit && pharmacyMedicineOrders.length > 0) {
-      // Etiket Obat
-      pharmacyMedicineOrders.forEach((order) => {
-        options.push({
-          value: `etiket-obat-${order.id}`,
-          label: "Etiket Obat",
-          category: "Farmasi",
-          handler: () => printApi.medicineLabels(order.id),
-        });
-      });
-      // Resep Obat (thermal for patient)
-      pharmacyMedicineOrders.forEach((order) => {
-        options.push({
-          value: `resep-obat-${order.id}`,
-          label: "Resep Obat",
-          category: "Farmasi",
-          handler: () => printApi.prescriptionThermal(order.id),
-        });
-      });
-    }
-
-    // ============ REKAM MEDIS ============
-    if (hasAnyMedicalData) {
-      if (isUGDVisit) {
-        options.push({
-          value: "resume-ugd",
-          label: "Resume Medis",
-          category: "UGD",
-          handler: () => printApi.outpatientResume(visitId),
-          documentType: DOCUMENT_TYPES.VISIT_RESUME,
-          documentId: visitId,
-        });
-      } else if (isInpatientVisit) {
-        options.push({
-          value: "resume-ranap",
-          label: "Resume Medis",
-          category: "Rawat Inap",
-          handler: () => printApi.inpatientResume(visitId),
-          documentType: DOCUMENT_TYPES.VISIT_RESUME,
-          documentId: visitId,
-        });
-      } else {
-        options.push({
-          value: "resume-rajal",
-          label: "Resume Medis",
-          category: "Rawat Jalan",
-          handler: () => printApi.outpatientResume(visitId),
-          documentType: DOCUMENT_TYPES.VISIT_RESUME,
-          documentId: visitId,
-        });
-      }
-    }
-
-    // ============ UGD ============
-    if (isUGDVisit) {
-      if (hasTriage) {
-        options.push({
-          value: "triage",
-          label: "Formulir Triage",
-          category: "UGD",
-          handler: () => printApi.triageForm(visitId),
-          documentType: DOCUMENT_TYPES.TRIAGE,
-          documentId: visitId,
-        });
-      }
-      if (medicalRecord) {
-        options.push({
-          value: "emergency-summary",
-          label: "Ringkasan Pelayanan",
-          category: "UGD",
-          handler: () => printApi.emergencySummary(visitId),
-          documentType: DOCUMENT_TYPES.EMERGENCY_SUMMARY,
-          documentId: visitId,
-        });
-      }
-    }
-
-    // ============ RAWAT INAP ============
-    if (isInpatientVisit) {
-      const cpptCount = medicalRecord?.cppt_count || 0;
-      const nursingCareCount = medicalRecord?.nursing_care_count || 0;
-      const fluidBalanceCount = medicalRecord?.fluid_balance_count || 0;
-      const vitalSignCount = medicalRecord?.vital_sign_count || 0;
-      const bedTransferCount = medicalRecord?.bed_transfer_count || 0;
-
-      if (cpptCount > 0) {
-        options.push({
-          value: "cppt",
-          label: `CPPT (${cpptCount} entri)`,
-          category: "Rawat Inap",
-          handler: () => printApi.cppt(visitId),
-          documentType: DOCUMENT_TYPES.CPPT,
-          documentId: visitId,
-        });
-      }
-      if (nursingCareCount > 0) {
-        options.push({
-          value: "nursing-care",
-          label: `Asuhan Keperawatan (${nursingCareCount} entri)`,
-          category: "Rawat Inap",
-          handler: () => printApi.nursingCare(visitId),
-          documentType: DOCUMENT_TYPES.NURSING_CARE,
-          documentId: visitId,
-        });
-      }
-      if (fluidBalanceCount > 0) {
-        options.push({
-          value: "fluid-balance",
-          label: `Balance Cairan (${fluidBalanceCount} entri)`,
-          category: "Rawat Inap",
-          handler: () => printApi.fluidBalance(visitId),
-          documentType: DOCUMENT_TYPES.FLUID_BALANCE,
-          documentId: visitId,
-        });
-      }
-      if (vitalSignCount > 0) {
-        options.push({
-          value: "vital-sign",
-          label: `Grafik Vital Sign (${vitalSignCount} entri)`,
-          category: "Rawat Inap",
-          handler: () => printApi.vitalSignChart(visitId),
-          documentType: DOCUMENT_TYPES.VITAL_SIGN,
-          documentId: visitId,
-        });
-      }
-      if (bedTransferCount > 0) {
-        options.push({
-          value: "bed-transfer",
-          label: `Mutasi Pasien (${bedTransferCount} entri)`,
-          category: "Rawat Inap",
-          handler: () => printApi.bedTransfer(visitId),
-          documentType: DOCUMENT_TYPES.BED_TRANSFER,
-          documentId: visitId,
-        });
-      }
-    }
-
-    // ============ MUTASI UNIT (Rawat Jalan / UGD) ============
-    if (!isInpatientVisit && unitTransfers.length > 0) {
-      options.push({
-        value: "unit-transfer",
-        label: `Mutasi Unit (${unitTransfers.length})`,
-        category: isUGDVisit ? "UGD" : "Rawat Jalan",
-        handler: () => printApi.unitTransfer(visitId),
-      });
-    }
-
-    // ============ FARMASI (Resep - only for non-pharmacy visits) ============
-    if (!isPharmacyVisit) {
-      completedMedicineOrders.forEach((order, idx) => {
-        const orderDate = formatDateShort(order.created_at);
-        options.push({
-          value: `prescription-${order.id}`,
-          label: `Resep ${orderDate || `#${idx + 1}`}`,
-          category: "Farmasi",
-          handler: () => printApi.prescription(order.id),
-          documentType: DOCUMENT_TYPES.PRESCRIPTION,
-          documentId: order.id,
-        });
-      });
-    }
-
-    // ============ LABORATORIUM ============
-    completedLabOrders.forEach((order) => {
-      options.push({
-        value: `lab-${order.id}`,
-        label: `Hasil Laboratorium`,
-        category: "Laboratorium",
-        handler: () => printApi.laboratoryResult(order.id),
-        documentType: DOCUMENT_TYPES.LAB_RESULT,
-        documentId: order.id,
-        sourceVisitId: order.source_visit_id,
-      });
-    });
-
-    // ============ RADIOLOGI ============
-    completedRadiologyOrders.forEach((order) => {
-      options.push({
-        value: `radiology-${order.id}`,
-        label: `Hasil Radiologi`,
-        category: "Radiologi",
-        handler: () => printApi.radiologyResult(order.id),
-        documentType: DOCUMENT_TYPES.RADIOLOGY_RESULT,
-        documentId: order.id,
-        sourceVisitId: order.source_visit_id,
-      });
-    });
-
-    // ============ OPERASI ============
-    completedSurgeryOrders.forEach((order) => {
-      options.push({
-        value: `surgery-${order.id}`,
-        label: `Hasil Operasi`,
-        category: "Operasi",
-        handler: () => printApi.procedureOrderResult(order.id),
-        documentType: DOCUMENT_TYPES.OPERATIVE_REPORT,
-        documentId: order.id,
-        sourceVisitId: order.source_visit_id,
-      });
-    });
-
-    // ============ KONSULTASI ============
-    completedConsultationOrders.forEach((order) => {
-      options.push({
-        value: `consultation-${order.id}`,
-        label: `Hasil Konsultasi`,
-        category: "Konsultasi",
-        handler: () => printApi.procedureOrderResult(order.id),
-        documentType: DOCUMENT_TYPES.CONSULTATION_RESULT,
-        documentId: order.id,
-        sourceVisitId: order.source_visit_id,
-      });
-    });
-
-    // ============ SURAT ============
-    // Saved sick letters
-    sickLetters.forEach((letter, idx) => {
-      const letterDate = formatDateShort(letter.start_date);
-      options.push({
-        value: `sick-letter-${letter.id}`,
-        label: `Surat Sakit ${letterDate || `#${idx + 1}`} (${letter.days} hari)`,
-        category: "Surat",
-        handler: () => printApi.sickLetterById(visitId, letter.id),
-        documentType: DOCUMENT_TYPES.SICK_LETTER,
-        documentId: letter.id,
-      });
-    });
-
-    healthCertificates.forEach((cert, idx) => {
-      const certDate = formatDateShort(cert.exam_date);
-      options.push({
-        value: `health-certificate-${cert.id}`,
-        label: `Surat Sehat ${certDate || `#${idx + 1}`}`,
-        category: "Surat",
-        handler: () => printApi.healthCertificate(visitId, cert.id),
-        documentType: DOCUMENT_TYPES.HEALTH_CERTIFICATE,
-        documentId: cert.id,
-      });
-    });
-
-    birthCertificates.forEach((cert, idx) => {
-      const certDate = formatDateShort(cert.birth_date);
-      options.push({
-        value: `birth-certificate-${cert.id}`,
-        label: `Surat Kelahiran ${certDate || `#${idx + 1}`}`,
-        category: "Surat",
-        handler: () => printApi.birthCertificate(visitId, cert.id),
-        documentType: DOCUMENT_TYPES.BIRTH_CERTIFICATE,
-        documentId: cert.id,
-      });
-    });
-
-    leaveCertificates.forEach((cert, idx) => {
-      const certDate = formatDateShort(cert.start_date);
-      options.push({
-        value: `leave-certificate-${cert.id}`,
-        label: `Surat Cuti ${certDate || `#${idx + 1}`}`,
-        category: "Surat",
-        handler: () => printApi.leaveCertificate(visitId, cert.id),
-        documentType: DOCUMENT_TYPES.LEAVE_CERTIFICATE,
-        documentId: cert.id,
-      });
-    });
-
-    mcuCertificates.forEach((cert, idx) => {
-      const certDate = formatDateShort(cert.exam_date);
-      options.push({
-        value: `mcu-certificate-${cert.id}`,
-        label: `Surat MCU ${certDate || `#${idx + 1}`}`,
-        category: "Surat",
-        handler: () => printApi.mcuCertificate(visitId, cert.id),
-        documentType: DOCUMENT_TYPES.MCU_CERTIFICATE,
-        documentId: cert.id,
-      });
-    });
-
-    deathCertificates.forEach((cert, idx) => {
-      const certDate = formatDateShort(cert.death_datetime);
-      options.push({
-        value: `death-certificate-${cert.id}`,
-        label: `Surat Kematian ${certDate || `#${idx + 1}`}`,
-        category: "Surat",
-        handler: () => printApi.deathCertificate(visitId, cert.id),
-        documentType: DOCUMENT_TYPES.DEATH_CERTIFICATE,
-        documentId: cert.id,
-      });
-    });
-    
-    if (hasReferral) {
-      options.push({
-        value: "referral-letter",
-        label: "Surat Rujukan",
-        category: "Surat",
-        handler: () => printApi.referralLetter(visitId),
-        documentType: DOCUMENT_TYPES.REFERRAL_LETTER,
-        documentId: visitId,
-      });
-    }
-
-    if (suratKontrolDoc?.id) {
-      const skDate = formatDateShort(suratKontrolDoc.tgl_rencana_kontrol);
-      options.push({
-        value: `surat-kontrol-${suratKontrolDoc.id}`,
-        label: `Surat Kontrol ${skDate || ""}`.trim(),
-        category: "Surat",
-        handler: () => printApi.suratKontrol(suratKontrolDoc.id),
-        documentType: DOCUMENT_TYPES.SURAT_KONTROL,
-        documentId: suratKontrolDoc.id,
-      });
-    } else if (followUpRegistrationId) {
-      const simrsDate = formatDateShort(medicalRecord?.disposition?.follow_up_date);
-      options.push({
-        value: `surat-kontrol-simrs-${followUpRegistrationId}`,
-        label: `Surat Kontrol SIMRS ${simrsDate || ""}`.trim(),
-        category: "Surat",
-        handler: () => printApi.suratKontrolSimrs(followUpRegistrationId),
-      });
-    }
-
-    if (spriDoc?.id) {
-      const spriDate = formatDateShort(spriDoc.tgl_rencana_kontrol);
-      options.push({
-        value: `spri-${spriDoc.id}`,
-        label: `SPRI ${spriDate || ""}`.trim(),
-        category: "Surat",
-        handler: () => printApi.spri(spriDoc.id),
-        documentType: DOCUMENT_TYPES.SPRI,
-        documentId: spriDoc.id,
-      });
-    }
-    
-    if (isInpatientVisit) {
-      options.push({
-        value: "inpatient-certificate",
-        label: "Surat Keterangan Rawat Inap",
-        category: "Surat",
-        handler: () => printApi.inpatientCertificate(visitId),
-        documentType: DOCUMENT_TYPES.INPATIENT_CERT,
-        documentId: visitId,
-      });
-    }
-
-    return options;
-  };
-
-  const printOptions = useMemo(() => buildPrintOptions(), [
-    hasAnyMedicalData,
-    isUGDVisit,
-    hasTriage,
-    isInpatientVisit,
-    medicalRecord,
-    completedMedicineOrders,
-    completedLabOrders,
-    completedRadiologyOrders,
-    completedSurgeryOrders,
-    completedConsultationOrders,
-    sickLetters,
-    healthCertificates,
-    birthCertificates,
-    leaveCertificates,
-    mcuCertificates,
-    deathCertificates,
-    hasReferral,
-    suratKontrolDoc,
-    followUpRegistrationId,
-    spriDoc,
-    visitId,
-    unitTransfers.length,
-  ]);
+  const printOptions = useMemo(
+    () =>
+      buildMRPrintEntries({
+        visitId,
+        visit,
+        medicalRecord,
+        medicineOrders,
+        procedureOrders,
+        sickLetters,
+        healthCertificates,
+        birthCertificates,
+        leaveCertificates,
+        mcuCertificates,
+        deathCertificates,
+        unitTransfers,
+        spriDoc,
+        suratKontrolDoc,
+        isUGDVisit,
+        isInpatientVisit,
+        isPharmacyVisit,
+        hasAnamnesis,
+        hasDiagnosis,
+        hasAnyMedicalData,
+        hasTriage,
+        hasReferral,
+        followUpRegistrationId,
+        completedLabOrders,
+        completedRadiologyOrders,
+        completedSurgeryOrders,
+        completedConsultationOrders,
+        completedMedicineOrders,
+        pharmacyMedicineOrders,
+        hasBersalin: (medicalRecord?.bersalin_count || 0) > 0,
+      }),
+    [
+      birthCertificates,
+      completedConsultationOrders,
+      completedLabOrders,
+      completedMedicineOrders,
+      completedRadiologyOrders,
+      completedSurgeryOrders,
+      deathCertificates,
+      followUpRegistrationId,
+      hasAnamnesis,
+      hasAnyMedicalData,
+      hasDiagnosis,
+      hasReferral,
+      hasTriage,
+      healthCertificates,
+      isInpatientVisit,
+      isPharmacyVisit,
+      isUGDVisit,
+      leaveCertificates,
+      mcuCertificates,
+      medicalRecord,
+      medicineOrders,
+      pharmacyMedicineOrders,
+      procedureOrders,
+      sickLetters,
+      spriDoc,
+      suratKontrolDoc,
+      unitTransfers,
+      visit,
+      visitId,
+    ],
+  );
 
   const batchDocs = useMemo(
     () =>
@@ -897,7 +568,7 @@ export function MedicalRecordPrintSelect({
   useEffect(() => {
     if (!open || batchDocs.length === 0) return;
     const now = Date.now();
-    if (lastBatchRef.current.key === batchDocsKey && now-lastBatchRef.current.at < 8000) {
+    if (lastBatchRef.current.key === batchDocsKey && now - lastBatchRef.current.at < 8000) {
       return;
     }
     lastBatchRef.current = { key: batchDocsKey, at: now };
@@ -924,23 +595,6 @@ export function MedicalRecordPrintSelect({
     };
   }, [open, batchDocsKey]);
 
-  // Group options by category
-  const groupedOptions = printOptions.reduce((acc, option) => {
-    if (!acc[option.category]) {
-      acc[option.category] = [];
-    }
-    acc[option.category].push(option);
-    return acc;
-  }, {} as Record<string, PrintOption[]>);
-
-  const categoryOrder = ["Umum", "Rawat Jalan", "UGD", "Rawat Inap", "Farmasi", "Laboratorium", "Radiologi", "Operasi", "Konsultasi", "Surat"];
-  const sortedCategories = Object.keys(groupedOptions).sort(
-    (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
-  );
-  const signedOptionsCount = printOptions.filter((option) =>
-    option.documentType && option.documentId ? isDocumentSigned(option.documentType, option.documentId) : false
-  ).length;
-
   const getCategoryBadgeClass = (category: string) => {
     switch (category) {
       case "UGD":
@@ -966,8 +620,39 @@ export function MedicalRecordPrintSelect({
     }
   };
 
-  const handleItemClick = async (option: PrintOption) => {
-    await handlePrint(option.handler, option.label);
+  const getStatusBadgeClass = (status: MRPrintStatus) => {
+    switch (status) {
+      case "ready":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      case "partial":
+        return "border-amber-200 bg-amber-50 text-amber-700";
+      case "missing-data":
+        return "border-sky-200 bg-sky-50 text-sky-700";
+      case "unavailable":
+        return "border-slate-200 bg-slate-50 text-slate-700";
+      default:
+        return "border-muted bg-muted/50 text-muted-foreground";
+    }
+  };
+
+  const getStatusLabel = (status: MRPrintStatus) => {
+    switch (status) {
+      case "ready":
+        return "Siap Cetak";
+      case "partial":
+        return "Parsial";
+      case "missing-data":
+        return "Belum Ada Data";
+      case "unavailable":
+        return "Belum Tersedia";
+      default:
+        return status;
+    }
+  };
+
+  const handleItemClick = async (option: MRPrintEntry) => {
+    if (!option.handler) return;
+    await handlePrint(option.handler, option.title);
   };
 
   if (loading) {
@@ -992,114 +677,75 @@ export function MedicalRecordPrintSelect({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={loading || printing}
-          className={cn(
-            "text-xs whitespace-nowrap shrink-0",
-            iconOnly ? "relative h-8 w-8 rounded-none p-0" : "h-7 gap-1 px-2.5",
-            triggerClassName
-          )}
-          aria-label="Cetak rekam medis"
-          title="Cetak rekam medis"
-        >
-          {loading || printing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Printer className="h-3.5 w-3.5" />
-          )}
-          {!iconOnly && "Cetak"}
-          {!iconOnly && printOptions.length > 0 && (
-            <Badge
-              variant="secondary"
-              className={cn(
-                "h-4 min-w-4 px-1 text-[10px] leading-none",
-                iconOnly ? "absolute -right-1 -top-1" : "ml-0.5"
-              )}
-            >
-              {printOptions.length}
-            </Badge>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[80vw] sm:max-w-[80vw]">
-        <SheetHeader className="border-b bg-muted/30 px-3 py-3 sm:px-5 sm:py-4">
-          <div className="pr-8">
-            <SheetTitle className="flex items-center gap-2 text-base">
-              <Printer className="h-4 w-4" />
-              Pilihan Cetak Rekam Medis
-            </SheetTitle>
-            <SheetDescription className="mt-1 text-xs">
-              Pilih dokumen yang ingin dicetak, cek status tanda tangan, dan akses aksi dokumen dalam satu daftar yang ringkas.
-            </SheetDescription>
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border bg-background px-3 py-2">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <FileText className="h-3.5 w-3.5" />
-                <span className="text-[11px] uppercase tracking-wide">Dokumen</span>
-              </div>
-              <p className="mt-1 text-lg font-semibold leading-none">{printOptions.length}</p>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading || printing}
+            className={cn(
+              "text-xs whitespace-nowrap shrink-0",
+              iconOnly ? "relative h-8 w-8 rounded-none p-0" : "h-7 gap-1 px-2.5",
+              triggerClassName
+            )}
+            aria-label="Cetak rekam medis"
+            title="Cetak rekam medis"
+          >
+            {loading || printing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Printer className="h-3.5 w-3.5" />
+            )}
+            {!iconOnly && "Cetak"}
+            {!iconOnly && printOptions.length > 0 && (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "h-4 min-w-4 px-1 text-[10px] leading-none",
+                  iconOnly ? "absolute -right-1 -top-1" : "ml-0.5"
+                )}
+              >
+                {printOptions.length}
+              </Badge>
+            )}
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <SheetHeader className="border-b bg-muted/30 px-3 py-3 sm:px-5 sm:py-4">
+            <div className="pr-8">
+              <SheetTitle className="flex items-center gap-2 text-base">
+                <Printer className="h-4 w-4" />
+                Registry Cetak MR.0 - MR.50
+              </SheetTitle>
+              <SheetDescription className="mt-1 text-xs">
+                Semua nomor MR ditampilkan dalam satu daftar. Cetakan yang sudah ada tetap memakai style dokumen yang sekarang.
+              </SheetDescription>
             </div>
-            <div className="rounded-lg border bg-background px-3 py-2">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <FolderOpen className="h-3.5 w-3.5" />
-                <span className="text-[11px] uppercase tracking-wide">Kategori</span>
-              </div>
-              <p className="mt-1 text-lg font-semibold leading-none">{sortedCategories.length}</p>
-            </div>
-            <div className="rounded-lg border bg-background px-3 py-2">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span className="text-[11px] uppercase tracking-wide">Tertanda</span>
-              </div>
-              <p className="mt-1 text-lg font-semibold leading-none">{signedOptionsCount}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline" className="font-normal">{visit?.registration?.patient?.nama_lengkap || "Pasien"}</Badge>
-            <Badge variant="outline" className="font-normal">Kunjungan #{visit?.id || visitId}</Badge>
-            {printing && <Badge className="gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Loader2 className="h-3 w-3 animate-spin" />Mencetak...</Badge>}
-          </div>
-        </SheetHeader>
+          </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-246px)] sm:h-[calc(100vh-214px)]">
-          {printOptions.length === 0 ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 px-6 text-center">
-              <Printer className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm font-medium">Belum ada dokumen yang bisa dicetak</p>
-              <p className="max-w-md text-xs text-muted-foreground">
-                Opsi cetak akan muncul otomatis setelah dokumen rekam medis, order, atau surat tersedia.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 p-3 sm:p-4">
-              {sortedCategories.map((category) => (
-                <section key={category} className="overflow-hidden rounded-xl border bg-background">
-                  <div className="flex flex-col gap-2 border-b bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold">{category}</h3>
-                      <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(category))}>
-                        {groupedOptions[category].length} dokumen
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">Aksi cetak dan tanda tangan tersedia per baris</p>
-                  </div>
-                  <div className="overflow-x-auto">
-                  <Table className="min-w-[760px]">
+          <ScrollArea className="h-[calc(100vh-120px)] sm:h-[calc(100vh-90px)]">
+            <div className="p-3 sm:p-4">
+              <div className="overflow-hidden rounded-xl border bg-background">
+                <div className="border-b bg-muted/20 px-4 py-3">
+                  <p className="text-sm font-semibold">Daftar Master MR</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Setiap nomor MR dipetakan ke fungsi sendiri. Baris yang siap cetak tetap memanggil endpoint dan layout lama.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[980px]">
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-[42%] px-4 text-xs">Dokumen</TableHead>
-                        <TableHead className="w-[18%] text-xs">Kategori</TableHead>
-                        <TableHead className="w-[18%] text-xs">Tanda Tangan</TableHead>
-                        <TableHead className="w-[22%] px-4 text-right text-xs">Aksi</TableHead>
+                        <TableHead className="w-[10%] px-4 text-xs">Kode MR</TableHead>
+                        <TableHead className="w-[34%] text-xs">Dokumen</TableHead>
+                        <TableHead className="w-[12%] text-xs">Kategori</TableHead>
+                        <TableHead className="w-[14%] text-xs">Status</TableHead>
+                        <TableHead className="w-[12%] text-xs">Tanda Tangan</TableHead>
+                        <TableHead className="w-[18%] px-4 text-right text-xs">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groupedOptions[category].map((option) => {
+                      {printOptions.map((option) => {
                         const canSign = canSignDocument(option.documentType, option.documentId);
                         const signReason = getSignReason(option.documentType, option.documentId);
                         const signProgress = getSignatureProgress(option.documentType, option.documentId);
@@ -1116,23 +762,27 @@ export function MedicalRecordPrintSelect({
                           : false;
 
                         return (
-                          <TableRow key={option.value}>
-                            <TableCell className="px-4 py-3">
+                          <TableRow key={option.key}>
+                            <TableCell className="px-4 py-3 align-top">
+                              <span className="font-medium">{option.mrCode}</span>
+                            </TableCell>
+                            <TableCell className="py-3 align-top">
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">{option.label}</p>
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                  {option.documentType && option.documentId
-                                    ? "Dokumen mendukung proses tanda tangan elektronik"
-                                    : "Dokumen siap dicetak langsung"}
-                                </p>
+                                <p className="text-sm font-medium">{option.title}</p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">{option.description}</p>
                               </div>
                             </TableCell>
-                            <TableCell className="py-3">
-                              <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(category))}>
-                                {category}
+                            <TableCell className="py-3 align-top">
+                              <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(option.category))}>
+                                {option.category}
                               </Badge>
                             </TableCell>
-                            <TableCell className="py-3">
+                            <TableCell className="py-3 align-top">
+                              <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeClass(option.status))}>
+                                {getStatusLabel(option.status)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-3 align-top">
                               {option.documentType && option.documentId ? (
                                 isSigned ? (
                                   <Badge className="gap-1 bg-green-600 hover:bg-green-600">
@@ -1149,19 +799,21 @@ export function MedicalRecordPrintSelect({
                                 <span className="text-xs text-muted-foreground">N/A</span>
                               )}
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-4 py-3 align-top">
                               <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end">
                                 {option.documentType && option.documentId && !isSigned && canSign && (!slotLeftSigned || !slotRightSigned) && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-8 px-2 text-xs"
-                                    onClick={() => handleSignDocument(
-                                      option.documentType!,
-                                      option.documentId!,
-                                      option.label,
-                                      !slotLeftSigned ? "left" : "right"
-                                    )}
+                                    onClick={() =>
+                                      handleSignDocument(
+                                        option.documentType!,
+                                        option.documentId!,
+                                        option.title,
+                                        !slotLeftSigned ? "left" : "right",
+                                      )
+                                    }
                                   >
                                     <ShieldCheck className="h-3.5 w-3.5" />
                                     TTD
@@ -1175,21 +827,25 @@ export function MedicalRecordPrintSelect({
                                     variant="outline"
                                     size="sm"
                                     className="h-8 px-2 text-xs text-red-600 hover:text-red-700"
-                                    onClick={() => handleRevokeDocument(option.documentType!, option.documentId!, option.label)}
+                                    onClick={() => handleRevokeDocument(option.documentType!, option.documentId!, option.title)}
                                   >
                                     <ShieldX className="h-3.5 w-3.5" />
                                     Batal
                                   </Button>
                                 )}
-                                <Button
-                                  size="sm"
-                                  className="h-8 px-3 text-xs"
-                                  disabled={printing}
-                                  onClick={() => handleItemClick(option)}
-                                >
-                                  {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-                                  Cetak
-                                </Button>
+                                {option.handler ? (
+                                  <Button
+                                    size="sm"
+                                    className="h-8 px-3 text-xs"
+                                    disabled={printing}
+                                    onClick={() => handleItemClick(option)}
+                                  >
+                                    {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                    Cetak
+                                  </Button>
+                                ) : (
+                                  <span className="text-[11px] text-muted-foreground">Belum ada aksi cetak</span>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1197,51 +853,49 @@ export function MedicalRecordPrintSelect({
                       })}
                     </TableBody>
                   </Table>
-                  </div>
-                </section>
-              ))}
+                </div>
+              </div>
             </div>
-          )}
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
 
-    {/* Signature Dialog */}
-    {signOnBehalfDoc && (
-      <SignOnBehalfDialog
-        open={showSignOnBehalfDialog}
-        onOpenChange={(open) => {
-          setShowSignOnBehalfDialog(open);
-        }}
-        documentType={signOnBehalfDoc.type}
-        documentId={signOnBehalfDoc.id}
-        visitId={visitId}
-        documentTitle={signOnBehalfDoc.title}
-        signerHint="Pilih penandatangan"
-        signerTypeFilter={signOnBehalfDoc.signerTypeFilter}
-        signatureSlot={signOnBehalfDoc.signatureSlot}
-        requiredSignatures={signOnBehalfDoc.requiredSignatures}
-        visitDoctor={visit?.doctor ? {
-          id: visit.doctor.id,
-          nama_lengkap: visit.doctor.nama_lengkap,
-        } : undefined}
-        onSuccess={() => {
-          checkSignatureStatus(signOnBehalfDoc.type, signOnBehalfDoc.id, true);
-          setSignOnBehalfDoc(null);
-        }}
-      />
-    )}
+      {/* Signature Dialog */}
+      {signOnBehalfDoc && (
+        <SignOnBehalfDialog
+          open={showSignOnBehalfDialog}
+          onOpenChange={(open) => {
+            setShowSignOnBehalfDialog(open);
+          }}
+          documentType={signOnBehalfDoc.type}
+          documentId={signOnBehalfDoc.id}
+          visitId={visitId}
+          documentTitle={signOnBehalfDoc.title}
+          signerHint="Pilih penandatangan"
+          signerTypeFilter={signOnBehalfDoc.signerTypeFilter}
+          signatureSlot={signOnBehalfDoc.signatureSlot}
+          requiredSignatures={signOnBehalfDoc.requiredSignatures}
+          visitDoctor={visit?.doctor ? {
+            id: visit.doctor.id,
+            nama_lengkap: visit.doctor.nama_lengkap,
+          } : undefined}
+          onSuccess={() => {
+            checkSignatureStatus(signOnBehalfDoc.type, signOnBehalfDoc.id, true);
+            setSignOnBehalfDoc(null);
+          }}
+        />
+      )}
 
-    {revokeDoc && (
-      <RevokePINDialog
-        open={showRevokeDialog}
-        onOpenChange={setShowRevokeDialog}
-        documentType={revokeDoc.type}
-        documentId={revokeDoc.id}
-        documentTitle={revokeDoc.title}
-        onSuccess={handleRevokeSuccess}
-      />
-    )}
+      {revokeDoc && (
+        <RevokePINDialog
+          open={showRevokeDialog}
+          onOpenChange={setShowRevokeDialog}
+          documentType={revokeDoc.type}
+          documentId={revokeDoc.id}
+          documentTitle={revokeDoc.title}
+          onSuccess={handleRevokeSuccess}
+        />
+      )}
     </>
   );
 }

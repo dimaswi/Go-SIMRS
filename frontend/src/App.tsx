@@ -32,6 +32,9 @@ const PublicBedMonitoring = lazy(() => import('./pages/rooms/public-monitoring')
 // Public Signature Verification
 const VerifySignaturePage = lazy(() => import('./pages/verify/index'));
 
+// Patient Sign
+const PatientSignPage = lazy(() => import('./pages/patient-sign/index'));
+
 // Bed Monitoring (Protected)
 const BedMonitoringIndex = lazy(() => import('./pages/bed-monitoring/index'));
 const BedMonitoringShow = lazy(() => import('./pages/rooms/monitoring'));
@@ -93,6 +96,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
 }
 
+function FullscreenProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <div className="h-screen w-screen bg-background">{children}</div>;
+}
+
 function App() {
   // Load theme on app start
   useEffect(() => {
@@ -120,6 +133,9 @@ function App() {
           
           {/* Public Signature Verification */}
           <Route path="/verify/:hash" element={<VerifySignaturePage />} />
+
+          {/* Public Patient Signature */}
+          <Route path="/patient-sign" element={<PatientSignPage />} />
           
           {/* Patient Portal (Public with patient authentication) */}
           <Route path="/portal" element={<PatientPortalLogin />} />
@@ -133,23 +149,59 @@ function App() {
           <Route path="/settings/audit-log" element={<ProtectedRoute><AuditLogPage /></ProtectedRoute>} />
           
           {/* Bed Monitoring (Protected) */}
-          <Route path="/bed-monitoring" element={<ProtectedRoute><BedMonitoringIndex /></ProtectedRoute>} />
-          <Route path="/bed-monitoring/:id" element={<ProtectedRoute><BedMonitoringShow /></ProtectedRoute>} />
+          <Route path="/bed-monitoring" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="rooms.view">
+                <BedMonitoringIndex />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
+          <Route path="/bed-monitoring/:id" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="rooms.view">
+                <BedMonitoringShow />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           
           {/* Floor Plan */}
-          <Route path="/floor-plan" element={<ProtectedRoute><FloorPlanPage /></ProtectedRoute>} />
+          <Route path="/floor-plan" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="buildings.view">
+                <FloorPlanPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           
           {/* Buildings */}
-          <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
+          <Route path="/buildings" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="buildings.view">
+                <BuildingsPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
 
           {/* Master PPK */}
-          <Route path="/ppk" element={<ProtectedRoute><PPKPage /></ProtectedRoute>} />
+          <Route path="/ppk" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="master_data.view">
+                <PPKPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           
           {/* Check-in Scanner */}
-          <Route path="/checkin" element={<ProtectedRoute><CheckInScannerPage /></ProtectedRoute>} />
+          <Route path="/checkin" element={<FullscreenProtectedRoute><CheckInScannerPage /></FullscreenProtectedRoute>} />
           
           {/* Users */}
-          <Route path="/users" element={<ProtectedRoute><UsersIndex /></ProtectedRoute>} />
+          <Route path="/users" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="users.view">
+                <UsersIndex />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/users/create" element={
             <ProtectedRoute>
               <PermissionGuard permission="users.create">
@@ -157,7 +209,13 @@ function App() {
               </PermissionGuard>
             </ProtectedRoute>
           } />
-          <Route path="/users/:id" element={<ProtectedRoute><UsersShow /></ProtectedRoute>} />
+          <Route path="/users/:id" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="users.view">
+                <UsersShow />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/users/:id/edit" element={
             <ProtectedRoute>
               <PermissionGuard permission="users.update">
@@ -167,7 +225,13 @@ function App() {
           } />
           
           {/* Roles */}
-          <Route path="/roles" element={<ProtectedRoute><RolesIndex /></ProtectedRoute>} />
+          <Route path="/roles" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="roles.view">
+                <RolesIndex />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/roles/create" element={
             <ProtectedRoute>
               <PermissionGuard permission="roles.create">
@@ -175,7 +239,13 @@ function App() {
               </PermissionGuard>
             </ProtectedRoute>
           } />
-          <Route path="/roles/:id" element={<ProtectedRoute><RolesShow /></ProtectedRoute>} />
+          <Route path="/roles/:id" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="roles.view">
+                <RolesShow />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/roles/:id/edit" element={
             <ProtectedRoute>
               <PermissionGuard permission="roles.update">
@@ -185,7 +255,13 @@ function App() {
           } />
           
           {/* Permissions */}
-          <Route path="/permissions" element={<ProtectedRoute><PermissionsIndex /></ProtectedRoute>} />
+          <Route path="/permissions" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="permissions.view">
+                <PermissionsIndex />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/permissions/create" element={
             <ProtectedRoute>
               <PermissionGuard permission="permissions.create">
@@ -193,7 +269,13 @@ function App() {
               </PermissionGuard>
             </ProtectedRoute>
           } />
-          <Route path="/permissions/:id" element={<ProtectedRoute><PermissionsShow /></ProtectedRoute>} />
+          <Route path="/permissions/:id" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="permissions.view">
+                <PermissionsShow />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/permissions/:id/edit" element={
             <ProtectedRoute>
               <PermissionGuard permission="permissions.update">

@@ -45,7 +45,7 @@ export function Combobox({
   value,
   onValueChange,
   onSearchChange,
-  placeholder = "Pilih...",
+  placeholder = "Silahkan Pilih",
   searchPlaceholder = "Cari...",
   emptyText = "Tidak ditemukan.",
   disabled = false,

@@ -62,6 +62,7 @@ import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
 import { EditPaymentDialog } from "@/pages/registrations/edit-payment-dialog";
 import { formatPatientName } from "@/lib/print-utils";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 
 interface RoomWithBeds extends Room {
   available_beds?: number;
@@ -100,6 +101,7 @@ export default function AdmissionRequestShowPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>();
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
   const [selectedBedId, setSelectedBedId] = useState<number | undefined>();
+  const [autoSelectData, setAutoSelectData] = useState<{unitId?: number, bedId?: number} | null>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | undefined>();
   const [processNotes, setProcessNotes] = useState("");
 
@@ -115,7 +117,7 @@ export default function AdmissionRequestShowPage() {
   const [sepSheetOpen, setSepSheetOpen] = useState(false);
   const [sepNumber, setSepNumber] = useState("");
   const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
-  const [ _loadingPatient, setLoadingPatient] = useState(false);
+  const [_loadingPatient, setLoadingPatient] = useState(false);
   const [inpatientVisitId, setInpatientVisitId] = useState<number | null>(null);
 
   // Edit Payment
@@ -134,6 +136,10 @@ export default function AdmissionRequestShowPage() {
   const [spriNumber, setSpriNumber] = useState("");
   const [existingOutpatientSEP, setExistingOutpatientSEP] = useState<SEPLocal | null>(null);
 
+  // Success / Signature Modal
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+
   useEffect(() => {
     if (id) {
       fetchRequest();
@@ -144,6 +150,15 @@ export default function AdmissionRequestShowPage() {
     if (request?.status === "pending") {
       fetchInpatientRooms();
       fetchDoctors();
+      
+      if (request.suggested_bed && request.suggested_bed.room_unit?.room?.id) {
+         setAutoSelectData({
+            unitId: request.suggested_bed.room_unit.id,
+            bedId: request.suggested_bed.id
+         });
+         setSelectedRoomId(request.suggested_bed.room_unit.room.id);
+      }
+
       // Fetch patient detail for SEP form
       const patientId = getPatient(request)?.id;
       if (patientId) {
@@ -160,7 +175,8 @@ export default function AdmissionRequestShowPage() {
 
   useEffect(() => {
     if (selectedRoomId) {
-      fetchBedsForRoom(selectedRoomId);
+      fetchBedsForRoom(selectedRoomId, autoSelectData);
+      setAutoSelectData(null);
     } else {
       setRoomUnits([]);
       setAvailableBeds([]);
@@ -353,7 +369,7 @@ export default function AdmissionRequestShowPage() {
     }
   };
 
-  const fetchBedsForRoom = async (roomId: number) => {
+  const fetchBedsForRoom = async (roomId: number, preselect?: {unitId?: number, bedId?: number} | null) => {
     try {
       setLoadingBeds(true);
       const response = await roomsApi.getUnits(roomId);
@@ -368,11 +384,19 @@ export default function AdmissionRequestShowPage() {
       });
       setAvailableBeds(allBeds);
 
-      const firstAvailableUnit = units.find((u) =>
-        u.beds?.some((b: RoomBed) => b.status === "available")
-      );
-      if (firstAvailableUnit) {
-        setSelectedUnitId(firstAvailableUnit.id);
+      if (preselect?.unitId) {
+        setSelectedUnitId(preselect.unitId);
+      } else {
+        const firstAvailableUnit = units.find((u) =>
+          u.beds?.some((b: RoomBed) => b.status === "available")
+        );
+        if (firstAvailableUnit) {
+          setSelectedUnitId(firstAvailableUnit.id);
+        }
+      }
+      
+      if (preselect?.bedId) {
+        setSelectedBedId(preselect.bedId);
       }
     } catch (error) {
       console.error("Failed to fetch beds:", error);
@@ -524,7 +548,7 @@ export default function AdmissionRequestShowPage() {
       // Get updated request with inpatient_visit_id from response
       const updatedRequest = response.data?.data;
       let newVisitId: number | null = null;
-      
+
       if (updatedRequest) {
         setRequest(updatedRequest);
         if (updatedRequest.inpatient_visit_id) {
@@ -551,8 +575,8 @@ export default function AdmissionRequestShowPage() {
           "Permintaan rawat inap berhasil diproses. Kunjungan rawat inap telah dibuat.",
       });
 
-      // Navigate to admisi list
-      navigate("/registrations?tab=admission_requests");
+      // Show success dialog to ask for signature
+      setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Failed to process request:", error);
       toast({
@@ -685,7 +709,7 @@ export default function AdmissionRequestShowPage() {
   const isPending = request.status === "pending";
   // Check payment method from registration first, fallback to patient jenis_jaminan
   const registrationPaymentMethod = request.registration?.payment_method;
-  const isBPJS = registrationPaymentMethod 
+  const isBPJS = registrationPaymentMethod
     ? registrationPaymentMethod === "bpjs"
     : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
@@ -790,6 +814,14 @@ export default function AdmissionRequestShowPage() {
                   </span>
                 </div>
               )}
+              {request.suggested_bed && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Saran Tempat Tidur</span>
+                  <span className="font-medium text-right">
+                    {request.suggested_bed.room_unit?.room?.name} - {request.suggested_bed.room_unit?.name} (Bed {request.suggested_bed.bed_number})
+                  </span>
+                </div>
+              )}
 
               {/* Payment Method Row */}
               <div className="flex justify-between items-center">
@@ -880,33 +912,33 @@ export default function AdmissionRequestShowPage() {
             {(request.admission_reason ||
               request.diagnosis ||
               request.special_notes) && (
-              <div className="space-y-3 text-sm border-t pt-4">
-                {request.admission_reason && (
-                  <div>
-                    <p className="text-muted-foreground mb-1">
-                      Alasan Rawat Inap:
-                    </p>
-                    <p className="bg-muted/50 p-2 rounded">
-                      {request.admission_reason}
-                    </p>
-                  </div>
-                )}
-                {request.diagnosis && (
-                  <div>
-                    <p className="text-muted-foreground mb-1">Diagnosis:</p>
-                    <p className="bg-muted/50 p-2 rounded">{request.diagnosis}</p>
-                  </div>
-                )}
-                {request.special_notes && (
-                  <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                    <p className="text-yellow-700 flex items-center gap-1 mb-1">
-                      <AlertTriangle className="h-3 w-3" /> Catatan Khusus:
-                    </p>
-                    <p className="text-yellow-800">{request.special_notes}</p>
-                  </div>
-                )}
-              </div>
-            )}
+                <div className="space-y-3 text-sm border-t pt-4">
+                  {request.admission_reason && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">
+                        Alasan Rawat Inap:
+                      </p>
+                      <p className="bg-muted/50 p-2 rounded">
+                        {request.admission_reason}
+                      </p>
+                    </div>
+                  )}
+                  {request.diagnosis && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">Diagnosis:</p>
+                      <p className="bg-muted/50 p-2 rounded">{request.diagnosis}</p>
+                    </div>
+                  )}
+                  {request.special_notes && (
+                    <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+                      <p className="text-yellow-700 flex items-center gap-1 mb-1">
+                        <AlertTriangle className="h-3 w-3" /> Catatan Khusus:
+                      </p>
+                      <p className="text-yellow-800">{request.special_notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
             {/* Rejection Info */}
             {request.status === "rejected" && request.rejection_reason && (
@@ -1618,6 +1650,58 @@ export default function AdmissionRequestShowPage() {
           }}
         />
       )}
+
+      {/* Success Dialog */}
+      <Dialog open={successDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          navigate("/registrations?tab=admission_requests");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pendaftaran Rawat Inap Berhasil</DialogTitle>
+            <DialogDescription>
+              Kunjungan rawat inap telah dibuat. Apakah Anda ingin wali dan pasien menandatangani Persetujuan Rawat Inap sekarang?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setSuccessDialogOpen(false)}>
+              Nanti Saja (Skip)
+            </Button>
+            <Button onClick={() => {
+              setSuccessDialogOpen(false);
+              setSignatureDialogOpen(true);
+            }}>
+              Tandatangani Sekarang
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Modal */}
+      <SignOnBehalfDialog
+        open={signatureDialogOpen}
+        onOpenChange={(open) => {
+          setSignatureDialogOpen(open);
+          if (!open) {
+            navigate("/registrations?tab=admission_requests");
+          }
+        }}
+        documentType="general_consent_inpatient"
+        documentId={inpatientVisitId || 0}
+        visitId={inpatientVisitId || 0}
+        signerHint="Silakan lengkapi Tanda Tangan"
+        documentTitle="Persetujuan Umum Rawat Inap"
+        slotLabels={{
+          left: "Wali",
+          right: "Pasien"
+        }}
+        fixedRoles={{
+          left: "wali",
+          right: "pasien"
+        }}
+        requiredSignatures={2}
+      />
     </div>
   );
 }

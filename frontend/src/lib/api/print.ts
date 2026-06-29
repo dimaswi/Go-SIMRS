@@ -106,6 +106,14 @@ export const printApi = {
   },
 
   /**
+   * Print General Consent Inpatient (RM-03)
+   * @param visitId - Inpatient Visit ID
+   */
+  generalConsentInpatient: async (visitId: number) => {
+    return fetchPdf(`${BASE_URL}/general-consent-inpatient/${visitId}`);
+  },
+
+  /**
    * Print Bukti Registrasi / Tanda Pendaftaran
    * @param registrationId - Registration ID
    */
@@ -430,6 +438,7 @@ export const printApi = {
     return fetchPdf(`${BASE_URL}/prescription-thermal/${orderId}`);
   },
 
+
   // =========================================================================
   // G. BILLING & KEUANGAN
   // =========================================================================
@@ -457,6 +466,14 @@ export const printApi = {
     return fetchPdf(`${BASE_URL}/nutrition-etiket/${orderId}`);
   },
 
+  /**
+   * Print MR.47 - Kebidanan / Partograf / Persalinan
+   * @param visitId - Visit ID
+   */
+  bersalinRecord: async (visitId: number) => {
+    return fetchPdf(`${BASE_URL}/bersalin/${visitId}`);
+  },
+
   // =========================================================================
   // H. BLOB (return PDF blob for embedding, no new tab)
   // =========================================================================
@@ -474,6 +491,8 @@ export const printApi = {
       const qs = params.toString();
       return fetchPdfBlob(`${BASE_URL}/admission-discharge-summary/${registrationId}${qs ? `?${qs}` : ''}`);
     },
+    generalConsentInpatient: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/general-consent-inpatient/${visitId}`, rmDuplicateId)),
     registrationReceipt: (registrationId: number, rmDuplicateId?: number) =>
       fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/registration-receipt/${registrationId}`, rmDuplicateId)),
     outpatientResume: (visitId: number, rmDuplicateId?: number) =>
@@ -504,6 +523,8 @@ export const printApi = {
       fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/bed-transfer/${visitId}`, rmDuplicateId)),
     vitalSignChart: (visitId: number, rmDuplicateId?: number) =>
       fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/vital-sign-chart/${visitId}`, rmDuplicateId)),
+    bersalinRecord: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/bersalin/${visitId}`, rmDuplicateId)),
     prescription: (orderId: number, rmDuplicateId?: number) =>
       fetchPdfBlob(withCasemixPrintQuery(`${BASE_URL}/prescription/${orderId}`, rmDuplicateId)),
     prescriptionThermal: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription-thermal/${orderId}`),

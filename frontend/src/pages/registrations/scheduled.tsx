@@ -24,13 +24,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { registrationApi, type ScheduledRegistration } from "@/lib/api/queue";
 import { roomsApi, type Room } from "@/lib/api/rooms";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CheckInKontrolDrawer } from "@/components/registration/checkin-kontrol-drawer";
+import { SuratKontrolFormSheet } from "@/components/sep/surat-kontrol-form-sheet";
 import { setPageTitle } from "@/lib/page-title";
+import { api } from "@/lib/api";
 import {
   Loader2,
   RefreshCcw,
@@ -78,6 +81,12 @@ export default function ScheduledRegistrationsPage() {
     reason: "",
   });
   const [actionLoading, setActionLoading] = useState(false);
+
+  // BPJS Reschedule state
+  const [suratKontrolDrawerOpen, setSuratKontrolDrawerOpen] = useState(false);
+  const [editSuratKontrolNo, setEditSuratKontrolNo] = useState<string>("");
+  const [suratKontrolPatient, setSuratKontrolPatient] = useState<any>(null);
+  const [editingBpjsReg, setEditingBpjsReg] = useState<ScheduledRegistration | null>(null);
 
   // Load rooms for filter
   useEffect(() => {
@@ -213,6 +222,53 @@ export default function ScheduledRegistrationsPage() {
     }
   };
 
+  // Handle Reschedule Click
+  const handleRescheduleClick = async (reg: ScheduledRegistration) => {
+    console.log("handleRescheduleClick called for:", reg);
+    const regId = reg.ID || reg.id || 0;
+
+    if (reg.payment_method === "bpjs") {
+      setActionLoading(true);
+      try {
+        console.log("Fetching kontrol info for regId:", regId);
+        const res = await api.get<any>(`/registrations/${regId}/kontrol-info`);
+        console.log("kontrol-info response:", res.data);
+
+        const sk = res.data.data?.suratKontrol || res.data.data?.surat_kontrol;
+        console.log("Extracted sk:", sk);
+
+        if (sk && sk.no_surat_kontrol) {
+          console.log("Opening BPJS drawer with SK:", sk.no_surat_kontrol);
+          setEditSuratKontrolNo(sk.no_surat_kontrol);
+          setSuratKontrolPatient(reg.patient);
+          setEditingBpjsReg(reg);
+          setSuratKontrolDrawerOpen(true);
+          setActionLoading(false);
+          return;
+        } else {
+          console.log("SK not found or invalid:", sk);
+        }
+      } catch (e) {
+        console.error("Gagal mendapatkan kontrol info:", e);
+      }
+      setActionLoading(false);
+    }
+
+    console.log("Falling back to normal reschedule for regId:", regId);
+    // Normal reschedule
+    setRescheduleData({
+      id: regId,
+      currentDate: reg.scheduled_date || "",
+      currentRoom: reg.destination_room_id,
+      patientName: reg.patient?.nama_lengkap || "",
+    });
+    setRescheduleForm({
+      new_date: "",
+      new_room_id: reg.destination_room_id.toString(),
+      reason: "",
+    });
+  };
+
   // Get status badge
   const getStatusBadge = (reg: ScheduledRegistration) => {
     if (reg.checked_in_at) {
@@ -251,10 +307,17 @@ export default function ScheduledRegistrationsPage() {
   const columns: ColumnDef<ScheduledRegistration>[] = [
     {
       accessorKey: "scheduled_date",
-      header: "Tanggal",
+      header: "Tanggal Kontrol",
       cell: ({ row }) => (
-        <div className="font-medium">
-          {formatDate(row.original.scheduled_date)}
+        <div>
+          <div className="font-medium">
+            {formatDate(row.original.scheduled_date)}
+          </div>
+          {row.original.surat_kontrol?.no_surat_kontrol && (
+            <div className="text-xs text-muted-foreground font-mono mt-0.5">
+              {row.original.surat_kontrol.no_surat_kontrol}
+            </div>
+          )}
         </div>
       ),
     },
@@ -270,16 +333,29 @@ export default function ScheduledRegistrationsPage() {
     {
       id: "patient",
       header: "Pasien",
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">
-            {formatPatientName(row.original.patient?.nama_lengkap, row.original.patient?.jenis_kelamin, undefined, row.original.patient?.tanggal_lahir) || "-"}
+      cell: ({ row }) => {
+        const paymentMethod = row.original.payment_method;
+        const methodLabel = paymentMethod === "bpjs" ? "BPJS" : paymentMethod === "insurance" ? "ASURANSI" : "UMUM";
+        const badgeColor = paymentMethod === "bpjs"
+          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+          : paymentMethod === "insurance"
+            ? "bg-blue-100 text-blue-800 border-blue-200"
+            : "bg-slate-100 text-slate-800 border-slate-200";
+
+        return (
+          <div>
+            <div className="font-medium flex items-center gap-2">
+              {formatPatientName(row.original.patient?.nama_lengkap, row.original.patient?.jenis_kelamin, undefined, row.original.patient?.tanggal_lahir) || "-"}
+            </div>
+            <div className="text-sm text-muted-foreground flex items-center gap-2 mt-0.5">
+              <span>{row.original.patient?.no_rm || "-"}</span>
+              <Badge variant="outline" className={`text-[9px] h-5 px-1.5 uppercase tracking-wider ${badgeColor}`}>
+                {methodLabel}
+              </Badge>
+            </div>
           </div>
-          <div className="text-sm text-muted-foreground">
-            {row.original.patient?.no_rm || "-"}
-          </div>
-        </div>
-      ),
+        );
+      },
       filterFn: (row, _, filterValue) => {
         const patientName = row.original.patient?.nama_lengkap?.toLowerCase() || "";
         const patientRM = row.original.patient?.no_rm?.toLowerCase() || "";
@@ -313,54 +389,72 @@ export default function ScheduledRegistrationsPage() {
       cell: ({ row }) => {
         const reg = row.original;
         const regId = reg.ID || reg.id || 0;
-        const canCheckIn = reg.status === "scheduled" && !reg.checked_in_at;
+        const isDateToday = reg.scheduled_date ? isToday(parseISO(reg.scheduled_date)) : false;
+        
+        // Show Check-In button if status is scheduled and not yet checked in
+        const showCheckIn = reg.status === "scheduled" && !reg.checked_in_at;
+        
         const canReschedule = reg.status === "scheduled" || reg.status === "no_show";
         const canCancelReg = reg.status === "scheduled";
 
         return (
           <div className="flex items-center justify-end gap-2">
-            {canCheckIn && hasPermission("registrations.update") && (
-              <Button
-                size="sm"
-                onClick={() => openCheckInDrawer(regId)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <UserCheck className="h-4 w-4 mr-1" />
-                Check-in
-              </Button>
-            )}
-            {canReschedule && hasPermission("registrations.update") && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setRescheduleData({
-                    id: regId,
-                    currentDate: reg.scheduled_date || "",
-                    currentRoom: reg.destination_room_id,
-                    patientName: reg.patient?.nama_lengkap || "",
-                  });
-                  setRescheduleForm({
-                    new_date: "",
-                    new_room_id: reg.destination_room_id.toString(),
-                    reason: "",
-                  });
-                }}
-              >
-                <CalendarClock className="h-4 w-4 mr-1" />
-                Reschedule
-              </Button>
-            )}
-            {canCancelReg && hasPermission("registrations.delete") && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => setCancelId(regId)}
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-            )}
+            <TooltipProvider delayDuration={300}>
+              {showCheckIn && hasPermission("registrations.update") && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* Span wrapper needed for Tooltip on disabled button */}
+                    <span tabIndex={0}>
+                      <Button
+                        size="sm"
+                        disabled={!isDateToday}
+                        onClick={() => openCheckInDrawer(regId)}
+                        className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                      >
+                        <UserCheck className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{!isDateToday ? "Hanya dapat Check-in pada hari H sesuai jadwal" : "Check-in"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canReschedule && hasPermission("registrations.update") && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={actionLoading}
+                      onClick={() => handleRescheduleClick(reg)}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Reschedule / Edit</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canCancelReg && hasPermission("registrations.delete") && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setCancelId(regId)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Batalkan Jadwal</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
             {reg.checked_in_at && (
               <span className="text-sm text-green-600 flex items-center gap-1">
                 <CheckCircle2 className="h-4 w-4" />
@@ -433,7 +527,7 @@ export default function ScheduledRegistrationsPage() {
       <PageContent className="py-3">
         <div className="border border-border/70 bg-background">
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Billing
+            Daftar Pasien
           </div>
           <div className="p-3 sm:p-4">
             {loading ? (
@@ -536,13 +630,41 @@ export default function ScheduledRegistrationsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Check-in Kontrol Drawer */}
+      {/* Check In Drawer */}
       <CheckInKontrolDrawer
         open={checkInDrawerOpen}
         onOpenChange={setCheckInDrawerOpen}
         registrationId={checkInId}
         onSuccess={handleCheckInSuccess}
       />
+
+      {/* BPJS Reschedule Edit Drawer */}
+      {suratKontrolPatient && (
+        <SuratKontrolFormSheet
+          open={suratKontrolDrawerOpen}
+          onOpenChange={(open) => {
+            setSuratKontrolDrawerOpen(open);
+            if (!open) setEditingBpjsReg(null);
+          }}
+          patient={suratKontrolPatient as any}
+          editNoSuratKontrol={editSuratKontrolNo}
+          onSuratKontrolUpdated={async (data) => {
+            // Ketika BPJS update sukses, sinkronisasikan tanggal ke SIMRS lokal
+            if (editingBpjsReg) {
+              try {
+                const regId = editingBpjsReg.ID || editingBpjsReg.id || 0;
+                await registrationApi.reschedule(regId, {
+                  new_date: data.tglRencanaKontrol,
+                });
+                toast({ title: "Berhasil", description: "Jadwal kontrol dan Surat Kontrol berhasil diperbarui" });
+                loadData();
+              } catch (e) {
+                console.error("Gagal sinkronisasi reschedule", e);
+              }
+            }
+          }}
+        />
+      )}
     </PageShell>
   );
 }

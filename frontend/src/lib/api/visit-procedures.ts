@@ -69,6 +69,12 @@ export interface VisitProcedure {
     full_name: string;
   };
   results?: VisitProcedureResult[];
+  
+  // Discount Info
+  discount_type?: string;
+  discount_value?: number;
+  discount_amount?: number;
+  discount_note?: string;
 }
 
 export interface CreateVisitProcedureInput {
@@ -86,6 +92,11 @@ export interface SaveVisitProcedureResultsInput {
     is_abnormal?: boolean;
     is_critical?: boolean;
   }[];
+  // Discount Info
+  discount_type?: string;
+  discount_value?: number;
+  discount_amount?: number;
+  discount_note?: string;
 }
 
 export interface UpdateVisitProcedureStatusInput {

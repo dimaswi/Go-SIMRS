@@ -272,6 +272,8 @@ func Migrate() error {
 		&models.RoomUnit{}, &models.Bed{}, &models.RoomStaff{},
 		&models.Patient{}, &models.PatientAllergy{},
 		&models.Registration{}, &models.Visit{}, &models.Queue{},
+		&models.RegistrationTariff{}, &models.Billing{}, &models.BillingItem{}, &models.BillingPayment{},
+		&models.CashierShift{},
 		&models.RoomQueue{}, &models.Schedule{},
 		&models.Procedure{}, &models.ProcedureParameter{},
 		&models.ICD10{}, &models.ICD9CM{}, &models.ICDOMorphology{},
@@ -288,12 +290,14 @@ func Migrate() error {
 		&models.ProcedureOrder{}, &models.ProcedureOrderItem{}, &models.ProcedureOrderResult{},
 		&models.Triage{}, &models.Anamnesis{}, &models.PhysicalExamination{},
 		&models.Diagnosis{}, &models.DiagnosisSummary{}, &models.AssessmentPlan{},
-		&models.Disposition{}, &models.DischargePlanning{}, &models.BodyMarker{},
+		&models.Disposition{}, &models.DischargePlanning{}, &models.BodyMarker{}, &models.AdmissionRequest{},
 		&models.VitalSign{}, &models.CPPT{}, &models.FluidBalance{},
 		&models.NursingCare{}, &models.BedTransfer{},
+		&models.MedicineAdministrationTimesheetItem{}, &models.MedicineAdministrationTimesheetEntry{},
 		&models.VisitProcedure{}, &models.VisitProcedureResult{},
 		&models.MedicalRecordEditLog{},
 		&models.FallRiskAssessment{}, // Resiko Jatuh
+		&models.BersalinRecord{},     // Bersalin / Partus
 		&models.O2UsageRecord{},      // Penggunaan Oksigen
 		&models.VisitBHPUsage{},      // Penggunaan BHP per kunjungan
 		&models.Notification{}, &models.UserTabPreference{},
@@ -354,6 +358,7 @@ func Migrate() error {
 			&models.FluidBalance{},         // Fluid Balance
 			&models.NursingCare{},          // Nursing Care
 			&models.FallRiskAssessment{},   // Fall Risk
+			&models.BersalinRecord{},       // Bersalin
 			&models.VisitBHPUsage{},        // Penggunaan BHP
 			&models.BedTransfer{},          // Bed Transfer/Mutation
 			// Digital Signatures & Audit Trail
@@ -637,6 +642,7 @@ func createMedicalRecordCasemixIndexes() {
 		"discharge_plannings",
 		"body_markers",
 		"diagnosis_summaries",
+		"bersalin_records",
 	}
 
 	for _, table := range tables {
@@ -711,6 +717,12 @@ func SeedData() error {
 		{Name: "master_data.create", Module: "Master Data Management", Category: "Master Data", Description: "Create master data", Actions: `["create"]`},
 		{Name: "master_data.update", Module: "Master Data Management", Category: "Master Data", Description: "Update master data", Actions: `["update"]`},
 		{Name: "master_data.delete", Module: "Master Data Management", Category: "Master Data", Description: "Delete master data", Actions: `["delete"]`},
+
+		// Building Management
+		{Name: "buildings.view", Module: "Building Management", Category: "Buildings", Description: "View buildings and floor plans", Actions: `["read"]`},
+		{Name: "buildings.create", Module: "Building Management", Category: "Buildings", Description: "Create new buildings", Actions: `["create"]`},
+		{Name: "buildings.update", Module: "Building Management", Category: "Buildings", Description: "Update existing buildings and floor plans", Actions: `["update"]`},
+		{Name: "buildings.delete", Module: "Building Management", Category: "Buildings", Description: "Delete buildings", Actions: `["delete"]`},
 
 		// Room Management
 		{Name: "rooms.view", Module: "Room Management", Category: "Rooms", Description: "View rooms list and details", Actions: `["read"]`},
@@ -820,6 +832,10 @@ func SeedData() error {
 		{Name: "room_queues.manage", Module: "Room Queue Management", Category: "Front Office", Description: "Manage room queue (serve, skip, cancel)", Actions: `["update", "delete"]`},
 		{Name: "room_queues.stats", Module: "Room Queue Management", Category: "Front Office", Description: "View room queue statistics", Actions: `["read"]`},
 
+		// Nutrition Management (Gizi)
+		{Name: "nutrition.view", Module: "Nutrition Management", Category: "Gizi", Description: "View nutrition menus, ingredients, and invoices", Actions: `["read"]`},
+		{Name: "nutrition.manage", Module: "Nutrition Management", Category: "Gizi", Description: "Manage nutrition data and meal packages", Actions: `["create", "update", "delete"]`},
+
 		// Visit Management (Kunjungan)
 		{Name: "visits.view", Module: "Visit Management", Category: "Medical", Description: "View patient visits", Actions: `["read"]`},
 		{Name: "visits.create", Module: "Visit Management", Category: "Medical", Description: "Create patient visit", Actions: `["create"]`},
@@ -886,6 +902,7 @@ func SeedData() error {
 
 		// System & Dashboard
 		{Name: "dashboard.view", Module: "Dashboard", Category: "Analytics", Description: "Access dashboard and reports", Actions: `["read"]`},
+		{Name: "reports.view", Module: "Dashboard", Category: "Analytics", Description: "View analytics reports", Actions: `["read"]`},
 		{Name: "settings.view", Module: "System Settings", Category: "Settings", Description: "View system settings", Actions: `["read"]`},
 		{Name: "settings.update", Module: "System Settings", Category: "Settings", Description: "Update system settings", Actions: `["update"]`},
 		{Name: "profile.view", Module: "Profile Management", Category: "Account", Description: "View own profile", Actions: `["read"]`},
@@ -996,7 +1013,7 @@ func seedRolesAndAdmin() error {
 
 	// Assign limited permissions to user role
 	var limitedPermissions []models.Permission
-	DB.Where("name IN ?", []string{"profile.view", "profile.update", "dashboard.view"}).Find(&limitedPermissions)
+	DB.Where("name IN ?", []string{"profile.view", "profile.update", "dashboard.view", "reports.view"}).Find(&limitedPermissions)
 	if len(limitedPermissions) > 0 {
 		DB.Model(&userRole).Association("Permissions").Replace(limitedPermissions)
 	}

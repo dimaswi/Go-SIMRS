@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
 import { Loader2, Plus } from 'lucide-react';
+import { CreateUserModal } from './create-user-modal';
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ export default function EmployeesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<number | null>(null);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
+  
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [selectedEmployeeForUser, setSelectedEmployeeForUser] = useState<Employee | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -82,6 +86,11 @@ export default function EmployeesPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleCreateUser = (employee: Employee) => {
+    setSelectedEmployeeForUser(employee);
+    setUserModalOpen(true);
+  };
+
   const columns = createEmployeeColumns({
     onView: handleView,
     onEdit: handleEdit,
@@ -89,6 +98,8 @@ export default function EmployeesPage() {
     hasViewPermission: hasPermission('employees.view'),
     hasEditPermission: hasPermission('employees.update'),
     hasDeletePermission: hasPermission('employees.delete'),
+    hasCreateUserPermission: hasPermission('users.create'),
+    onCreateUser: handleCreateUser,
     masterData,
   });
 
@@ -140,6 +151,16 @@ export default function EmployeesPage() {
         confirmText="Hapus"
         cancelText="Batal"
         variant="destructive"
+      />
+
+      <CreateUserModal
+        isOpen={userModalOpen}
+        onClose={() => {
+          setUserModalOpen(false);
+          setSelectedEmployeeForUser(null);
+        }}
+        employee={selectedEmployeeForUser}
+        onSuccess={loadData}
       />
     </PageShell>
   );

@@ -160,3 +160,39 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequireAnyPermission checks if the user has AT LEAST ONE of the required permissions
+func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleID, exists := c.Get("roleID")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		// Use cached permissions for better performance
+		perms, err := getRolePermissions(roleID.(uint))
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Role not found"})
+			c.Abort()
+			return
+		}
+
+		hasPermission := false
+		for _, permission := range permissions {
+			if perms[permission] {
+				hasPermission = true
+				break
+			}
+		}
+
+		if !hasPermission {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

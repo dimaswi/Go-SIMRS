@@ -42,6 +42,12 @@ func GetRegistrations(c *gin.Context) {
 		query = query.Where("registrations.registration_number = ?", regNum)
 	}
 
+	// Filter by kode booking (Mobile JKN)
+	if kodeBooking := c.Query("kode_booking"); kodeBooking != "" {
+		query = query.Joins("LEFT JOIN bpjs_queues ON bpjs_queues.registration_id = registrations.id").
+			Where("bpjs_queues.kode_booking = ?", kodeBooking)
+	}
+
 	// Filter by date
 	if dateStr := c.Query("date"); dateStr != "" {
 		parsed, err := ParseLocalDate(dateStr)
@@ -2260,6 +2266,34 @@ func GetScheduledRegistrations(c *gin.Context) {
 	var registrations []models.Registration
 	query.Order("scheduled_date ASC, created_at ASC").Find(&registrations)
 
+	// Manual load SuratKontrol based on SourceVisitID
+	var sourceVisitIDs []uint
+	for _, reg := range registrations {
+		if reg.SourceVisitID != nil {
+			sourceVisitIDs = append(sourceVisitIDs, *reg.SourceVisitID)
+		}
+	}
+
+	if len(sourceVisitIDs) > 0 {
+		var suratKontrols []models.SuratKontrol
+		database.DB.Where("visit_id IN ? AND status = 'active'", sourceVisitIDs).Find(&suratKontrols)
+
+		skMap := make(map[uint]*models.SuratKontrol)
+		for i := range suratKontrols {
+			if suratKontrols[i].VisitID != nil {
+				skMap[*suratKontrols[i].VisitID] = &suratKontrols[i]
+			}
+		}
+
+		for i := range registrations {
+			if registrations[i].SourceVisitID != nil {
+				if sk, ok := skMap[*registrations[i].SourceVisitID]; ok {
+					registrations[i].SuratKontrol = sk
+				}
+			}
+		}
+	}
+
 	// Summary counts
 	today := time.Now().Truncate(24 * time.Hour)
 	var todayCount, upcomingCount, noShowCount int64
@@ -2376,6 +2410,22 @@ func CheckInScheduledRegistration(c *gin.Context) {
 	}
 	userIDUint := userID.(uint)
 
+	// Validate date - must be today (only for scheduled registrations)
+	if registration.Status == models.RegistrationStatusScheduled {
+		if registration.ScheduledDate == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jadwal kontrol tidak memiliki tanggal"})
+			return
+		}
+		
+		now := time.Now()
+		scheduledDate := *registration.ScheduledDate
+		
+		if scheduledDate.Year() != now.Year() || scheduledDate.Month() != now.Month() || scheduledDate.Day() != now.Day() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Hanya dapat check-in pada hari H sesuai jadwal kontrol"})
+			return
+		}
+	}
+
 	// Start transaction
 	tx := database.DB.Begin()
 
@@ -2395,7 +2445,7 @@ func CheckInScheduledRegistration(c *gin.Context) {
 	if registration.Visit != nil {
 		// Update existing visit
 		registration.Visit.CheckInTime = &now
-		registration.Visit.Status = models.VisitStatusInQueue // Activate the visit
+		registration.Visit.Status = models.VisitStatusWaiting // Activate the visit
 		if err := tx.Save(&registration.Visit).Error; err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui kunjungan"})
@@ -2521,8 +2571,14 @@ func CheckInScheduledRegistration(c *gin.Context) {
 				database.DB.Save(&bpjsQueue)
 
 				if bpjsQueue.AddAntreanCode == 200 {
-					bpjsService.UpdateTaskAsync(bpjsQueue.KodeBooking, 3, now, nil)
-					fmt.Printf("[BPJS Check-in] Task 3 dikirim untuk kode_booking: %s\n", bpjsQueue.KodeBooking)
+					t3 := now
+					t2 := now.Add(-3 * time.Minute)
+					t1 := now.Add(-8 * time.Minute)
+
+					bpjsService.UpdateTask(bpjsQueue.KodeBooking, 1, t1, nil)
+					bpjsService.UpdateTask(bpjsQueue.KodeBooking, 2, t2, nil)
+					bpjsService.UpdateTask(bpjsQueue.KodeBooking, 3, t3, nil)
+					fmt.Printf("[BPJS Check-in] Task 1, 2, dan 3 dikirim berurutan untuk kode_booking: %s\n", bpjsQueue.KodeBooking)
 				} else if bpjsQueue.AddAntreanCode == 0 || bpjsQueue.SyncStatus == "failed" {
 					// AddAntrean belum pernah dikirim atau gagal, retry
 					addSuccess, addCode, addMsg := bpjsService.AddAntrean(&bpjsQueue)
@@ -2535,7 +2591,14 @@ func CheckInScheduledRegistration(c *gin.Context) {
 						bpjsQueue.SyncStatus = "synced"
 						bpjsQueue.SyncError = ""
 						database.DB.Save(&bpjsQueue)
-						bpjsService.UpdateTaskAsync(bpjsQueue.KodeBooking, 3, now, nil)
+						
+						t3 := now
+						t2 := now.Add(-3 * time.Minute)
+						t1 := now.Add(-8 * time.Minute)
+
+						bpjsService.UpdateTask(bpjsQueue.KodeBooking, 1, t1, nil)
+						bpjsService.UpdateTask(bpjsQueue.KodeBooking, 2, t2, nil)
+						bpjsService.UpdateTask(bpjsQueue.KodeBooking, 3, t3, nil)
 					} else {
 						bpjsQueue.SyncStatus = "failed"
 						bpjsQueue.SyncError = addMsg
@@ -2559,9 +2622,10 @@ func CheckInScheduledRegistration(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":         registration,
-		"queue_number": queueNumber,
-		"message":      fmt.Sprintf("Check-in berhasil. Nomor antrian: %s", queueNumber),
+		"data":               registration,
+		"queue_number":       queueNumber,
+		"requires_admission": !registration.Patient.IsFinal,
+		"message":            fmt.Sprintf("Check-in berhasil. Nomor antrian: %s", queueNumber),
 	})
 }
 
@@ -2638,6 +2702,22 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 	if !isValidStatus {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Status pendaftaran tidak valid untuk check-in"})
 		return
+	}
+
+	// Validate date - must be today (only for scheduled registrations)
+	if registration.Status == models.RegistrationStatusScheduled {
+		if registration.ScheduledDate == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jadwal kontrol tidak memiliki tanggal"})
+			return
+		}
+		
+		now := time.Now()
+		scheduledDate := *registration.ScheduledDate
+		
+		if scheduledDate.Year() != now.Year() || scheduledDate.Month() != now.Month() || scheduledDate.Day() != now.Day() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Hanya dapat check-in pada hari H sesuai jadwal kontrol"})
+			return
+		}
 	}
 
 	// Get current user
@@ -2932,7 +3012,7 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 	// Handle Visit
 	if registration.Visit != nil {
 		registration.Visit.CheckInTime = &now
-		registration.Visit.Status = models.VisitStatusInQueue
+		registration.Visit.Status = models.VisitStatusWaiting
 		if err := tx.Save(&registration.Visit).Error; err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui kunjungan", "step": "checkin"})
@@ -3050,10 +3130,18 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 		}
 		database.DB.Save(&bpjsQueue)
 
-		// Kirim Task 3 ke BPJS
+		// Kirim Task 1, 2, dan 3 secara berurutan ke BPJS
 		if bpjsQueue.AddAntreanCode == 200 {
-			bpjsService.UpdateTaskAsync(bpjsQueue.KodeBooking, 3, now, nil)
-			fmt.Printf("[BPJSCheckinWithSEP] Task 3 dikirim untuk kode_booking: %s\n", bpjsQueue.KodeBooking)
+			t3 := now
+			t2 := now.Add(-3 * time.Minute)
+			t1 := now.Add(-8 * time.Minute)
+
+			// Kirim secara sinkron berurutan (karena ini sudah di dalam goroutine background)
+			bpjsService.UpdateTask(bpjsQueue.KodeBooking, 1, t1, nil)
+			bpjsService.UpdateTask(bpjsQueue.KodeBooking, 2, t2, nil)
+			bpjsService.UpdateTask(bpjsQueue.KodeBooking, 3, t3, nil)
+			
+			fmt.Printf("[BPJSCheckinWithSEP] Task 1, 2, dan 3 dikirim berurutan untuk kode_booking: %s\n", bpjsQueue.KodeBooking)
 		}
 	}()
 
@@ -3721,9 +3809,9 @@ func GetKontrolInfo(c *gin.Context) {
 		}
 	}
 
-	// For BPJS patients, try to get peserta info
+	// For BPJS patients, try to get peserta info (ONLY if explicitly requested, as this adds 1-2s delay)
 	var pesertaInfo map[string]interface{}
-	if registration.PaymentMethod == "bpjs" && registration.Patient != nil && registration.Patient.NoBPJS != "" {
+	if c.Query("with_peserta") == "true" && registration.PaymentMethod == "bpjs" && registration.Patient != nil && registration.Patient.NoBPJS != "" {
 		// Use vclaim to get peserta info
 		vclient, err := bpjsService.NewVClaimClient()
 		if err == nil && vclient != nil {

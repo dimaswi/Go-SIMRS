@@ -17,6 +17,7 @@ import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, bhpUsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
+import { BersalinForm } from "@/components/medical-record/bersalin-form";
 import { TriageForm } from "@/components/medical-record/triage-form";
 import { AnamnesisForm } from "@/components/medical-record/anamnesis-form";
 import { PhysicalExamForm } from "@/components/medical-record/physical-exam-form";
@@ -95,16 +96,24 @@ const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet", "di
 const INLINE_PRIMARY_ACTION_REGEX = /(simpan|save|perbarui|update|kirim|send|selesaikan|submit)/i;
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
+const PHARMACY_OPEN_FINAL_REVIEW_EVENT = "pharmacy-open-final-review";
 const PHARMACY_LOCKABLE_TAB_IDS = [
   "prescription-edit",
   "medicine-dispense",
   "medicine-return",
   "apotek-online",
-  "pharmacy-final",
 ];
 
 const shouldUseFooterActionForTab = (tabId: string) =>
   !ADMIN_TAB_IDS.has(tabId) && !EDIT_TAB_IDS.has(tabId);
+
+const getDefaultPharmacyTabId = (hasPermission: (permission: string) => boolean) => {
+  if (hasPermission("pharmacy.edit")) return "prescription-edit";
+  if (hasPermission("pharmacy.dispense")) return "medicine-dispense";
+  if (hasPermission("pharmacy.return")) return "medicine-return";
+  if (hasPermission("pharmacy.final")) return "pharmacy-final";
+  return "prescription-edit";
+};
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -124,9 +133,11 @@ export default function VisitShow() {
   const [isSurgery, setIsSurgery] = useState(false);
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
+  const [isFemale, setIsFemale] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
   const [lockedPharmacyTabIds, setLockedPharmacyTabIds] = useState<string[]>([]);
   const [pharmacyTabLockReason, setPharmacyTabLockReason] = useState<string>("");
+  const [hasPharmacyFinalReviewCompleted, setHasPharmacyFinalReviewCompleted] = useState(false);
   const [tabIndicators, setTabIndicators] = useState<Record<string, string>>({});
   const [tabSavedStates, setTabSavedStates] = useState<Record<string, boolean>>({});
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
@@ -225,24 +236,75 @@ export default function VisitShow() {
     try {
       const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const activeOrders = (ordersRes.data || []).filter((order) => order.status !== "cancelled");
-      const hasPendingInitialReview = activeOrders.some((order) => order.status === "pending");
+      let hasCompletedFinalReview = false;
+      const hasProgressedOrder = activeOrders.some(
+        (order) =>
+          order.reviewed_at ||
+          ["reviewed", "preparing", "partial", "ready", "delivered", "returned"].includes(
+            order.status,
+          ),
+      );
+
+      if (hasProgressedOrder) {
+        setLockedPharmacyTabIds([]);
+        setPharmacyTabLockReason("");
+        return false;
+      }
+
+      let hasCompletedReview = false;
+      let hasPendingInitialReview = false;
+
+      for (const order of activeOrders) {
+        let reviewData: any = null;
+        try {
+          const reviewRes = await medicineOrdersApi.getReview(order.id);
+          reviewData = reviewRes.data;
+        } catch {
+          reviewData = null;
+        }
+
+        if (
+          reviewData?.final_review_completed ||
+          ["delivered", "returned"].includes(order.status)
+        ) {
+          hasCompletedFinalReview = true;
+        }
+
+        if (reviewData?.final_review_completed || reviewData?.initial_review_completed) {
+          hasCompletedReview = true;
+        }
+
+        if (order.status === "pending" && !reviewData?.initial_review_completed) {
+          hasPendingInitialReview = true;
+        }
+      }
+
+      setHasPharmacyFinalReviewCompleted(hasCompletedFinalReview);
+
+      if (hasCompletedReview) {
+        hasPendingInitialReview = false;
+      }
+
       if (hasPendingInitialReview) {
         setLockedPharmacyTabIds(PHARMACY_LOCKABLE_TAB_IDS);
         setPharmacyTabLockReason("Tab dikunci sampai Telaah Awal selesai.");
-        setActiveTab((prev) => (PHARMACY_LOCKABLE_TAB_IDS.includes(prev) ? "prescription-review" : prev));
+        setActiveTab((prev) =>
+          PHARMACY_LOCKABLE_TAB_IDS.includes(prev) ? getDefaultPharmacyTabId(hasPermission) : prev,
+        );
       } else {
         setLockedPharmacyTabIds([]);
         setPharmacyTabLockReason("");
       }
+      return hasPendingInitialReview;
     } catch {
       // keep current lock state on error
+      return null;
     }
   };
-  
+
   const triggerActiveTabSave = (): boolean => {
     if (!activeTab) return false;
     if (isPharmacy && lockedPharmacyTabIds.includes(activeTab)) {
-      handleTabChange("prescription-review");
       window.dispatchEvent(
         new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
           detail: { mode: "initial" },
@@ -290,7 +352,7 @@ export default function VisitShow() {
 
     return false;
   };
-  
+
   // Update breadcrumb with patient name when available
   useEffect(() => {
     if (patientName) {
@@ -304,7 +366,7 @@ export default function VisitShow() {
   // This ensures the correct default tab is shown for each visit type
   useEffect(() => {
     setPageTitle("Rekam Medis");
-    
+
     if (id) {
       // Reset all states when navigating to a different visit
       setActiveTab("");
@@ -328,7 +390,7 @@ export default function VisitShow() {
       } catch {
         tabScrollPositionsRef.current = {};
       }
-      
+
       // Load the visit data (this will set the correct default tab)
       loadVisit();
     }
@@ -348,7 +410,7 @@ export default function VisitShow() {
       return next;
     });
   }, [activeTab]);
-  
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
@@ -398,6 +460,7 @@ export default function VisitShow() {
     if (!id || !isPharmacy) {
       setLockedPharmacyTabIds([]);
       setPharmacyTabLockReason("");
+      setHasPharmacyFinalReviewCompleted(false);
       return;
     }
     void refreshPharmacyTabLock(Number(id));
@@ -413,6 +476,23 @@ export default function VisitShow() {
       window.removeEventListener("refresh-final-visit", handleRefresh);
     };
   }, [id, isPharmacy]);
+
+  useEffect(() => {
+    if (!isPharmacy) return;
+    const handleOpenFinalReview = (event: Event) => {
+      const customEvent = event as CustomEvent<{ token?: string }>;
+      window.dispatchEvent(
+        new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
+          detail: { mode: "final", token: customEvent.detail?.token },
+        }),
+      );
+    };
+
+    window.addEventListener(PHARMACY_OPEN_FINAL_REVIEW_EVENT, handleOpenFinalReview);
+    return () => {
+      window.removeEventListener(PHARMACY_OPEN_FINAL_REVIEW_EVENT, handleOpenFinalReview);
+    };
+  }, [isPharmacy]);
 
   const loadVisit = async (silent = false) => {
     if (!silent) {
@@ -443,6 +523,7 @@ export default function VisitShow() {
       } else {
         setLockedPharmacyTabIds([]);
         setPharmacyTabLockReason("");
+        setHasPharmacyFinalReviewCompleted(false);
       }
 
       // Check if radiology visit
@@ -481,10 +562,15 @@ export default function VisitShow() {
       const inpatient = visitData.room?.service_type === "rawat_inap";
       setIsInpatient(inpatient);
 
+      // Check if patient is female
+      const isFemalePatient = visitData.registration?.patient?.jenis_kelamin === "Perempuan" ||
+        visitData.registration?.patient?.jenis_kelamin === "P";
+      setIsFemale(isFemalePatient);
+
       // Check if patient is discharged (disposition saved)
-      const discharged = visitData.registration?.status === "completed" || 
-                        visitData.registration?.status === "discharged" ||
-                        visitData.status === "completed";
+      const discharged = visitData.registration?.status === "completed" ||
+        visitData.registration?.status === "discharged" ||
+        visitData.status === "completed";
       setIsPatientDischarged(discharged);
 
       // Pre-load tab indicators for all medical record sections
@@ -496,18 +582,7 @@ export default function VisitShow() {
       // Set default active tab based on visit type and permissions (only on first load)
       if (!activeTab) {
         if (pharmacy) {
-          // Pharmacy visit tabs - mulai dari telaah resep
-          if (hasPermission("pharmacy.review")) {
-            setActiveTab("prescription-review");
-          } else if (hasPermission("pharmacy.edit")) {
-            setActiveTab("prescription-edit");
-          } else if (hasPermission("pharmacy.dispense")) {
-            setActiveTab("medicine-dispense");
-          } else if (hasPermission("pharmacy.return")) {
-            setActiveTab("medicine-return");
-          } else {
-            setActiveTab("prescription-review");
-          }
+          setActiveTab(getDefaultPharmacyTabId(hasPermission));
         } else if (radiology) {
           // Radiology visit tabs - default to workstation when no procedure order exists
           const radiologyOrderCount = await procedureOrdersApi.getAll({
@@ -575,6 +650,7 @@ export default function VisitShow() {
           }
         }
       }
+
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -693,9 +769,9 @@ export default function VisitShow() {
       // Diagnosis: count items + item-level differential diagnoses + legacy global differential diagnosis
       if (summary.diagnosis) {
         const d = summary.diagnosis;
-      const itemDifferentials = d.items?.filter((item: any) => item?.differential_diagnosis?.trim()).length || 0;
-      const legacyDifferential = d.differential_diagnosis?.trim() ? 1 : 0;
-      const count = (d.items?.length || 0) + itemDifferentials + legacyDifferential;
+        const itemDifferentials = d.items?.filter((item: any) => item?.differential_diagnosis?.trim()).length || 0;
+        const legacyDifferential = d.differential_diagnosis?.trim() ? 1 : 0;
+        const count = (d.items?.length || 0) + itemDifferentials + legacyDifferential;
         emitMedicalRecordTabIndicator("diagnosis", `${count}`);
         emitMedicalRecordTabSaved("diagnosis", count > 0);
       } else {
@@ -884,14 +960,18 @@ export default function VisitShow() {
   const headerFinalVisitType: FinalVisitType | null = isPharmacy
     ? "pharmacy"
     : isRadiology
-    ? "radiology"
-    : isLaboratory
-    ? "laboratory"
-    : isConsultation
-    ? "consultation"
-    : isSurgery
-    ? "surgery"
-    : null;
+      ? "radiology"
+      : isLaboratory
+        ? "laboratory"
+        : isConsultation
+          ? "consultation"
+          : isSurgery
+            ? "surgery"
+            : null;
+  const canAccessHeaderFinalAction =
+    (isPharmacy && hasPermission("pharmacy.final")) ||
+    ((isRadiology || isLaboratory || isConsultation || isSurgery) &&
+      hasPermission("procedure_orders.final"));
 
   const finalVisitController = useFinalVisitController({
     visitId: id ? Number(id) : 0,
@@ -902,8 +982,8 @@ export default function VisitShow() {
 
   const showHeaderFinalAction =
     Boolean(headerFinalVisitType) &&
-    !finalVisitController.loading &&
-    (finalVisitController.isFinal || finalVisitController.canShowFinalizeAction);
+    canAccessHeaderFinalAction &&
+    !finalVisitController.loading;
 
   const handleSaveActiveTabFromFooter = () => {
     const saved = triggerActiveTabSave();
@@ -979,25 +1059,50 @@ export default function VisitShow() {
         return;
       }
 
-      setTabIndicators((prev) => ({
-        ...prev,
-        [detail.tabId]: detail.value,
-      }));
+      setTabIndicators((prev) => {
+        if (prev[detail.tabId] === detail.value) return prev;
+        return {
+          ...prev,
+          [detail.tabId]: detail.value,
+        };
+      });
     };
 
     const handleSavedUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<{ tabId: string; saved: boolean }>;
       const detail = customEvent.detail;
       if (!detail?.tabId) return;
-      setTabSavedStates((prev) => ({ ...prev, [detail.tabId]: detail.saved }));
+      setTabSavedStates((prev) => {
+        if (prev[detail.tabId] === detail.saved) return prev;
+        return { ...prev, [detail.tabId]: detail.saved };
+      });
+    };
+
+    const handleTabsSavedUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabIds: string[]; saved: boolean }>;
+      const detail = customEvent.detail;
+      if (!detail?.tabIds || !Array.isArray(detail.tabIds)) return;
+      setTabSavedStates((prev) => {
+        let hasChanges = false;
+        const next = { ...prev };
+        detail.tabIds.forEach(id => {
+          if (next[id] !== detail.saved) {
+            next[id] = detail.saved;
+            hasChanges = true;
+          }
+        });
+        return hasChanges ? next : prev;
+      });
     };
 
     window.addEventListener(MEDICAL_RECORD_TAB_INDICATOR_EVENT, handleIndicatorUpdate as EventListener);
     window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handleSavedUpdate as EventListener);
+    window.addEventListener("medical-record-tabs-saved", handleTabsSavedUpdate as EventListener);
 
     return () => {
       window.removeEventListener(MEDICAL_RECORD_TAB_INDICATOR_EVENT, handleIndicatorUpdate as EventListener);
       window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handleSavedUpdate as EventListener);
+      window.removeEventListener("medical-record-tabs-saved", handleTabsSavedUpdate as EventListener);
     };
   }, []);
 
@@ -1115,12 +1220,12 @@ export default function VisitShow() {
     const isBHPEnabledVisit = !visitIsPharmacy && !visitIsConsultation && !visitIsSurgery;
     const hasBHPPermission = hasPermission("medical_records.procedure") || hasPermission("procedure_orders.perform");
     const allowsInpatientOrEmergencyCare = isInpatient || isEmergency;
-    
+
     // Helper: Render message for wrong visit type
     const renderWrongVisitTypeMessage = (expectedType: string) => (
       <Card className="p-6">
         <p className="text-center text-muted-foreground">
-          Tab ini tidak tersedia untuk jenis kunjungan ini. 
+          Tab ini tidak tersedia untuk jenis kunjungan ini.
           Tab ini hanya untuk kunjungan {expectedType}.
         </p>
       </Card>
@@ -1138,7 +1243,6 @@ export default function VisitShow() {
               size="sm"
               className="rounded-none"
               onClick={() => {
-                handleTabChange("prescription-review");
                 window.dispatchEvent(
                   new CustomEvent(PHARMACY_REVIEW_REQUEST_EVENT, {
                     detail: { mode: "initial" },
@@ -1188,6 +1292,15 @@ export default function VisitShow() {
           );
         }
         return <AnamnesisForm visitId={visit.id} patientId={patientId || undefined} onSave={handleSaveAnamnesis} isPatientDischarged={isPatientDischarged} />;
+      case "bersalin":
+      case "bersalin-asesmen":
+      case "bersalin-skrining":
+      case "bersalin-medis":
+      case "bersalin-observasi":
+      case "bersalin-partograf":
+      case "bersalin-catatan":
+      case "bersalin-bayi":
+        return <BersalinForm visitId={visit.id} patientId={patientId || undefined} onSave={handleVisitUpdate} isPatientDischarged={isPatientDischarged} initialTab={activeTab.replace('bersalin-', '') === 'bersalin' ? 'asesmen' : activeTab.replace('bersalin-', '')} />;
       case "physical-exam":
         // Physical exam only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -1554,7 +1667,7 @@ export default function VisitShow() {
             readOnly={isPatientDischarged}
           />
         );
-      
+
       case "surgery-order":
         // Surgery order only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -1672,7 +1785,7 @@ export default function VisitShow() {
           );
         }
         return <DispositionForm visitId={visit.id} isEmergency={isEmergency} readOnly={isPatientDischarged} onSave={handleVisitUpdate} />;
-      
+
       // Pharmacy tabs - ONLY for pharmacy visits
       case "prescription-edit":
         if (!hasPermission("pharmacy.edit")) {
@@ -1729,7 +1842,7 @@ export default function VisitShow() {
           );
         }
         return <PharmacyApotekOnline key={`apotek-online-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
-      
+
       case "pharmacy-final":
         if (!hasPermission("pharmacy.final")) {
           return (
@@ -1741,7 +1854,7 @@ export default function VisitShow() {
           );
         }
         return <FinalVisit key={`pharmacy-final-${visit.id}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
-      
+
       // Radiology edit order tab - ONLY for radiology visits
       case "radiology-edit":
         if (!hasPermission("procedure_orders.edit")) {
@@ -1767,7 +1880,7 @@ export default function VisitShow() {
           );
         }
         return <RadiologyWorkstation key={`radiology-ws-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
-      
+
       case "radiology-final":
         if (!hasPermission("procedure_orders.final")) {
           return (
@@ -1779,7 +1892,7 @@ export default function VisitShow() {
           );
         }
         return <FinalVisit key={`radiology-final-${visit.id}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
-      
+
       // Laboratory edit order tab - ONLY for laboratory visits
       case "laboratory-edit":
         if (!hasPermission("procedure_orders.edit")) {
@@ -1865,6 +1978,7 @@ export default function VisitShow() {
                 isSurgery={isSurgery}
                 showProcedureTab={showProcedureTab}
                 isInpatient={isInpatient}
+                isFemale={isFemale}
               />
             </div>
           </div>
@@ -1922,33 +2036,33 @@ export default function VisitShow() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded-none"
-                  onClick={() => setObservationDrawerOpen(true)}
-                  title="Observasi"
-                  aria-label="Observasi"
-                >
-                  <Activity className="h-4 w-4" />
-                </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-none"
+                      onClick={() => setObservationDrawerOpen(true)}
+                      title="Observasi"
+                      aria-label="Observasi"
+                    >
+                      <Activity className="h-4 w-4" />
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>Observasi</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded-none"
-                  onClick={() => setCopyHistoryDrawerOpen(true)}
-                  disabled={!patientId}
-                  title="Riwayat"
-                  aria-label="Riwayat"
-                >
-                  <History className="h-4 w-4" />
-                </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-none"
+                      onClick={() => setCopyHistoryDrawerOpen(true)}
+                      disabled={!patientId}
+                      title="Riwayat"
+                      aria-label="Riwayat"
+                    >
+                      <History className="h-4 w-4" />
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>Riwayat</TooltipContent>
                 </Tooltip>
@@ -1956,13 +2070,13 @@ export default function VisitShow() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div>
-                <MedicalRecordPrintSelect
-                  visitId={visit.id}
-                  isInpatient={isInpatient}
-                  isEmergency={isEmergency}
-                  iconOnly
-                  triggerClassName="h-8 w-8 rounded-none"
-                />
+                      <MedicalRecordPrintSelect
+                        visitId={visit.id}
+                        isInpatient={isInpatient}
+                        isEmergency={isEmergency}
+                        iconOnly
+                        triggerClassName="h-8 w-8 rounded-none"
+                      />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>Cetak</TooltipContent>
@@ -1987,6 +2101,11 @@ export default function VisitShow() {
                 {renderTabContent(tab)}
               </div>
             ))}
+            {isPharmacy && visit && !mountedTabs.has("prescription-review") && (
+              <div className="hidden">
+                <PharmacyReview key={`review-modal-controller-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />
+              </div>
+            )}
           </div>
 
           {!isEditTab && (

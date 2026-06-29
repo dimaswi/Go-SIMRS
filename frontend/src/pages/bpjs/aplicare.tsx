@@ -1,15 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -37,7 +29,7 @@ import {
   BedDouble,
 } from "lucide-react";
 import { bpjsApi, type AplicareBedItem, type AplicareRoom } from "@/lib/api/bpjs";
-import { BPJSMetricCue, BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
+import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 export default function AplicarePage() {
   const { toast } = useToast();
@@ -135,8 +127,18 @@ export default function AplicarePage() {
 
   // Manual update room availability
   const handleUpdateRoom = async (kodeRuang: string) => {
-    // Find matching SIMRS room by code
-    const simrsRoom = rooms.find(r => r.code === kodeRuang);
+    // Find matching SIMRS room by code or by its Kamar unit code
+    // BPJS truncates kodeRuang to 10 characters, so we must substring our local codes to 10 characters for comparison
+    const simrsRoom = rooms.find(r => {
+      if (r.code.substring(0, 10) === kodeRuang) return true;
+      if (r.units && r.units.some(u => {
+        const fallbackCode = `${r.code}-${u.id}`;
+        return (u.code && u.code.substring(0, 10) === kodeRuang) || (fallbackCode.substring(0, 10) === kodeRuang);
+      })) {
+        return true;
+      }
+      return false;
+    });
     if (!simrsRoom) {
       toast({ variant: "destructive", title: "Gagal", description: `Ruangan ${kodeRuang} tidak ditemukan di SIMRS` });
       return;
@@ -166,37 +168,15 @@ export default function AplicarePage() {
     switch (kodeKelas) {
       case "VVP": return <Badge className="bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950/30 dark:text-purple-400">VVIP</Badge>;
       case "VIP": return <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/30 dark:text-blue-400">VIP</Badge>;
-      case "KLS1": return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-950/30 dark:text-green-400">Kelas 1</Badge>;
-      case "KLS2": return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-950/30 dark:text-yellow-400">Kelas 2</Badge>;
-      case "KLS3": return <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/30 dark:text-orange-400">Kelas 3</Badge>;
+      case "KL1": return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-950/30 dark:text-green-400">Kelas 1</Badge>;
+      case "KL2": return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-950/30 dark:text-yellow-400">Kelas 2</Badge>;
+      case "KL3": return <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/30 dark:text-orange-400">Kelas 3</Badge>;
       case "ICU": return <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-400">ICU</Badge>;
       case "ICCU": return <Badge className="bg-red-200 text-red-800 border-red-400 dark:bg-red-900/40 dark:text-red-300">ICCU</Badge>;
       case "ISO": return <Badge className="bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400">Isolasi</Badge>;
       default: return <Badge variant="secondary">{kodeKelas}</Badge>;
     }
   };
-
-  // Calculate statistics
-  const stats = {
-    totalRooms: bedData.length,
-    totalCapacity: bedData.reduce((sum, item) => sum + item.kapasitas, 0),
-    totalAvailable: bedData.reduce((sum, item) => sum + item.tersedia, 0),
-    totalOccupied: bedData.reduce((sum, item) => sum + (item.kapasitas - item.tersedia), 0),
-  };
-  const occupancyRate = stats.totalCapacity > 0 
-    ? Math.round((stats.totalOccupied / stats.totalCapacity) * 100) 
-    : 0;
-
-  // Tab state for filtering by kelas
-  const [activeKelas, setActiveKelas] = useState<string>("all");
-  
-  // Filter bed data by kelas
-  const filteredBedData = activeKelas === "all" 
-    ? bedData 
-    : bedData.filter(item => item.kodekelas === activeKelas);
-  
-  // Get unique kelas for tabs
-  const uniqueKelas = Array.from(new Set(bedData.map(item => item.kodekelas)));
 
   return (
     <BPJSPageFrame
@@ -216,16 +196,9 @@ export default function AplicarePage() {
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <BPJSMetricCue label="Total Ruangan" value={stats.totalRooms} hint="Ruangan terdaftar di Aplicare" />
-          <BPJSMetricCue label="Kapasitas Total" value={stats.totalCapacity} hint="Total tempat tidur" />
-          <BPJSMetricCue label="Tersedia" value={<span className="text-green-600 dark:text-green-400">{stats.totalAvailable}</span>} hint="Tempat tidur kosong" />
-          <BPJSMetricCue label="Okupansi" value={`${occupancyRate}%`} hint={`${stats.totalOccupied} dari ${stats.totalCapacity} terisi`} />
-        </div>
 
-
-      {/* Bed Data with Tabs Filter */}
-      <BPJSSectionPanel title="Data Ketersediaan Tempat Tidur">
+        {/* Bed Data */}
+        <BPJSSectionPanel title="Data Ketersediaan Tempat Tidur">
           {bedLoading && bedData.length === 0 ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -238,118 +211,104 @@ export default function AplicarePage() {
             </div>
           ) : (
             <>
-              {/* Tabs for filtering by kelas */}
-              <Tabs value={activeKelas} onValueChange={setActiveKelas} variant="inline" className="mb-6">
-                <TabsList>
-                  <TabsTrigger value="all">Semua ({bedData.length})</TabsTrigger>
-                  {uniqueKelas.map(kelas => {
-                    const count = bedData.filter(item => item.kodekelas === kelas).length;
-                    return (
-                      <TabsTrigger key={kelas} value={kelas}>
-                        {kelas} ({count})
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
-              </Tabs>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 py-4">
+                {bedData.map((item) => {
+                  const occupiedBeds = item.kapasitas - item.tersedia;
+                  return (
+                    <div
+                      key={`${item.koderuang}-${item.kodekelas}`}
+                      className="relative flex flex-col rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5"
+                    >
+                      {/* Ticket Header */}
+                      <div className="flex items-start justify-between p-4 bg-muted/30 border-b border-dashed border-border/70">
+                        <div className="space-y-1 min-w-0 pr-2">
+                          <h3 className="font-semibold text-lg leading-tight tracking-tight text-foreground truncate" title={item.namaruang}>{item.namaruang}</h3>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            Kode: <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border/50">{item.koderuang}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0">{getKelasBadge(item.kodekelas)}</div>
+                      </div>
 
-              <div className="overflow-auto border-y border-border/70 bg-background">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead>Ruangan</TableHead>
-                      <TableHead>Kelas</TableHead>
-                      <TableHead className="text-center">Kapasitas</TableHead>
-                      <TableHead className="text-center">Tersedia</TableHead>
-                      <TableHead className="text-center">Terisi</TableHead>
-                      <TableHead className="text-center">Okupansi</TableHead>
-                      <TableHead>Distribusi Bed</TableHead>
-                      <TableHead className="w-[96px] text-right">Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredBedData.map((item) => {
-                      const occupiedBeds = item.kapasitas - item.tersedia;
-                      const occupancy = item.kapasitas > 0 ? Math.round((occupiedBeds / item.kapasitas) * 100) : 0;
+                      {/* Ticket Body: Seat Map */}
+                      <div className="p-4 flex-1">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="font-medium text-sm">Denah Bed</div>
+                          <div className="text-xs font-semibold bg-muted px-2 py-1 rounded-full">Kapasitas: {item.kapasitas}</div>
+                        </div>
 
-                      return (
-                        <TableRow key={`${item.koderuang}-${item.kodekelas}`} className="align-top hover:bg-muted/20">
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="font-medium text-foreground">{item.namaruang}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Kode: <span className="font-mono">{item.koderuang}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {getKelasBadge(item.kodekelas)}
-                              <div className="text-xs text-muted-foreground">{item.namakelas || item.kodekelas}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center font-semibold">{item.kapasitas}</TableCell>
-                          <TableCell className="text-center">
-                            <span className="inline-flex min-w-12 justify-center rounded-full bg-green-50 px-2.5 py-1 text-sm font-semibold text-green-700">
-                              {item.tersedia}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="inline-flex min-w-12 justify-center rounded-full bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
-                              {occupiedBeds}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="space-y-1">
-                              <div className="font-semibold text-foreground">{occupancy}%</div>
-                              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                                <div className="h-full bg-primary" style={{ width: `${Math.min(occupancy, 100)}%` }} />
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1 text-xs text-muted-foreground">
-                              <div>Pria: <span className="font-medium text-foreground">{item.tersediapria || 0}</span></div>
-                              <div>Wanita: <span className="font-medium text-foreground">{item.tersediawanita || 0}</span></div>
-                              <div>Campur: <span className="font-medium text-foreground">{item.tersediapriawanita || 0}</span></div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-1.5">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                disabled={updatingRoom === item.koderuang}
-                                onClick={() => handleUpdateRoom(item.koderuang)}
-                                title="Sinkronkan ketersediaan"
-                              >
-                                {updatingRoom === item.koderuang ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-3.5 w-3.5" />
+                        <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
+                          {/* Generate seats: Occupied first, then Available */}
+                          {Array.from({ length: item.kapasitas }).map((_, i) => {
+                            const isAvailable = i >= occupiedBeds; // First occupiedBeds are occupied
+                            return (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "h-7 w-7 rounded border flex items-center justify-center transition-all",
+                                  isAvailable
+                                    ? "bg-green-50 border-green-200 text-green-600 dark:bg-green-950/30 dark:border-green-900/50 dark:text-green-400"
+                                    : "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-400"
                                 )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                                onClick={() => setDeleteItem(item)}
-                                title="Hapus dari Aplicare"
+                                title={isAvailable ? "Kosong" : "Terisi"}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                                {isAvailable ? (
+                                  <span className="text-xs font-semibold">{i + 1}</span>
+                                ) : (
+                                  <BedDouble className="h-3.5 w-3.5 opacity-70" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Ticket Footer */}
+                      <div className="flex items-center justify-between p-3 bg-muted/30 border-t border-border/70">
+                        <div className="flex gap-4 text-sm">
+                          <div className="flex flex-col">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Tersedia</span>
+                            <span className="font-bold text-green-600 dark:text-green-400">{item.tersedia}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Terisi</span>
+                            <span className="font-bold text-blue-600 dark:text-blue-400">{occupiedBeds}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-background shadow-sm hover:bg-muted"
+                            disabled={updatingRoom === item.koderuang}
+                            onClick={() => handleUpdateRoom(item.koderuang)}
+                            title="Sinkronkan ketersediaan"
+                          >
+                            {updatingRoom === item.koderuang ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-background shadow-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                            onClick={() => setDeleteItem(item)}
+                            title="Hapus dari Aplicare"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
-      </BPJSSectionPanel>
+        </BPJSSectionPanel>
       </div>
 
       {/* Assign Room Dialog */}

@@ -376,11 +376,11 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Waktu Makan *</Label>
-                <Combobox allowCustomValue options={mealTimeOptions} value={mealTime} onValueChange={setMealTime} placeholder="Pilih..." />
+                <Combobox allowCustomValue options={mealTimeOptions} value={mealTime} onValueChange={setMealTime} placeholder="Silahkan Pilih" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Jenis Diet *</Label>
-                <Combobox allowCustomValue options={dietTypeOptions} value={dietType} onValueChange={setDietType} placeholder="Pilih..." />
+                <Combobox allowCustomValue options={dietTypeOptions} value={dietType} onValueChange={setDietType} placeholder="Silahkan Pilih" />
               </div>
             </div>
 
@@ -425,8 +425,8 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                       <div
                         key={pkg.id}
                         className={`rounded-lg border p-3 cursor-pointer transition-colors ${selectedPackageId === pkg.id
-                            ? "border-primary bg-primary/5"
-                            : "hover:bg-accent"
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-accent"
                           }`}
                         onClick={() => setSelectedPackageId(pkg.id)}
                       >

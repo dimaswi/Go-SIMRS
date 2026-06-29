@@ -129,6 +129,8 @@ const (
 	DocTypeRegistration       = "registration"        // Bukti Registrasi
 	DocTypeSPRI               = "spri"                // SPRI (Surat Perintah Rawat Inap)
 	DocTypeSuratKontrol       = "surat_kontrol"       // Surat Kontrol / SKDP
+	DocTypeBersalin           = "bersalin"              // Catatan Persalinan / Partograf
+
 
 	// RM Duplicate (E-Klaim) document types
 	DocTypeRMDupLabResult       = "rm_dup_lab_result"       // Hasil Lab RM Duplikat
@@ -152,6 +154,7 @@ const (
 	DocTypeRMDupVitalSign       = "rm_dup_vital_sign"       // Grafik Tanda Vital RM Duplikat
 	DocTypeRMDupInpatientCert   = "rm_dup_inpatient_cert"   // Surat Rawat Inap RM Duplikat
 	DocTypeRMDupBilling         = "rm_dup_billing"          // Rincian Biaya RM Duplikat
+	DocTypeRMDupBersalin        = "rm_dup_bersalin"         // Catatan Persalinan RM Duplikat
 )
 
 // Signature action constants

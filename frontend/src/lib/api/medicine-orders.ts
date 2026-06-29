@@ -279,9 +279,7 @@ export interface CreateMedicineReturnInput {
 }
 
 export interface MedicationTimesheetItem {
-  order_id: number;
-  order_number: string;
-  order_item_id: number;
+  item_id: number;
   medicine_id: number;
   medicine_name: string;
   medicine_code: string;
@@ -296,7 +294,7 @@ export interface MedicationTimesheetItem {
 
 export interface MedicationTimesheetEntry {
   id: number;
-  medicine_order_item_id: number;
+  timesheet_item_id: number;
   scheduled_at: string;
   status: MedicationTimesheetStatus;
   reason_code?: MedicationTimesheetReasonCode;
@@ -368,7 +366,7 @@ export const medicineOrdersApi = {
   // Upsert one timesheet slot (item x hour)
   upsertTimesheetEntry: async (data: {
     visit_id: number;
-    medicine_order_item_id: number;
+    timesheet_item_id: number;
     date: string;
     hour: number;
     status?: MedicationTimesheetStatus | '';
@@ -377,6 +375,26 @@ export const medicineOrdersApi = {
     notes?: string;
   }) => {
     const response = await api.post<MedicationTimesheetEntry | { message: string }>('/medicine-orders/timesheet/entry', data);
+    return response;
+  },
+
+  createTimesheetItem: async (data: {
+    visit_id: number;
+    medicine_id: number;
+    quantity?: number;
+    unit?: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    duration?: string;
+    instructions?: string;
+  }) => {
+    const response = await api.post<MedicationTimesheetItem>('/medicine-orders/timesheet/item', data);
+    return response;
+  },
+
+  deleteTimesheetItem: async (visitId: number, itemId: number) => {
+    const response = await api.delete<{ message: string }>(`/medicine-orders/timesheet/item/${itemId}?visit_id=${visitId}`);
     return response;
   },
 

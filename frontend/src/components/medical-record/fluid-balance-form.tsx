@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -13,8 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { fluidBalanceApi, medicineOrdersApi, SHIFT_TYPES } from "@/lib/api";
-import type { FluidBalance, CreateFluidBalanceInput, MedicineOrder } from "@/lib/api";
+import { fluidBalanceApi, medicinesApi, SHIFT_TYPES } from "@/lib/api";
+import type { FluidBalance, CreateFluidBalanceInput, Medicine } from "@/lib/api";
 import { format } from "date-fns";
 import { Loader2, Plus, Droplets, X, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -186,6 +187,22 @@ const defaultFormData: CreateFluidBalanceInput = {
   notes: "",
 };
 
+const PARENTERAL_CATEGORY_OPTIONS: ComboboxOption[] = [
+  { value: "Kristaloid", label: "Kristaloid" },
+  { value: "Koloid", label: "Koloid" },
+  { value: "Nutrisi Parenteral", label: "Nutrisi Parenteral" },
+  { value: "Elektrolit", label: "Elektrolit" },
+  { value: "Cairan Maintenance", label: "Cairan Maintenance" },
+  { value: "Cairan Resusitasi", label: "Cairan Resusitasi" },
+];
+
+const BLOOD_CATEGORY_OPTIONS: ComboboxOption[] = [
+  { value: "Darah - Package Red Cell", label: "Darah - Package Red Cell" },
+  { value: "Darah - Whole Blood", label: "Darah - Whole Blood" },
+  { value: "Darah - Fresh Frozen Plasma", label: "Darah - Fresh Frozen Plasma" },
+  { value: "Darah - Trombosit Concentrate", label: "Darah - Trombosit Concentrate" },
+];
+
 export function FluidBalanceForm({
   visitId,
   readOnly = false,
@@ -202,8 +219,9 @@ export function FluidBalanceForm({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateFluidBalanceInput>(defaultFormData);
   
-  // Pharmacy medicines ordered for this patient
-  const [orderedMedicines, setOrderedMedicines] = useState<{ id: string; name: string }[]>([]);
+  const [ivMedicineOptions, setIvMedicineOptions] = useState<ComboboxOption[]>([]);
+  const [ivMedicineSearch, setIvMedicineSearch] = useState("");
+  const [ivMedicineLoading, setIvMedicineLoading] = useState(false);
   // Intake/Output detail state for UI only (not persisted)
   // Use any[] for detail arrays to avoid TS union issues
   const [intakeDetails, updateIntakeDetails] = useImmer<any[]>([
@@ -212,7 +230,6 @@ export function FluidBalanceForm({
     { type: "makanan", jenis: "makanan", value: 0 },
     { type: "parenteral", inputJenis: "", inputJumlah: 0, items: [] },
     { type: "iv", inputJenis: "", inputJumlah: 0, items: [] },
-    { type: "darah", inputJenis: "", inputJumlah: 0, items: [] },
   ]);
   const [outputDetails, updateOutputDetails] = useImmer<any[]>([
     { type: "muntah", label: "Oral (Muntah)", value: 0 },
@@ -232,40 +249,61 @@ export function FluidBalanceForm({
       return;
     }
     try {
-      const [balanceRes, ordersRes] = await Promise.all([
-        fluidBalanceApi.getAll(visitId),
-        medicineOrdersApi.getAll({ source_visit_id: visitId })
-      ]);
+      const balanceRes = await fluidBalanceApi.getAll(visitId);
       const bData = balanceRes.data.data || [];
       setBalances(bData);
       emitMedicalRecordTabIndicator("fluid-balance", `${bData.length}`);
-      
-      const orders: MedicineOrder[] = ordersRes.data || [];
-      const meds: { id: string; name: string }[] = [];
-      orders.forEach(order => {
-        if (order.status !== "cancelled") {
-          order.items?.forEach(item => {
-            if (item.medicine?.name && !meds.some(m => m.name === item.medicine!.name)) {
-              meds.push({ id: item.id ? item.id.toString() : "", name: item.medicine.name });
-            }
-          });
-        }
-      });
-      setOrderedMedicines(meds);
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Gagal memuat catatan balance cairan atau data obat",
+        description: "Gagal memuat catatan balance cairan",
       });
     } finally {
       setLoading(false);
     }
   }, [externalData, useExternalData, visitId, toast]);
 
+  const mapMedicineOptions = (medicines: Medicine[]): ComboboxOption[] =>
+    medicines.map((medicine) => ({
+      value: medicine.name,
+      label: `${medicine.name}${medicine.generic_name ? ` - ${medicine.generic_name}` : ""}${medicine.code ? ` (${medicine.code})` : ""}`,
+    }));
+
+  const loadIVMedicineOptions = useCallback(async (search: string) => {
+    setIvMedicineLoading(true);
+    try {
+      const response = await medicinesApi.getAll({
+        page: 1,
+        limit: 20,
+        is_active: true,
+        search: search.trim() || undefined,
+      });
+      const rows = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+        ? response.data
+        : [];
+      setIvMedicineOptions(mapMedicineOptions(rows));
+    } catch {
+      setIvMedicineOptions([]);
+    } finally {
+      setIvMedicineLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, [loadData]);  // Open modal for create
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const timer = setTimeout(() => {
+      void loadIVMedicineOptions(ivMedicineSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isModalOpen, ivMedicineSearch, loadIVMedicineOptions]);
+
   const handleOpenCreate = () => {
     setEditingId(null);
     setFormData({
@@ -278,7 +316,6 @@ export function FluidBalanceForm({
       { type: "makanan", jenis: "makanan", value: 0 },
       { type: "parenteral", inputJenis: "", inputJumlah: 0, items: [] },
       { type: "iv", inputJenis: "", inputJumlah: 0, items: [] },
-      { type: "darah", inputJenis: "", inputJumlah: 0, items: [] },
     ]);
     updateOutputDetails(() => [
       { type: "muntah", label: "Oral (Muntah)", value: 0 },
@@ -289,6 +326,7 @@ export function FluidBalanceForm({
       { type: "perdarahan", value: 0 },
     ]);
     setIwl({ hitung: false, value: 0 });
+    setIvMedicineSearch("");
     setIsModalOpen(true);
   };
 
@@ -351,9 +389,11 @@ export function FluidBalanceForm({
       return matched.length > 0 ? matched.join(", ") : "Darah";
     };
 
-    const parenteralItems = balance.iv_fluid ? [{ jenis: getParenteralEdit(), jumlah: balance.iv_fluid }] : [];
+    const parenteralItems = [
+      ...(balance.iv_fluid ? [{ jenis: getParenteralEdit(), jumlah: balance.iv_fluid }] : []),
+      ...(balance.blood_product ? [{ jenis: getBloodEdit(), jumlah: balance.blood_product }] : []),
+    ];
     const ivItems = balance.iv_medicine ? [{ jenis: getIVEdit(), jumlah: balance.iv_medicine }] : [];
-    const darahItems = balance.blood_product ? [{ jenis: getBloodEdit(), jumlah: balance.blood_product }] : [];
 
     updateIntakeDetails(() => [
       { type: "oral", label: "Oral", value: balance.oral_drink || 0 },
@@ -361,7 +401,6 @@ export function FluidBalanceForm({
       { type: "makanan", jenis: (balance.oral_food || 0) > 0 ? "makanan" : "minuman", value: balance.oral_food || 0 },
       { type: "parenteral", inputJenis: "", inputJumlah: 0, items: parenteralItems },
       { type: "iv", inputJenis: "", inputJumlah: 0, items: ivItems },
-      { type: "darah", inputJenis: "", inputJumlah: 0, items: darahItems },
     ]);
 
     const drainItems = balance.drain_amount ? [{ jenis: balance.drain_type || "Drain", jumlah: balance.drain_amount }] : [];
@@ -387,6 +426,7 @@ export function FluidBalanceForm({
     ]);
     
     setIwl({ hitung: (balance.iwl || 0) > 0, value: balance.iwl || 0 });
+    setIvMedicineSearch("");
     setIsModalOpen(true);
   };
 
@@ -401,7 +441,7 @@ export function FluidBalanceForm({
     total += (intakeDetails[0]?.value || 0);
     total += (intakeDetails[1]?.value || 0);
     total += (intakeDetails[2]?.value || 0);
-    for (let i = 3; i <= 5; i++) {
+    for (let i = 3; i <= 4; i++) {
       if (intakeDetails[i]?.items) {
         intakeDetails[i].items.forEach((item: any) => { total += (item.jumlah || 0); });
       }
@@ -427,16 +467,19 @@ export function FluidBalanceForm({
 
   const syncFormData = (): CreateFluidBalanceInput => {
     const newData = { ...formData };
+    const parenteralItems = intakeDetails[3]?.items || [];
+    const ivMedicineItems = intakeDetails[4]?.items || [];
+    const bloodItems = parenteralItems.filter((i: any) => String(i.jenis || "").startsWith("Darah - "));
+    const nonBloodParenteralItems = parenteralItems.filter((i: any) => !String(i.jenis || "").startsWith("Darah - "));
     newData.oral_drink = (intakeDetails[0]?.value || 0) + (intakeDetails[2]?.jenis === "minuman" ? (intakeDetails[2]?.value || 0) : 0);
     newData.oral_food = (intakeDetails[2]?.jenis === "makanan" ? (intakeDetails[2]?.value || 0) : 0);
     newData.enteral_feed = intakeDetails[1]?.value || 0;
-    newData.iv_fluid = intakeDetails[3]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
-    newData.iv_medicine = intakeDetails[4]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
-    newData.blood_product = intakeDetails[5]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
+    newData.iv_fluid = nonBloodParenteralItems.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0);
+    newData.iv_medicine = ivMedicineItems.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0);
+    newData.blood_product = bloodItems.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0);
     newData.other_intake_note = [
-      ...(intakeDetails[3]?.items?.map((i: any) => i.jenis) || []),
-      ...(intakeDetails[4]?.items?.map((i: any) => i.jenis) || []),
-      ...(intakeDetails[5]?.items?.map((i: any) => i.jenis) || [])
+      ...parenteralItems.map((i: any) => i.jenis),
+      ...ivMedicineItems.map((i: any) => i.jenis)
     ].join(", ");
 
     newData.vomit_amount = outputDetails[0]?.value || 0;
@@ -655,44 +698,61 @@ export function FluidBalanceForm({
                   
                   {/* Dynamic Rows wrapped in flex-1 overflow-auto just in case there are many items, but keep it tight */}
                   <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
-                    {["parenteral","iv","darah"].map((type,idx)=>(
+                    {["parenteral","iv"].map((type,idx)=>(
                       <div key={type} className="bg-muted/5 border border-border/40 p-2 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">{type==="parenteral"?"Parenteral":type==="iv"?"Obat Intravena":"Transfusi Darah"}</Label>
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">{type==="parenteral"?"Parenteral":"Obat Intravena"}</Label>
                         </div>
                         <div className="flex gap-2">
                           {(type === "parenteral" || type === "iv") ? (
-                            <Select value={(intakeDetails[3+idx] as any).inputJenis||""} onValueChange={(v)=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=v})}>
-                              <SelectTrigger className="flex-1 rounded-none border-border/70 h-7 text-xs">
-                                <SelectValue placeholder={`Pilih dari farmasi...`} />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-none">
-                                {orderedMedicines.length === 0 && <SelectItem value="__empty" disabled className="text-xs">Tidak ada obat farmasi</SelectItem>}
-                                {orderedMedicines.map(m => (
-                                  <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Select value={(intakeDetails[3+idx] as any).inputJenis||""} onValueChange={(v)=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=v})}>
-                              <SelectTrigger className="flex-1 rounded-none border-border/70 h-7 text-xs">
-                                <SelectValue placeholder={`Pilih produk darah...`} />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-none">
-                                <SelectItem value="Package Red Cell" className="text-xs">Package Red Cell</SelectItem>
-                                <SelectItem value="Whole Blood" className="text-xs">Whole Blood</SelectItem>
-                                <SelectItem value="Fresh Frozen Plasma" className="text-xs">Fresh Frozen Plasma</SelectItem>
-                                <SelectItem value="Trombosit Concentrate" className="text-xs">Trombosit Concentrate</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
+                            <Combobox
+                              options={
+                                type === "parenteral"
+                                  ? [...PARENTERAL_CATEGORY_OPTIONS, ...BLOOD_CATEGORY_OPTIONS]
+                                  : type === "iv"
+                                  ? ivMedicineOptions
+                                  : BLOOD_CATEGORY_OPTIONS
+                              }
+                              value={(intakeDetails[3+idx] as any).inputJenis || ""}
+                              onValueChange={(v) => updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=v})}
+                              onSearchChange={type === "iv" ? setIvMedicineSearch : undefined}
+                              placeholder={
+                                type === "parenteral"
+                                  ? "Pilih cairan parenteral..."
+                                  : type === "iv"
+                                  ? "Pilih obat intravena..."
+                                  : "Pilih kategori darah..."
+                              }
+                              searchPlaceholder={
+                                type === "parenteral"
+                                  ? "Cari kategori parenteral..."
+                                  : type === "iv"
+                                  ? "Cari obat intravena..."
+                                  : "Cari kategori darah..."
+                              }
+                              emptyText={
+                                type === "parenteral"
+                                  ? "Tidak ada kategori yang cocok."
+                                  : "Tidak ada obat yang cocok."
+                              }
+                              loading={type === "iv" ? ivMedicineLoading : false}
+                              className="flex-1 rounded-none border-border/70 h-7 text-xs"
+                              disabled={readOnly}
+                            />
+                          ) : null}
                           <Input type="number" placeholder="ml" value={(intakeDetails[3+idx] as any).inputJumlah||""} onChange={e=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJumlah=+e.target.value||0})} className="w-16 rounded-none border-border/70 h-7 text-xs" />
                           <Button type="button" size="sm" className="rounded-none h-7 w-7 p-0" onClick={()=>{
                             updateIntakeDetails((d:any[])=>{
                               const det = d[3+idx] as any;
                               if(!det.items) det.items=[];
-                              const prefix = type === "parenteral" ? "Parenteral - " : type === "iv" ? "Intravena - " : "Darah - ";
-                              if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis: `${prefix}${det.inputJenis}`, jumlah:det.inputJumlah});
+                              const prefix = type === "parenteral" ? "Parenteral - " : "Intravena - ";
+                              const finalJenis =
+                                type === "parenteral" && det.inputJenis.startsWith("Darah - ")
+                                  ? det.inputJenis
+                                  : det.inputJenis.startsWith(prefix)
+                                  ? det.inputJenis
+                                  : `${prefix}${det.inputJenis}`;
+                              if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis: finalJenis, jumlah:det.inputJumlah});
                               det.inputJenis="";det.inputJumlah=0;
                             });
                           }}>

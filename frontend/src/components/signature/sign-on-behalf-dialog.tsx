@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import Webcam from "react-webcam";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +12,24 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi } from "@/lib/api/signature";
 import { employeesApi, type Employee } from "@/lib/api/employees";
-import { Loader2, ShieldCheck, Search, Check, CheckCircle2 } from "lucide-react";
+import { Loader2, ShieldCheck, Check, CheckCircle2, ChevronsUpDown, MonitorSmartphone, QrCode, PenTool, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import SignatureCanvas from "react-signature-canvas";
+import { QRCodeSVG } from "qrcode.react";
+import { api } from "@/lib/api/client";
 
 interface SignOnBehalfDialogProps {
   open: boolean;
@@ -27,10 +44,15 @@ interface SignOnBehalfDialogProps {
     left?: string;
     right?: string;
   };
+  fixedRoles?: {
+    left?: "dpjp" | "perawat" | "pasien" | "wali" | "kosong";
+    right?: "dpjp" | "perawat" | "pasien" | "wali" | "kosong";
+  };
   requiredSignatures?: number;
   documentTitle: string;
   visitDoctor?: { id: number; nama_lengkap: string; spesialisasi?: string; no_sip?: string; no_str?: string };
   onSuccess?: () => void;
+  needEmployee?: boolean;
 }
 
 export function SignOnBehalfDialog({
@@ -39,14 +61,15 @@ export function SignOnBehalfDialog({
   documentType,
   documentId,
   visitId,
-  signerHint,
   signerTypeFilter: _signerTypeFilter,
   signatureSlot,
   slotLabels,
+  fixedRoles,
   requiredSignatures,
   documentTitle,
   visitDoctor,
   onSuccess,
+  needEmployee: propNeedEmployee,
 }: SignOnBehalfDialogProps) {
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -56,17 +79,20 @@ export function SignOnBehalfDialog({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
   const [slot, setSlot] = useState<"left" | "right">("left");
-  const [step, setStep] = useState<"pick" | "form">("pick");
-  const [role, setRole] = useState<"dpjp" | "perawat" | "pasien" | "kosong">("kosong");
+  const [step, setStep] = useState<"pick" | "form" | "pin" | "patient_mode" | "patient_qr" | "patient_direct">("pick");
+  const [role, setRole] = useState<"dpjp" | "perawat" | "pasien" | "wali" | "kosong">("kosong");
   const [signatureName, setSignatureName] = useState("");
   const [location, setLocation] = useState("");
   const [signatureDate, setSignatureDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [signedSlots, setSignedSlots] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  const [slotDetails, setSlotDetails] = useState<Record<string, any>>({});
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const sigPad = useRef<SignatureCanvas>(null);
+  const webcamRef = useRef<Webcam>(null);
+  const [patientToken, setPatientToken] = useState("");
+  const [isRevoking, setIsRevoking] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -74,11 +100,13 @@ export function SignOnBehalfDialog({
     setSearchQuery("");
     setDropdownOpen(false);
     setPin(["", "", "", "", "", ""]);
-    setSlot((signatureSlot || "left") === "right" || signatureSlot === "2" ? "right" : "left");
+    const initialSlot = (signatureSlot || "left") === "right" || signatureSlot === "2" ? "right" : "left";
+    setSlot(initialSlot);
     setStep("pick");
-    setRole("dpjp");
+    setRole((fixedRoles && fixedRoles[initialSlot]) ? fixedRoles[initialSlot] as any : "dpjp");
     setSignatureName("");
     setLocation("");
+    setPatientToken("");
     setSignatureDate(new Date().toISOString().slice(0, 10));
     setSignedSlots({ left: false, right: false });
 
@@ -87,12 +115,14 @@ export function SignOnBehalfDialog({
       try {
         const res = await signatureApi.getDocumentSignature(documentType, documentId);
         const slots = res.data?.signed_slots || {};
+        setSlotDetails(res.data?.slot_details || {});
         setSignedSlots({
           left: !!slots.left,
           right: !!slots.right,
         });
       } catch {
         setSignedSlots({ left: false, right: false });
+        setSlotDetails({});
       } finally {
         setLoadingStatus(false);
       }
@@ -102,7 +132,7 @@ export function SignOnBehalfDialog({
     const loadEmployees = async () => {
       setLoadingEmployees(true);
       try {
-        const res = await employeesApi.getAll({});
+        const res = await employeesApi.getAll({ limit: 1000 });
         const allEmployees: Employee[] = res.data.data || [];
         allEmployees.sort((a, b) => {
           const aIsDoc = a.tipe_karyawan === "Dokter" ? 0 : 1;
@@ -139,21 +169,90 @@ export function SignOnBehalfDialog({
   }, [visitDoctor?.id, employees, selectedEmployeeId]);
 
   useEffect(() => {
-    if (selectedEmployeeId && inputRefs.current[0]) {
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    if (step === "pin") {
+      setTimeout(() => {
+        const focusIndex = pin.findIndex(d => !d) === -1 ? 5 : Math.max(0, pin.findIndex(d => !d));
+        inputRefs.current[focusIndex]?.focus();
+      }, 100);
     }
-  }, [selectedEmployeeId]);
+  }, [step]);
 
-  // Close dropdown on click outside
+  // Polling for signature completion
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
+    let intervalId: any;
+    if (open) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await signatureApi.getDocumentSignature(documentType, documentId);
+          const slots = res.data?.signed_slots || {};
+          const details = res.data?.slot_details || {};
+
+          setSlotDetails(details);
+
+          setSignedSlots((prev) => {
+            let changed = false;
+            const next = { ...prev };
+
+            if (slots.left && !prev.left) {
+              changed = true;
+              next.left = true;
+            }
+            if (slots.right && !prev.right) {
+              changed = true;
+              next.right = true;
+            }
+
+            // Side-effects inside updater are generally discouraged in StrictMode,
+            // but for a polling interval that fires once per change, this is safe enough
+            // since we guard it with the `!prev.x` check.
+            if (changed) {
+              setTimeout(() => {
+                toast({
+                  variant: "success",
+                  title: "Berhasil ditandatangani",
+                  description: `Tanda tangan berhasil diterima`,
+                });
+                if (step === "patient_qr" || step === "patient_direct") {
+                  setStep("pick");
+                }
+                onSuccess?.();
+              }, 0);
+            }
+
+            return changed ? next : prev;
+          });
+
+        } catch { }
+      }, 3000);
+    }
+    return () => clearInterval(intervalId);
+  }, [open, step, documentType, documentId, onSuccess, toast]);
+
+  useEffect(() => {
+    if (step === "form" && signedSlots[slot] && slotDetails[slot]) {
+      const detail = slotDetails[slot];
+      if (detail.signer_role) {
+        const roleLower = detail.signer_role.toLowerCase();
+        if (roleLower.includes("dpjp") || roleLower.includes("dokter")) setRole("dpjp");
+        else if (roleLower.includes("perawat") || roleLower.includes("nurse")) setRole("perawat");
+        else if (roleLower.includes("pasien") || roleLower.includes("patient")) setRole("pasien");
+        else setRole("kosong");
       }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+      if (detail.signed_at) {
+        setSignatureDate(detail.signed_at.substring(0, 10));
+      }
+      if (detail.notes) {
+        const match = detail.notes.match(/label=([^;]+)/);
+        if (match) {
+          setSignatureName(match[1]);
+        }
+      }
+      if (detail.signer_name && !detail.signer_role?.toLowerCase().includes("pasien")) {
+        const emp = employees.find(e => e.nama_lengkap.toLowerCase() === detail.signer_name.toLowerCase());
+        if (emp) setSelectedEmployeeId(emp.id.toString());
+      }
+    }
+  }, [step, slot, signedSlots, slotDetails, employees]);
 
   const filteredEmployees = useMemo(() => {
     if (!searchQuery.trim()) return employees;
@@ -171,7 +270,6 @@ export function SignOnBehalfDialog({
 
   const leftSlotLabel = slotLabels?.left || "Slot 1 (Kiri)";
   const rightSlotLabel = slotLabels?.right || "Slot 2 (Kanan)";
-  const selectedSlotLabel = slot === "left" ? leftSlotLabel : rightSlotLabel;
 
   const handleSelectEmployee = useCallback((emp: Employee) => {
     setSelectedEmployeeId(emp.id.toString());
@@ -180,36 +278,146 @@ export function SignOnBehalfDialog({
   }, []);
 
   const handlePinChange = useCallback((index: number, value: string) => {
-    if (value.length > 1) {
-      const digits = value.replace(/\D/g, "").slice(0, 6);
-      const newPin = ["", "", "", "", "", ""];
-      for (let i = 0; i < digits.length; i++) {
-        newPin[i] = digits[i];
-      }
-      setPin(newPin);
+    const rawValue = value.replace(/\D/g, "");
+
+    if (rawValue.length > 2) {
+      const digits = rawValue.slice(0, 6);
+      setPin((prev) => {
+        const newPin = [...prev];
+        for (let i = 0; i < digits.length; i++) {
+          newPin[i] = digits[i];
+        }
+        return newPin;
+      });
       const focusIdx = Math.min(digits.length, 5);
       inputRefs.current[focusIdx]?.focus();
       return;
     }
-    const digit = value.replace(/\D/g, "");
-    const newPin = [...pin];
-    newPin[index] = digit;
-    setPin(newPin);
+
+    const digit = rawValue.slice(-1);
+    setPin((prev) => {
+      const newPin = [...prev];
+      newPin[index] = digit;
+      return newPin;
+    });
+
     if (digit && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
-  }, [pin]);
+  }, []);
 
-  const handleKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !pin[index] && index > 0) {
+  const handleKeyDown = useCallback((index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !e.currentTarget.value && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === "Enter" && pin.join("").length === 6) {
+      handleSign();
     }
   }, [pin]);
 
+  const handleNext = () => {
+    const needEmployee = role !== "pasien" && role !== "wali" && role !== "kosong";
+    if (needEmployee && !selectedEmployeeId) {
+      toast({ variant: "destructive", title: "Pilih penandatangan terlebih dahulu" });
+      return;
+    }
+    if ((role === "pasien" || role === "wali") && signatureName.trim() === "") {
+      return;
+    }
+    if (role === "pasien" || role === "wali") {
+      setStep("patient_mode");
+    } else if (role === "kosong") {
+      handleSign();
+    } else {
+      setStep("pin");
+    }
+  };
+
+  const handlePatientModeSelect = async (mode: "qr" | "direct") => {
+    setLoading(true);
+    try {
+      const res = await signatureApi.getPatientLink(documentType, documentId, signatureName, slot);
+      setPatientToken(res.data.token);
+      setStep(mode === "qr" ? "patient_qr" : "patient_direct");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Gagal", description: "Gagal memuat link tanda tangan" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectSubmit = async () => {
+    if (sigPad.current?.isEmpty()) {
+      toast({ variant: "destructive", title: "Peringatan", description: "Harap gambar tanda tangan terlebih dahulu." });
+      return;
+    }
+
+    const photoImage = webcamRef.current?.getScreenshot();
+    if (!photoImage) {
+      toast({ variant: "destructive", title: "Peringatan", description: "Pastikan kamera menyala untuk validasi wajah." });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const signatureImage = sigPad.current?.getCanvas().toDataURL("image/png");
+      await api.post("/signature/submit", {
+        token: patientToken,
+        signature_image: signatureImage,
+        photo_image: photoImage,
+      });
+      toast({
+        variant: "success",
+        title: "Berhasil ditandatangani",
+        description: `Tanda tangan pasien berhasil disimpan`,
+      });
+      setSignedSlots((prev) => ({ ...prev, [slot]: true }));
+      setStep("pick");
+      onSuccess?.();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Gagal", description: err.response?.data?.error || "Gagal menyimpan tanda tangan" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSign = async () => {
     const pinValue = pin.join("");
-    const needEmployee = role !== "pasien" && role !== "kosong";
-    const needPin = role !== "pasien" && role !== "kosong";
+
+    if (isRevoking) {
+      if (pinValue.length !== 6) {
+        toast({ variant: "destructive", title: "PIN harus 6 digit" });
+        return;
+      }
+      setLoading(true);
+      try {
+        await signatureApi.revokeSignature({
+          pin: pinValue,
+          document_type: documentType,
+          document_id: documentId,
+          slot: slot,
+          reason: "Dihapus oleh pengguna",
+        });
+        toast({
+          variant: "success",
+          title: "Berhasil",
+          description: "Tanda tangan berhasil dihapus",
+        });
+        setSignedSlots((prev) => ({ ...prev, [slot]: false }));
+        setPin(["", "", "", "", "", ""]);
+        setStep("pick");
+        setIsRevoking(false);
+        onSuccess?.();
+      } catch (err: any) {
+        toast({ variant: "destructive", title: "Gagal", description: err?.response?.data?.error || "Gagal menghapus tanda tangan" });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const needEmployee = role !== "pasien" && role !== "wali" && role !== "kosong";
+    const needPin = role !== "pasien" && role !== "wali" && role !== "kosong";
     if (needPin && pinValue.length !== 6) {
       toast({ variant: "destructive", title: "PIN harus 6 digit" });
       return;
@@ -218,7 +426,6 @@ export function SignOnBehalfDialog({
       toast({ variant: "destructive", title: "Pilih penandatangan terlebih dahulu" });
       return;
     }
-    // Allow replacing an already signed slot (Ganti TTD).
 
     setLoading(true);
     try {
@@ -233,7 +440,7 @@ export function SignOnBehalfDialog({
         signature_role: role,
         signature_location: location,
         signature_date: signatureDate,
-        signature_name: role === "pasien" ? signatureName : "",
+        signature_name: (role === "pasien" || role === "wali") ? signatureName : "",
       });
 
       const emp = employees.find((e) => e.id.toString() === selectedEmployeeId);
@@ -245,16 +452,21 @@ export function SignOnBehalfDialog({
       setSignedSlots((prev) => ({ ...prev, [slot]: true }));
       setSelectedEmployeeId("");
       setPin(["", "", "", "", "", ""]);
+      setPatientToken("");
+      setIsRevoking(false);
       setStep("pick");
       onSuccess?.();
     } catch (err: any) {
+      const emp = employees.find((e) => e.id.toString() === selectedEmployeeId);
+      const namaPenandatangan = emp?.nama_lengkap ? `Penandatangan (${emp.nama_lengkap})` : "Anda";
+
       const msg = err?.response?.data?.error || "Gagal menandatangani dokumen";
       const code = err?.response?.data?.code;
       if (code === "PIN_NOT_SET") {
         toast({
           variant: "destructive",
           title: "PIN Belum Diatur",
-          description: "Anda belum mengatur PIN tanda tangan. Silakan atur di Pengaturan.",
+          description: `${namaPenandatangan} belum mengatur PIN tanda tangan. Silakan atur di Pengaturan.`,
         });
       } else {
         toast({ variant: "destructive", title: "Gagal", description: msg });
@@ -270,220 +482,337 @@ export function SignOnBehalfDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
-            Tanda Tangan Digital
+            {step === "pin" ? (isRevoking ? "Konfirmasi PIN Keamanan (Hapus)" : "Konfirmasi PIN Keamanan") : documentTitle}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="rounded bg-muted/50 px-3 py-2 text-sm font-medium truncate">
-            {documentTitle}
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Rekomendasi: <strong>{signerHint}</strong>
-          </p>
-          <div className="space-y-2">
-            <Label className="text-xs">Pilih Slot TTD</Label>
-            <div className="rounded-md border-2 p-4">
-              <div className="grid grid-cols-2 gap-4">
-              <Button
-                type="button"
-                variant={slot === "left" ? "default" : "outline"}
-                className={cn(
-                  "h-28 justify-center border-2 text-base font-semibold",
-                  signedSlots.left && "border-green-600 text-green-700"
-                )}
-                disabled={loading || loadingStatus}
-                onClick={() => {
-                  setSlot("left");
-                  setStep("form");
-                }}
-              >
-                <span className="flex flex-col items-center gap-1">
-                  {signedSlots.left ? <CheckCircle2 className="h-7 w-7 text-green-600" /> : <ShieldCheck className="h-7 w-7" />}
-                  <span>{signedSlots.left ? `${leftSlotLabel} Selesai` : leftSlotLabel}</span>
-                  {signedSlots.left && <span className="text-xs font-normal">Ganti TTD</span>}
-                </span>
-              </Button>
-              <Button
-                type="button"
-                variant={slot === "right" ? "default" : "outline"}
-                className={cn(
-                  "h-28 justify-center border-2 text-base font-semibold",
-                  signedSlots.right && "border-green-600 text-green-700"
-                )}
-                disabled={loading || loadingStatus}
-                onClick={() => {
-                  setSlot("right");
-                  setStep("form");
-                }}
-              >
-                <span className="flex flex-col items-center gap-1">
-                  {signedSlots.right ? <CheckCircle2 className="h-7 w-7 text-green-600" /> : <ShieldCheck className="h-7 w-7" />}
-                  <span>{signedSlots.right ? `${rightSlotLabel} Selesai` : rightSlotLabel}</span>
-                  {signedSlots.right && <span className="text-xs font-normal">Ganti TTD</span>}
-                </span>
-              </Button>
+        {(step === "pick" || step === "form") && (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Pilih Slot TTD</Label>
+              <div className="rounded-md border-2 p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "h-28 justify-center border-2 text-base font-semibold transition-all",
+                      slot === "left" && "border-primary bg-primary/5",
+                      signedSlots.left && "border-green-600 bg-green-50 hover:bg-green-100"
+                    )}
+                    disabled={loading || loadingStatus}
+                    onClick={() => {
+                      setSlot("left");
+                      if (fixedRoles?.left) setRole(fixedRoles.left);
+                      setStep("form");
+                    }}
+                  >
+                    <span className="flex flex-col items-center gap-2">
+                      {signedSlots.left ? (
+                        <CheckCircle2 className="h-12 w-12 text-green-600" />
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-7 w-7" />
+                          <span>{leftSlotLabel}</span>
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "h-28 justify-center border-2 text-base font-semibold transition-all",
+                      slot === "right" && "border-primary bg-primary/5",
+                      signedSlots.right && "border-green-600 bg-green-50 hover:bg-green-100"
+                    )}
+                    disabled={loading || loadingStatus}
+                    onClick={() => {
+                      setSlot("right");
+                      if (fixedRoles?.right) setRole(fixedRoles.right);
+                      setStep("form");
+                    }}
+                  >
+                    <span className="flex flex-col items-center gap-2">
+                      {signedSlots.right ? (
+                        <CheckCircle2 className="h-12 w-12 text-green-600" />
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-7 w-7" />
+                          <span>{rightSlotLabel}</span>
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-          {step === "form" && (
-            <>
-              <div className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
-                <span className="text-sm font-medium">
-                  Isi Detail {selectedSlotLabel}
-                </span>
-                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setStep("pick")}>
-                  Kembali
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Peran</Label>
-                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as any)}>
-                    <option value="dpjp">DPJP</option>
-                    <option value="perawat">Perawat</option>
-                    <option value="pasien">Pasien</option>
-                    <option value="kosong">Kosong</option>
-                  </select>
+            {step === "form" && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {!fixedRoles?.[slot] && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Peran</Label>
+                      <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as any)}>
+                        <option value="dpjp">DPJP</option>
+                        <option value="perawat">Perawat</option>
+                        <option value="pasien">Pasien</option>
+                        <option value="wali">Wali</option>
+                        <option value="kosong">Kosong</option>
+                      </select>
+                    </div>
+                  )}
+                  <div className={cn("space-y-1", fixedRoles?.[slot] ? "col-span-2" : "")}>
+                    <Label className="text-xs">Tanggal</Label>
+                    <Input type="date" value={signatureDate} onChange={(e) => setSignatureDate(e.target.value)} className="h-9" />
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Tanggal</Label>
-                  <Input type="date" value={signatureDate} onChange={(e) => setSignatureDate(e.target.value)} className="h-9" />
+                  <Label className="text-xs">Lokasi</Label>
+                  <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Contoh: Bojonegoro" className="h-9" />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Lokasi</Label>
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Contoh: Bojonegoro" className="h-9" />
-              </div>
-              {role === "pasien" && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Nama Pasien</Label>
-                  <Input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} placeholder="Masukkan nama pasien" className="h-9" />
-                </div>
-              )}
-            </>
-          )}
+                {(role === "pasien" || role === "wali") && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{role === "wali" ? "Nama Wali" : "Nama Pasien"}</Label>
+                    <Input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} placeholder={`Masukkan nama ${role}`} className="h-9" />
+                  </div>
+                )}
+              </>
+            )}
 
-          {/* Searchable employee dropdown — no portal, inline */}
-          {step === "form" && role !== "pasien" && role !== "kosong" && (
-          <div className="space-y-1">
-            <Label className="text-xs">Penandatangan</Label>
-            {loadingEmployees ? (
-              <div className="flex items-center gap-2 h-9 px-3 border rounded-md text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Memuat data...
-              </div>
-            ) : (
-              <div className="relative" ref={dropdownRef}>
-                {/* Selected display / search input */}
-                {dropdownOpen ? (
-                  <div className="flex items-center border rounded-md px-2 h-9 gap-1.5">
-                    <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <input
-                      ref={searchRef}
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Ketik nama penandatangan..."
-                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
-                      autoFocus
-                    />
+            {step === "form" && (propNeedEmployee ?? (role !== "pasien" && role !== "wali" && role !== "kosong")) && (
+              <div className="space-y-1">
+                <Label className="text-xs">Penandatangan</Label>
+                {loadingEmployees ? (
+                  <div className="flex items-center gap-2 h-9 px-3 border rounded-md text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Memuat data...
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => { setDropdownOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-                    className="flex items-center w-full border rounded-md px-3 h-9 text-sm text-left hover:bg-muted/30 transition-colors"
-                  >
-                    <span className="truncate flex-1">
-                      {selectedEmployee
-                        ? `${selectedEmployee.nama_lengkap}${selectedEmployee.spesialisasi ? ` - ${selectedEmployee.spesialisasi}` : ""}`
-                        : <span className="text-muted-foreground">Pilih penandatangan...</span>}
-                    </span>
-                  </button>
-                )}
-
-                {/* Dropdown list */}
-                {dropdownOpen && (
-                  <div className="absolute left-0 right-0 top-10 border rounded-md bg-popover shadow-lg max-h-[200px] overflow-y-auto z-10">
-                    {filteredEmployees.length === 0 ? (
-                      <div className="px-3 py-4 text-sm text-center text-muted-foreground">
-                        Tidak ditemukan
-                      </div>
-                    ) : (
-                      filteredEmployees.map((emp) => (
-                        <button
-                          key={emp.id}
-                          type="button"
-                          onClick={() => handleSelectEmployee(emp)}
-                          className={cn(
-                            "flex items-center w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors gap-2",
-                            selectedEmployeeId === emp.id.toString() && "bg-accent"
+                  <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={dropdownOpen}
+                        className="w-full justify-between font-normal h-9 px-3"
+                      >
+                        <span className="truncate">
+                          {selectedEmployee
+                            ? `${selectedEmployee.nama_lengkap}${selectedEmployee.spesialisasi ? ` - ${selectedEmployee.spesialisasi}` : ""}`
+                            : <span className="text-muted-foreground">Pilih penandatangan...</span>}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] sm:w-[400px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Ketik nama penandatangan..."
+                          value={searchQuery}
+                          onValueChange={setSearchQuery}
+                        />
+                        <CommandList>
+                          {filteredEmployees.length === 0 ? (
+                            <CommandEmpty>Tidak ditemukan</CommandEmpty>
+                          ) : (
+                            <CommandGroup>
+                              {filteredEmployees.map((emp) => (
+                                <CommandItem
+                                  key={emp.id}
+                                  value={emp.id.toString()}
+                                  onSelect={() => {
+                                    handleSelectEmployee(emp);
+                                    setDropdownOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4 shrink-0",
+                                      selectedEmployeeId === emp.id.toString() ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span>{emp.nama_lengkap}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {emp.spesialisasi ? emp.spesialisasi : emp.tipe_karyawan}
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
                           )}
-                        >
-                          {selectedEmployeeId === emp.id.toString() && (
-                            <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          )}
-                          <span className="truncate">
-                            {emp.nama_lengkap}
-                            {emp.spesialisasi ? ` - ${emp.spesialisasi}` : emp.tipe_karyawan ? ` (${emp.tipe_karyawan})` : ""}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             )}
+            {/* Actions for Form Step */}
+            {step === "form" && (
+              <div className="flex items-center justify-between pt-4">
+                {signedSlots[slot as keyof typeof signedSlots] ? (
+                  <Button variant="destructive" size="sm" onClick={() => { setIsRevoking(true); setStep("pin"); }} type="button" disabled={loading}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Hapus TTD
+                  </Button>
+                ) : (
+                  <div />
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={loading}>
+                    Batal
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleNext}
+                    disabled={
+                      loading ||
+                      loadingStatus ||
+                      (role !== "pasien" && role !== "wali" && role !== "kosong" && !selectedEmployeeId) ||
+                      ((role === "pasien" || role === "wali") && signatureName.trim() === "")
+                    }
+                  >
+                    {signedSlots[slot as keyof typeof signedSlots] ? "Ganti TTD" : "Lanjut"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-          )}
+        )}
 
-          {/* PIN input */}
-          {step === "form" && role !== "pasien" && role !== "kosong" && !dropdownOpen && (
-            <div className="space-y-1">
-              <Label className="text-xs">PIN Anda (6 digit)</Label>
-              <div className="flex gap-1.5 justify-center">
-                {pin.map((digit, idx) => (
-                  <Input
-                    key={idx}
-                    ref={(el) => { inputRefs.current[idx] = el; }}
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={digit}
-                    onChange={(e) => handlePinChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className="w-9 h-9 text-center text-base font-mono p-0"
-                    disabled={loading}
-                  />
-                ))}
+        {/* PIN Step */}
+        {step === "pin" && (
+          <>
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 text-center">
+                <ShieldCheck className="mx-auto h-8 w-8 text-primary mb-2" />
+                <p className="text-sm font-medium">
+                  {isRevoking ? "Masukkan 6 digit PIN untuk membatalkan tanda tangan ini." : "Masukkan 6 digit PIN keamanan Anda untuk menandatangani dokumen ini."}
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-2 justify-center">
+                  {pin.map((digit, idx) => (
+                    <Input
+                      key={idx}
+                      ref={(el) => { inputRefs.current[idx] = el; }}
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={digit}
+                      onChange={(e) => handlePinChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      className="w-12 h-12 text-center text-xl font-mono p-0"
+                      disabled={loading}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="flex gap-2 justify-end pt-1">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={loading}>
-              Batal
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSign}
-              disabled={
-                step !== "form" ||
-                loading ||
-                loadingStatus ||
-                (role !== "pasien" && role !== "kosong" && !selectedEmployeeId) ||
-                (role === "pasien" && signatureName.trim() === "") ||
-                (role !== "pasien" && role !== "kosong" && pin.join("").length !== 6)
-              }
-            >
-              {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Tandatangani
-            </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setStep("form"); setIsRevoking(false); }}>
+                Batal
+              </Button>
+              <Button onClick={handleSign} disabled={loading || pin.join("").length !== 6} variant={isRevoking ? "destructive" : "default"}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isRevoking ? "Hapus TTD" : "Tandatangani")}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {/* Patient Mode Selection */}
+        {step === "patient_mode" && (
+          <div className="space-y-4 py-4">
+            <Label className="text-sm font-semibold">Metode Tanda Tangan Pasien</Label>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <Button variant="outline" className="h-28 flex flex-col items-center justify-center gap-3 border-2 hover:border-primary/50" onClick={() => handlePatientModeSelect("direct")} disabled={loading}>
+                <MonitorSmartphone className="h-8 w-8 text-primary" />
+                <span className="font-semibold text-sm">Gunakan Layar Ini</span>
+              </Button>
+              <Button variant="outline" className="h-28 flex flex-col items-center justify-center gap-3 border-2 hover:border-primary/50" onClick={() => handlePatientModeSelect("qr")} disabled={loading}>
+                <QrCode className="h-8 w-8 text-primary" />
+                <span className="font-semibold text-sm">Scan QR via HP</span>
+              </Button>
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="outline" size="sm" onClick={() => setStep("form")} disabled={loading}>Kembali</Button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Patient QR Mode */}
+        {step === "patient_qr" && (
+          <div className="space-y-4 py-4 text-center flex flex-col items-center">
+            <h3 className="font-semibold">Scan QR Code Berikut</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+              Minta pasien untuk men-scan QR code ini dengan kamera HP mereka. Layar ini akan otomatis tertutup jika pasien sudah menekan Simpan di HP.
+            </p>
+            <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+              <QRCodeSVG value={`${window.location.origin}/patient-sign?token=${patientToken}`} size={220} />
+            </div>
+            <div className="flex items-center justify-center gap-2 text-sm text-primary mt-4 bg-primary/5 px-4 py-2 rounded-full">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Menunggu respon dari HP pasien...
+            </div>
+            <div className="flex gap-2 justify-end pt-6 w-full">
+              <Button variant="outline" size="sm" onClick={() => setStep("patient_mode")} disabled={loading}>Batal</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Patient Direct Mode */}
+        {step === "patient_direct" && (
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-2 mb-2">
+              <PenTool className="h-5 w-5 text-primary" />
+              <Label className="text-sm font-medium">Silakan gambar tanda tangan di bawah:</Label>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="border border-gray-300 rounded-xl overflow-hidden bg-white w-full h-[220px] shadow-inner relative">
+                <SignatureCanvas
+                  ref={sigPad}
+                  penColor="black"
+                  canvasProps={{ className: "w-full h-full cursor-crosshair touch-none absolute inset-0 bg-white" }}
+                />
+                <div className="absolute inset-x-0 top-1/2 border-b border-dashed border-gray-200 pointer-events-none opacity-50" />
+              </div>
+              <div className="flex items-center gap-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                <div className="w-[100px] h-[75px] shrink-0 bg-black rounded-lg overflow-hidden border-2 border-primary/20">
+                  <Webcam
+                    ref={webcamRef}
+                    audio={false}
+                    screenshotFormat="image/jpeg"
+                    videoConstraints={{ facingMode: "user" }}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="text-xs text-blue-800 flex-1">
+                  <p className="font-semibold mb-1">Validasi Wajah</p>
+                  <p>Kamera diaktifkan untuk mengambil foto wajah pasien sebagai bukti tanda tangan. Wajah pasien akan difoto saat menekan Simpan TTD.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0">
+              {signedSlots[slot as keyof typeof signedSlots] ? (
+                <Button variant="destructive" onClick={() => { setIsRevoking(true); setStep("pin"); }} type="button">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Hapus TTD
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => sigPad.current?.clear()} className="bg-white" type="button">
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Ulangi
+                </Button>
+              )}
+              <Button onClick={handleDirectSubmit} disabled={loading} className="min-w-[120px]">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (signedSlots[slot as keyof typeof signedSlots] ? "Simpan Perubahan TTD" : "Simpan TTD")}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

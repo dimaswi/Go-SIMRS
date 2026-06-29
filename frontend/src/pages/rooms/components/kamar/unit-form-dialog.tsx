@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { roomsApi, type RoomUnit } from "@/lib/api";
+import { roomsApi, masterDataApi, type RoomUnit, type MasterData } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -40,9 +40,19 @@ export function UnitFormDialog({
     name: "",
     floor: 1,
     capacity: 1,
+    class: "",
     is_active: true,
     notes: "",
   });
+  const [patientClasses, setPatientClasses] = useState<MasterData[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      masterDataApi.getByCategory('patient_class')
+        .then(res => setPatientClasses(res.data.data || []))
+        .catch(() => {});
+    }
+  }, [open]);
 
   const isEdit = !!unit;
 
@@ -52,6 +62,7 @@ export function UnitFormDialog({
         name: unit.name,
         floor: unit.floor || 1,
         capacity: unit.capacity || 1,
+        class: unit.class || "",
         is_active: unit.is_active,
         notes: unit.notes || "",
       });
@@ -60,6 +71,7 @@ export function UnitFormDialog({
         name: "",
         floor: 1,
         capacity: 1,
+        class: "",
         is_active: true,
         notes: "",
       });
@@ -99,10 +111,14 @@ export function UnitFormDialog({
     }
   };
 
-  // Generate floor options based on totalFloors
   const floorOptions: ComboboxOption[] = Array.from({ length: totalFloors }, (_, i) => ({
     value: (i + 1).toString(),
     label: `Lantai ${i + 1}`,
+  }));
+
+  const classOptions: ComboboxOption[] = patientClasses.map(pc => ({
+    value: pc.code,
+    label: pc.name,
   }));
 
   return (
@@ -154,6 +170,16 @@ export function UnitFormDialog({
                   required
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Kelas Kamar</Label>
+              <Combobox
+                options={classOptions}
+                value={formData.class}
+                onValueChange={(value) => setFormData({ ...formData, class: value })}
+                placeholder="Pilih kelas..."
+                searchPlaceholder="Cari..."
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Catatan</Label>

@@ -273,7 +273,7 @@ export function ObservationReportDrawer({
           ? await Promise.all(
               dayRange.map(async (date) => {
                 const rawDate = format(date, "yyyy-MM-dd");
-                const dayEntries: Array<{ status: string; medicine_order_item_id?: number }> = [];
+                const dayEntries: Array<{ status: string; timesheet_item_id?: number }> = [];
                 const dayItemIds = new Set<number>();
 
                 for (const idChunk of chunkArray(limitedTimesheetVisitIds, 6)) {
@@ -287,19 +287,19 @@ export function ObservationReportDrawer({
                     dayEntries.push(
                       ...entries.map((entry) => ({
                         status: entry.status,
-                        medicine_order_item_id: entry.medicine_order_item_id,
+                        timesheet_item_id: entry.timesheet_item_id,
                       }))
                     );
                     for (const entry of entries) {
-                      if (Number.isFinite(entry.medicine_order_item_id)) {
-                        dayItemIds.add(entry.medicine_order_item_id);
+                      if (Number.isFinite(entry.timesheet_item_id)) {
+                        dayItemIds.add(entry.timesheet_item_id);
                       }
                     }
 
                     const items = result?.data?.items || [];
                     for (const item of items) {
-                      if (Number.isFinite(item.order_item_id)) {
-                        dayItemIds.add(item.order_item_id);
+                      if (Number.isFinite(item.item_id)) {
+                        dayItemIds.add(item.item_id);
                       }
                     }
                   }

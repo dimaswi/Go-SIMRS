@@ -887,15 +887,6 @@ export function DispositionForm({
       return;
     }
 
-    // Validate admission_type for rawat_inap
-    if (formData.disposition_type === "rawat_inap" && !formData.admission_type) {
-      toast({
-        title: "Data tidak lengkap",
-        description: "Silakan pilih tipe rawat inap (Elektif atau Emergency).",
-        variant: "destructive",
-      });
-      return;
-    }
 
     // Validate outpatient transfer fields
     if (formData.disposition_type === "rawat_jalan") {
@@ -937,11 +928,12 @@ export function DispositionForm({
       if (formData.disposition_type === "rawat_inap" && spriType === "simrs") {
         const admissionResponse = await admissionRequestApi.create({
           source_visit_id: visitId,
-          admission_type: formData.admission_type,
+          admission_type: formData.admission_type || "elektif",
           admission_reason: formData.admission_reason,
           priority: formData.admission_priority,
           preferred_class: formData.preferred_class,
           special_notes: formData.special_notes,
+          suggested_bed_id: (formData as any).suggested_bed_id,
         });
 
         // Buat SPRI lokal (tanpa BPJS) agar masuk ke Monitoring SPRI
@@ -996,11 +988,12 @@ export function DispositionForm({
         // Create admission request first
         const admissionResponse = await admissionRequestApi.create({
           source_visit_id: visitId,
-          admission_type: formData.admission_type,
+          admission_type: formData.admission_type || "elektif",
           admission_reason: formData.admission_reason,
           priority: formData.admission_priority,
           preferred_class: formData.preferred_class,
           special_notes: formData.special_notes ? `${formData.special_notes}\nSPRI: ${spriResult.noSPRI}` : `SPRI: ${spriResult.noSPRI}`,
+          suggested_bed_id: (formData as any).suggested_bed_id,
         });
         
         const payload = {

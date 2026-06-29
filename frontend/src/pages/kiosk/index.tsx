@@ -29,6 +29,7 @@ export default function KioskIndex() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [selectedCounter, setSelectedCounter] = useState<number | null>(null);
   const [queueNumber, setQueueNumber] = useState("");
+  const [queueId, setQueueId] = useState<number | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [countdown, setCountdown] = useState(8);
   const [allQueues, setAllQueues] = useState<Queue[]>([]);
@@ -136,6 +137,7 @@ export default function KioskIndex() {
       });
 
       setQueueNumber(response.data.data.queue_number);
+      setQueueId(response.data.data.id);
       setShowSuccess(true);
       setCountdown(8);
 
@@ -170,42 +172,16 @@ export default function KioskIndex() {
     setSelectedCounter(null);
     setShowSuccess(false);
     setQueueNumber("");
+    setQueueId(null);
     setCountdown(8);
   };
 
   const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    const content = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Cetak Antrean - ${queueNumber}</title>
-  <style>
-    @page { margin: 0; }
-    body { margin: 0; padding: 15px; font-family: Arial, sans-serif; width: 80mm; background: white; }
-    .ticket { text-align: center; border: 2px solid #000; padding: 15px; }
-    .header { font-size: 14px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 10px; text-transform: uppercase; }
-    .queue-number { font-size: 64px; font-weight: 900; margin: 20px 0; }
-    .counter { font-size: 18px; font-weight: bold; margin: 15px 0; }
-    .datetime { font-size: 11px; color: #333; margin: 10px 0; }
-    .footer { font-size: 10px; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; }
-  </style>
-</head>
-<body>
-  <div class="ticket">
-    <div class="header">${appName}<br/>Nomor Antrean</div>
-    <div class="queue-number">${queueNumber}</div>
-    <div class="counter">${counters.find((c) => c.id === selectedCounter)?.name || "Loket"}</div>
-    <div class="datetime">${new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}<br/>${new Date().toLocaleTimeString("id-ID")}</div>
-    <div class="footer">Mohon menunggu hingga nomor Anda dipanggil</div>
-  </div>
-  <script>window.onload=function(){window.print();setTimeout(function(){window.close();},100);}</script>
-</body>
-</html>`;
-
-    printWindow.document.write(content);
-    printWindow.document.close();
+    if (!queueId) return;
+    
+    // We need the /api prefix because publicPrint group is under the api router group
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8080/api`;
+    window.open(`${apiUrl}/print-public/kiosk-ticket/${queueId}`, "_blank");
   };
 
   const waitingQueues = allQueues.filter((q) => q.status === "waiting").length;

@@ -750,11 +750,6 @@ func RecalculateEKlaimRMBilling(tx *gorm.DB, rmDuplicateID uint, visitID uint) e
 			adminFee = room.Tariffs[0].Administrasi
 		}
 
-		// Fallback to registration fee
-		if adminFee <= 0 {
-			adminFee = room.RegistrationFee
-		}
-
 		if adminFee > 0 {
 			fmt.Printf("[BILLING] Adding administration fee: %.0f\n", adminFee)
 			billingItem := models.EKlaimRMBillingItem{

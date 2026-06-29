@@ -43,6 +43,19 @@ export interface AdmissionRequest {
   requested_by_id: number;
   requested_by?: any;
   requested_at: string;
+  suggested_bed_id?: number;
+  suggested_bed?: {
+    id: number;
+    bed_number: string;
+    room_unit?: {
+      id: number;
+      name: string;
+      room?: {
+        id: number;
+        name: string;
+      };
+    };
+  };
   approved_room_id?: number;
   approved_room?: {
     id: number;
@@ -80,6 +93,7 @@ export interface CreateAdmissionRequestInput {
   priority?: string;
   preferred_class?: string;
   special_notes?: string;
+  suggested_bed_id?: number;
 }
 
 export interface ProcessAdmissionRequestInput {

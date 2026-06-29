@@ -74,6 +74,9 @@ func SetupRegistrationRoutes(router *gin.RouterGroup) {
 		// Complete registration
 		registrations.POST("/:id/complete", middleware.RequirePermission("registrations.update"), handlers.CompleteRegistration)
 
+		// Check-in via QR Surat Kontrol (SKDP BPJS) — untuk anjungan mandiri
+		registrations.POST("/checkin-by-surat-kontrol", middleware.RequirePermission("registrations.update"), handlers.CheckInBySuratKontrol)
+
 		// Check-in scheduled registration (for follow-up)
 		registrations.POST("/:id/checkin", middleware.RequirePermission("registrations.update"), handlers.CheckInScheduledRegistration)
 

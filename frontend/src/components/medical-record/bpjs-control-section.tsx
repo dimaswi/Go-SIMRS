@@ -144,6 +144,7 @@ interface BPJSControlSectionProps {
   existingSuratKontrol?: SuratKontrolResponse | null;
   onSuratKontrolCreated?: (skData: SuratKontrolResponse) => void;
   onSuratKontrolCleared?: () => void;
+  className?: string;
 }
 
 export function BPJSControlSection({
@@ -157,6 +158,7 @@ export function BPJSControlSection({
   existingSuratKontrol,
   onSuratKontrolCreated,
   onSuratKontrolCleared,
+  className,
 }: BPJSControlSectionProps) {
   const { toast } = useToast();
   const isRawatInap = dispositionType === "rawat_inap";
@@ -169,7 +171,7 @@ export function BPJSControlSection({
   const [checkingPeserta, setCheckingPeserta] = useState(false);
   const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
   const [pesertaError, setPesertaError] = useState<string | null>(null);
-  
+
   // Toggle state - apakah user ingin membuat BPJS control
   const [wantsBPJSControl, setWantsBPJSControl] = useState(false);
 
@@ -477,11 +479,10 @@ export function BPJSControlSection({
   const hasResult = isRawatInap ? !!spriResult : !!suratKontrolResult;
 
   return (
-    <div className={`rounded-none border border-border/70 p-4 space-y-4 ${
-      isRawatInap 
-        ? "bg-blue-50/40" 
+    <div className={className || `rounded-none border border-border/70 p-4 space-y-4 ${isRawatInap
+        ? "bg-blue-50/40"
         : "bg-emerald-50/40"
-    }`}>
+      }`}>
       {/* Header with Toggle / Summary */}
       <div className={`${BPJS_PANEL_CLASS} ${hasResult ? "p-3" : "p-3"}`}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
@@ -658,11 +659,10 @@ export function BPJSControlSection({
                 <button
                   type="button"
                   onClick={() => { setVersion("v1"); setIsPRB(false); }}
-                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${
-                    version === "v1" 
-                      ? "border-emerald-600 bg-emerald-600 text-white" 
+                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${version === "v1"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
                       : "border-border/70 bg-muted/20 text-foreground hover:bg-muted/40"
-                  }`}
+                    }`}
                   disabled={isDisabled}
                 >
                   V1 (Standar)
@@ -670,11 +670,10 @@ export function BPJSControlSection({
                 <button
                   type="button"
                   onClick={() => setVersion("v2")}
-                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${
-                    version === "v2" 
-                      ? "border-emerald-600 bg-emerald-600 text-white" 
+                  className={`px-3 py-1.5 text-xs rounded-none border transition-all ${version === "v2"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
                       : "border-border/70 bg-muted/20 text-foreground hover:bg-muted/40"
-                  }`}
+                    }`}
                   disabled={isDisabled}
                 >
                   V2 (dengan PRB)

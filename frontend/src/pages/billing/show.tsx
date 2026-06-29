@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,8 +41,12 @@ import { billingApi, visitsApi, printApi, type Billing, type BillingPayment, typ
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { 
-  Loader2, 
+import { DataTable } from '@/components/ui/data-table';
+import type { ColumnDef } from '@tanstack/react-table';
+import { cashierShiftApi } from '@/lib/api/cashier-shifts';
+import { useAuthStore } from '@/lib/store';
+import {
+  Loader2,
   Receipt,
   CheckCircle,
   XCircle,
@@ -58,7 +62,6 @@ import {
   User,
   MapPin,
   Stethoscope,
-  Calendar,
   Building2,
   Smartphone,
   Clock,
@@ -120,14 +123,15 @@ export default function BillingShow() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { hasPermission } = usePermission();
-  
+  const { user } = useAuthStore();
+
   // Visit state
   const [visit, setVisit] = useState<VisitDetail | null>(null);
   const [loadingVisit, setLoadingVisit] = useState(true);
-  
+
   // All visits for this registration (for billing detail)
   const [allVisits, setAllVisits] = useState<VisitDetail[]>([]);
-  
+
   // Billing state
   const [billing, setBilling] = useState<Billing | null>(null);
   const [payments, setPayments] = useState<BillingPayment[]>([]);
@@ -147,6 +151,8 @@ export default function BillingShow() {
   const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidingPayment, setVoidingPayment] = useState(false);
+  const [visitsDialogOpen, setVisitsDialogOpen] = useState(false);
+  const [paymentHistoryDialogOpen, setPaymentHistoryDialogOpen] = useState(false);
 
   // Payment modal state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -156,6 +162,7 @@ export default function BillingShow() {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [bankName, setBankName] = useState('');
+  const [_cardNumber, setCardNumber] = useState('');
   const [bpjsNumber, setBpjsNumber] = useState('');
   const [bpjsClaimCode, setBpjsClaimCode] = useState('');
   const [insuranceName, setInsuranceName] = useState('');
@@ -233,15 +240,6 @@ export default function BillingShow() {
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(value);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    try {
-      return format(parseISO(dateString), 'dd MMM yyyy HH:mm', { locale: id });
-    } catch {
-      return '-';
-    }
   };
 
   const formatDateShort = (dateString?: string) => {
@@ -446,13 +444,29 @@ export default function BillingShow() {
   };
 
   // === PAYMENT MODAL HANDLERS ===
-  const openPaymentDialog = () => {
+  const handleProcessPayment = async () => {
+    try {
+      const currentShift = await cashierShiftApi.getCurrent();
+      if (!currentShift) {
+        toast({ variant: 'destructive', title: 'Akses Ditolak', description: 'Anda belum membuka shift kasir. Harap buka shift di menu atas terlebih dahulu.' });
+        return;
+      }
+      if (currentShift.cashier_id !== user?.id) {
+        toast({ variant: 'destructive', title: 'Akses Ditolak', description: 'Masih ada shift aktif milik kasir lain. Harap minta kasir tersebut untuk menutup shiftnya terlebih dahulu.' });
+        return;
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Gagal mengecek status shift kasir.' });
+      return;
+    }
+
     if (!billing) return;
     setPaymentAmount(billing.remaining_amount || 0);
     setReceivedAmount(billing.remaining_amount || 0);
     setPaymentNotes('');
     setReferenceNumber('');
     setBankName('');
+    setCardNumber('');
     setBpjsClaimCode('');
     setInsuranceClaimCode('');
     // Default method from billing
@@ -575,6 +589,98 @@ export default function BillingShow() {
     return labels[method] || method;
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const visitsColumns: ColumnDef<any>[] = useMemo(() => [
+    {
+      accessorKey: 'start_time',
+      header: 'TGL KUNJUNGAN',
+      cell: ({ row }) => {
+        const v = row.original;
+        return v.start_time ? formatDateShort(v.start_time) : '-';
+      }
+    },
+    {
+      accessorKey: 'visit_number',
+      header: 'NO. KUNJUNGAN',
+      cell: ({ row }) => row.original.visit_number || '-'
+    },
+    {
+      id: 'ruangan',
+      header: 'POLI / RUANGAN',
+      cell: ({ row }) => {
+        const v = row.original;
+        return (
+          <div className="flex flex-col gap-1 items-start">
+            <span className="font-semibold text-sm">{v.room?.name || '-'}</span>
+            <Badge variant="secondary" className={`w-fit text-[10px] px-2 py-0 font-medium ${visitTypeBadgeColor(v.visit_type)}`}>
+              {visitTypeLabel(v.visit_type)}
+            </Badge>
+          </div>
+        );
+      }
+    },
+    {
+      id: 'dokter',
+      header: 'DOKTER',
+      cell: ({ row }) => row.original.doctor?.nama_lengkap || '-'
+    }
+  ], []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const paymentColumns: ColumnDef<any>[] = useMemo(() => [
+    {
+      accessorKey: 'payment_date',
+      header: 'WAKTU',
+      cell: ({ row }) => formatDateShort(row.original.payment_date)
+    },
+    {
+      accessorKey: 'payment_number',
+      header: 'NO. TRANSAKSI',
+      cell: ({ row }) => row.original.payment_number
+    },
+    {
+      accessorKey: 'payment_method',
+      header: 'METODE',
+      cell: ({ row }) => (
+        <Badge variant="outline" className="text-[10px] uppercase">
+          {paymentMethodLabel(row.original.payment_method)}
+        </Badge>
+      )
+    },
+    {
+      accessorKey: 'amount',
+      header: 'NOMINAL',
+      cell: ({ row }) => <span className="font-mono font-bold">{formatCurrency(row.original.amount)}</span>
+    },
+    {
+      accessorKey: 'status',
+      header: 'STATUS',
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${p.status === 'completed' ? 'text-green-600' : 'text-red-600'}`}>
+            {p.status === 'completed' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {p.status === 'completed' ? 'Berhasil' : 'Dibatalkan'}
+          </div>
+        );
+      }
+    },
+    ...(hasPermission('billing.void_payment') ? [{
+      id: 'aksi',
+      header: 'AKSI',
+      cell: ({ row }: { row: any }) => {
+        const p = row.original;
+        if (p.status !== 'completed') return null;
+        return (
+          <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => { setSelectedPaymentId(p.id); setVoidPaymentDialogOpen(true); }}>
+            Void
+          </Button>
+        );
+      }
+    }] : [])
+  ], [hasPermission, setSelectedPaymentId, setVoidPaymentDialogOpen]);
+
   // Can regenerate for all statuses except paid
   const canRegenerate = billing && billing.status !== 'paid' && hasPermission('billing.create');
 
@@ -623,11 +729,11 @@ export default function BillingShow() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                   <span>{patient?.jenis_kelamin === 'L' ? 'Laki-laki' : patient?.jenis_kelamin === 'P' ? 'Perempuan' : '-'}</span>
                   {patient?.tanggal_lahir && (
-                    <><span className="text-muted-foreground/30">Â·</span><span>{calculateAge(patient.tanggal_lahir)}</span></>
+                    <><span className="text-muted-foreground/30">&middot;</span><span>{calculateAge(patient.tanggal_lahir)}</span></>
                   )}
-                  <span className="text-muted-foreground/30">Â·</span>
+                  <span className="text-muted-foreground/30">&middot;</span>
                   <span className="flex items-center gap-1">{getPaymentIcon(reg?.payment_method)} {getPaymentLabel(reg?.payment_method)}</span>
-                  <span className="text-muted-foreground/30">Â·</span>
+                  <span className="text-muted-foreground/30">&middot;</span>
                   <span>{visit.room?.name || '-'}</span>
                 </div>
               </div>
@@ -636,7 +742,19 @@ export default function BillingShow() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {!billing && hasPermission('billing.create') && visit.status === 'completed' && (
+            {billing && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setVisitsDialogOpen(true)}>
+                  <Stethoscope className="mr-1.5 h-4 w-4" />
+                  Kunjungan
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setPaymentHistoryDialogOpen(true)}>
+                  <Clock className="mr-1.5 h-4 w-4" />
+                  Riwayat
+                </Button>
+              </>
+            )}
+            {!billing && hasPermission('billing.create') && (
               <Button size="sm" onClick={handleGenerateBilling} disabled={generating}>
                 {generating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1.5 h-3.5 w-3.5" />}
                 Ambil Tagihan
@@ -644,25 +762,19 @@ export default function BillingShow() {
             )}
             {billing && billing.status === 'draft' && hasPermission('billing.finalize') && (
               <Button size="sm" onClick={handleFinalize} disabled={finalizing}>
-                {finalizing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="mr-1.5 h-3.5 w-3.5" />}
+                {finalizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                 Finalisasi
               </Button>
             )}
-            {canRegenerate && (
-              <Button variant="outline" size="sm" onClick={handleRegenerateBilling} disabled={regenerating}>
-                {regenerating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-                {billing?.status === 'cancelled' ? 'Buat Ulang' : 'Regenerate'}
-              </Button>
-            )}
             {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && billing.status !== 'draft' && hasPermission('billing.payment') && (
-              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={openPaymentDialog}>
-                <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleProcessPayment}>
+                <CreditCard className="h-4 w-4" />
                 Bayar
               </Button>
             )}
             {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.delete') && (
               <Button variant="outline" size="sm" onClick={() => setCancelDialogOpen(true)}>
-                <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                <XCircle className="h-4 w-4" />
               </Button>
             )}
             {billing && (
@@ -728,20 +840,18 @@ export default function BillingShow() {
               </div>
               <p className="text-sm font-medium mb-1">Tagihan belum dibuat</p>
               <p className="text-xs text-muted-foreground mb-4">
-                {visit.status === 'completed'
-                  ? 'Klik "Ambil Tagihan" untuk membuat tagihan otomatis.'
-                  : 'Kunjungan harus selesai terlebih dahulu untuk membuat tagihan.'
-                }
+                Klik "Ambil Tagihan" untuk membuat tagihan otomatis (meskipun pasien belum final).
               </p>
             </div>
           )}
 
           {/* ===== BILLING EXISTS ===== */}
           {!loadingBilling && billing && (
-            <>
-              {/* ===== TOP SUMMARY: 3 CARDS ===== */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+
+              {/* RIGHT COLUMN: SUMMARY CARDS & PAYMENT HISTORY */}
+              <div className="w-full xl:w-[320px] 2xl:w-[380px] flex-shrink-0 flex flex-col gap-4 order-1 xl:order-2 xl:sticky xl:top-6">
+
                 {/* Patient Card */}
                 <div className="rounded-xl border bg-card p-4 space-y-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -774,37 +884,6 @@ export default function BillingShow() {
                         <span className="text-xs text-muted-foreground line-clamp-2">{patient.alamat}</span>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Visit(s) Card */}
-                <div className="rounded-xl border bg-card p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    <Stethoscope className="h-3.5 w-3.5" /> Kunjungan ({allVisits.length || 1})
-                  </div>
-                  <div className="space-y-2">
-                    {(allVisits.length <= 1 ? [visit] : allVisits).map((v: any, idx: number) => (
-                      <div key={v.id || idx} className={`${idx > 0 ? 'pt-2 border-t' : ''}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${visitTypeBadgeColor(v.visit_type)}`}>
-                            {visitTypeLabel(v.visit_type)}
-                          </Badge>
-                          {v.visit_number && <span className="text-[10px] font-mono text-muted-foreground">{v.visit_number}</span>}
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
-                          <span className="text-muted-foreground">Ruangan</span>
-                          <span className="text-right">{v.room?.name || '-'}</span>
-                          <span className="text-muted-foreground">Dokter</span>
-                          <span className="text-right truncate">{v.doctor?.nama_lengkap || '-'}</span>
-                          {v.start_time && (
-                            <>
-                              <span className="text-muted-foreground">Waktu</span>
-                              <span className="text-right">{formatDateShort(v.start_time)}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -848,7 +927,7 @@ export default function BillingShow() {
                     </div>
                     {/* Quick pay button inside card */}
                     {billing.status !== 'paid' && billing.status !== 'cancelled' && billing.status !== 'draft' && hasPermission('billing.payment') && (
-                      <Button className="w-full mt-2 bg-green-600 hover:bg-green-700" size="sm" onClick={openPaymentDialog}>
+                      <Button className="w-full mt-2 bg-green-600 hover:bg-green-700" size="sm" onClick={handleProcessPayment}>
                         <CreditCard className="mr-2 h-4 w-4" />
                         Proses Pembayaran
                       </Button>
@@ -857,233 +936,182 @@ export default function BillingShow() {
                 </div>
               </div>
 
-              {/* ===== BILLING ITEMS GROUPED BY VISIT ===== */}
-              <div className="rounded-xl border overflow-hidden">
-                <div className="bg-muted/40 px-4 py-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Detail Tagihan
-                    <span className="font-mono text-muted-foreground font-normal text-xs">#{billing.billing_number}</span>
-                  </h2>
-                  <div className="flex gap-1.5">
-                    {billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.update') && (
-                      <>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDiscountDialogOpen(true)}>
-                          <Percent className="mr-1 h-3 w-3" /> Diskon
+
+              {/* LEFT COLUMN: DETAIL TAGIHAN */}
+              <div className="w-full flex-1 order-2 xl:order-1 min-w-0">
+                {/* ===== BILLING ITEMS GROUPED BY VISIT ===== */}
+                <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                  <div className="bg-muted/40 px-4 py-3 flex items-center justify-between">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Detail Tagihan
+                      <span className="font-mono text-muted-foreground font-normal text-xs">#{billing.billing_number}</span>
+                    </h2>
+                    <div className="flex gap-1.5">
+                      {billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.update') && (
+                        <>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDiscountDialogOpen(true)}>
+                            <Percent className="mr-1 h-3 w-3" /> Diskon
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdjustDialogOpen(true)}>
+                            <Plus className="mr-1 h-3 w-3" /> Penyesuaian
+                          </Button>
+                        </>
+                      )}
+                      {canRegenerate && (
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleRegenerateBilling} disabled={regenerating}>
+                          <RefreshCw className={`mr-1 h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} /> Tarik Ulang
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdjustDialogOpen(true)}>
-                          <Plus className="mr-1 h-3 w-3" /> Penyesuaian
-                        </Button>
-                      </>
-                    )}
-                    {canRegenerate && (
-                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleRegenerateBilling} disabled={regenerating}>
-                        <RefreshCw className={`mr-1 h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} /> Regenerate
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {billingItems.length === 0 && (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    <AlertCircle className="h-5 w-5 mx-auto mb-2 text-muted-foreground/60" />
-                    Belum ada item tagihan. Klik <strong>Regenerate</strong> untuk mengambil data dari kunjungan.
-                  </div>
-                )}
+                  {billingItems.length === 0 && (
+                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <AlertCircle className="h-5 w-5 mx-auto mb-2 text-muted-foreground/60" />
+                      Belum ada item tagihan. Klik <strong>Regenerate</strong> untuk mengambil data dari kunjungan.
+                    </div>
+                  )}
 
-                {billingItems.length > 0 && (
-                  <Table className="table-fixed w-full">
-                    <TableHeader>
-                      <TableRow className="text-xs">
-                        <TableHead className="text-xs w-[45%]">Deskripsi</TableHead>
-                        <TableHead className="text-xs w-[25%]">Oleh</TableHead>
-                        <TableHead className="text-xs text-center w-16">Qty</TableHead>
-                        <TableHead className="text-xs text-right w-28">Harga</TableHead>
-                        <TableHead className="text-xs text-right w-28">Subtotal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                  </Table>
-                )}
+                  {billingItems.length > 0 && (
+                    <Table className="table-fixed w-full border-collapse" containerClassName="border-0">
+                      <TableHeader className="bg-muted/30">
+                        <TableRow className="text-xs hover:bg-transparent border-b">
+                          <TableHead className="text-xs font-semibold h-9 w-[40%]">Deskripsi</TableHead>
+                          <TableHead className="text-xs font-semibold h-9 w-[25%]">Oleh</TableHead>
+                          <TableHead className="text-xs font-semibold h-9 text-center w-16">Qty</TableHead>
+                          <TableHead className="text-xs font-semibold h-9 text-right w-28">Harga</TableHead>
+                          <TableHead className="text-xs font-semibold h-9 text-right w-28">Subtotal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itemsByVisit.map((visitGroup, vIdx) => {
+                          const v = visitGroup.visit;
+                          // Group items by type within this visit
+                          const typeGroups = new Map<string, any[]>();
+                          for (const item of visitGroup.items) {
+                            const type = item.item_type || 'other';
+                            if (!typeGroups.has(type)) typeGroups.set(type, []);
+                            typeGroups.get(type)!.push(item);
+                          }
 
-                {/* Items grouped by visit */}
-                {itemsByVisit.map((visitGroup, vIdx) => {
-                  const v = visitGroup.visit;
-                  // Group items by type within this visit
-                  const typeGroups = new Map<string, any[]>();
-                  for (const item of visitGroup.items) {
-                    const type = item.item_type || 'other';
-                    if (!typeGroups.has(type)) typeGroups.set(type, []);
-                    typeGroups.get(type)!.push(item);
-                  }
+                          return (
+                            <Fragment key={vIdx}>
+                              {/* Visit header - only show if multiple visits */}
+                              {itemsByVisit.length > 1 && (
+                                <TableRow className="bg-primary/5 hover:bg-primary/5 border-t">
+                                  <TableCell colSpan={5} className="py-2.5 px-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <Stethoscope className="h-3.5 w-3.5 text-primary" />
+                                        <span className="text-xs font-semibold flex items-center gap-1.5">
+                                          {v ? (
+                                            <>
+                                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${visitTypeBadgeColor(v.visit_type)}`}>
+                                                {visitTypeLabel(v.visit_type)}
+                                              </Badge>
+                                              <span>{v.room?.name || 'Kunjungan'}</span>
+                                              {v.doctor?.nama_lengkap && <span className="text-muted-foreground font-normal">- {v.doctor.nama_lengkap}</span>}
+                                            </>
+                                          ) : 'Kunjungan'}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-mono font-bold">{formatCurrency(visitGroup.total)}</span>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
 
-                  return (
-                    <div key={vIdx}>
-                      {/* Visit header - only show if multiple visits */}
-                      {itemsByVisit.length > 1 && (
-                        <div className="px-4 py-2.5 bg-primary/5 border-t flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Stethoscope className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-xs font-semibold flex items-center gap-1.5">
-                              {v ? (
-                                <>
-                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${visitTypeBadgeColor(v.visit_type)}`}>
-                                    {visitTypeLabel(v.visit_type)}
-                                  </Badge>
-                                  <span>{v.room?.name || 'Kunjungan'}</span>
-                                  {v.doctor?.nama_lengkap && <span className="text-muted-foreground font-normal">- {v.doctor.nama_lengkap}</span>}
-                                </>
-                              ) : 'Kunjungan'}
-                            </span>
-                          </div>
-                          <span className="text-xs font-mono font-bold">{formatCurrency(visitGroup.total)}</span>
+                              {/* Items by type within this visit */}
+                              {Array.from(typeGroups.entries())
+                                .sort(([typeA], [typeB]) => (itemTypeOrder[typeA] ?? 99) - (itemTypeOrder[typeB] ?? 99))
+                                .map(([type, items]) => (
+                                  <Fragment key={`${vIdx}-${type}`}>
+                                    <TableRow className="bg-muted/10 hover:bg-muted/10">
+                                      <TableCell colSpan={5} className="py-1.5 px-4 font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                                        {itemTypeLabel(type)}
+                                      </TableCell>
+                                    </TableRow>
+                                    {items
+                                      .slice()
+                                      .sort((a: any, b: any) => {
+                                        const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                                        const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                                        if (aTime !== bTime) return aTime - bTime;
+                                        return (a?.id ?? 0) - (b?.id ?? 0);
+                                      })
+                                      .map((item: any) => (
+                                        <TableRow key={item.id} className="text-xs">
+                                          <TableCell className="py-2.5 px-4 align-top w-[40%]">
+                                            <div className="font-medium">{item.description}</div>
+                                            {item.discount_amount > 0 && (
+                                              <div className="text-[10px] text-orange-600 mt-1 flex items-center gap-1">
+                                                <Percent className="h-3 w-3" />
+                                                Diskon: {formatCurrency(item.discount_amount)}
+                                                {item.discount_note && ` (${item.discount_note})`}
+                                              </div>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="py-2.5 align-top w-[25%]">
+                                            {item.performed_by_name ? (
+                                              <span className="text-xs">{item.performed_by_name}</span>
+                                            ) : (
+                                              <span className="text-muted-foreground">-</span>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="py-2.5 text-center align-top">{item.quantity}</TableCell>
+                                          <TableCell className="py-2.5 text-right font-mono align-top">{formatCurrency(item.unit_price)}</TableCell>
+                                          <TableCell className="py-2.5 text-right font-mono font-medium align-top">{formatCurrency(item.subtotal)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                  </Fragment>
+                                ))}
+                            </Fragment>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+
+                  {/* Totals Summary */}
+                  {billingItems.length > 0 && (
+                    <div className="border-t px-4 py-3 space-y-1.5 bg-muted/10">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="font-mono">{formatCurrency(billing.total_amount)}</span>
+                      </div>
+                      {billing.discount_amount > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Diskon {billing.discount_reason && `(${billing.discount_reason})`}</span>
+                          <span className="font-mono text-orange-600">- {formatCurrency(billing.discount_amount)}</span>
                         </div>
                       )}
-
-                      {/* Items by type within this visit */}
-                      {Array.from(typeGroups.entries())
-                        .sort(([typeA], [typeB]) => (itemTypeOrder[typeA] ?? 99) - (itemTypeOrder[typeB] ?? 99))
-                        .map(([type, items]) => (
-                        <div key={`${vIdx}-${type}`}>
-                          <div className="px-4 py-1.5 bg-muted/20 border-t">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{itemTypeLabel(type)}</span>
-                          </div>
-                          <Table className="table-fixed w-full">
-                            <TableBody>
-                              {items
-                                .slice()
-                                .sort((a: any, b: any) => {
-                                  const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
-                                  const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
-                                  if (aTime !== bTime) return aTime - bTime;
-                                  return (a?.id ?? 0) - (b?.id ?? 0);
-                                })
-                                .map((item: any) => (
-                                <TableRow key={item.id} className="text-xs">
-                                  <TableCell className="py-2 w-[45%]">{item.description}</TableCell>
-                                  <TableCell className="py-2 w-[25%]">
-                                    {item.performed_by_name ? (
-                                      <span className="text-xs">{item.performed_by_name}</span>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="py-2 text-center">{item.quantity}</TableCell>
-                                  <TableCell className="py-2 text-right font-mono">{formatCurrency(item.unit_price)}</TableCell>
-                                  <TableCell className="py-2 text-right font-mono font-medium">{formatCurrency(item.subtotal)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                      {billing.adjust_amount !== 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Penyesuaian {billing.adjust_reason && `(${billing.adjust_reason})`}</span>
+                          <span className="font-mono">{billing.adjust_amount > 0 ? '+' : ''} {formatCurrency(billing.adjust_amount)}</span>
                         </div>
-                      ))}
-                    </div>
-                  );
-                })}
-
-                {/* Totals Summary */}
-                {billingItems.length > 0 && (
-                  <div className="border-t px-4 py-3 space-y-1.5 bg-muted/10">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-mono">{formatCurrency(billing.total_amount)}</span>
-                    </div>
-                    {billing.discount_amount > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Diskon {billing.discount_reason && `(${billing.discount_reason})`}</span>
-                        <span className="font-mono text-orange-600">- {formatCurrency(billing.discount_amount)}</span>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between text-base font-bold pt-1">
+                        <span>Total Tagihan</span>
+                        <span className="font-mono text-lg">{formatCurrency(billing.final_amount)}</span>
                       </div>
-                    )}
-                    {billing.adjust_amount !== 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Penyesuaian {billing.adjust_reason && `(${billing.adjust_reason})`}</span>
-                        <span className="font-mono">{billing.adjust_amount > 0 ? '+' : ''} {formatCurrency(billing.adjust_amount)}</span>
+                        <span className="text-muted-foreground">Terbayar</span>
+                        <span className="font-mono text-green-600">{formatCurrency(billing.paid_amount)}</span>
                       </div>
-                    )}
-                    <Separator />
-                    <div className="flex justify-between text-base font-bold pt-1">
-                      <span>Total Tagihan</span>
-                      <span className="font-mono text-lg">{formatCurrency(billing.final_amount)}</span>
+                      <div className="flex justify-between text-base font-bold">
+                        <span>Sisa Tagihan</span>
+                        <span className={`font-mono text-lg ${billing.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {formatCurrency(billing.remaining_amount)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Terbayar</span>
-                      <span className="font-mono text-green-600">{formatCurrency(billing.paid_amount)}</span>
-                    </div>
-                    <div className="flex justify-between text-base font-bold">
-                      <span>Sisa Tagihan</span>
-                      <span className={`font-mono text-lg ${billing.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {formatCurrency(billing.remaining_amount)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ===== PAYMENT HISTORY ===== */}
-              <div className="rounded-xl border overflow-hidden">
-                <div className="bg-muted/40 px-4 py-3">
-                  <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Riwayat Pembayaran
-                    {payments.length > 0 && (
-                      <Badge variant="secondary" className="text-xs font-normal">{payments.length}</Badge>
-                    )}
-                  </h2>
+                  )}
                 </div>
-                {payments.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    Belum ada pembayaran.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {payments.map((payment) => (
-                      <div key={payment.id} className="px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            payment.status === 'completed' 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'bg-red-100 text-red-600'
-                          }`}>
-                            {payment.status === 'completed' ? <Banknote className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-muted-foreground">{payment.payment_number}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                {paymentMethodLabel(payment.payment_method)}
-                              </Badge>
-                              {payment.status === 'voided' && (
-                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Dibatalkan</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>{formatDate(payment.payment_date)}</span>
-                              {payment.cashier?.full_name && (
-                                <>
-                                  <span className="text-muted-foreground/30">Â·</span>
-                                  <span>{payment.cashier.full_name}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-sm font-mono font-bold ${payment.status === 'completed' ? 'text-green-600' : 'text-muted-foreground line-through'}`}>
-                            {formatCurrency(payment.amount)}
-                          </span>
-                          {payment.status === 'completed' && hasPermission('billing.void_payment') && (
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                              onClick={() => { setSelectedPaymentId(payment.id); setVoidPaymentDialogOpen(true); }}>
-                              Void
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1097,7 +1125,7 @@ export default function BillingShow() {
               Pembayaran
             </DialogTitle>
             <DialogDescription>
-              {billing?.billing_number} â€” {patient?.nama_lengkap}
+            {billing?.billing_number} &mdash; {patient?.nama_lengkap}
             </DialogDescription>
           </DialogHeader>
 
@@ -1158,25 +1186,44 @@ export default function BillingShow() {
             {/* BPJS notice */}
             {paymentMethod === 'bpjs' && (
               <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-sm text-green-800">
-                <strong>Pembayaran BPJS</strong> â€” Tagihan ditanggung sepenuhnya oleh BPJS Kesehatan.
+                <strong>Pembayaran BPJS</strong> &mdash; Tagihan ditanggung sepenuhnya oleh BPJS Kesehatan.
               </div>
             )}
 
             {/* Amount & Received */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Jumlah Bayar</Label>
-                <Input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} />
-                <p className="text-[10px] text-muted-foreground">Maks: {formatCurrency(billing?.remaining_amount || 0)}</p>
-              </div>
               {paymentMethod === 'cash' ? (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Jumlah Diterima</Label>
-                  <Input type="number" value={receivedAmount} onChange={(e) => setReceivedAmount(parseFloat(e.target.value) || 0)} />
+                  <Label className="text-xs font-bold text-green-700">Uang Diterima (Dari Pasien)</Label>
+                  <Input 
+                    type="number" 
+                    className="border-green-300 bg-green-50 text-lg font-bold"
+                    value={receivedAmount || ''} 
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setReceivedAmount(val);
+                      // Auto-adjust payment amount to max out at remaining_amount
+                      const rem = billing?.remaining_amount || 0;
+                      if (val >= rem) {
+                        setPaymentAmount(rem);
+                      } else {
+                        setPaymentAmount(val);
+                      }
+                    }} 
+                  />
                 </div>
               ) : (
                 <div />
               )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Masuk ke Tagihan (Potong Saldo)</Label>
+                <Input 
+                  type="number" 
+                  value={paymentAmount || ''} 
+                  onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} 
+                />
+                <p className="text-[10px] text-muted-foreground">Maks: {formatCurrency(billing?.remaining_amount || 0)}</p>
+              </div>
             </div>
 
             {/* Kembalian for cash */}
@@ -1338,6 +1385,66 @@ export default function BillingShow() {
               {voidingPayment ? 'Membatalkan...' : 'Batalkan Pembayaran'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== KUNJUNGAN MODAL ===== */}
+      <Dialog open={visitsDialogOpen} onOpenChange={setVisitsDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0 border-0 shadow-2xl rounded-xl">
+          <DialogHeader className="px-6 py-5 border-b sticky top-0 z-10 bg-slate-50/90 backdrop-blur-md rounded-t-xl">
+            <DialogTitle className="flex items-center gap-4 text-xl font-extrabold tracking-tight text-slate-800">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shadow-sm border border-primary/20">
+                <Stethoscope className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex flex-col gap-1 items-start">
+                <span>Riwayat Kunjungan</span>
+                <span className="text-xs font-medium text-muted-foreground font-sans tracking-normal">Detail seluruh kunjungan medis yang tercakup dalam tagihan ini</span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto px-6 pb-6 flex-1 bg-white">
+            <DataTable
+              columns={visitsColumns}
+              data={allVisits.length <= 1 ? (allVisits.length === 0 && visit ? [visit] : allVisits) : allVisits}
+              showSearch={true}
+              showPagination={allVisits.length > 10}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== RIWAYAT PEMBAYARAN MODAL ===== */}
+      <Dialog open={paymentHistoryDialogOpen} onOpenChange={setPaymentHistoryDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0 border-0 shadow-2xl rounded-xl">
+          <DialogHeader className="px-6 py-5 border-b sticky top-0 z-10 bg-emerald-50/90 backdrop-blur-md rounded-t-xl">
+            <DialogTitle className="flex items-center gap-4 text-xl font-extrabold tracking-tight text-slate-800">
+              <div className="h-11 w-11 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm border border-emerald-200">
+                <Banknote className="h-5 w-5 text-emerald-700" />
+              </div>
+              <div className="flex flex-col gap-1 items-start">
+                <span>Riwayat Pembayaran</span>
+                <span className="text-xs font-medium text-emerald-700/70 font-sans tracking-normal">Rekapitulasi seluruh transaksi pembayaran untuk tagihan ini</span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto px-6 pb-6 flex-1 bg-white">
+            {payments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <Banknote className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <h3 className="text-sm font-semibold">Belum ada transaksi</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">Tagihan ini belum memiliki riwayat pembayaran sama sekali.</p>
+              </div>
+            ) : (
+              <DataTable
+                columns={paymentColumns}
+                data={payments}
+                showSearch={true}
+                showPagination={payments.length > 10}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

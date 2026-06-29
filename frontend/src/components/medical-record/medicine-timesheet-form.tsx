@@ -4,9 +4,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,15 +21,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { medicineOrdersApi } from "@/lib/api";
+import { medicineOrdersApi, medicinesApi } from "@/lib/api";
 import type {
+  Medicine,
   MedicationTimesheetEntry,
   MedicationTimesheetItem,
   MedicationTimesheetReasonCode,
   MedicationTimesheetStatus,
 } from "@/lib/api";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
-import { CalendarClock, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 
 interface MedicineTimesheetFormProps {
   visitId: number;
@@ -35,7 +38,7 @@ interface MedicineTimesheetFormProps {
 }
 
 interface SelectedTimesheetCell {
-  orderItemId: number;
+  itemId: number;
   hour: number;
 }
 
@@ -78,6 +81,24 @@ const TIMESHEET_REASON_OPTIONS: TimesheetReasonOption[] = [
   { value: "patient_unavailable", label: "Pasien tidak ada di tempat" },
   { value: "other", label: "Lainnya" },
 ];
+
+const emptyEditorState: TimesheetEditorState = {
+  status: "",
+  reasonCode: "",
+  reasonDetail: "",
+  notes: "",
+};
+
+const emptyItemForm = {
+  medicineId: "",
+  quantity: "1",
+  unit: "",
+  dosage: "",
+  frequency: "",
+  route: "",
+  duration: "",
+  instructions: "",
+};
 
 const getTimesheetStatusShortLabel = (status?: MedicationTimesheetStatus) => {
   if (!status) return "-";
@@ -173,13 +194,6 @@ const getStatusLegendClass = (status: MedicationTimesheetStatus) => {
   }
 };
 
-const emptyEditorState: TimesheetEditorState = {
-  status: "",
-  reasonCode: "",
-  reasonDetail: "",
-  notes: "",
-};
-
 export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTimesheetFormProps) {
   const { toast } = useToast();
   const [inFlightKeys, setInFlightKeys] = useState<Set<string>>(new Set());
@@ -193,27 +207,33 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
   const [selectedCell, setSelectedCell] = useState<SelectedTimesheetCell | null>(null);
   const [editorState, setEditorState] = useState<TimesheetEditorState>(emptyEditorState);
 
-  const getCellKey = (orderItemId: number, hour: number) => `${orderItemId}-${hour}`;
+  const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
+  const [itemForm, setItemForm] = useState(emptyItemForm);
+  const [itemSubmitting, setItemSubmitting] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+  const [medicineOptions, setMedicineOptions] = useState<ComboboxOption[]>([]);
+  const [medicineResults, setMedicineResults] = useState<Medicine[]>([]);
+  const [medicineSearch, setMedicineSearch] = useState("");
+  const [medicineLoading, setMedicineLoading] = useState(false);
 
-  const getCellEntry = (orderItemId: number, hour: number) => {
-    return timesheetEntries[getCellKey(orderItemId, hour)];
+  const getCellKey = (itemId: number, hour: number) => `${itemId}-${hour}`;
+
+  const getCellEntry = (itemId: number, hour: number) => {
+    return timesheetEntries[getCellKey(itemId, hour)];
   };
 
   const selectedItem = useMemo(() => {
     if (!selectedCell) return null;
-    return timesheetItems.find((item) => item.order_item_id === selectedCell.orderItemId) || null;
+    return timesheetItems.find((item) => item.item_id === selectedCell.itemId) || null;
   }, [selectedCell, timesheetItems]);
 
   const loggedSlotCount = useMemo(() => Object.keys(timesheetEntries).length, [timesheetEntries]);
-
-  const selectedCellKey = selectedCell ? getCellKey(selectedCell.orderItemId, selectedCell.hour) : null;
-
+  const selectedCellKey = selectedCell ? getCellKey(selectedCell.itemId, selectedCell.hour) : null;
   const allowedReasonOptions = useMemo(() => getAllowedReasonOptions(editorState.status), [editorState.status]);
 
   const scrollTableHours = (direction: "left" | "right") => {
     const container = tableScrollRef.current;
     if (!container) return;
-
     container.scrollBy({
       left: direction === "left" ? -420 : 420,
       behavior: "smooth",
@@ -225,38 +245,70 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
     setEditorState(emptyEditorState);
   };
 
+  const resetItemForm = () => {
+    setItemForm(emptyItemForm);
+    setMedicineSearch("");
+  };
+
+  const loadMedicineOptions = async (search: string) => {
+    setMedicineLoading(true);
+    try {
+      const response = await medicinesApi.getAll({
+        page: 1,
+        limit: 20,
+        is_active: true,
+        search: search.trim() || undefined,
+      });
+      const rows = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+          ? response.data
+          : [];
+      setMedicineResults(rows);
+      setMedicineOptions(
+        rows.map((medicine: Medicine) => ({
+          value: String(medicine.id),
+          label: `${medicine.name}${medicine.generic_name ? ` - ${medicine.generic_name}` : ""}${medicine.code ? ` (${medicine.code})` : ""}`,
+        })),
+      );
+    } catch {
+      setMedicineResults([]);
+      setMedicineOptions([]);
+    } finally {
+      setMedicineLoading(false);
+    }
+  };
+
   const loadTimesheet = async () => {
     setTimesheetLoading(true);
     try {
       const res = await medicineOrdersApi.getTimesheet(visitId, timesheetDate);
       const data = res.data;
-      const items = data.items || [];
-      setTimesheetItems(items);
+      setTimesheetItems(data.items || []);
 
       const mappedEntries: Record<string, MedicationTimesheetEntry> = {};
       (data.entries || []).forEach((entry) => {
         const hour = new Date(entry.scheduled_at).getHours();
-        mappedEntries[getCellKey(entry.medicine_order_item_id, hour)] = entry;
+        mappedEntries[getCellKey(entry.timesheet_item_id, hour)] = entry;
       });
       setTimesheetEntries(mappedEntries);
-      setSelectedCell(null);
-      setEditorState(emptyEditorState);
+      closeEditor();
     } catch (error: any) {
       emitMedicalRecordTabIndicator("medicine-timesheet", "0");
       emitMedicalRecordTabSaved("medicine-timesheet", false);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.response?.data?.error || "Gagal memuat timesheet obat ruangan",
+        description: error.response?.data?.error || "Gagal memuat timesheet obat",
       });
     } finally {
       setTimesheetLoading(false);
     }
   };
 
-  const openCellEditor = (orderItemId: number, hour: number) => {
-    const entry = getCellEntry(orderItemId, hour);
-    setSelectedCell({ orderItemId, hour });
+  const openCellEditor = (itemId: number, hour: number) => {
+    const entry = getCellEntry(itemId, hour);
+    setSelectedCell({ itemId, hour });
     setEditorState({
       status: entry?.status || "",
       reasonCode: entry?.reason_code || "",
@@ -265,15 +317,76 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
     });
   };
 
-  const persistSelectedCell = async (clearSlot = false) => {
-    if (!selectedCell) {
+  const handleCreateItem = async () => {
+    if (!itemForm.medicineId) {
+      toast({
+        variant: "destructive",
+        title: "Validasi",
+        description: "Pilih obat dari master obat terlebih dahulu.",
+      });
       return;
     }
 
-    const key = getCellKey(selectedCell.orderItemId, selectedCell.hour);
-    if (inFlightKeys.has(key)) {
-      return;
+    setItemSubmitting(true);
+    try {
+      await medicineOrdersApi.createTimesheetItem({
+        visit_id: visitId,
+        medicine_id: Number(itemForm.medicineId),
+        quantity: Number(itemForm.quantity) || 1,
+        unit: itemForm.unit.trim() || undefined,
+        dosage: itemForm.dosage.trim() || undefined,
+        frequency: itemForm.frequency.trim() || undefined,
+        route: itemForm.route.trim() || undefined,
+        duration: itemForm.duration.trim() || undefined,
+        instructions: itemForm.instructions.trim() || undefined,
+      });
+      setIsItemDialogOpen(false);
+      resetItemForm();
+      await loadTimesheet();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menambahkan obat timesheet",
+      });
+    } finally {
+      setItemSubmitting(false);
     }
+  };
+
+  const handleDeleteItem = async (itemId: number) => {
+    setDeletingItemId(itemId);
+    try {
+      await medicineOrdersApi.deleteTimesheetItem(visitId, itemId);
+      setTimesheetItems((prev) => prev.filter((item) => item.item_id !== itemId));
+      setTimesheetEntries((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((key) => {
+          if (key.startsWith(`${itemId}-`)) {
+            delete next[key];
+          }
+        });
+        return next;
+      });
+      if (selectedCell?.itemId === itemId) {
+        closeEditor();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menghapus item timesheet",
+      });
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
+  const persistSelectedCell = async (clearSlot = false) => {
+    if (!selectedCell) return;
+
+    const key = getCellKey(selectedCell.itemId, selectedCell.hour);
+    if (inFlightKeys.has(key)) return;
 
     const nextStatus: MedicationTimesheetStatus | "" = clearSlot ? "" : editorState.status;
     const reasonRequired = requiresReason(nextStatus);
@@ -322,20 +435,15 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
     setTimesheetSavingKey(key);
 
     try {
-      const payloadStatus = nextStatus;
-      const payloadReasonCode = reasonRequired ? editorState.reasonCode : "";
-      const payloadReasonDetail = reasonRequired ? editorState.reasonDetail.trim() : "";
-      const payloadNotes = clearSlot ? "" : editorState.notes.trim();
-
       const response = await medicineOrdersApi.upsertTimesheetEntry({
         visit_id: visitId,
-        medicine_order_item_id: selectedCell.orderItemId,
+        timesheet_item_id: selectedCell.itemId,
         date: timesheetDate,
         hour: selectedCell.hour,
-        status: payloadStatus,
-        reason_code: payloadReasonCode,
-        reason_detail: payloadReasonDetail,
-        notes: payloadNotes,
+        status: nextStatus,
+        reason_code: reasonRequired ? editorState.reasonCode : "",
+        reason_detail: reasonRequired ? editorState.reasonDetail.trim() : "",
+        notes: clearSlot ? "" : editorState.notes.trim(),
       });
 
       const result = response.data as MedicationTimesheetEntry | { message: string };
@@ -370,8 +478,16 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
   };
 
   useEffect(() => {
-    loadTimesheet();
+    void loadTimesheet();
   }, [visitId, timesheetDate]);
+
+  useEffect(() => {
+    if (!isItemDialogOpen) return;
+    const timer = setTimeout(() => {
+      void loadMedicineOptions(medicineSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isItemDialogOpen, medicineSearch]);
 
   useEffect(() => {
     emitMedicalRecordTabIndicator("medicine-timesheet", `${loggedSlotCount}`);
@@ -397,6 +513,19 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
               onChange={(e) => setTimesheetDate(e.target.value)}
               className="h-9 w-[170px]"
             />
+            {!readOnly && (
+              <Button
+                type="button"
+                className="h-9"
+                onClick={() => {
+                  resetItemForm();
+                  setIsItemDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah Obat
+              </Button>
+            )}
           </div>
         </div>
 
@@ -419,11 +548,98 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
       ) : timesheetItems.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground">
           <CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Belum ada obat dengan kategori dipakai di ruangan</p>
-          <p className="text-xs mt-1">Buat order obat dengan pemakaian "Dipakai di Ruangan".</p>
+          <p>Belum ada obat pada timesheet</p>
+          <p className="text-xs mt-1">Tambahkan obat dari master obat untuk mulai mencatat pemberian per jam.</p>
+          {!readOnly && (
+            <div className="mt-4">
+              <Button
+                type="button"
+                onClick={() => {
+                  resetItemForm();
+                  setIsItemDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah Obat
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
+          <div ref={tableScrollRef} className="border rounded-lg overflow-x-auto overflow-y-hidden">
+            <table className="w-max min-w-full text-xs">
+              <thead className="bg-background border-b">
+                <tr>
+                  <th className="py-2 px-3 text-left font-medium sticky left-0 bg-gray-100 z-20 min-w-[320px] w-[320px] border-r">
+                    Obat
+                  </th>
+                  {TIMESHEET_HOURS.map((hour) => (
+                    <th key={`hour-head-${hour}`} className="py-2 px-1 text-center font-medium min-w-[56px] w-[56px] bg-gray-100">
+                      {String(hour).padStart(2, "0")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timesheetItems.map((item) => (
+                  <tr key={`timesheet-row-${item.item_id}`} className="border-t align-top">
+                    <td className="py-3 px-3 align-top border-r sticky left-0 bg-background z-10 min-w-[320px] w-[320px]">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm leading-4">{item.medicine_name}</p>
+                        </div>
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-destructive"
+                            disabled={deletingItemId === item.item_id}
+                            onClick={() => handleDeleteItem(item.item_id)}
+                          >
+                            {deletingItemId === item.item_id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                    {TIMESHEET_HOURS.map((hour) => {
+                      const key = getCellKey(item.item_id, hour);
+                      const entry = getCellEntry(item.item_id, hour);
+                      const status = entry?.status;
+                      const isSelected = selectedCellKey === key;
+
+                      return (
+                        <td key={key} className="py-1 px-1 min-w-[56px] w-[56px]">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={cn(getCellButtonClassName(status, isSelected), "flex flex-col items-center justify-center")}
+                            disabled={readOnly || timesheetSavingKey === key}
+                            onClick={() => openCellEditor(item.item_id, hour)}
+                          >
+                            {timesheetSavingKey === key ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <span className="text-[10px] leading-none font-normal">{String(hour).padStart(2, "0")}</span>
+                                <span className="leading-none mt-1">{getTimesheetStatusShortLabel(status)}</span>
+                              </>
+                            )}
+                          </Button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           <div className="flex items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-1">
               <Button
@@ -447,65 +663,6 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
             </div>
           </div>
 
-          <div ref={tableScrollRef} className="border rounded-lg overflow-x-auto overflow-y-hidden">
-            <table className="w-max min-w-full text-xs">
-              <thead className="bg-background border-b">
-                <tr>
-                  <th className="py-2 px-3 text-left font-medium sticky left-0 bg-gray-100 z-20 min-w-[320px] w-[320px] border-r">
-                    Obat
-                  </th>
-                  {TIMESHEET_HOURS.map((hour) => (
-                    <th key={`hour-head-${hour}`} className="py-2 px-1 text-center font-medium min-w-[56px] w-[56px] bg-gray-100">
-                      {String(hour).padStart(2, "0")}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {timesheetItems.map((item) => (
-                  <tr key={`timesheet-row-${item.order_item_id}`} className="border-t align-top">
-                    <td className="py-3 px-3 align-top border-r sticky left-0 bg-background z-10 min-w-[320px] w-[320px]">
-                      <p className="font-medium text-sm leading-4">{item.medicine_name}</p>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {item.dosage || "-"} • {item.frequency || "-"} • {item.route || "-"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Qty {item.quantity} {item.unit} • {item.order_number}
-                      </p>
-                    </td>
-                    {TIMESHEET_HOURS.map((hour) => {
-                      const key = getCellKey(item.order_item_id, hour);
-                      const entry = getCellEntry(item.order_item_id, hour);
-                      const status = entry?.status;
-                      const isSelected = selectedCellKey === key;
-
-                      return (
-                        <td key={key} className="py-1 px-1 min-w-[56px] w-[56px]">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={cn(getCellButtonClassName(status, isSelected), "flex flex-col items-center justify-center")}
-                            disabled={readOnly || timesheetSavingKey === key}
-                            onClick={() => openCellEditor(item.order_item_id, hour)}
-                          >
-                            {timesheetSavingKey === key ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <>
-                                <span className="text-[10px] leading-none font-normal">{String(hour).padStart(2, "0")}</span>
-                                <span className="leading-none mt-1">{getTimesheetStatusShortLabel(status)}</span>
-                              </>
-                            )}
-                          </Button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
           <Dialog
             open={Boolean(selectedCell && selectedItem)}
             onOpenChange={(open) => {
@@ -527,68 +684,69 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
                       {selectedItem.medicine_name} • Jam {String(selectedCell.hour).padStart(2, "0")}:00
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Status saat ini: {getTimesheetStatusLabel(getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.status)}
+                      Status saat ini: {getTimesheetStatusLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.status)}
                     </p>
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Status Slot</Label>
-                    <Select
-                      disabled={readOnly}
-                      value={editorState.status || "none"}
-                      onValueChange={(value) => {
-                        const nextStatus = value === "none" ? "" : (value as MedicationTimesheetStatus);
-                        const nextReasons = getAllowedReasonOptions(nextStatus);
-                        const keepReason = nextReasons.some((option) => option.value === editorState.reasonCode);
-                        setEditorState((prev) => ({
-                          ...prev,
-                          status: nextStatus,
-                          reasonCode: keepReason ? prev.reasonCode : "",
-                          reasonDetail: keepReason ? prev.reasonDetail : "",
-                        }));
-                      }}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Pilih status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Kosongkan slot</SelectItem>
-                        {TIMESHEET_STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={`status-${option.value}`} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Status Slot</Label>
+                      <Select
+                        disabled={readOnly}
+                        value={editorState.status || "none"}
+                        onValueChange={(value) => {
+                          const nextStatus = value === "none" ? "" : (value as MedicationTimesheetStatus);
+                          const nextReasons = getAllowedReasonOptions(nextStatus);
+                          const keepReason = nextReasons.some((option) => option.value === editorState.reasonCode);
+                          setEditorState((prev) => ({
+                            ...prev,
+                            status: nextStatus,
+                            reasonCode: keepReason ? prev.reasonCode : "",
+                            reasonDetail: keepReason ? prev.reasonDetail : "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Pilih status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Kosongkan slot</SelectItem>
+                          {TIMESHEET_STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={`status-${option.value}`} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Alasan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}</Label>
+                      <Select
+                        disabled={readOnly || !requiresReason(editorState.status)}
+                        value={editorState.reasonCode || "none"}
+                        onValueChange={(value) =>
+                          setEditorState((prev) => ({
+                            ...prev,
+                            reasonCode: value === "none" ? "" : (value as MedicationTimesheetReasonCode),
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Pilih alasan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tidak ada</SelectItem>
+                          {allowedReasonOptions.map((option) => (
+                            <SelectItem key={`reason-${option.value}`} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Alasan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}</Label>
-                    <Select
-                      disabled={readOnly || !requiresReason(editorState.status)}
-                      value={editorState.reasonCode || "none"}
-                      onValueChange={(value) =>
-                        setEditorState((prev) => ({
-                          ...prev,
-                          reasonCode: value === "none" ? "" : (value as MedicationTimesheetReasonCode),
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Pilih alasan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Tidak ada</SelectItem>
-                        {allowedReasonOptions.map((option) => (
-                          <SelectItem key={`reason-${option.value}`} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  </div>
                   {editorState.reasonCode === "other" && (
                     <div className="space-y-1.5">
                       <Label className="text-xs">Rincian Alasan *</Label>
@@ -639,29 +797,24 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
                     >
                       Kosongkan Slot
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={closeEditor}
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={closeEditor}>
                       Tutup
                     </Button>
                   </div>
 
-                  {selectedCellKey && getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.status && (
+                  {selectedCellKey && getCellEntry(selectedCell.itemId, selectedCell.hour)?.status && (
                     <div className="border rounded-md p-2 text-[11px] text-muted-foreground space-y-1">
                       <p>
-                        Alasan tersimpan: {getTimesheetReasonLabel(getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.reason_code)}
+                        Alasan tersimpan: {getTimesheetReasonLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_code)}
                       </p>
-                      {getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.reason_detail && (
+                      {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail && (
                         <p>
-                          Rincian: {getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.reason_detail}
+                          Rincian: {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail}
                         </p>
                       )}
-                      {getCellEntry(selectedCell.orderItemId, selectedCell.hour)?.administered_at && (
+                      {getCellEntry(selectedCell.itemId, selectedCell.hour)?.administered_at && (
                         <p>
-                          Waktu eksekusi: {new Date(getCellEntry(selectedCell.orderItemId, selectedCell.hour)!.administered_at!).toLocaleString("id-ID")}
+                          Waktu eksekusi: {new Date(getCellEntry(selectedCell.itemId, selectedCell.hour)!.administered_at!).toLocaleString("id-ID")}
                         </p>
                       )}
                     </div>
@@ -672,6 +825,115 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
           </Dialog>
         </div>
       )}
+
+      <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Tambah Obat Timesheet</DialogTitle>
+            <DialogDescription>
+              Pilih obat langsung dari master obat, lalu lengkapi detail regimen bila diperlukan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Obat *</Label>
+              <Combobox
+                options={medicineOptions}
+                value={itemForm.medicineId}
+                onValueChange={(value) => {
+                  const selectedMedicine = medicineResults.find((medicine: Medicine) => String(medicine.id) === value);
+                  setItemForm((prev) => ({
+                    ...prev,
+                    medicineId: value,
+                    unit: selectedMedicine?.unit || prev.unit,
+                  }));
+                }}
+                onSearchChange={setMedicineSearch}
+                placeholder="Pilih obat dari master obat..."
+                searchPlaceholder="Cari master obat..."
+                emptyText="Tidak ada obat yang cocok."
+                loading={medicineLoading}
+              />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Jumlah</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={itemForm.quantity}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, quantity: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Satuan</Label>
+                <Input
+                  value={itemForm.unit}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, unit: event.target.value }))}
+                  placeholder="ampul, vial, tablet"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dosis</Label>
+                <Input
+                  value={itemForm.dosage}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, dosage: event.target.value }))}
+                  placeholder="500 mg"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Frekuensi</Label>
+                <Input
+                  value={itemForm.frequency}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, frequency: event.target.value }))}
+                  placeholder="3x1, q8h"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Rute</Label>
+                <Input
+                  value={itemForm.route}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, route: event.target.value }))}
+                  placeholder="PO, IV, IM"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Durasi</Label>
+                <Input
+                  value={itemForm.duration}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, duration: event.target.value }))}
+                  placeholder="3 hari"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Instruksi</Label>
+              <Textarea
+                value={itemForm.instructions}
+                onChange={(event) => setItemForm((prev) => ({ ...prev, instructions: event.target.value }))}
+                placeholder="Contoh: berikan sesudah makan"
+                className="min-h-[88px] resize-y"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} disabled={itemSubmitting}>
+              Tutup
+            </Button>
+            <Button type="button" onClick={() => void handleCreateItem()} disabled={itemSubmitting}>
+              {itemSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan Obat
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -26,16 +26,19 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { usersApi, signatureApi, DOCUMENT_TYPE_LABELS, type SignatureLog, type MedicalRecordEditLog } from "@/lib/api";
+import { resolveBackendFileUrl } from "@/lib/api/client";
 import { Loader2, ShieldCheck, FileEdit, SlidersHorizontal, RefreshCw, ArrowLeft } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useNavigate } from "react-router-dom";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function AuditLogPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("signature");
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   // Common filters
   const [startDate, setStartDate] = useState("");
@@ -358,11 +361,40 @@ export default function AuditLogPage() {
                                   <span className="text-xs font-medium">{log.visit.registration.patient.nama_lengkap}</span>
                                   <span className="text-[10px] text-muted-foreground">RM: {log.visit.registration.patient.no_rm}</span>
                                 </div>
+                              ) : log.signer_role === "Pasien" ? (
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium">{log.signer_name}</span>
+                                  <span className="text-[10px] text-muted-foreground italic">Dari TTD</span>
+                                </div>
                               ) : (
                                 <span className="text-muted-foreground text-xs italic">N/A</span>
                               )}
                             </TableCell>
-                            <TableCell>{getActionBadge(log.action)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                {getActionBadge(log.action)}
+                                {(() => {
+                                  if (!log.notes) return null;
+                                  const photoMatch = log.notes.match(/photo=([^;]+)/);
+                                  if (photoMatch && photoMatch[1]) {
+                                    const photoUrl = resolveBackendFileUrl(photoMatch[1]);
+                                    return (
+                                      <div 
+                                        className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-md overflow-hidden border-2 border-primary/20 shadow-sm cursor-pointer group shrink-0"
+                                        onClick={() => setPreviewPhoto(photoUrl)}
+                                        title="Klik untuk melihat foto validasi"
+                                      >
+                                        <img src={photoUrl} alt="Validasi" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <ShieldCheck className="h-6 w-6 text-white drop-shadow-md" />
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            </TableCell>
                             <TableCell className="text-[10px] font-mono text-muted-foreground">
                               {log.ip_address || "-"}
                             </TableCell>
@@ -500,6 +532,19 @@ export default function AuditLogPage() {
           </Tabs>
         </div>
       </PageContent>
+
+      <Dialog open={!!previewPhoto} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Foto Validasi Wajah</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center p-4">
+            {previewPhoto && (
+              <img src={previewPhoto} alt="Preview Validasi Wajah" className="max-w-full rounded-lg border border-gray-200 shadow-sm" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

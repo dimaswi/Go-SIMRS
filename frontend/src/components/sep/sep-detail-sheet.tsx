@@ -3,6 +3,7 @@ import {
   Sheet,
   SheetContent,
   SheetFooter,
+  SheetHeader,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,6 @@ import { useToast } from "@/hooks/use-toast";
 import type { SEPLocal } from "@/lib/api/vclaim";
 import {
   Loader2,
-  ShieldCheck,
   AlertTriangle,
   Pencil,
   Trash2,
@@ -46,10 +46,6 @@ import { SearchModal } from "./search-modal";
 import {
   BPJS_COMPACT_FIELD_CLASS,
   BPJS_FOOTER_CLASS,
-  BPJSInfoGrid,
-  BPJS_SECTION_CLASS,
-  BPJSSectionHeader,
-  BPJSSheetHero,
   BPJSStatePanel,
 } from "./bpjs-sheet-chrome";
 
@@ -103,7 +99,7 @@ export function SEPDetailSheet({
     if (sep && open) {
       // Get phone number: prioritas no_telp dari SEP, fallback ke patient.no_telepon atau patient.no_hp
       const phoneNumber = sep.no_telp || sep.patient?.no_telepon || sep.patient?.no_hp || "";
-      
+
       setEditForm({
         catatan: sep.catatan || "",
         diag_awal: sep.diag_awal || "",
@@ -287,281 +283,313 @@ export function SEPDetailSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <BPJSSheetHero
-            eyebrow="Bridging BPJS"
-            title="Detail SEP"
-            description={<span className="font-mono text-sm">{sep.no_sep}</span>}
-            icon={ShieldCheck}
-            meta={getStatusBadge(sep.status)}
-          />
-
-          <div className="flex-1 overflow-y-auto p-6">
-
-          {/* Status Warning for Deleted SEP */}
-          {sep.status === "deleted" && (
-            <BPJSStatePanel
-              tone="danger"
-              icon={<AlertTriangle className="h-4 w-4" />}
-              title="SEP ini telah dibatalkan"
-              description="SEP tidak dapat digunakan lagi untuk proses klaim atau tindak lanjut layanan."
-            />
-          )}
-
-          {!isEditing ? (
-            /* Detail View */
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="space-y-6">
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="SEP" title="Informasi SEP" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "No. SEP", value: sep.no_sep, mono: true },
-                      { label: "Tanggal SEP", value: sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-" },
-                      { label: "Jenis Pelayanan", value: getJenisPelayanan(sep.jns_pelayanan) },
-                      { label: "Kelas Rawat", value: getKelasRawat(sep.kls_rawat_hak) },
-                    ]}
-                  />
+          <div className="flex flex-col border-b px-4 py-2">
+            <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
+              <div className="space-y-1 text-left">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xl font-bold">Detail SEP</h4>
+                  <Badge variant="outline">SEP</Badge>
+                  {getStatusBadge(sep.status)}
                 </div>
+                <p className="text-muted-foreground">{sep.no_sep}</p>
+              </div>
+            </SheetHeader>
+          </div>
 
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "No. Kartu BPJS", value: sep.no_kartu, mono: true, span: 2 },
-                      { label: "Nama Peserta", value: sep.nama_pasien, span: 2 },
-                      { label: "No. RM", value: sep.no_mr, mono: true },
-                      { label: "NIK", value: sep.nik || "-", mono: true },
-                    ]}
-                  />
-                </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2">
 
-                {sep.catatan && (
-                  <div className={BPJS_SECTION_CLASS}>
-                    <BPJSSectionHeader eyebrow="Notes" title="Catatan" />
-                    <div className="border border-border/70 bg-muted/10 p-4 text-base leading-relaxed text-foreground">{sep.catatan}</div>
+            {/* Status Warning for Deleted SEP */}
+            {sep.status === "deleted" && (
+              <BPJSStatePanel
+                tone="danger"
+                icon={<AlertTriangle className="h-4 w-4" />}
+                title="SEP ini telah dibatalkan"
+                description="SEP tidak dapat digunakan lagi untuk proses klaim atau tindak lanjut layanan."
+              />
+            )}
+
+            {!isEditing ? (
+              /* Detail View */
+              <div className="grid gap-2">
+                <div className="space-y-2 ">
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-4 border rounded-md bg-background p-4 text-sm">
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">No. SEP</span>
+                        <p className="font-mono font-medium text-foreground">{sep.no_sep}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-muted-foreground text-xs block mb-1">Tanggal SEP</span>
+                        <p className="font-medium text-foreground">{sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-muted-foreground text-xs block mb-1">Jenis Pelayanan</span>
+                        <p className="font-medium text-foreground">{getJenisPelayanan(sep.jns_pelayanan)}</p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Kelas Rawat</span>
+                        <p className="font-medium text-foreground">{getKelasRawat(sep.kls_rawat_hak)}</p>
+                      </div>
+
+                      <div className="col-span-2 border-t pt-3 mt-1">
+                        <span className="text-muted-foreground text-xs block mb-1">No. Kartu BPJS</span>
+                        <p className="font-mono font-medium text-foreground">{sep.no_kartu}</p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Nama Peserta</span>
+                        <p className="font-medium text-foreground">{sep.nama_pasien}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-muted-foreground text-xs block mb-1">No. RM</span>
+                        <p className="font-mono font-medium text-foreground">{sep.no_mr}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-muted-foreground text-xs block mb-1">NIK</span>
+                        <p className="font-mono font-medium text-foreground">{sep.nik || "-"}</p>
+                      </div>
+
+                      <div className="col-span-2 border-t pt-3 mt-1">
+                        <span className="text-muted-foreground text-xs block mb-1">No. Rujukan</span>
+                        <p className="font-mono font-medium text-foreground">{sep.no_rujukan || "-"}</p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Tanggal Rujukan</span>
+                        <p className="font-medium text-foreground">{sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-"}</p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Faskes Perujuk</span>
+                        <p className="font-medium text-foreground">{sep.nama_rujukan || sep.ppk_rujukan || "-"}</p>
+                      </div>
+
+                      <div className="col-span-2 border-t pt-3 mt-1">
+                        <span className="text-muted-foreground text-xs block mb-1">Poli Tujuan</span>
+                        <p className="font-medium text-foreground">
+                          {sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Dokter DPJP</span>
+                        <p className="font-medium text-foreground">
+                          {sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs block mb-1">Diagnosa Awal</span>
+                        <p className="font-medium text-foreground">
+                          {sep.nama_diagnosa || sep.diag_awal || "-"}
+                          {sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                )}
+                  {sep.catatan && (
+                    <div className="space-y-4">
+                      <div className="border border-border/70 bg-muted/10 p-4 text-sm leading-relaxed rounded-md text-foreground">{sep.catatan}</div>
+                    </div>
+                  )}
+                </div>
               </div>
-
-              <div className="space-y-6">
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Source" title="Rujukan" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "No. Rujukan", value: sep.no_rujukan || "-", mono: true },
-                      { label: "Tanggal Rujukan", value: sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-" },
-                      { label: "Faskes Perujuk", value: sep.nama_rujukan || sep.ppk_rujukan || "-", span: 2 },
-                    ]}
-                  />
+            ) : (
+              /* Edit View - dengan Search Modal seperti Create SEP */
+              <div className="grid gap-6 xl:grid-cols-2 [&_label]:text-sm [&_label]:font-medium">
+                <div className="xl:col-span-2 border-b pb-2">
+                  <h4 className="font-semibold text-lg">Ubah Data SEP</h4>
                 </div>
 
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Service" title="Pelayanan" />
-                  <BPJSInfoGrid
-                    columns={2}
-                    items={[
-                      { label: "Poli Tujuan", value: <>{sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}</>, span: 2 },
-                      { label: "Dokter DPJP", value: <>{sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}</>, span: 2 },
-                      { label: "Diagnosa Awal", value: <>{sep.nama_diagnosa || sep.diag_awal || "-"}{sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}</>, span: 2 },
-                    ]}
-                  />
+                {/* Kelas Rawat */}
+                <div className="space-y-4 xl:col-span-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Naik Kelas</Label>
+                      <Select
+                        value={editForm.kls_rawat_naik || "none"}
+                        onValueChange={(value) => setEditForm({ ...editForm, kls_rawat_naik: value, pembiayaan: value === "none" ? "" : editForm.pembiayaan })}
+                      >
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tidak Naik</SelectItem>
+                          <SelectItem value="1">VVIP</SelectItem>
+                          <SelectItem value="2">VIP</SelectItem>
+                          <SelectItem value="3">Kelas 1</SelectItem>
+                          <SelectItem value="4">Kelas 2</SelectItem>
+                          <SelectItem value="5">Kelas 3</SelectItem>
+                          <SelectItem value="6">ICCU</SelectItem>
+                          <SelectItem value="7">ICU</SelectItem>
+                          <SelectItem value="8">Diatas Kelas 1</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pembiayaan</Label>
+                      <Select
+                        value={editForm.pembiayaan || "none"}
+                        onValueChange={(value) => setEditForm({ ...editForm, pembiayaan: value })}
+                        disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
+                      >
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-</SelectItem>
+                          <SelectItem value="1">Pribadi</SelectItem>
+                          <SelectItem value="2">Pemberi Kerja</SelectItem>
+                          <SelectItem value="3">Asuransi Tambahan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Penanggung Jawab</Label>
+                      <Input
+                        value={editForm.penanggung_jawab}
+                        onChange={(e) => setEditForm({ ...editForm, penanggung_jawab: e.target.value })}
+                        placeholder="Nama penanggung jawab"
+                        disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
+                        className={BPJS_COMPACT_FIELD_CLASS}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            /* Edit View - dengan Search Modal seperti Create SEP */
-            <div className="grid gap-6 xl:grid-cols-2 [&_label]:text-sm [&_label]:font-medium">
-              <div className="xl:col-span-2">
-                <BPJSSectionHeader eyebrow="Edit" title="Ubah Data SEP" />
-              </div>
 
-              {/* Kelas Rawat */}
-              <div className={`${BPJS_SECTION_CLASS} xl:col-span-2`}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Naik Kelas</Label>
-                  <Select
-                    value={editForm.kls_rawat_naik || "none"}
-                    onValueChange={(value) => setEditForm({ ...editForm, kls_rawat_naik: value, pembiayaan: value === "none" ? "" : editForm.pembiayaan })}
-                  >
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Tidak Naik</SelectItem>
-                      <SelectItem value="1">VVIP</SelectItem>
-                      <SelectItem value="2">VIP</SelectItem>
-                      <SelectItem value="3">Kelas 1</SelectItem>
-                      <SelectItem value="4">Kelas 2</SelectItem>
-                      <SelectItem value="5">Kelas 3</SelectItem>
-                      <SelectItem value="6">ICCU</SelectItem>
-                      <SelectItem value="7">ICU</SelectItem>
-                      <SelectItem value="8">Diatas Kelas 1</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Poli Tujuan - dengan Search Modal */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Poli Tujuan *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={editForm.nama_poli ? `${editForm.nama_poli} (${editForm.poli_tujuan})` : editForm.poli_tujuan}
+                        readOnly
+                        placeholder="Pilih poli tujuan"
+                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
+                      />
+                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setPoliModalOpen(true)}>
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Pembiayaan</Label>
-                  <Select
-                    value={editForm.pembiayaan || "none"}
-                    onValueChange={(value) => setEditForm({ ...editForm, pembiayaan: value })}
-                    disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
-                  >
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">-</SelectItem>
-                      <SelectItem value="1">Pribadi</SelectItem>
-                      <SelectItem value="2">Pemberi Kerja</SelectItem>
-                      <SelectItem value="3">Asuransi Tambahan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Penanggung Jawab</Label>
-                  <Input
-                    value={editForm.penanggung_jawab}
-                    onChange={(e) => setEditForm({ ...editForm, penanggung_jawab: e.target.value })}
-                    placeholder="Nama penanggung jawab"
-                    disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
-                    className={BPJS_COMPACT_FIELD_CLASS}
-                  />
-                </div>
-              </div>
-              </div>
 
-              {/* Poli Tujuan - dengan Search Modal */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="space-y-2">
-                <Label>Poli Tujuan *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={editForm.nama_poli ? `${editForm.nama_poli} (${editForm.poli_tujuan})` : editForm.poli_tujuan}
-                    readOnly
-                    placeholder="Pilih poli tujuan"
-                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                  />
-                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setPoliModalOpen(true)}>
-                    <Search className="h-4 w-4" />
-                  </Button>
+                {/* Dokter DPJP - dengan Search Modal */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Dokter DPJP</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={editForm.nama_dpjp ? `${editForm.nama_dpjp} (${editForm.dpjp_layan})` : editForm.dpjp_layan}
+                        readOnly
+                        placeholder="Pilih dokter DPJP"
+                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
+                      />
+                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDokterModalOpen(true)}>
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
+                  </div>
                 </div>
-              </div>
-              </div>
 
-              {/* Dokter DPJP - dengan Search Modal */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="space-y-2">
-                <Label>Dokter DPJP</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={editForm.nama_dpjp ? `${editForm.nama_dpjp} (${editForm.dpjp_layan})` : editForm.dpjp_layan}
-                    readOnly
-                    placeholder="Pilih dokter DPJP"
-                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                  />
-                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDokterModalOpen(true)}>
-                    <Search className="h-4 w-4" />
-                  </Button>
+                {/* Diagnosa Awal - dengan Search Modal */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Diagnosa Awal *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={editForm.nama_diagnosa ? `${editForm.diag_awal} - ${editForm.nama_diagnosa}` : editForm.diag_awal}
+                        readOnly
+                        placeholder="Pilih diagnosa awal"
+                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
+                      />
+                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDiagnosaModalOpen(true)}>
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
-              </div>
-              </div>
 
-              {/* Diagnosa Awal - dengan Search Modal */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="space-y-2">
-                <Label>Diagnosa Awal *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={editForm.nama_diagnosa ? `${editForm.diag_awal} - ${editForm.nama_diagnosa}` : editForm.diag_awal}
-                    readOnly
-                    placeholder="Pilih diagnosa awal"
-                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                  />
-                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDiagnosaModalOpen(true)}>
-                    <Search className="h-4 w-4" />
-                  </Button>
+                {/* Informasi Tambahan */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Poli Eksekutif</Label>
+                      <Select value={editForm.poli_eksekutif} onValueChange={(value) => setEditForm({ ...editForm, poli_eksekutif: value })}>
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Tidak</SelectItem>
+                          <SelectItem value="1">Ya</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>COB</Label>
+                      <Select value={editForm.cob} onValueChange={(value) => setEditForm({ ...editForm, cob: value })}>
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Tidak</SelectItem>
+                          <SelectItem value="1">Ya</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Katarak</Label>
+                      <Select value={editForm.katarak} onValueChange={(value) => setEditForm({ ...editForm, katarak: value })}>
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Tidak</SelectItem>
+                          <SelectItem value="1">Ya</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Lakalantas</Label>
+                      <Select value={editForm.laka_lantas} onValueChange={(value) => setEditForm({ ...editForm, laka_lantas: value })}>
+                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Bukan KLL</SelectItem>
+                          <SelectItem value="1">KLL & Bukan KK</SelectItem>
+                          <SelectItem value="2">KLL & KK</SelectItem>
+                          <SelectItem value="3">KK</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              </div>
 
-              {/* Informasi Tambahan */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Poli Eksekutif</Label>
-                  <Select value={editForm.poli_eksekutif} onValueChange={(value) => setEditForm({ ...editForm, poli_eksekutif: value })}>
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* No Telepon */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>No. Telepon</Label>
+                    <Input
+                      value={editForm.no_telp}
+                      onChange={(e) => setEditForm({ ...editForm, no_telp: e.target.value })}
+                      placeholder="No. telepon pasien"
+                      className={BPJS_COMPACT_FIELD_CLASS}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>COB</Label>
-                  <Select value={editForm.cob} onValueChange={(value) => setEditForm({ ...editForm, cob: value })}>
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Katarak</Label>
-                  <Select value={editForm.katarak} onValueChange={(value) => setEditForm({ ...editForm, katarak: value })}>
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Lakalantas</Label>
-                  <Select value={editForm.laka_lantas} onValueChange={(value) => setEditForm({ ...editForm, laka_lantas: value })}>
-                    <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Bukan KLL</SelectItem>
-                      <SelectItem value="1">KLL & Bukan KK</SelectItem>
-                      <SelectItem value="2">KLL & KK</SelectItem>
-                      <SelectItem value="3">KK</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              </div>
 
-              {/* No Telepon */}
-              <div className={BPJS_SECTION_CLASS}>
-              <div className="space-y-2">
-                <Label>No. Telepon</Label>
-                <Input
-                  value={editForm.no_telp}
-                  onChange={(e) => setEditForm({ ...editForm, no_telp: e.target.value })}
-                  placeholder="No. telepon pasien"
-                  className={BPJS_COMPACT_FIELD_CLASS}
-                />
-              </div>
-              </div>
+                {/* Catatan */}
+                <div className="space-y-4 xl:col-span-2">
+                  <div className="space-y-2">
+                    <Label>Catatan</Label>
+                    <Textarea
+                      value={editForm.catatan}
+                      onChange={(e) => setEditForm({ ...editForm, catatan: e.target.value })}
+                      rows={3}
+                      placeholder="Catatan tambahan"
+                      className="rounded-none border-border/70"
+                    />
+                  </div>
+                </div>
 
-              {/* Catatan */}
-              <div className={`${BPJS_SECTION_CLASS} xl:col-span-2`}>
-              <div className="space-y-2">
-                <Label>Catatan</Label>
-                <Textarea
-                  value={editForm.catatan}
-                  onChange={(e) => setEditForm({ ...editForm, catatan: e.target.value })}
-                  rows={3}
-                  placeholder="Catatan tambahan"
-                  className="rounded-none border-border/70"
-                />
               </div>
-              </div>
-
-            </div>
-          )}
+            )}
           </div>
 
           <SheetFooter className={`${BPJS_FOOTER_CLASS} sticky bottom-0 z-20 bg-background/95 backdrop-blur`}>

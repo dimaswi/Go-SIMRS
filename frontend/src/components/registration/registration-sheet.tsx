@@ -561,12 +561,12 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                       label: "Tanggal",
                       value: (activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date)
                         ? new Date(activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date).toLocaleDateString("id-ID", {
-                            day: "2-digit",
-                            month: "long",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
                         : "-",
                     },
                     { label: "Ruangan Tujuan", value: activeRegistration.destination_room?.name || "-" },
@@ -634,321 +634,321 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <ScrollArea className="flex-1">
               <div className="space-y-6 p-6">
-              {scheduledFollowUps.length > 0 && (
-                <BPJSStatePanel
-                  icon={<AlertTriangle className="h-4 w-4" />}
-                  title="Pasien memiliki jadwal kontrol aktif"
-                  description="Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring."
-                  className="border-amber-200 bg-amber-50/80"
-                  extra={
-                    <div className="space-y-1 text-xs text-amber-900/90">
-                      {scheduledFollowUps.slice(0, 3).map((registration) => (
-                        <div key={registration.id || registration.ID}>
-                          Jadwal {formatScheduledDate(registration.scheduled_date)}
-                          {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
-                          {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
-                        </div>
-                      ))}
-                      {scheduledFollowUps.length > 3 && (
-                        <div>+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
-                      )}
-                      {selectedServiceType === "gawat_darurat" && (
-                        <div className="font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</div>
-                      )}
-                    </div>
-                  }
-                />
-              )}
+                {scheduledFollowUps.length > 0 && (
+                  <BPJSStatePanel
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    title="Pasien memiliki jadwal kontrol aktif"
+                    description="Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring."
+                    className="border-amber-200 bg-amber-50/80"
+                    extra={
+                      <div className="space-y-1 text-xs text-amber-900/90">
+                        {scheduledFollowUps.slice(0, 3).map((registration) => (
+                          <div key={registration.id || registration.ID}>
+                            Jadwal {formatScheduledDate(registration.scheduled_date)}
+                            {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
+                            {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
+                          </div>
+                        ))}
+                        {scheduledFollowUps.length > 3 && (
+                          <div>+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
+                        )}
+                        {selectedServiceType === "gawat_darurat" && (
+                          <div className="font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</div>
+                        )}
+                      </div>
+                    }
+                  />
+                )}
 
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
-                <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-4 p-4 md:grid-cols-2`}>
-              {/* Tipe Layanan */}
-              <div className="space-y-2">
-                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tipe Layanan *</Label>
-                <Combobox
-                  options={[
-                    { value: "rawat_jalan", label: "Rawat Jalan" },
-                    { value: "gawat_darurat", label: "UGD" },
-                    { value: "rawat_inap", label: "Rawat Inap" },
-                    { value: "penunjang_medis", label: "Penunjang Medis" },
-                    { value: "farmasi", label: "Farmasi" },
-                  ]}
-                  value={selectedServiceType}
-                  onValueChange={handleServiceTypeChange}
-                  placeholder="Pilih tipe layanan"
-                  className={BPJS_FIELD_CLASS}
-                />
-              </div>
-
-              {/* Ruangan Tujuan */}
-              <div className="space-y-2">
-                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Ruangan Tujuan *</Label>
-                <Combobox
-                  options={filteredRooms.map(room => ({
-                    value: room.id.toString(),
-                    label: `${room.code} - ${room.name}`,
-                  }))}
-                  value={destinationRoomId?.toString() || ""}
-                  onValueChange={handleRoomChange}
-                  placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
-                  disabled={!selectedServiceType}
-                  loading={loadingRooms}
-                  className={BPJS_FIELD_CLASS}
-                />
-              </div>
-
-              {/* Metode Pembayaran */}
-              <div className="space-y-2">
-                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Metode Pembayaran *</Label>
-                <Combobox
-                  options={[
-                    { value: "cash", label: "Tunai" },
-                    { value: "bpjs", label: "BPJS" },
-                    { value: "insurance", label: "Asuransi" },
-                  ]}
-                  value={paymentMethod}
-                  onValueChange={(value) => setPaymentMethod(value as any)}
-                  placeholder="Pilih metode"
-                  className={BPJS_FIELD_CLASS}
-                />
-              </div>
-
-              {/* Prioritas */}
-              <div className="space-y-2">
-                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Prioritas</Label>
-                <Combobox
-                  options={[
-                    { value: "normal", label: "Normal" },
-                    { value: "urgent", label: "Mendesak" },
-                    { value: "emergency", label: "Darurat" },
-                  ]}
-                  value={priority}
-                  onValueChange={(value) => setPriority(value as any)}
-                  placeholder="Pilih prioritas"
-                  className={BPJS_FIELD_CLASS}
-                />
-              </div>
-
-              {/* Dokter */}
-              {destinationRoomId && (
-                <div className="space-y-2 md:col-span-2">
-                  <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
-                  {roomStaff.length > 0 ? (
-                    <Combobox
-                      options={roomStaff.map(staff => ({
-                        value: staff.employee_id.toString(),
-                        label: staff.employee?.nama_lengkap || "Unknown",
-                      }))}
-                      value={doctorId?.toString() || ""}
-                      onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
-                      placeholder="Pilih dokter"
-                      className={BPJS_FIELD_CLASS}
-                    />
-                  ) : (
-                    <Input
-                      disabled
-                      placeholder={doctorRequired ? "Tidak ada dokter di ruangan ini" : "Dokter tidak wajib untuk layanan ini"}
-                      className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
-                    />
-                  )}
-                </div>
-              )}
-
-                </div>
-              </div>
-
-              {/* BPJS Fields */}
-              {paymentMethod === "bpjs" && (
                 <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Payment" title="BPJS" />
-                  <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
+                  <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-4 p-4 md:grid-cols-2`}>
+                    {/* Tipe Layanan */}
                     <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor BPJS *</Label>
-                      <Input
-                        value={bpjsNumber}
-                        onChange={(e) => setBpjsNumber(e.target.value)}
-                        placeholder={patient?.no_bpjs || "Nomor BPJS"}
-                        className={`${BPJS_FIELD_CLASS} text-sm`}
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tipe Layanan *</Label>
+                      <Combobox
+                        options={[
+                          { value: "rawat_jalan", label: "Rawat Jalan" },
+                          { value: "gawat_darurat", label: "UGD" },
+                          { value: "rawat_inap", label: "Rawat Inap" },
+                          { value: "penunjang_medis", label: "Penunjang Medis" },
+                          { value: "farmasi", label: "Farmasi" },
+                        ]}
+                        value={selectedServiceType}
+                        onValueChange={handleServiceTypeChange}
+                        placeholder="Pilih tipe layanan"
+                        className={BPJS_FIELD_CLASS}
                       />
                     </div>
-                    {patient?.kelas_bpjs && (
-                      <div className="space-y-2">
-                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas</Label>
-                        <Input
-                          value={patient.kelas_bpjs}
-                          disabled
-                          className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
-                        />
+
+                    {/* Ruangan Tujuan */}
+                    <div className="space-y-2">
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Ruangan Tujuan *</Label>
+                      <Combobox
+                        options={filteredRooms.map(room => ({
+                          value: room.id.toString(),
+                          label: `${room.code} - ${room.name}`,
+                        }))}
+                        value={destinationRoomId?.toString() || ""}
+                        onValueChange={handleRoomChange}
+                        placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
+                        disabled={!selectedServiceType}
+                        loading={loadingRooms}
+                        className={BPJS_FIELD_CLASS}
+                      />
+                    </div>
+
+                    {/* Metode Pembayaran */}
+                    <div className="space-y-2">
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Metode Pembayaran *</Label>
+                      <Combobox
+                        options={[
+                          { value: "cash", label: "Tunai" },
+                          { value: "bpjs", label: "BPJS" },
+                          { value: "insurance", label: "Asuransi" },
+                        ]}
+                        value={paymentMethod}
+                        onValueChange={(value) => setPaymentMethod(value as any)}
+                        placeholder="Pilih metode"
+                        className={BPJS_FIELD_CLASS}
+                      />
+                    </div>
+
+                    {/* Prioritas */}
+                    <div className="space-y-2">
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Prioritas</Label>
+                      <Combobox
+                        options={[
+                          { value: "normal", label: "Normal" },
+                          { value: "urgent", label: "Mendesak" },
+                          { value: "emergency", label: "Darurat" },
+                        ]}
+                        value={priority}
+                        onValueChange={(value) => setPriority(value as any)}
+                        placeholder="Pilih prioritas"
+                        className={BPJS_FIELD_CLASS}
+                      />
+                    </div>
+
+                    {/* Dokter */}
+                    {destinationRoomId && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
+                        {roomStaff.length > 0 ? (
+                          <Combobox
+                            options={roomStaff.map(staff => ({
+                              value: staff.employee_id.toString(),
+                              label: staff.employee?.nama_lengkap || "Unknown",
+                            }))}
+                            value={doctorId?.toString() || ""}
+                            onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
+                            placeholder="Pilih dokter"
+                            className={BPJS_FIELD_CLASS}
+                          />
+                        ) : (
+                          <Input
+                            disabled
+                            placeholder={doctorRequired ? "Tidak ada dokter di ruangan ini" : "Dokter tidak wajib untuk layanan ini"}
+                            className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
+                          />
+                        )}
                       </div>
                     )}
-                  </div>
 
-                  {/* SEP Section */}
-                  <div className="rounded-none border border-border/70 bg-muted/10 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-foreground">SEP (Surat Eligibilitas Peserta)</span>
+                  </div>
+                </div>
+
+                {/* BPJS Fields */}
+                {paymentMethod === "bpjs" && (
+                  <div className={BPJS_SECTION_CLASS}>
+                    <BPJSSectionHeader eyebrow="Payment" title="BPJS" />
+                    <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor BPJS *</Label>
+                          <Input
+                            value={bpjsNumber}
+                            onChange={(e) => setBpjsNumber(e.target.value)}
+                            placeholder={patient?.no_bpjs || "Nomor BPJS"}
+                            className={`${BPJS_FIELD_CLASS} text-sm`}
+                          />
+                        </div>
+                        {patient?.kelas_bpjs && (
+                          <div className="space-y-2">
+                            <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas</Label>
+                            <Input
+                              value={patient.kelas_bpjs}
+                              disabled
+                              className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {sepNumber ? (
-                          <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            {sepNumber}
-                          </Badge>
+
+                      {/* SEP Section */}
+                      <div className="rounded-none border border-border/70 bg-muted/10 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-foreground">SEP (Surat Eligibilitas Peserta)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {sepNumber ? (
+                              <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                {sepNumber}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
+                                Belum Ada
+                              </Badge>
+                            )}
+
+                            {sepNumber && (
+                              <TooltipProvider>
+                                <div className="flex items-center gap-1">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-none"
+                                        onClick={handlePrintSEP}
+                                        disabled={printingSEP || deletingSEP || unlinkingSEP}
+                                      >
+                                        {printingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Cetak SEP</TooltipContent>
+                                  </Tooltip>
+
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-none"
+                                        onClick={() => setSepSheetOpen(true)}
+                                        disabled={!bpjsNumber}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Lihat / Edit SEP</TooltipContent>
+                                  </Tooltip>
+
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-none"
+                                        onClick={() => setDeleteSEPOpen(true)}
+                                        disabled={deletingSEP || unlinkingSEP}
+                                      >
+                                        {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Hapus SEP ke BPJS</TooltipContent>
+                                  </Tooltip>
+
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-none"
+                                        onClick={() => setUnlinkSEPOpen(true)}
+                                        disabled={deletingSEP || unlinkingSEP}
+                                      >
+                                        {unlinkingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink2 className="h-4 w-4" />}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Unlink SEP lokal</TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </div>
+
+                        {sepNumber && sepData ? (
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <p>Poli: {sepData.poli?.nama || "-"}</p>
+                            <p>Dokter: {sepData.dokter?.nama || "-"}</p>
+                            <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+                          </div>
                         ) : (
-                          <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
-                            Belum Ada
-                          </Badge>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            SEP wajib dibuat untuk pasien BPJS
+                          </p>
                         )}
 
-                        {sepNumber && (
-                          <TooltipProvider>
-                            <div className="flex items-center gap-1">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-none"
-                                    onClick={handlePrintSEP}
-                                    disabled={printingSEP || deletingSEP || unlinkingSEP}
-                                  >
-                                    {printingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Cetak SEP</TooltipContent>
-                              </Tooltip>
-
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-none"
-                                    onClick={() => setSepSheetOpen(true)}
-                                    disabled={!bpjsNumber}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Lihat / Edit SEP</TooltipContent>
-                              </Tooltip>
-
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-none"
-                                    onClick={() => setDeleteSEPOpen(true)}
-                                    disabled={deletingSEP || unlinkingSEP}
-                                  >
-                                    {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Hapus SEP ke BPJS</TooltipContent>
-                              </Tooltip>
-
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-none"
-                                    onClick={() => setUnlinkSEPOpen(true)}
-                                    disabled={deletingSEP || unlinkingSEP}
-                                  >
-                                    {unlinkingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink2 className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Unlink SEP lokal</TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TooltipProvider>
+                        {!sepNumber && (
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            className="mt-3 w-full rounded-none"
+                            onClick={() => setSepSheetOpen(true)}
+                            disabled={!bpjsNumber}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Buat SEP
+                          </Button>
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
 
-                    {sepNumber && sepData ? (
-                      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                        <p>Poli: {sepData.poli?.nama || "-"}</p>
-                        <p>Dokter: {sepData.dokter?.nama || "-"}</p>
-                        <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+                {/* Insurance Fields */}
+                {paymentMethod === "insurance" && (
+                  <div className={BPJS_SECTION_CLASS}>
+                    <BPJSSectionHeader eyebrow="Payment" title="Asuransi" />
+                    <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-3 p-4 md:grid-cols-2`}>
+                      <div className="space-y-2">
+                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nama Asuransi *</Label>
+                        <Input
+                          value={insuranceName}
+                          onChange={(e) => setInsuranceName(e.target.value)}
+                          placeholder="Nama asuransi"
+                          className={`${BPJS_FIELD_CLASS} text-sm`}
+                        />
                       </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        SEP wajib dibuat untuk pasien BPJS
-                      </p>
-                    )}
-
-                    {!sepNumber && (
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        className="mt-3 w-full rounded-none"
-                        onClick={() => setSepSheetOpen(true)}
-                        disabled={!bpjsNumber}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Buat SEP
-                      </Button>
-                    )}
+                      <div className="space-y-2">
+                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Polis *</Label>
+                        <Input
+                          value={insuranceNumber}
+                          onChange={(e) => setInsuranceNumber(e.target.value)}
+                          placeholder="Nomor polis"
+                          className={`${BPJS_FIELD_CLASS} text-sm`}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {/* Insurance Fields */}
-              {paymentMethod === "insurance" && (
+                {/* Keluhan */}
                 <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Payment" title="Asuransi" />
-                  <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-3 p-4 md:grid-cols-2`}>
-                  <div className="space-y-2">
-                    <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nama Asuransi *</Label>
-                    <Input
-                      value={insuranceName}
-                      onChange={(e) => setInsuranceName(e.target.value)}
-                      placeholder="Nama asuransi"
-                      className={`${BPJS_FIELD_CLASS} text-sm`}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Polis *</Label>
-                    <Input
-                      value={insuranceNumber}
-                      onChange={(e) => setInsuranceNumber(e.target.value)}
-                      placeholder="Nomor polis"
-                      className={`${BPJS_FIELD_CLASS} text-sm`}
-                    />
-                  </div>
+                  <BPJSSectionHeader eyebrow="" title="" />
+                  <div className={`${BPJS_PANEL_CLASS} p-4`}>
+                    <div className="space-y-2">
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Keluhan (Opsional)</Label>
+                      <Textarea
+                        value={complaint}
+                        onChange={(e) => setComplaint(e.target.value)}
+                        placeholder="Keluhan pasien"
+                        rows={2}
+                        className="rounded-none border-border/70 bg-background text-sm shadow-none"
+                      />
+                    </div>
                   </div>
                 </div>
-              )}
-
-              {/* Keluhan */}
-              <div className={BPJS_SECTION_CLASS}>
-                <BPJSSectionHeader eyebrow="Notes" title="Keluhan" />
-                <div className={`${BPJS_PANEL_CLASS} p-4`}>
-                <div className="space-y-2">
-                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Keluhan (Opsional)</Label>
-                <Textarea
-                  value={complaint}
-                  onChange={(e) => setComplaint(e.target.value)}
-                  placeholder="Keluhan pasien"
-                  rows={2}
-                  className="rounded-none border-border/70 bg-background text-sm shadow-none"
-                />
-              </div>
-                </div>
-              </div>
               </div>
             </ScrollArea>
 
