@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import {
   vclaimApi,
-  type VClaimPeserta,
   type SEPLocal,
   type SuratKontrolResponse,
   type PRBStatusOption,
@@ -154,9 +153,6 @@ export function SuratKontrolFormSheet({
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Peserta state
-  const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
-
   // Detail Surat Kontrol state (for rendering Context)
   const [detailSuratKontrol, setDetailSuratKontrol] = useState<any | null>(null);
   const [showDetailSuratKontrol, setShowDetailSuratKontrol] = useState(false);
@@ -189,7 +185,6 @@ export function SuratKontrolFormSheet({
   useEffect(() => {
     if (open) {
       // Reset semua state
-      setPeserta(null);
       setDetailSuratKontrol(null);
       setTglRencanaKontrol("");
       setKodePoli("");

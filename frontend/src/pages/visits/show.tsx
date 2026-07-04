@@ -137,7 +137,6 @@ export default function VisitShow() {
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
   const [lockedPharmacyTabIds, setLockedPharmacyTabIds] = useState<string[]>([]);
   const [pharmacyTabLockReason, setPharmacyTabLockReason] = useState<string>("");
-  const [hasPharmacyFinalReviewCompleted, setHasPharmacyFinalReviewCompleted] = useState(false);
   const [tabIndicators, setTabIndicators] = useState<Record<string, string>>({});
   const [tabSavedStates, setTabSavedStates] = useState<Record<string, boolean>>({});
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
@@ -236,7 +235,6 @@ export default function VisitShow() {
     try {
       const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const activeOrders = (ordersRes.data || []).filter((order) => order.status !== "cancelled");
-      let hasCompletedFinalReview = false;
       const hasProgressedOrder = activeOrders.some(
         (order) =>
           order.reviewed_at ||
@@ -263,13 +261,6 @@ export default function VisitShow() {
           reviewData = null;
         }
 
-        if (
-          reviewData?.final_review_completed ||
-          ["delivered", "returned"].includes(order.status)
-        ) {
-          hasCompletedFinalReview = true;
-        }
-
         if (reviewData?.final_review_completed || reviewData?.initial_review_completed) {
           hasCompletedReview = true;
         }
@@ -278,8 +269,6 @@ export default function VisitShow() {
           hasPendingInitialReview = true;
         }
       }
-
-      setHasPharmacyFinalReviewCompleted(hasCompletedFinalReview);
 
       if (hasCompletedReview) {
         hasPendingInitialReview = false;
@@ -460,7 +449,6 @@ export default function VisitShow() {
     if (!id || !isPharmacy) {
       setLockedPharmacyTabIds([]);
       setPharmacyTabLockReason("");
-      setHasPharmacyFinalReviewCompleted(false);
       return;
     }
     void refreshPharmacyTabLock(Number(id));
@@ -523,7 +511,6 @@ export default function VisitShow() {
       } else {
         setLockedPharmacyTabIds([]);
         setPharmacyTabLockReason("");
-        setHasPharmacyFinalReviewCompleted(false);
       }
 
       // Check if radiology visit

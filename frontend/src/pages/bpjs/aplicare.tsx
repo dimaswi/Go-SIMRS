@@ -89,6 +89,21 @@ export default function AplicarePage() {
     loadRooms();
   }, [loadBedData, loadRooms]);
 
+  const findSimrsRoomForAplicare = useCallback((itemOrCode: AplicareBedItem | string) => {
+    const kodeRuang = typeof itemOrCode === "string" ? itemOrCode.toLowerCase() : itemOrCode.koderuang.toLowerCase();
+    const namaRuang = typeof itemOrCode === "string" ? "" : itemOrCode.namaruang.toLowerCase().trim();
+
+    return rooms.find((room) => {
+      const roomCode = room.code.toLowerCase();
+      const roomName = room.name.toLowerCase().trim();
+      return (
+        roomCode === kodeRuang ||
+        roomCode.substring(0, 10) === kodeRuang ||
+        (!!namaRuang && roomName === namaRuang)
+      );
+    }) || null;
+  }, [rooms]);
+
   // Assign room to Aplicare
   const handleAssignRoom = async () => {
     if (!assignRoomId) {
@@ -112,9 +127,16 @@ export default function AplicarePage() {
   // Delete room from Aplicare
   const handleDeleteRoom = async () => {
     if (!deleteItem) return;
+
+    const simrsRoom = findSimrsRoomForAplicare(deleteItem);
+    if (!simrsRoom) {
+      toast({ variant: "destructive", title: "Gagal", description: `Ruangan ${deleteItem.koderuang} tidak ditemukan di SIMRS` });
+      return;
+    }
+
     setDeleteSubmitting(true);
     try {
-      const res = await bpjsApi.aplicareDeleteRoom(deleteItem.kodekelas, deleteItem.koderuang);
+      const res = await bpjsApi.aplicareDeleteRoom(simrsRoom.id);
       toast({ title: "Berhasil", description: res.data.message });
       setDeleteItem(null);
       loadBedData();
@@ -127,18 +149,7 @@ export default function AplicarePage() {
 
   // Manual update room availability
   const handleUpdateRoom = async (kodeRuang: string) => {
-    // Find matching SIMRS room by code or by its Kamar unit code
-    // BPJS truncates kodeRuang to 10 characters, so we must substring our local codes to 10 characters for comparison
-    const simrsRoom = rooms.find(r => {
-      if (r.code.substring(0, 10) === kodeRuang) return true;
-      if (r.units && r.units.some(u => {
-        const fallbackCode = `${r.code}-${u.id}`;
-        return (u.code && u.code.substring(0, 10) === kodeRuang) || (fallbackCode.substring(0, 10) === kodeRuang);
-      })) {
-        return true;
-      }
-      return false;
-    });
+    const simrsRoom = findSimrsRoomForAplicare(kodeRuang);
     if (!simrsRoom) {
       toast({ variant: "destructive", title: "Gagal", description: `Ruangan ${kodeRuang} tidak ditemukan di SIMRS` });
       return;

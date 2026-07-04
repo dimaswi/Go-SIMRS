@@ -53,14 +53,11 @@ import {
   Clock,
   Eye,
   Activity,
-  AlertCircle,
   Send,
   SlidersHorizontal,
   Search,
   X,
   ClipboardList,
-  ChevronUp,
-  ChevronDown,
   ListOrdered,
 } from "lucide-react";
 import {
@@ -237,36 +234,6 @@ export default function BPJSQueueMonitoringPage() {
     }
   };
 
-  // Handle retry AddAntrean
-  const handleRetryAddAntrean = async (queueId: number) => {
-    setSendingTask(-1); // use -1 as "retrying add" indicator
-
-    try {
-      const response = await bpjsApi.retryAddAntrean(queueId);
-
-      toast({
-        variant: response.data.success ? "default" : "destructive",
-        title: response.data.success ? "Berhasil" : "Gagal",
-        description: `AddAntrean: ${response.data.response_msg} (code: ${response.data.response_code})`,
-      });
-
-      if (response.data.data) {
-        setQueues(prev => prev.map(q =>
-          q.id === queueId ? { ...q, ...response.data.data } : q
-        ));
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Gagal mengirim AddAntrean";
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: errorMsg,
-      });
-    } finally {
-      setSendingTask(null);
-    }
-  };
-
   // Initialize task times when selected queue changes - removed (now per-task modal)
 
   // Antrian Online handlers
@@ -337,15 +304,6 @@ export default function BPJSQueueMonitoringPage() {
       } finally {
         setAntreanDetailLoading(null);
       }
-    }
-  };
-
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return "-";
-    try {
-      return format(new Date(dateStr), "dd/MM/yyyy HH:mm:ss", { locale: idLocale });
-    } catch {
-      return "-";
     }
   };
 
@@ -431,25 +389,6 @@ export default function BPJSQueueMonitoringPage() {
     };
     const config = statusConfig[status] || { color: "bg-gray-100 text-gray-800", label: status };
     return <Badge className={config.color}>{config.label}</Badge>;
-  };
-
-  const getSyncStatusBadge = (syncStatus: string) => {
-    if (syncStatus === "success" || syncStatus === "synced") {
-      return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Synced</Badge>;
-    } else if (syncStatus === "failed") {
-      return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
-    }
-    return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-  };
-
-  const getJenisKunjunganLabel = (jenis: number) => {
-    switch (jenis) {
-      case 1: return "Rujukan FKTP";
-      case 2: return "Rujukan Internal";
-      case 3: return "Kontrol";
-      case 4: return "Rujukan Antar RS";
-      default: return String(jenis);
-    }
   };
 
   const filteredQueues = queues.filter((queue) => {

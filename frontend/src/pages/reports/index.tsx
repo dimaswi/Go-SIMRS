@@ -32,7 +32,6 @@ import {
   reportQuickStats,
 } from './report-catalog';
 import {
-  ReportKpiGrid,
   ReportPanel,
   REPORT_MONO_FAMILY,
 } from './report-ui';
@@ -176,7 +175,7 @@ function PageHeader({ icon, title, children }: { icon: ReactNode; title: string;
   return (
     <ShellPageHeader
       title={title}
-      actions={null}
+      actions={children ?? null}
       className="border-border/70 bg-background/95"
       badges={icon}
     />

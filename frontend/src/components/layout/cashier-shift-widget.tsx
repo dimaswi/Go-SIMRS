@@ -147,7 +147,7 @@ export function CashierShiftWidget() {
         size="sm"
         className={`h-8 gap-1.5 rounded-full px-3 text-xs font-semibold ${shift ? 'border-green-500 text-green-700 bg-green-50 hover:bg-green-100 hover:text-green-800' : ''}`}
         onClick={() => shift ? setCloseModalOpen(true) : setOpenModalOpen(true)}
-        disabled={loading || (!shift && !canOpenShift) || (shift && !canCloseShift)}
+        disabled={loading || (!shift && !canOpenShift) || (!!shift && !canCloseShift)}
       >
         {loading ? (
           <RefreshCw className="h-3.5 w-3.5 animate-spin" />
