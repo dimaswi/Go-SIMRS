@@ -48,6 +48,7 @@ function toComboOptions(options: SEPOptionItem[]) {
 interface SEPFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  sourceContext?: "kontrol" | "reguler";
   patient: {
     id: number;
     no_rm: string;
@@ -85,6 +86,7 @@ interface SEPFormSheetProps {
 export function SEPFormSheet({
   open,
   onOpenChange,
+  sourceContext = "reguler",
   patient,
   registrationId,
   visitId,
@@ -645,6 +647,11 @@ export function SEPFormSheet({
                   <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}>
                     {loadingPeserta ? "Mengecek..." : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
                   </Badge>
+                  {sourceContext === "kontrol" && (
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                      Dari Jadwal Kontrol
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} â€¢ RM {patient.no_rm}</p>
               </div>

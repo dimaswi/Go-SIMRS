@@ -523,7 +523,7 @@ func printSuratKontrolSIMRSImpl(c *gin.Context) {
 		pdf.SetY(qrY + 25)
 	}
 
-	addSignature(pdf, hospitalInfo.City, namaDokter, "Dokter Pemeriksa", "", 0)
+	addDualSignature(pdf, hospitalInfo.City, namaDokter, models.DocTypeSuratKontrol, reg.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {

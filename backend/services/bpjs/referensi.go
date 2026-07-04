@@ -56,10 +56,12 @@ type referensiEnvelope struct {
 }
 
 func (c *Client) requestReferensiList(endpoint string) (json.RawMessage, error) {
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	start := time.Now()
+	timestamp := strconv.FormatInt(start.Unix(), 10)
 	signature := c.GenerateSignature(timestamp)
 
-	req, err := http.NewRequest("GET", c.BaseURL+endpoint, nil)
+	fullURL := c.BaseURL + endpoint
+	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create referensi request: %w", err)
 	}
@@ -71,22 +73,27 @@ func (c *Client) requestReferensiList(endpoint string) (json.RawMessage, error) 
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.HTTPClient.Do(req)
+	duration := time.Since(start).Milliseconds()
 	if err != nil {
+		logSync("GET", fullURL, "", "", http.StatusInternalServerError, int(duration), "Request failed: "+err.Error())
 		return nil, fmt.Errorf("execute referensi request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logSync("GET", fullURL, "", "", resp.StatusCode, int(duration), "Read response error: "+err.Error())
 		return nil, fmt.Errorf("read referensi response: %w", err)
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
+		logSync("GET", fullURL, "", string(body), resp.StatusCode, int(duration), fmt.Sprintf("HTTP %d", resp.StatusCode))
 		return nil, fmt.Errorf("server BPJS mengembalikan status: %d", resp.StatusCode)
 	}
 
 	var envelope referensiEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
+		logSync("GET", fullURL, "", string(body), resp.StatusCode, int(duration), "JSON parse error: "+err.Error())
 		return nil, fmt.Errorf("parse referensi envelope: %w", err)
 	}
 
@@ -101,6 +108,7 @@ func (c *Client) requestReferensiList(endpoint string) (json.RawMessage, error) 
 	}
 
 	if code != 1 && code != 200 {
+		logSync("GET", fullURL, "", string(body), code, int(duration), "BPJS error: "+envelope.MetaData.Message)
 		return nil, fmt.Errorf("BPJS error [%d]: %s", code, envelope.MetaData.Message)
 	}
 
@@ -109,15 +117,19 @@ func (c *Client) requestReferensiList(endpoint string) (json.RawMessage, error) 
 	case string:
 		decrypted, err := c.DecryptResponse(v, timestamp)
 		if err != nil {
+			logSync("GET", fullURL, "", string(body), code, int(duration), "Decryption error: "+err.Error())
 			return nil, fmt.Errorf("decrypt referensi response: %w", err)
 		}
 		responseBody = decrypted
 	default:
 		responseBody, err = json.Marshal(v)
 		if err != nil {
+			logSync("GET", fullURL, "", string(body), code, int(duration), "Marshal response error: "+err.Error())
 			return nil, fmt.Errorf("marshal referensi response: %w", err)
 		}
 	}
+	
+	logSync("GET", fullURL, "", string(responseBody), code, int(duration), "")
 
 	var listResp ListResponse
 	if err := json.Unmarshal(responseBody, &listResp); err == nil && len(listResp.List) > 0 {

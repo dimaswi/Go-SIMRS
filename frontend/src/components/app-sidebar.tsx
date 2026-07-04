@@ -87,8 +87,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { DASHBOARD_ACCESS_PERMISSIONS } from '@/pages/dashboard/config';
-
 const LOGISTICS_ACCESS_PERMISSIONS = [
   'medicines.view',
   'inventories.view',
@@ -135,10 +133,9 @@ const menuItems: MenuItem[] = [
     path: '/room-management',
     label: 'Manajemen Ruangan',
     icon: Hotel,
-    permission: 'rooms.view',
     submenu: [
       { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
-      { path: '/floor-plan', label: 'Floor Plan', icon: Map, permission: 'rooms.view' },
+      { path: '/floor-plan', label: 'Floor Plan', icon: Map, permission: 'buildings.view' },
     ]
   },
   {
@@ -198,7 +195,7 @@ const menuItems: MenuItem[] = [
       { path: '/patients', label: 'Pasien', icon: UserRound, permission: 'patients.view' },
       { path: '/employees', label: 'Pegawai', icon: UserCog, permission: 'employees.view' },
       { path: '/rooms', label: 'Ruangan', icon: BedDouble, permission: 'rooms.view' },
-      { path: '/buildings', label: 'Gedung', icon: Building2, permission: 'rooms.view' },
+      { path: '/buildings', label: 'Gedung', icon: Building2, permission: 'buildings.view' },
       { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
       { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
@@ -214,11 +211,10 @@ const menuItems: MenuItem[] = [
     icon: Building2,
     permission: 'integrations.view',
     submenu: [
-      { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
-      { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
-      { path: '/bpjs/mapping', label: 'Mapping Poli & Dokter', icon: Building2, permission: 'integrations.view' },
-      { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
-      { path: '/bpjs/spri-monitoring', label: 'Monitoring SPRI', icon: FileText, permission: 'integrations.view' },
+        { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
+        { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
+        { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
+        { path: '/bpjs/spri-monitoring', label: 'Monitoring SPRI', icon: FileText, permission: 'integrations.view' },
       { path: '/bpjs/surat-kontrol-monitoring', label: 'Monitoring Surat Kontrol', icon: CalendarCheck, permission: 'integrations.view' },
       { path: '/bpjs/logs', label: 'Log API', icon: FileSearch, permission: 'integrations.view' },
       { path: '/bpjs/api-tester', label: 'API Tester', icon: Send, permission: 'integrations.view' },
@@ -304,7 +300,11 @@ function hasAnySavedUserPermission(user: SavedAuthAccount['user'], permissions: 
 }
 
 function hasDashboardMenuAccess(hasPermission: (permission: string) => boolean): boolean {
-  return DASHBOARD_ACCESS_PERMISSIONS.some((permission) => hasPermission(permission));
+  return hasPermission('dashboard.view');
+}
+
+function hasLogisticsMenuAccess(hasPermission: (permission: string) => boolean): boolean {
+  return LOGISTICS_ACCESS_PERMISSIONS.some((permission) => hasPermission(permission));
 }
 
 function hasMenuItemAccess(item: MenuItem, hasPermission: (permission: string) => boolean): boolean {
@@ -313,7 +313,7 @@ function hasMenuItemAccess(item: MenuItem, hasPermission: (permission: string) =
   }
 
   if (item.path === '/logistics') {
-    return LOGISTICS_ACCESS_PERMISSIONS.some((permission) => hasPermission(permission));
+    return hasLogisticsMenuAccess(hasPermission);
   }
 
   if (!item.permission) {
@@ -632,7 +632,9 @@ export function AppSidebar() {
     setSwitchingAccountKey(account.key);
     const requiredPermission = getRequiredPermissionForPath(location.pathname);
     const canStayOnCurrentPage = location.pathname === '/dashboard'
-      ? hasAnySavedUserPermission(account.user, DASHBOARD_ACCESS_PERMISSIONS)
+      ? userHasPermission(account.user, 'dashboard.view')
+      : location.pathname === '/logistics'
+        ? hasAnySavedUserPermission(account.user, LOGISTICS_ACCESS_PERMISSIONS)
       : !requiredPermission || userHasPermission(account.user, requiredPermission);
 
     login(account.token, account.user);

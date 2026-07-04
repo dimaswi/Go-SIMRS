@@ -454,9 +454,9 @@ func UpdateRoomBedAvailability(roomID uint, source string) {
 				kodeRuang = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
 			}
 			
-			// BPJS Aplicare implicitly truncates KodeRuang to 10 characters
+			// Ambil 10 karakter TERAKHIR agar bagian unik (-001, -002, dst.) tetap terjaga
 			if len(kodeRuang) > 10 {
-				kodeRuang = kodeRuang[:10]
+				kodeRuang = kodeRuang[len(kodeRuang)-10:]
 			}
 
 			namaRuang := stat.UnitName

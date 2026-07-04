@@ -351,7 +351,9 @@ func ReportBPJSByPoli(c *gin.Context) {
 
 	var rows []BPJSByPoliRow
 	db.Raw(`
-		SELECT rm.code AS kode_poli, rm.name AS nama_poli,
+		SELECT
+			COALESCE(NULLIF(s.kode_poli, ''), rm.code) AS kode_poli,
+			COALESCE(NULLIF(s.nama_poli, ''), rm.name) AS nama_poli,
 			COUNT(DISTINCT r.id) AS jumlah,
 			COUNT(DISTINCT s.id) AS sep_count
 		FROM registrations r
@@ -359,7 +361,8 @@ func ReportBPJSByPoli(c *gin.Context) {
 		LEFT JOIN sep s ON s.registration_id = r.id AND s.deleted_at IS NULL
 		WHERE r.deleted_at IS NULL AND r.payment_method = 'bpjs'
 		  AND r.registration_date BETWEEN ? AND ? AND r.status NOT IN ('cancelled')
-		GROUP BY rm.code, rm.name ORDER BY jumlah DESC
+		GROUP BY COALESCE(NULLIF(s.kode_poli, ''), rm.code), COALESCE(NULLIF(s.nama_poli, ''), rm.name)
+		ORDER BY jumlah DESC
 	`, dr.StartDate, dr.EndDate).Scan(&rows)
 
 	if IsExcelExport(c) {

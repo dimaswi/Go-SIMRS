@@ -66,8 +66,11 @@ import {
   X,
   Eye,
   Save,
+  PenTool,
 } from "lucide-react";
 import { vclaimApi, type SuratKontrolLocal, type VClaimRefPoli, type VClaimRefDokter } from "@/lib/api/vclaim";
+import { signatureApi } from "@/lib/api/signature";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 import { printApi } from "@/lib/api/print";
 import { registrationApi } from "@/lib/api/queue";
 import procedureOrdersApi from "@/lib/api/procedure-orders";
@@ -113,6 +116,12 @@ export default function SuratKontrolMonitoringPage() {
   const [editForm, setEditForm] = useState({ tgl_rencana_kontrol: "", kode_poli: "", nama_poli: "", kode_dokter: "", nama_dokter: "" });
   const isEditingSIMRS = editingItem?.source_type === "simrs";
   const [saving, setSaving] = useState(false);
+
+  // TTD Dialog
+  const [signDoc, setSignDoc] = useState<{ id: number; type: string; title: string } | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signed_signatures?: number; required_signatures?: number }>>({});
+
   const [poliOptions, setPoliOptions] = useState<VClaimRefPoli[]>([]);
   const [dokterOptions, setDokterOptions] = useState<VClaimRefDokter[]>([]);
   const [_poliSearch, setPoliSearch] = useState("");
@@ -138,7 +147,24 @@ export default function SuratKontrolMonitoringPage() {
       params.limit = 500;
 
       const resp = await vclaimApi.getSuratKontrolList(params as any);
-      setList(resp.data.data || []);
+      const items = resp.data.data || [];
+      setList(items);
+
+      // Fetch signature statuses for all surat kontrol (BPJS & SIMRS)
+      if (items.length > 0) {
+        const batchDocs = items
+          .map((i) => ({ document_type: "surat_kontrol", document_id: i.id }));
+
+        if (batchDocs.length > 0) {
+          try {
+            const sigRes = await signatureApi.batchSignatureStatus(batchDocs);
+            const statuses = sigRes.data?.statuses || {};
+            setSignatureStatuses((prev) => ({ ...prev, ...statuses }));
+          } catch (e) {
+            console.error("Gagal load signature statuses", e);
+          }
+        }
+      }
     } catch {
       toast({ variant: "destructive", title: "Error", description: "Gagal memuat data Surat Kontrol" });
     } finally {
@@ -171,6 +197,15 @@ export default function SuratKontrolMonitoringPage() {
       return;
     }
     printApi.suratKontrol(item.id);
+  };
+
+  const handleSign = (item: SuratKontrolLocal) => {
+    setSignDoc({
+      id: item.id,
+      type: "surat_kontrol",
+      title: item.no_surat_kontrol || "Surat Kontrol",
+    });
+    setShowSignDialog(true);
   };
 
   const handleConfirmDelete = (item: SuratKontrolLocal) => {
@@ -376,197 +411,223 @@ export default function SuratKontrolMonitoringPage() {
       }
     >
       <BPJSSectionPanel title="Daftar Surat Kontrol">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <CollapsibleContent>
-          <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Terbit (Dari)</Label>
-              <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
+        <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+          <CollapsibleContent>
+            <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Terbit (Dari)</Label>
+                <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Terbit (Sampai)</Label>
+                <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Kontrol (Dari)</Label>
+                <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Kontrol (Sampai)</Label>
+                <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="active">Aktif</SelectItem>
+                    <SelectItem value="used">Digunakan</SelectItem>
+                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cari (No. Kartu / Nama)</Label>
+                <Input
+                  placeholder="Cari..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  className="h-9 w-48"
+                />
+              </div>
+              <Button onClick={handleSearch} disabled={loading} size="sm" className="h-9">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                Cari
+              </Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={handleReset}>
+                <X className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Terbit (Sampai)</Label>
-              <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Kontrol (Dari)</Label>
-              <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Kontrol (Sampai)</Label>
-              <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="active">Aktif</SelectItem>
-                  <SelectItem value="used">Digunakan</SelectItem>
-                  <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Cari (No. Kartu / Nama)</Label>
-              <Input
-                placeholder="Cari..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                className="h-9 w-48"
-              />
-            </div>
-            <Button onClick={handleSearch} disabled={loading} size="sm" className="h-9">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Cari
-            </Button>
-            <Button variant="outline" size="sm" className="h-9" onClick={handleReset}>
-              <X className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {loading ? "Memuat..." : `${list.length} data kontrol ditemukan`}
-        </p>
-      </div>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {loading ? "Memuat..." : `${list.length} data kontrol ditemukan`}
+          </p>
+        </div>
 
-      {loading ? (
-        <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
-          <div className="text-center">
-            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+        {loading ? (
+          <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
+            <div className="text-center">
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+            </div>
           </div>
-        </div>
-      ) : list.length === 0 ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
-          <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm font-medium text-muted-foreground">Tidak ada data Surat Kontrol</p>
-          <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
-        </div>
-      ) : (
-      <div className="overflow-hidden border-y border-border/70 bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead className="w-12 text-center">#</TableHead>
-              <TableHead>No. Surat Kontrol</TableHead>
-              <TableHead>Nama / No. Kartu</TableHead>
-              <TableHead>No. SEP</TableHead>
-              <TableHead>Tgl Terbit</TableHead>
-              <TableHead>Tgl Rencana Kontrol</TableHead>
-              <TableHead>Poli</TableHead>
-              <TableHead>Dokter DPJP</TableHead>
-              <TableHead className="text-center">PRB</TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-center">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list.map((item, idx) => (
-                <TableRow key={item.id} className="hover:bg-muted/30">
-                  <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
-                  <TableCell className="font-mono text-sm font-semibold text-purple-700">
-                    <div className="flex items-center gap-2">
-                      <span>{item.no_surat_kontrol}</span>
-                      {item.source_type === "simrs" && (
-                        <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300">
-                          SIMRS
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-medium text-sm">{item.nama || "-"}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{item.no_kartu}</p>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{item.no_sep}</TableCell>
-                  <TableCell className="text-sm">
-                    {item.created_at
-                      ? format(new Date(item.created_at), "dd/MM/yyyy", { locale: idLocale })
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {item.tgl_rencana_kontrol
-                      ? format(new Date(item.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[120px]">
-                    <p className="truncate">{item.nama_poli || item.kode_poli || "-"}</p>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[120px]">
-                    <p className="truncate">{item.nama_dokter || item.kode_dokter || "-"}</p>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {item.is_prb ? (
-                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                        {item.nama_status_prb || item.kd_status_prb || "PRB"}
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">{getStatusBadge(item.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(item)}>
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Detail Surat Kontrol</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {item.status === "active" && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => handleOpenEdit(item)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{item.source_type === "simrs" ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(item)}>
-                              <Printer className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{item.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {item.status === "active" && item.source_type !== "simrs" && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(item)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Hapus Surat Kontrol</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </div>
-                  </TableCell>
+        ) : list.length === 0 ? (
+          <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
+            <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">Tidak ada data Surat Kontrol</p>
+            <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden border-y border-border/70 bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>No. Surat Kontrol</TableHead>
+                  <TableHead>Nama / No. Kartu</TableHead>
+                  <TableHead>No. SEP</TableHead>
+                  <TableHead>Tgl Terbit</TableHead>
+                  <TableHead>Tgl Rencana Kontrol</TableHead>
+                  <TableHead>Poli</TableHead>
+                  <TableHead className="w-[120px]">Dokter DPJP</TableHead>
+                  <TableHead className="w-[80px] text-center">Program</TableHead>
+                  <TableHead className="w-[120px] text-center">Status TTD</TableHead>
+                  <TableHead className="w-[80px] text-center">Status</TableHead>
+                  <TableHead className="w-[150px] text-center">Aksi</TableHead>
                 </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
-      )}
+              </TableHeader>
+              <TableBody>
+                {list.map((item, idx) => {
+                  const sigStatus = signatureStatuses[`surat_kontrol:${item.id}`];
+                  const signed = sigStatus?.signed_signatures || (sigStatus?.is_signed ? 2 : 0);
+                  const required = sigStatus?.required_signatures || 2;
+
+                  return (
+                    <TableRow key={item.id} className="hover:bg-muted/30">
+                      <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
+                      <TableCell className="font-mono text-sm font-semibold text-purple-700">
+                        <div className="flex items-center gap-2">
+                          <span>{item.no_surat_kontrol}</span>
+                          {item.source_type === "simrs" && (
+                            <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300">
+                              SIMRS
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium text-sm">{item.nama || "-"}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{item.no_kartu}</p>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{item.no_sep}</TableCell>
+                      <TableCell className="text-sm">
+                        {item.created_at
+                          ? format(new Date(item.created_at), "dd/MM/yyyy", { locale: idLocale })
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {item.tgl_rencana_kontrol
+                          ? format(new Date(item.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[120px]">
+                        <p className="truncate">{item.nama_poli || item.kode_poli || "-"}</p>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[120px]">
+                        <p className="truncate">{item.nama_dokter || item.kode_dokter || "-"}</p>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {item.is_prb ? (
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                            {item.nama_status_prb || item.kd_status_prb || "PRB"}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {signed === required ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">Lengkap</Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">{signed}/{required}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">{getStatusBadge(item.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(item)}>
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Detail Surat Kontrol</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {item.status === "active" && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => handleOpenEdit(item)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{item.source_type === "simrs" ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {item.status === "active" && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => handleSign(item)}>
+                                    <PenTool className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Tandatangani Dokumen</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(item)}>
+                                  <Printer className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{item.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {item.status === "active" && item.source_type !== "simrs" && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(item)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Hapus Surat Kontrol</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </BPJSSectionPanel>
 
       {/* Detail Dialog */}
@@ -648,29 +709,43 @@ export default function SuratKontrolMonitoringPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
-              Hapus Surat Kontrol dari BPJS?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Hapus Surat Kontrol?</AlertDialogTitle>
             <AlertDialogDescription>
-              Surat Kontrol <strong className="font-mono">{deletingItem?.no_surat_kontrol}</strong> akan dihapus dari sistem BPJS VClaim.
-              <br /><br />
-              <span className="text-destructive font-medium">⚠️ Tindakan ini tidak dapat dibatalkan.</span>
+              Apakah Anda yakin ingin menghapus surat kontrol {deletingItem?.no_surat_kontrol}?
+              Tindakan ini juga akan menghapus data di sistem BPJS.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Kembali</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Hapus dari BPJS
+            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              {deleting ? "Menghapus..." : "Hapus"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tanda Tangan Modal */}
+      {signDoc && (
+        <SignOnBehalfDialog
+          open={showSignDialog}
+          onOpenChange={(isOpen) => {
+            setShowSignDialog(isOpen);
+            if (!isOpen) {
+              loadData(); // Refresh signature status
+            }
+          }}
+          documentType={signDoc.type}
+          documentId={signDoc.id}
+          documentTitle={signDoc.title}
+          signerHint="Tanda Tangan Surat Kontrol"
+          requiredSignatures={2}
+          slotLabels={{ left: "Pasien / Keluarga", right: "Mengetahui DPJP" }}
+          fixedRoles={{ left: "pasien", right: "dpjp" }}
+          onSuccess={() => {
+            // will auto close
+          }}
+        />
+      )}
 
       {/* Edit Sheet */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
@@ -682,103 +757,103 @@ export default function SuratKontrolMonitoringPage() {
             </SheetTitle>
           </SheetHeader>
 
-          {editingItem && (
-            <div className="space-y-6 py-4">
-              {/* Info peserta (read-only) */}
-              <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
-                    <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Nama</span>
-                    <p className="font-medium">{editingItem.nama || "-"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">No. Kartu</span>
-                    <p className="font-mono text-xs">{editingItem.no_kartu}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">No. SEP</span>
-                    <p className="font-mono text-xs">{editingItem.no_sep}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground text-xs">Diagnosa</span>
-                    <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
-                  </div>
-                  {editingItem.is_prb && (
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground text-xs">Program PRB</span>
-                      <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
-                    </div>
-                  )}
-                </div>
+      {editingItem && (
+        <div className="space-y-6 py-4">
+          {/* Info peserta (read-only) */}
+          <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
+            <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
+                <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
               </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Nama</span>
+                <p className="font-medium">{editingItem.nama || "-"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">No. Kartu</span>
+                <p className="font-mono text-xs">{editingItem.no_kartu}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">No. SEP</span>
+                <p className="font-mono text-xs">{editingItem.no_sep}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground text-xs">Diagnosa</span>
+                <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
+              </div>
+              {editingItem.is_prb && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground text-xs">Program PRB</span>
+                  <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
+                </div>
+              )}
+            </div>
+          </div>
 
-              {/* Editable fields */}
-              <div className="space-y-4">
+          {/* Editable fields */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
+              <Input
+                type="date"
+                value={editForm.tgl_rencana_kontrol}
+                onChange={(e) => {
+                  setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
+                  if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
+                }}
+                className="h-9"
+              />
+            </div>
+
+            {!isEditingSIMRS && (
+              <>
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
-                  <Input
-                    type="date"
-                    value={editForm.tgl_rencana_kontrol}
-                    onChange={(e) => {
-                      setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
-                      if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
-                    }}
+                  <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                  <Combobox
+                    options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
+                    value={editForm.kode_poli}
+                    onValueChange={handlePoliChange}
+                    onSearchChange={handlePoliSearchChange}
+                    placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
                     className="h-9"
                   />
+                  {editForm.nama_poli && (
+                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+                  )}
                 </div>
 
-                {!isEditingSIMRS && (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
-                      <Combobox
-                        options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
-                        value={editForm.kode_poli}
-                        onValueChange={handlePoliChange}
-                        onSearchChange={handlePoliSearchChange}
-                        placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
-                        className="h-9"
-                      />
-                      {editForm.nama_poli && (
-                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
-                      )}
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Dokter DPJP *</Label>
+                  <Combobox
+                    options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
+                    value={editForm.kode_dokter}
+                    onValueChange={handleDokterChange}
+                    placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                    className="h-9"
+                  />
+                  {editForm.nama_dokter && (
+                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Dokter DPJP *</Label>
-                      <Combobox
-                        options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
-                        value={editForm.kode_dokter}
-                        onValueChange={handleDokterChange}
-                        placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
-                        className="h-9"
-                      />
-                      {editForm.nama_dokter && (
-                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          <SheetFooter className="pt-4 flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
-              Batal
-            </Button>
-            <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </BPJSPageFrame>
+      <SheetFooter className="pt-4 flex gap-2">
+        <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
+          Batal
+        </Button>
+        <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
+        </Button>
+      </SheetFooter>
+    </SheetContent>
+      </Sheet >
+    </BPJSPageFrame >
   );
 }

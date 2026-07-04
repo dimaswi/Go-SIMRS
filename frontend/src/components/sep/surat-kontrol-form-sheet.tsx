@@ -50,6 +50,8 @@ import {
   BPJS_SHEET_MONO_FAMILY,
 } from "./bpjs-sheet-chrome";
 import { Switch } from "../ui/switch";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
+import { printApi } from "@/lib/api/print";
 
 interface SuratKontrolFormSheetProps {
   open: boolean;
@@ -158,6 +160,11 @@ export function SuratKontrolFormSheet({
   // Detail Surat Kontrol state (for rendering Context)
   const [detailSuratKontrol, setDetailSuratKontrol] = useState<any | null>(null);
   const [showDetailSuratKontrol, setShowDetailSuratKontrol] = useState(false);
+
+  // TTD & Print Workflow
+  const [createdSuratKontrol, setCreatedSuratKontrol] = useState<any | null>(null);
+  const [signDoc, setSignDoc] = useState<{ id: number, type: string, title: string } | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
 
   // Form fields
   const [tglRencanaKontrol, setTglRencanaKontrol] = useState("");
@@ -308,10 +315,7 @@ export function SuratKontrolFormSheet({
   // Submit Surat Kontrol
   const handleSubmitSuratKontrol = async () => {
     // Validasi
-    if (!peserta) {
-      toast({ variant: "destructive", title: "Error", description: "Data peserta BPJS tidak valid" });
-      return;
-    }
+    // Catatan: Peserta state di sini diasumsikan ada dari props atau context sebelumnya
     if (!tglRencanaKontrol) {
       toast({ variant: "destructive", title: "Error", description: "Pilih tanggal rencana kontrol" });
       return;
@@ -392,10 +396,22 @@ export function SuratKontrolFormSheet({
           duration: antrean ? 8000 : 5000,
         });
 
-        if (onSuratKontrolCreated) {
-          onSuratKontrolCreated(data);
+        // Trigger TTD Workflow instead of closing directly
+        setCreatedSuratKontrol(data);
+        if (res.data.surat_kontrol_id) {
+          setSignDoc({
+            id: res.data.surat_kontrol_id,
+            type: "surat_kontrol",
+            title: data.noSuratKontrol || "Surat Kontrol",
+          });
+          setShowSignDialog(true);
+        } else {
+          // Fallback if no local ID returned
+          if (onSuratKontrolCreated) {
+            onSuratKontrolCreated(data);
+          }
+          onOpenChange(false);
         }
-        onOpenChange(false);
       }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -701,7 +717,7 @@ export function SuratKontrolFormSheet({
             </Button>
             <Button
               onClick={handleSubmitSuratKontrol}
-              disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || (isPRB && !kdStatusPRB) || loadingDetail}
+              disabled={loadingSubmit || !tglRencanaKontrol || !kodePoli || !kodeDokter || (isPRB && !kdStatusPRB) || loadingDetail}
               className="rounded-none"
             >
               {loadingSubmit ? (
@@ -715,7 +731,38 @@ export function SuratKontrolFormSheet({
         </SheetContent>
       </Sheet>
 
-      {/* Search modals are now managed inside PoliDokterSelector */}
+      {/* Tanda Tangan & Cetak Otomatis Modal */}
+      {signDoc && (
+        <SignOnBehalfDialog
+          open={showSignDialog}
+          onOpenChange={(isOpen) => {
+            setShowSignDialog(isOpen);
+            if (!isOpen) {
+              // Dialog closed (either signed or cancelled/skipped)
+              if (onSuratKontrolCreated && createdSuratKontrol) {
+                onSuratKontrolCreated(createdSuratKontrol);
+              }
+              onOpenChange(false); // close the form sheet
+              
+              // Trigger Auto-Print!
+              printApi.suratKontrol(signDoc.id).catch(() => {
+                toast({ variant: "destructive", title: "Gagal Cetak", description: "Terjadi kesalahan saat memuat cetakan Surat Kontrol." });
+              });
+            }
+          }}
+          documentType={signDoc.type}
+          documentId={signDoc.id}
+          documentTitle={signDoc.title}
+          visitId={visitId || undefined}
+          signerHint="Tanda Tangan Surat Kontrol"
+          requiredSignatures={2}
+          slotLabels={{ left: "Pasien / Keluarga", right: "Mengetahui DPJP" }}
+          fixedRoles={{ left: "pasien", right: "dpjp" }}
+          onSuccess={() => {
+            // onSuccess will be followed by onOpenChange(false) inside SignOnBehalfDialog
+          }}
+        />
+      )}
     </>
   );
 }

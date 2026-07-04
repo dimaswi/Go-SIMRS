@@ -80,6 +80,7 @@ export function SignOnBehalfDialog({
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
   const [slot, setSlot] = useState<"left" | "right">("left");
   const [step, setStep] = useState<"pick" | "form" | "pin" | "patient_mode" | "patient_qr" | "patient_direct">("pick");
+  const [isFaceValidation, setIsFaceValidation] = useState(false);
   const [role, setRole] = useState<"dpjp" | "perawat" | "pasien" | "wali" | "kosong">("kosong");
   const [signatureName, setSignatureName] = useState("");
   const [location, setLocation] = useState("");
@@ -315,6 +316,10 @@ export function SignOnBehalfDialog({
     }
   }, [pin]);
 
+  useEffect(() => {
+    setIsFaceValidation(false);
+  }, [step]);
+
   const handleNext = () => {
     const needEmployee = role !== "pasien" && role !== "wali" && role !== "kosong";
     if (needEmployee && !selectedEmployeeId) {
@@ -325,7 +330,11 @@ export function SignOnBehalfDialog({
       return;
     }
     if (role === "pasien" || role === "wali") {
-      setStep("patient_mode");
+      if (sigPad.current?.isEmpty()) {
+        toast({ variant: "destructive", title: "Peringatan", description: "Harap gambar tanda tangan terlebih dahulu." });
+        return;
+      }
+      setIsFaceValidation(true);
     } else if (role === "kosong") {
       handleSign();
     } else {
@@ -766,12 +775,14 @@ export function SignOnBehalfDialog({
         {/* Patient Direct Mode */}
         {step === "patient_direct" && (
           <div className="space-y-4 py-2">
-            <div className="flex items-center gap-2 mb-2">
-              <PenTool className="h-5 w-5 text-primary" />
-              <Label className="text-sm font-medium">Silakan gambar tanda tangan di bawah:</Label>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div className="border border-gray-300 rounded-xl overflow-hidden bg-white w-full h-[220px] shadow-inner relative">
+            
+            {/* Signature Step */}
+            <div className={`flex flex-col ${isFaceValidation ? 'hidden' : ''}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <PenTool className="h-5 w-5 text-primary" />
+                <Label className="text-sm font-medium">Silakan gambar tanda tangan di bawah:</Label>
+              </div>
+              <div className="border border-gray-300 rounded-xl overflow-hidden bg-white w-full h-[220px] shadow-inner relative mb-4">
                 <SignatureCanvas
                   ref={sigPad}
                   penColor="black"
@@ -779,8 +790,29 @@ export function SignOnBehalfDialog({
                 />
                 <div className="absolute inset-x-0 top-1/2 border-b border-dashed border-gray-200 pointer-events-none opacity-50" />
               </div>
-              <div className="flex items-center gap-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                <div className="w-[100px] h-[75px] shrink-0 bg-black rounded-lg overflow-hidden border-2 border-primary/20">
+              
+              <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0 -mx-4 -mb-4">
+                {signedSlots[slot as keyof typeof signedSlots] ? (
+                  <Button variant="destructive" onClick={() => { setIsRevoking(true); setStep("pin"); }} type="button">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Hapus TTD
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => sigPad.current?.clear()} className="bg-white" type="button">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Ulangi
+                  </Button>
+                )}
+                <Button onClick={handleNext} className="min-w-[120px]">
+                  Lanjut Validasi Wajah
+                </Button>
+              </div>
+            </div>
+
+            {/* Face Validation Step */}
+            <div className={`flex flex-col ${!isFaceValidation ? 'hidden' : ''}`}>
+              <div className="flex flex-col items-center justify-center p-4 bg-blue-50/50 rounded-xl mb-4 border border-blue-100">
+                <div className="w-[180px] h-[180px] shrink-0 bg-black rounded-full overflow-hidden border-4 border-primary/20 mb-4 shadow-md">
                   <Webcam
                     ref={webcamRef}
                     audio={false}
@@ -789,28 +821,22 @@ export function SignOnBehalfDialog({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="text-xs text-blue-800 flex-1">
-                  <p className="font-semibold mb-1">Validasi Wajah</p>
-                  <p>Kamera diaktifkan untuk mengambil foto wajah pasien sebagai bukti tanda tangan. Wajah pasien akan difoto saat menekan Simpan TTD.</p>
+                <div className="text-center text-blue-900">
+                  <p className="font-bold text-lg mb-1">Validasi Wajah</p>
+                  <p className="text-sm">Posisikan wajah pasien di kamera. Wajah akan difoto otomatis saat menekan Simpan.</p>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0">
-              {signedSlots[slot as keyof typeof signedSlots] ? (
-                <Button variant="destructive" onClick={() => { setIsRevoking(true); setStep("pin"); }} type="button">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus TTD
+              
+              <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0 -mx-4 -mb-4">
+                <Button variant="outline" onClick={() => setIsFaceValidation(false)} className="bg-white" type="button">
+                  Kembali
                 </Button>
-              ) : (
-                <Button variant="outline" onClick={() => sigPad.current?.clear()} className="bg-white" type="button">
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Ulangi
+                <Button onClick={handleDirectSubmit} disabled={loading} className="min-w-[120px]">
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (signedSlots[slot as keyof typeof signedSlots] ? "Simpan Perubahan" : "Simpan TTD & Wajah")}
                 </Button>
-              )}
-              <Button onClick={handleDirectSubmit} disabled={loading} className="min-w-[120px]">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (signedSlots[slot as keyof typeof signedSlots] ? "Simpan Perubahan TTD" : "Simpan TTD")}
-              </Button>
+              </div>
             </div>
+
           </div>
         )}
       </DialogContent>

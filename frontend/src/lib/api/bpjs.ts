@@ -351,9 +351,9 @@ export const bpjsApi = {
   aplicareUpdateRoom: (roomId: number) =>
     api.post<{ message: string; data: AplicareBedRequest }>('/bpjs/aplicare/bed/update', { room_id: roomId }),
 
-  // Hapus ruangan dari Aplicare
-  aplicareDeleteRoom: (kodeKelas: string, kodeRuang: string) =>
-    api.post<{ message: string }>('/bpjs/aplicare/bed/delete', { kode_kelas: kodeKelas, kode_ruang: kodeRuang }),
+  // Hapus seluruh ruangan beserta unitnya dari Aplicare
+  aplicareDeleteRoom: (roomId: number) =>
+    api.post<{ message: string }>('/bpjs/aplicare/bed/delete', { room_id: roomId }),
 
   // === APOTEK ONLINE ===
 
@@ -582,6 +582,7 @@ export interface AplicareBedRequest {
 
 export interface AplicareCreateRoomPayload extends Partial<AplicareBedRequest> {
   room_id: number;
+  sync_mode?: boolean; // true = update existing too; false = only create new
 }
 
 export interface AplicareRoom {

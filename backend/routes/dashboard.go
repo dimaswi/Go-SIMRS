@@ -11,6 +11,7 @@ import (
 func SetupDashboardRoutes(api *gin.RouterGroup) {
 	dashboard := api.Group("/dashboard")
 	dashboard.Use(middleware.AuthMiddleware())
+	dashboard.Use(middleware.RequirePermission("dashboard.view"))
 	{
 		// Main dashboard statistics
 		dashboard.GET("/stats", handlers.GetDashboardStats)

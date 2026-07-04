@@ -547,4 +547,5 @@ export type PrintDocumentType =
   | "outpatient-resume"
   | "inpatient-resume"
   | "hospitalization-letter"
-  | "death-certificate";
+  | "death-certificate"
+  | "surat-kontrol";

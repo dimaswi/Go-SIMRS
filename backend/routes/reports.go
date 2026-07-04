@@ -18,9 +18,10 @@ func SetupReportRoutes(api *gin.RouterGroup) {
 		visits := reports.Group("/visits")
 		{
 			visits.GET("/daily", handlers.ReportDailyVisits)
+			visits.GET("/per-patient", handlers.ReportVisitsPerPatient)
 			visits.GET("/by-room", handlers.ReportVisitsByRoom)
 			visits.GET("/by-doctor", handlers.ReportVisitsByDoctor)
-			visits.GET("/demographics", handlers.ReportPatientDemographics)
+			visits.GET("/demographics", handlers.ReportPatientDemographicsV2)
 			visits.GET("/regions", handlers.ReportPatientRegions)
 			visits.GET("/top-diagnoses", handlers.ReportTopDiagnoses)
 			visits.GET("/new-vs-old", handlers.ReportNewVsOldPatients)
@@ -90,7 +91,20 @@ func SetupReportRoutes(api *gin.RouterGroup) {
 		}
 
 		// ==============================
-		// Category G: Inventaris & Stok
+		// Category G: Layanan
+		// ==============================
+		services := reports.Group("/services")
+		{
+			services.GET("/per-patient", handlers.ReportServiceVolumePerPatient)
+			services.GET("/summary", handlers.ReportServiceVolumeSummary)
+			services.GET("/by-payment", handlers.ReportServiceByPayment)
+			services.GET("/by-class", handlers.ReportServiceByClass)
+			services.GET("/surgery-patients", handlers.ReportServiceSurgeryPatients)
+			services.GET("/surgery-schedule", handlers.ReportServiceSurgerySchedule)
+		}
+
+		// ==============================
+		// Category H: Inventaris & Stok
 		// ==============================
 		inventory := reports.Group("/inventory")
 		{
@@ -101,7 +115,7 @@ func SetupReportRoutes(api *gin.RouterGroup) {
 		}
 
 		// ==============================
-		// Category H: SDM
+		// Category I: SDM
 		// ==============================
 		hr := reports.Group("/hr")
 		{
@@ -112,7 +126,7 @@ func SetupReportRoutes(api *gin.RouterGroup) {
 		}
 
 		// ==============================
-		// Category I: Kemenkes / RL
+		// Category J: Kemenkes / RL
 		// ==============================
 		kemenkes := reports.Group("/kemenkes")
 		{

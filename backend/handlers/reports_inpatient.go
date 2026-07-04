@@ -8,6 +8,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func inpatientPaymentMethodCaseSQL(column string) string {
+	return fmt.Sprintf(`
+		CASE
+			WHEN %s = 'bpjs' THEN 'BPJS'
+			WHEN %s = 'cash' THEN 'Umum/Cash'
+			WHEN %s = 'insurance' THEN 'Asuransi'
+			WHEN %s = 'debit' THEN 'Debit'
+			WHEN %s = 'credit' THEN 'Kredit'
+			WHEN %s = 'transfer' THEN 'Transfer'
+			ELSE COALESCE(%s, '-')
+		END
+	`, column, column, column, column, column, column, column)
+}
+
 // ====================================================================
 // CATEGORY D: LAPORAN RAWAT INAP
 // ====================================================================
@@ -41,31 +55,40 @@ func ReportInpatientIndicators(c *gin.Context) {
 	// Total beds
 	db.Raw(`SELECT COUNT(*) FROM beds WHERE deleted_at IS NULL AND status != 'maintenance'`).Scan(&ind.TotalBeds)
 
-	// Occupied days (total inpatient days in period)
+	// Occupied days within selected period
 	db.Raw(`
-		SELECT COALESCE(SUM(v.inpatient_days), 0)
+		SELECT COALESCE(SUM(
+			GREATEST(
+				(LEAST(COALESCE(v.discharge_time::date, ?::date), ?::date)
+				- GREATEST(COALESCE(v.admission_time::date, r.registration_date::date), ?::date) + 1),
+				0
+			)
+		), 0)
 		FROM visits v
 		JOIN registrations r ON r.id = v.registration_id
 		WHERE v.deleted_at IS NULL AND v.visit_type = 'inpatient'
-		  AND r.registration_date BETWEEN ? AND ?
-	`, dr.StartDate, dr.EndDate).Scan(&ind.OccupiedDays)
+		  AND COALESCE(v.admission_time, r.registration_date) <= ?
+		  AND COALESCE(v.discharge_time, ?) >= ?
+	`, dr.EndDate, dr.EndDate, dr.StartDate, dr.EndDate, dr.EndDate, dr.StartDate).Scan(&ind.OccupiedDays)
 
 	// Total discharges
 	db.Raw(`
 		SELECT COUNT(*)
 		FROM visits v
-		JOIN registrations r ON r.id = v.registration_id
 		WHERE v.deleted_at IS NULL AND v.visit_type = 'inpatient'
 		  AND v.discharge_time IS NOT NULL
-		  AND r.registration_date BETWEEN ? AND ?
+		  AND v.discharge_time BETWEEN ? AND ?
 	`, dr.StartDate, dr.EndDate).Scan(&ind.TotalDischarges)
 
-	// Deaths (from e_klaims jenis_keluar)
+	// Deaths by discharge date
 	db.Raw(`
 		SELECT
 			COUNT(*) FILTER (WHERE ek.jenis_keluar IN ('4','5','6')) AS total_deaths,
 			COUNT(*) FILTER (WHERE ek.jenis_keluar = '5') AS deaths_less_48h
-		FROM eklaims ek WHERE ek.deleted_at IS NULL AND ek.tgl_masuk BETWEEN ? AND ?
+		FROM eklaims ek
+		WHERE ek.deleted_at IS NULL
+		  AND ek.jenis_rawat = '2'
+		  AND ek.tgl_pulang BETWEEN ? AND ?
 	`, dr.StartDate, dr.EndDate).Row().Scan(&ind.TotalDeaths, &ind.DeathsLess48h)
 
 	// Calculate indicators
@@ -197,7 +220,7 @@ func ReportInpatientList(c *gin.Context) {
 	db := database.DB
 
 	var rows []InpatientListRow
-	db.Raw(`
+	db.Raw(fmt.Sprintf(`
 		SELECT p.no_rm, p.nama_lengkap AS nama_pasien,
 			CASE WHEN p.jenis_kelamin = 'L' THEN 'Laki-laki' ELSE 'Perempuan' END AS jenis_kelamin,
 			rm.name AS nama_ruangan,
@@ -205,8 +228,8 @@ func ReportInpatientList(c *gin.Context) {
 			COALESCE(e.nama_lengkap, '-') AS dokter_dpjp,
 			TO_CHAR(v.admission_time, 'YYYY-MM-DD HH24:MI') AS tgl_masuk,
 			COALESCE(TO_CHAR(v.discharge_time, 'YYYY-MM-DD HH24:MI'), 'Masih Rawat') AS tgl_keluar,
-			v.inpatient_days AS los,
-			r.payment_method AS metode_bayar,
+			GREATEST(v.inpatient_days, 1) AS los,
+			%s AS metode_bayar,
 			v.status
 		FROM visits v
 		JOIN registrations r ON r.id = v.registration_id
@@ -215,9 +238,10 @@ func ReportInpatientList(c *gin.Context) {
 		LEFT JOIN beds bd ON bd.id = v.bed_id
 		LEFT JOIN employees e ON e.id = v.doctor_id
 		WHERE v.deleted_at IS NULL AND v.visit_type = 'inpatient'
-		  AND r.registration_date BETWEEN ? AND ?
+		  AND COALESCE(v.admission_time, r.registration_date) <= ?
+		  AND COALESCE(v.discharge_time, ?) >= ?
 		ORDER BY v.admission_time DESC
-	`, dr.StartDate, dr.EndDate).Scan(&rows)
+	`, inpatientPaymentMethodCaseSQL("r.payment_method")), dr.EndDate, dr.EndDate, dr.StartDate).Scan(&rows)
 
 	if IsExcelExport(c) {
 		f, styles, _ := NewExcelFile("Daftar Rawat Inap")
@@ -277,16 +301,17 @@ func ReportInpatientByRoom(c *gin.Context) {
 				ELSE COALESCE(rm.room_class, '-')
 			END AS room_class,
 			COUNT(*) AS jumlah_masuk,
-			COUNT(*) FILTER (WHERE v.discharge_time IS NOT NULL) AS jumlah_keluar,
+			COUNT(*) FILTER (WHERE v.discharge_time BETWEEN ? AND ?) AS jumlah_keluar,
 			COUNT(*) FILTER (WHERE v.discharge_time IS NULL AND v.status != 'cancelled') AS masih_rawat,
 			COALESCE(AVG(v.inpatient_days) FILTER (WHERE v.discharge_time IS NOT NULL), 0) AS rata_rata_los
 		FROM visits v
 		JOIN registrations r ON r.id = v.registration_id
 		JOIN rooms rm ON rm.id = v.room_id
 		WHERE v.deleted_at IS NULL AND v.visit_type = 'inpatient'
-		  AND r.registration_date BETWEEN ? AND ?
+		  AND COALESCE(v.admission_time, r.registration_date) <= ?
+		  AND COALESCE(v.discharge_time, ?) >= ?
 		GROUP BY rm.name, rm.room_class ORDER BY jumlah_masuk DESC
-	`, dr.StartDate, dr.EndDate).Scan(&rows)
+	`, dr.StartDate, dr.EndDate, dr.EndDate, dr.EndDate, dr.StartDate).Scan(&rows)
 
 	if IsExcelExport(c) {
 		f, styles, _ := NewExcelFile("Rawat Inap Per Ruangan")

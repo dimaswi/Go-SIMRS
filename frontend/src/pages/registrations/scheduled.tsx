@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { registrationApi, type ScheduledRegistration } from "@/lib/api/queue";
-import { roomsApi, type Room } from "@/lib/api/rooms";
+import { roomsApi, type Room, schedulesApi } from "@/lib/api/rooms";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -73,14 +73,42 @@ export default function ScheduledRegistrationsPage() {
     id: number;
     currentDate: string;
     currentRoom: number;
+    currentDoctor?: number;
     patientName: string;
   } | null>(null);
   const [rescheduleForm, setRescheduleForm] = useState({
     new_date: "",
     new_room_id: "",
+    new_doctor_id: "",
     reason: "",
   });
   const [actionLoading, setActionLoading] = useState(false);
+  const [availableDoctors, setAvailableDoctors] = useState<Array<{ employee_id: number; employee_name: string }>>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+
+  // Load available doctors when new_date or new_room_id changes
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      if (!rescheduleForm.new_date || !rescheduleForm.new_room_id) {
+        setAvailableDoctors([]);
+        return;
+      }
+      setLoadingDoctors(true);
+      try {
+        const res = await schedulesApi.getAvailableDoctorsByDate(
+          parseInt(rescheduleForm.new_room_id),
+          rescheduleForm.new_date
+        );
+        setAvailableDoctors(res.data.data || []);
+      } catch (e) {
+        console.error("Gagal mengambil daftar dokter:", e);
+        setAvailableDoctors([]);
+      } finally {
+        setLoadingDoctors(false);
+      }
+    };
+    fetchDoctors();
+  }, [rescheduleForm.new_date, rescheduleForm.new_room_id]);
 
   // BPJS Reschedule state
   const [suratKontrolDrawerOpen, setSuratKontrolDrawerOpen] = useState(false);
@@ -193,11 +221,14 @@ export default function ScheduledRegistrationsPage() {
 
     setActionLoading(true);
     try {
-      const payload: { new_date: string; new_room_id?: number; reason?: string } = {
+      const payload: { new_date: string; new_room_id?: number; new_doctor_id?: number; reason?: string } = {
         new_date: rescheduleForm.new_date,
       };
       if (rescheduleForm.new_room_id) {
         payload.new_room_id = parseInt(rescheduleForm.new_room_id);
+      }
+      if (rescheduleForm.new_doctor_id) {
+        payload.new_doctor_id = parseInt(rescheduleForm.new_doctor_id);
       }
       if (rescheduleForm.reason) {
         payload.reason = rescheduleForm.reason;
@@ -209,7 +240,7 @@ export default function ScheduledRegistrationsPage() {
         description: response.data.message || "Jadwal kontrol berhasil diubah",
       });
       setRescheduleData(null);
-      setRescheduleForm({ new_date: "", new_room_id: "", reason: "" });
+      setRescheduleForm({ new_date: "", new_room_id: "", new_doctor_id: "", reason: "" });
       loadData();
     } catch {
       toast({
@@ -260,11 +291,13 @@ export default function ScheduledRegistrationsPage() {
       id: regId,
       currentDate: reg.scheduled_date || "",
       currentRoom: reg.destination_room_id,
+      currentDoctor: reg.doctor_id,
       patientName: reg.patient?.nama_lengkap || "",
     });
     setRescheduleForm({
       new_date: "",
       new_room_id: reg.destination_room_id.toString(),
+      new_doctor_id: reg.doctor_id ? reg.doctor_id.toString() : "",
       reason: "",
     });
   };
@@ -601,6 +634,32 @@ export default function ScheduledRegistrationsPage() {
                 </SelectContent>
               </Select>
             </div>
+            {rescheduleForm.new_room_id && rescheduleForm.new_date && (
+              <div className="space-y-2">
+                <Label htmlFor="new_doctor">Dokter Tujuan <span className="text-red-500">*</span></Label>
+                <Select
+                  value={rescheduleForm.new_doctor_id}
+                  onValueChange={(value) => setRescheduleForm(prev => ({ ...prev, new_doctor_id: value }))}
+                  disabled={loadingDoctors}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingDoctors ? "Memuat..." : "Pilih dokter"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDoctors.map((doc) => (
+                      <SelectItem key={doc.employee_id} value={doc.employee_id.toString()}>
+                        {doc.employee_name}
+                      </SelectItem>
+                    ))}
+                    {availableDoctors.length === 0 && !loadingDoctors && (
+                      <SelectItem value="none" disabled>
+                        Tidak ada dokter tersedia
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="reason">Alasan Reschedule</Label>
               <Textarea

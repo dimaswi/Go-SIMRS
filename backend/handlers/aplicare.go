@@ -58,10 +58,11 @@ func AplicareReadBed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": items})
 }
 
-// AplicareCreateRoom mendaftarkan ruangan ke BPJS Aplicare
+// AplicareCreateRoom mendaftarkan ruangan ke BPJS Aplicare (create baru atau update yang sudah ada)
 func AplicareCreateRoom(c *gin.Context) {
 	var input struct {
 		RoomID               uint   `json:"room_id" binding:"required"`
+		SyncMode             bool   `json:"sync_mode"` // true = update existing too; false = only create new
 		KodeKelas            string `json:"kodekelas"`
 		KodeRuang            string `json:"koderuang"`
 		NamaRuang            string `json:"namaruang"`
@@ -98,6 +99,15 @@ func AplicareCreateRoom(c *gin.Context) {
 		return
 	}
 
+	// Pre-fetch existing beds dari Aplicare untuk menghindari duplikasi
+	// Key: "kodeKelas|kodeRuang"
+	existingBeds := make(map[string]bool)
+	if beds, err := client.ReadBed(1, 500); err == nil {
+		for _, b := range beds {
+			existingBeds[b.KodeKelas+"|"+b.KodeRuang] = true
+		}
+	}
+
 	var successResponses []bpjsService.AplicareBedRequest
 	var errors []string
 
@@ -110,7 +120,8 @@ func AplicareCreateRoom(c *gin.Context) {
 		}
 
 		if len(unitCode) > 10 {
-			unitCode = unitCode[:10]
+			// Ambil 10 karakter TERAKHIR agar bagian unik (-001, -002, dst.) tetap terjaga
+			unitCode = unitCode[len(unitCode)-10:]
 		}
 
 		req := bpjsService.AplicareBedRequest{
@@ -172,13 +183,36 @@ func AplicareCreateRoom(c *gin.Context) {
 			continue
 		}
 
-		if err := client.CreateBed(req); err != nil {
-			if strings.Contains(strings.ToLower(err.Error()), "sudah ada") {
-				if updateErr := client.UpdateBed(req); updateErr != nil {
-					errors = append(errors, fmt.Sprintf("Gagal mendaftarkan kamar %s: %v (update fallback failed: %v)", stat.UnitName, err, updateErr))
+		bedKey := req.KodeKelas + "|" + req.KodeRuang
+		alreadyExists := existingBeds[bedKey]
+
+		if alreadyExists {
+			if input.SyncMode {
+				// Sync mode: update ketersediaan kamar yang sudah terdaftar
+				if err := client.UpdateBed(req); err != nil {
+					errors = append(errors, fmt.Sprintf("Gagal mengupdate kamar %s: %v", stat.UnitName, err))
 				} else {
 					successResponses = append(successResponses, req)
 				}
+			}
+			// Jika bukan sync mode: skip kamar yang sudah terdaftar (tidak duplikat)
+			continue
+		}
+
+		// Kamar belum terdaftar → buat baru
+		if err := client.CreateBed(req); err != nil {
+			// Fallback: jika API tetap balas "sudah ada" meski tidak ada di pre-fetch
+			if strings.Contains(strings.ToLower(err.Error()), "sudah ada") ||
+				strings.Contains(strings.ToLower(err.Error()), "duplicate") ||
+				strings.Contains(strings.ToLower(err.Error()), "already") {
+				if input.SyncMode {
+					if updateErr := client.UpdateBed(req); updateErr != nil {
+						errors = append(errors, fmt.Sprintf("Gagal mendaftarkan kamar %s: %v (update fallback gagal: %v)", stat.UnitName, err, updateErr))
+					} else {
+						successResponses = append(successResponses, req)
+					}
+				}
+				// Jika bukan sync mode: skip (sudah ada, jangan duplikat)
 			} else {
 				errors = append(errors, fmt.Sprintf("Gagal mendaftarkan kamar %s: %v", stat.UnitName, err))
 			}
@@ -192,14 +226,15 @@ func AplicareCreateRoom(c *gin.Context) {
 		return
 	}
 
-	message := fmt.Sprintf("Berhasil mendaftarkan %d kelas ruangan %s ke Aplicare", len(successResponses), room.Name)
+	message := fmt.Sprintf("Berhasil memproses %d kamar ruangan %s ke Aplicare", len(successResponses), room.Name)
 	if len(errors) > 0 {
 		message += fmt.Sprintf(" (dengan %d error: %s)", len(errors), strings.Join(errors, ", "))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": message,
-		"data":    successResponses,
+		"message":    message,
+		"data":       successResponses,
+		"has_errors": len(errors) > 0,
 	})
 }
 
@@ -244,9 +279,9 @@ func AplicareUpdateRoom(c *gin.Context) {
 			kodeRuang = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
 		}
 		
-		// BPJS Aplicare implicitly truncates KodeRuang to 10 characters
+		// Ambil 10 karakter TERAKHIR agar bagian unik (-001, -002, dst.) tetap terjaga
 		if len(kodeRuang) > 10 {
-			kodeRuang = kodeRuang[:10]
+			kodeRuang = kodeRuang[len(kodeRuang)-10:]
 		}
 
 		namaRuang := stat.UnitName
@@ -292,22 +327,30 @@ func AplicareUpdateRoom(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": message,
-		"data":    successResponses,
+		"message":    message,
+		"data":       successResponses,
+		"has_errors": len(errors) > 0,
 	})
 }
 
-// AplicareDeleteRoom menghapus ruangan dari BPJS Aplicare
+// AplicareDeleteRoom menghapus seluruh unit dalam satu ruangan dari BPJS Aplicare
 func AplicareDeleteRoom(c *gin.Context) {
 	var input struct {
-		KodeKelas string `json:"kode_kelas" binding:"required"`
-		KodeRuang string `json:"kode_ruang" binding:"required"`
+		RoomID uint `json:"room_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "kode_kelas dan kode_ruang wajib diisi"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id wajib diisi"})
 		return
 	}
+
+	var room models.Room
+	if err := database.DB.First(&room, input.RoomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	unitStats := room.ComputeBedStatsByUnit(database.DB)
 
 	client, err := bpjsService.NewAplicareClient()
 	if err != nil {
@@ -315,13 +358,44 @@ func AplicareDeleteRoom(c *gin.Context) {
 		return
 	}
 
-	if err := client.DeleteBed(input.KodeKelas, input.KodeRuang); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal menghapus ruangan dari Aplicare: %v", err)})
+	var errors []string
+	deletedCount := 0
+
+	for _, stat := range unitStats {
+		kodeKelas := bpjsService.MapRoomClassToAplicare(stat.Class)
+		kodeRuang := stat.UnitCode
+		if kodeRuang == "" {
+			kodeRuang = fmt.Sprintf("%s-%d", room.Code, stat.UnitID)
+		}
+		
+		// Ambil 10 karakter TERAKHIR
+		if len(kodeRuang) > 10 {
+			kodeRuang = kodeRuang[len(kodeRuang)-10:]
+		}
+
+		if err := client.DeleteBed(kodeKelas, kodeRuang); err != nil {
+			// Jika error karena tidak ditemukan, bisa diabaikan
+			if !strings.Contains(strings.ToLower(err.Error()), "tidak ditemukan") && !strings.Contains(strings.ToLower(err.Error()), "tidak ada") {
+				errors = append(errors, fmt.Sprintf("Gagal menghapus kamar %s: %v", stat.UnitName, err))
+			}
+		} else {
+			deletedCount++
+		}
+	}
+
+	if len(errors) > 0 && deletedCount == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": strings.Join(errors, ", ")})
 		return
 	}
 
+	message := fmt.Sprintf("Berhasil menghapus %d kamar dari ruangan %s", deletedCount, room.Name)
+	if len(errors) > 0 {
+		message += fmt.Sprintf(" (dengan %d error: %s)", len(errors), strings.Join(errors, ", "))
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Ruangan %s kelas %s berhasil dihapus dari Aplicare", input.KodeRuang, input.KodeKelas),
+		"message":    message,
+		"has_errors": len(errors) > 0,
 	})
 }
 

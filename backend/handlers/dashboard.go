@@ -9,6 +9,75 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type dashboardPermissionContext struct {
+	permissions map[string]bool
+}
+
+func getDashboardPermissionContext(c *gin.Context) dashboardPermissionContext {
+	roleValue, exists := c.Get("roleID")
+	if !exists {
+		return dashboardPermissionContext{permissions: map[string]bool{}}
+	}
+
+	roleID, ok := roleValue.(uint)
+	if !ok || roleID == 0 {
+		return dashboardPermissionContext{permissions: map[string]bool{}}
+	}
+
+	var role models.Role
+	if err := database.DB.Preload("Permissions").First(&role, roleID).Error; err != nil {
+		return dashboardPermissionContext{permissions: map[string]bool{}}
+	}
+
+	permissions := make(map[string]bool, len(role.Permissions))
+	for _, permission := range role.Permissions {
+		permissions[permission.Name] = true
+	}
+
+	return dashboardPermissionContext{permissions: permissions}
+}
+
+func (ctx dashboardPermissionContext) hasAny(permissionNames ...string) bool {
+	for _, permissionName := range permissionNames {
+		if ctx.permissions[permissionName] {
+			return true
+		}
+	}
+	return false
+}
+
+func (ctx dashboardPermissionContext) canSeeFrontOffice() bool {
+	return ctx.hasAny("registrations.view", "visits.view", "queues.view")
+}
+
+func (ctx dashboardPermissionContext) canSeeBilling() bool {
+	return ctx.hasAny("billing.view")
+}
+
+func (ctx dashboardPermissionContext) canSeeRooms() bool {
+	return ctx.hasAny("rooms.view")
+}
+
+func (ctx dashboardPermissionContext) canSeePharmacy() bool {
+	return ctx.hasAny("medicines.view", "room-medicines.view")
+}
+
+func (ctx dashboardPermissionContext) canSeeProcedures() bool {
+	return ctx.hasAny("procedures.view", "lab_requests.view", "radiology_requests.view", "visits.view")
+}
+
+func (ctx dashboardPermissionContext) canSeePatients() bool {
+	return ctx.hasAny("patients.view")
+}
+
+func (ctx dashboardPermissionContext) canSeeEmployees() bool {
+	return ctx.hasAny("employees.view")
+}
+
+func (ctx dashboardPermissionContext) canSeeInventory() bool {
+	return ctx.hasAny("inventories.view", "room-inventories.view")
+}
+
 // DashboardStats represents the main dashboard statistics
 type DashboardStats struct {
 	// Patient Statistics
@@ -154,6 +223,7 @@ type DiagnosisCount struct {
 func GetDashboardStats(c *gin.Context) {
 	db := database.DB
 	stats := DashboardStats{}
+	permCtx := getDashboardPermissionContext(c)
 
 	// Get time boundaries
 	now := time.Now()
@@ -304,6 +374,83 @@ func GetDashboardStats(c *gin.Context) {
 		Where("is_active = ? AND min_stock > 0", true).
 		Count(&stats.LowStockMedicines)
 
+	if !permCtx.canSeePatients() {
+		stats.TotalPatients = 0
+		stats.NewPatientsToday = 0
+		stats.NewPatientsWeek = 0
+		stats.NewPatientsMonth = 0
+		stats.ActivePatients = 0
+	}
+
+	if !permCtx.canSeeFrontOffice() {
+		stats.TotalRegistrations = 0
+		stats.RegistrationsToday = 0
+		stats.RegistrationsWeek = 0
+		stats.RegistrationsMonth = 0
+		stats.OutpatientToday = 0
+		stats.InpatientToday = 0
+		stats.EmergencyToday = 0
+		stats.TotalVisits = 0
+		stats.VisitsToday = 0
+		stats.VisitsWeek = 0
+		stats.VisitsMonth = 0
+		stats.VisitsInProgress = 0
+		stats.VisitsWaiting = 0
+		stats.VisitsCompleted = 0
+	}
+
+	if !permCtx.canSeeBilling() {
+		stats.TotalRevenue = 0
+		stats.RevenueToday = 0
+		stats.RevenueWeek = 0
+		stats.RevenueMonth = 0
+		stats.PendingBillings = 0
+		stats.PaidBillings = 0
+		stats.TotalBillingAmount = 0
+		stats.UnpaidBillingAmount = 0
+	}
+
+	if !permCtx.canSeeRooms() {
+		stats.TotalBeds = 0
+		stats.OccupiedBeds = 0
+		stats.AvailableBeds = 0
+		stats.BedOccupancyRate = 0
+		stats.CurrentInpatients = 0
+		stats.TotalRooms = 0
+		stats.ActiveRooms = 0
+		stats.PoliklinikRooms = 0
+		stats.InpatientRooms = 0
+	}
+
+	if !permCtx.canSeePharmacy() {
+		stats.TotalMedicineOrders = 0
+		stats.MedicineOrdersToday = 0
+		stats.PendingMedicineOrders = 0
+		stats.CompletedMedicineOrders = 0
+		stats.TotalMedicines = 0
+		stats.LowStockMedicines = 0
+	}
+
+	if !permCtx.canSeeProcedures() {
+		stats.TotalProcedureOrders = 0
+		stats.ProcedureOrdersToday = 0
+		stats.PendingProcedureOrders = 0
+		stats.LabOrdersToday = 0
+		stats.RadiologyOrdersToday = 0
+	}
+
+	if !permCtx.canSeeEmployees() {
+		stats.TotalEmployees = 0
+		stats.TotalDoctors = 0
+		stats.TotalNurses = 0
+		stats.ActiveEmployees = 0
+	}
+
+	if !permCtx.canSeeInventory() {
+		stats.TotalInventoryItems = 0
+		stats.LowStockItems = 0
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    stats,
@@ -321,6 +468,7 @@ func GetDashboardStats(c *gin.Context) {
 func GetDashboardCharts(c *gin.Context) {
 	db := database.DB
 	period := c.DefaultQuery("period", "week")
+	permCtx := getDashboardPermissionContext(c)
 
 	var startDate time.Time
 	now := time.Now()
@@ -553,6 +701,30 @@ func GetDashboardCharts(c *gin.Context) {
 		})
 	}
 
+	if !permCtx.canSeeFrontOffice() {
+		charts.RegistrationTrends = []DashboardTrend{}
+		charts.VisitTypeTrends = []DashboardTrend{}
+		charts.TopRooms = []RoomVisitCount{}
+		charts.TopDoctors = []DoctorVisitCount{}
+		charts.TopDiagnoses = []DiagnosisCount{}
+	}
+
+	if !permCtx.canSeeBilling() && !permCtx.canSeeFrontOffice() {
+		charts.PaymentMethodTrends = []DashboardTrend{}
+	}
+
+	if !permCtx.canSeeBilling() {
+		charts.RevenueTrends = []DashboardTrend{}
+	}
+
+	if !permCtx.canSeeProcedures() {
+		charts.TopProcedures = []ProcedureCount{}
+	}
+
+	if !permCtx.canSeePharmacy() {
+		charts.TopMedicines = []MedicineCount{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    charts,
@@ -568,6 +740,7 @@ func GetDashboardCharts(c *gin.Context) {
 // @Router /api/dashboard/summary [get]
 func GetDashboardSummary(c *gin.Context) {
 	db := database.DB
+	permCtx := getDashboardPermissionContext(c)
 	now := time.Now()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	startOfWeek := startOfDay.AddDate(0, 0, -int(now.Weekday()))
@@ -719,6 +892,61 @@ func GetDashboardSummary(c *gin.Context) {
 		"completed":   queueStatus.Completed,
 	}
 
+	if !permCtx.canSeeFrontOffice() {
+		summary["today"] = gin.H{
+			"registrations":        0,
+			"visits":               0,
+			"revenue":              0,
+			"new_patients":         0,
+			"registrations_change": 0,
+			"visits_change":        0,
+			"revenue_change":       0,
+		}
+		summary["week"] = gin.H{
+			"registrations":        0,
+			"visits":               0,
+			"revenue":              0,
+			"registrations_change": 0,
+			"revenue_change":       0,
+		}
+		summary["month"] = gin.H{
+			"registrations":        0,
+			"visits":               0,
+			"revenue":              0,
+			"registrations_change": 0,
+			"revenue_change":       0,
+		}
+		summary["queue_status"] = gin.H{
+			"waiting":     0,
+			"in_progress": 0,
+			"completed":   0,
+		}
+	} else if !permCtx.canSeeBilling() {
+		summary["today"] = gin.H{
+			"registrations":        todaySummary.Registrations,
+			"visits":               todaySummary.Visits,
+			"revenue":              0,
+			"new_patients":         todaySummary.NewPatients,
+			"registrations_change": calculatePercentageChange(float64(yesterdaySummary.Registrations), float64(todaySummary.Registrations)),
+			"visits_change":        calculatePercentageChange(float64(yesterdaySummary.Visits), float64(todaySummary.Visits)),
+			"revenue_change":       0,
+		}
+		summary["week"] = gin.H{
+			"registrations":        weekSummary.Registrations,
+			"visits":               weekSummary.Visits,
+			"revenue":              0,
+			"registrations_change": calculatePercentageChange(float64(lastWeekSummary.Registrations), float64(weekSummary.Registrations)),
+			"revenue_change":       0,
+		}
+		summary["month"] = gin.H{
+			"registrations":        monthSummary.Registrations,
+			"visits":               monthSummary.Visits,
+			"revenue":              0,
+			"registrations_change": calculatePercentageChange(float64(lastMonthSummary.Registrations), float64(monthSummary.Registrations)),
+			"revenue_change":       0,
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    summary,
@@ -747,6 +975,7 @@ func calculatePercentageChange(oldValue, newValue float64) float64 {
 func GetRecentActivity(c *gin.Context) {
 	db := database.DB
 	limit := 10
+	permCtx := getDashboardPermissionContext(c)
 
 	// Recent Registrations
 	var recentRegistrations []models.Registration
@@ -774,6 +1003,15 @@ func GetRecentActivity(c *gin.Context) {
 		Limit(limit).
 		Find(&recentPayments)
 
+	if !permCtx.canSeeFrontOffice() {
+		recentRegistrations = []models.Registration{}
+		recentVisits = []models.Visit{}
+	}
+
+	if !permCtx.canSeeBilling() {
+		recentPayments = []models.Billing{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -793,6 +1031,7 @@ func GetRecentActivity(c *gin.Context) {
 // @Router /api/dashboard/bed-monitoring [get]
 func GetBedMonitoring(c *gin.Context) {
 	db := database.DB
+	permCtx := getDashboardPermissionContext(c)
 
 	type RoomBedStatus struct {
 		RoomID        uint    `json:"room_id"`
@@ -843,6 +1082,14 @@ func GetBedMonitoring(c *gin.Context) {
 	var overallOccupancyRate float64
 	if totalBeds > 0 {
 		overallOccupancyRate = float64(occupiedBeds) / float64(totalBeds) * 100
+	}
+
+	if !permCtx.canSeeRooms() {
+		roomStats = []RoomBedStatus{}
+		totalBeds = 0
+		occupiedBeds = 0
+		availableBeds = 0
+		overallOccupancyRate = 0
 	}
 
 	c.JSON(http.StatusOK, gin.H{

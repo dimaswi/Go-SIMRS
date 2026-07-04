@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { patientsApi, roomsApi, registrationApi, api } from "@/lib/api";
+import { schedulesApi } from "@/lib/api/rooms";
 import type { Patient, Room, RoomStaff, Registration } from "@/lib/api";
 import { ArrowLeft, Loader2, UserPlus, User, Search, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
@@ -270,15 +271,28 @@ export default function RegistrationCreate() {
     if (!id) return;
 
     try {
-      const response = await roomsApi.getStaff(id);
-      const doctors = (response.data.data || []).filter(
-        (staff: RoomStaff) =>
-          staff.employee?.tipe_karyawan === "dokter" &&
-          (!staff.end_date || new Date(staff.end_date) >= new Date())
-      );
+      // Get today's date in YYYY-MM-DD
+      const today = new Date();
+      // Ensure local timezone doesn't mess up the date
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayDate = `${year}-${month}-${day}`;
+
+      const response = await schedulesApi.getAvailableDoctorsByDate(id, todayDate);
+      
+      // Map back to RoomStaff structure so the combobox can use it seamlessly
+      const doctors = (response.data.data || []).map((doc) => ({
+        employee_id: doc.employee_id,
+        employee: {
+          id: doc.employee_id,
+          nama_lengkap: doc.employee_name,
+        }
+      } as unknown as RoomStaff));
+
       setRoomStaff(doctors);
     } catch (error) {
-      console.error("Failed to load room staff:", error);
+      console.error("Failed to load available doctors:", error);
     }
   };
 

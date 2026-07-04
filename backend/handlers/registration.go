@@ -857,6 +857,14 @@ func CreateRegistration(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
 			return
 		}
+
+		dayOfWeek := int(time.Now().Weekday())
+		var schedule models.DoctorSchedule
+		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
+			*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan ini pada hari ini"})
+			return
+		}
 	}
 
 	// Validate BPJS number if payment method is BPJS
@@ -2086,6 +2094,17 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 		return
 	}
 
+	// Check if doctor has schedule on today in the target room
+	if input.DoctorID != nil {
+		dayOfWeek := int(startOfDay.Weekday())
+		var schedule models.DoctorSchedule
+		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
+			*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan pada hari ini"})
+			return
+		}
+	}
+
 	// Set default registration type
 	if input.RegistrationType == "" {
 		input.RegistrationType = "outpatient"
@@ -3166,9 +3185,10 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 
 // RescheduleRegistrationInput represents input for rescheduling
 type RescheduleRegistrationInput struct {
-	NewDate string `json:"new_date" binding:"required"` // YYYY-MM-DD
-	NewRoom *uint  `json:"new_room_id"`                 // Optional: change room
-	Reason  string `json:"reason"`                      // Optional: reason for reschedule
+	NewDate   string `json:"new_date" binding:"required"` // YYYY-MM-DD
+	NewRoom   *uint  `json:"new_room_id"`                 // Optional: change room
+	NewDoctor *uint  `json:"new_doctor_id"`               // Optional: change doctor
+	Reason    string `json:"reason"`                      // Optional: reason for reschedule
 }
 
 // sendBPJSAntreanOnCheckInSync sends BPJSQueue data to BPJS Antrian Online when check-in (synchronous).
@@ -3605,6 +3625,27 @@ func RescheduleRegistration(c *gin.Context) {
 		return
 	}
 
+	// Check if doctor has schedule on newDate in the target room
+	doctorIDToCheck := registration.DoctorID
+	if input.NewDoctor != nil {
+		doctorIDToCheck = input.NewDoctor
+	}
+
+	if doctorIDToCheck != nil {
+		dayOfWeek := int(newDate.Weekday())
+		roomID := registration.DestinationRoomID
+		if input.NewRoom != nil {
+			roomID = *input.NewRoom
+		}
+
+		var schedule models.DoctorSchedule
+		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
+			*doctorIDToCheck, roomID, dayOfWeek, true).First(&schedule).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan pada tanggal yang dipilih"})
+			return
+		}
+	}
+
 	tx := database.DB.Begin()
 
 	// Update registration
@@ -3615,6 +3656,10 @@ func RescheduleRegistration(c *gin.Context) {
 
 	if input.NewRoom != nil {
 		registration.DestinationRoomID = *input.NewRoom
+	}
+	
+	if input.NewDoctor != nil {
+		registration.DoctorID = input.NewDoctor
 	}
 
 	if input.Reason != "" {

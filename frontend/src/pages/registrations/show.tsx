@@ -523,28 +523,8 @@ export default function RegistrationShow() {
         title={formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
         description={`No. RM ${registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} | No. Pendaftaran ${registration.registration_number}`}
         icon={User}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.history.back()}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleOpenEditPayment}>
-              <Pencil className="h-4 w-4" />
-              Ubah Pembayaran
-            </Button>
-            {registration.registration_type === "inpatient" && registration.visit && (
-              <>
-                <Button variant="default" size="sm" onClick={() => setSignatureDialogOpen(true)}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  TTD Persetujuan
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => printApi.generalConsentInpatient(registration.visit!.id)}>
-                  <Printer className="h-4 w-4 mr-2" />
-                  Cetak Persetujuan
-                </Button>
-              </>
-            )}
+        badges={
+          <>
             {bpjsQueue && (
               <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                 <Smartphone className="mr-1 h-3 w-3" />
@@ -554,6 +534,56 @@ export default function RegistrationShow() {
             <Badge variant={getStatusVariant(registration.status) as any}>
               {registrationStatusLabels[registration.status]}
             </Badge>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={() => window.history.back()}>
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Kembali</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={handleOpenEditPayment}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ubah Pembayaran</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {registration.registration_type === "inpatient" && registration.visit && (
+              <>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="default" size="icon" onClick={() => setSignatureDialogOpen(true)}>
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>TTD Persetujuan</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="secondary" size="icon" onClick={() => printApi.generalConsentInpatient(registration.visit!.id)}>
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Cetak Persetujuan</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </>
+            )}
           </div>
         }
       >

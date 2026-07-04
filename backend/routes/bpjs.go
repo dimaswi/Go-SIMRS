@@ -29,9 +29,8 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 		// API Tester (like Postman)
 		bpjs.POST("/api-test", middleware.RequirePermission("integrations.view"), handlers.BPJSAPITester)
 
-		// Referensi BPJS Antrian Online
 		referensi := bpjs.Group("/referensi")
-		referensi.Use(middleware.RequirePermission("integrations.view"))
+		referensi.Use(middleware.RequireAnyPermission("integrations.view", "rooms.update", "rooms.view"))
 		{
 			referensi.GET("/poli", handlers.GetBPJSReferensiPoli)
 			referensi.GET("/dokter", handlers.GetBPJSReferensiDokter)

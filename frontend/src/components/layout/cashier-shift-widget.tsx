@@ -16,10 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuthStore } from '@/lib/store';
+import { usePermission } from '@/hooks/usePermission';
 
 export function CashierShiftWidget() {
   const { user } = useAuthStore();
   const { toast } = useToast();
+  const { hasAnyPermission, hasPermission } = usePermission();
   
   const [shift, setShift] = useState<CashierShift | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,11 +34,22 @@ export function CashierShiftWidget() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Hanya tampilkan widget jika user adalah kasir atau punya role terkait
-  // Bisa disesuaikan dengan mengecek role/permissions
-  const isCashier = user?.role?.name?.toLowerCase().includes('kasir') || user?.role?.name?.toLowerCase().includes('admin');
+  const canSeeShiftWidget = hasAnyPermission([
+    'cashier_shifts.view',
+    'cashier_shifts.open',
+    'cashier_shifts.close',
+  ]);
+  const canViewShift = hasPermission('cashier_shifts.view');
+  const canOpenShift = hasPermission('cashier_shifts.open');
+  const canCloseShift = hasPermission('cashier_shifts.close');
 
   const fetchShift = async () => {
+    if (!canViewShift) {
+      setShift(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const current = await cashierShiftApi.getCurrent();
@@ -49,14 +62,26 @@ export function CashierShiftWidget() {
   };
 
   useEffect(() => {
-    if (user && isCashier) {
+    if (user && canSeeShiftWidget) {
       fetchShift();
+    } else {
+      setShift(null);
+      setLoading(false);
     }
-  }, [user, isCashier]);
+  }, [user, canSeeShiftWidget, canViewShift]);
 
-  if (!user || !isCashier) return null;
+  if (!user || !canSeeShiftWidget) return null;
 
   const handleOpenShift = async () => {
+    if (!canOpenShift) {
+      toast({
+        variant: 'destructive',
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki permission untuk membuka shift kasir.',
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
       const newShift = await cashierShiftApi.openShift({
@@ -80,6 +105,15 @@ export function CashierShiftWidget() {
   };
 
   const handleCloseShift = async () => {
+    if (!canCloseShift) {
+      toast({
+        variant: 'destructive',
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki permission untuk menutup shift kasir.',
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
       await cashierShiftApi.closeShift({
@@ -113,7 +147,7 @@ export function CashierShiftWidget() {
         size="sm"
         className={`h-8 gap-1.5 rounded-full px-3 text-xs font-semibold ${shift ? 'border-green-500 text-green-700 bg-green-50 hover:bg-green-100 hover:text-green-800' : ''}`}
         onClick={() => shift ? setCloseModalOpen(true) : setOpenModalOpen(true)}
-        disabled={loading}
+        disabled={loading || (!shift && !canOpenShift) || (shift && !canCloseShift)}
       >
         {loading ? (
           <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -169,7 +203,7 @@ export function CashierShiftWidget() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenModalOpen(false)}>Batal</Button>
-            <Button onClick={handleOpenShift} disabled={submitting}>
+            <Button onClick={handleOpenShift} disabled={submitting || !canOpenShift}>
               {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Banknote className="mr-2 h-4 w-4" />}
               Buka Transaksi
             </Button>
@@ -235,7 +269,7 @@ export function CashierShiftWidget() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCloseModalOpen(false)}>Kembali</Button>
-            <Button variant="destructive" onClick={handleCloseShift} disabled={submitting}>
+            <Button variant="destructive" onClick={handleCloseShift} disabled={submitting || !canCloseShift}>
               {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <StopCircle className="mr-2 h-4 w-4" />}
               Tutup Shift
             </Button>

@@ -8,6 +8,13 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
+interface AnyPermissionRouteProps {
+  children: React.ReactNode;
+  permissions: string[];
+  fallback?: React.ReactNode;
+  redirectTo?: string;
+}
+
 export function ProtectedRoute({ children, permission, fallback, redirectTo }: ProtectedRouteProps) {
   const { hasPermission } = usePermission();
   const location = useLocation();
@@ -17,6 +24,21 @@ export function ProtectedRoute({ children, permission, fallback, redirectTo }: P
       return <>{fallback}</>;
     }
     // Redirect to parent path or dashboard instead of root
+    const parentPath = redirectTo || location.pathname.split('/').slice(0, -1).join('/') || '/dashboard';
+    return <Navigate to={parentPath} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+export function AnyPermissionRoute({ children, permissions, fallback, redirectTo }: AnyPermissionRouteProps) {
+  const { hasAnyPermission } = usePermission();
+  const location = useLocation();
+
+  if (!hasAnyPermission(permissions)) {
+    if (fallback) {
+      return <>{fallback}</>;
+    }
     const parentPath = redirectTo || location.pathname.split('/').slice(0, -1).join('/') || '/dashboard';
     return <Navigate to={parentPath} replace />;
   }

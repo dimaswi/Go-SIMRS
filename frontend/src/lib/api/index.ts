@@ -457,6 +457,7 @@ export {
   reportInpatientApi,
   reportPharmacyApi,
   reportPenunjangApi,
+  reportServicesApi,
   reportInventoryApi,
   reportHrApi,
   reportKemenkesApi,

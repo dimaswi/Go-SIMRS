@@ -15,6 +15,7 @@ export default function PatientSignPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const sigPad = useRef<SignatureCanvas>(null);
   const webcamRef = useRef<Webcam>(null);
+  const [isFaceValidation, setIsFaceValidation] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -24,6 +25,14 @@ export default function PatientSignPage() {
 
   const clearSignature = () => {
     sigPad.current?.clear();
+  };
+
+  const handleNext = () => {
+    if (sigPad.current?.isEmpty()) {
+      alert("Harap gambar tanda tangan Anda terlebih dahulu.");
+      return;
+    }
+    setIsFaceValidation(true);
   };
 
   const handleSubmit = async () => {
@@ -130,43 +139,58 @@ export default function PatientSignPage() {
 
       <div className="flex-1 p-4 sm:p-6 md:p-8 flex flex-col">
         <div className="mx-auto flex-1 w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5 flex flex-col">
-          <div ref={wrapperRef} className="flex-1 min-h-[300px] w-full items-center justify-center bg-gray-50">
-            <SignatureCanvas
-              ref={sigPad}
-              penColor="black"
-              canvasProps={{
-                width: canvasSize.width,
-                height: canvasSize.height,
-                className: "cursor-crosshair touch-none bg-white",
-              }}
-            />
-          </div>
           
-          <div className="flex items-center gap-4 p-3 bg-blue-50/50 border-t border-b border-blue-100">
-            <div className="w-[80px] h-[80px] shrink-0 bg-black rounded-full overflow-hidden border-2 border-primary/20">
-              <Webcam
-                ref={webcamRef}
-                audio={false}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "user" }}
-                className="w-full h-full object-cover"
+          {/* Signature Step */}
+          <div className={`flex-1 flex flex-col ${isFaceValidation ? 'hidden' : ''}`}>
+            <div ref={wrapperRef} className="flex-1 min-h-[300px] w-full items-center justify-center bg-gray-50">
+              <SignatureCanvas
+                ref={sigPad}
+                penColor="black"
+                canvasProps={{
+                  width: canvasSize.width,
+                  height: canvasSize.height,
+                  className: "cursor-crosshair touch-none bg-white",
+                }}
               />
             </div>
-            <div className="text-xs text-blue-800 flex-1">
-              <p className="font-semibold mb-1">Validasi Wajah</p>
-              <p>Wajah Anda akan difoto otomatis saat menekan tombol Simpan sebagai bukti tanda tangan.</p>
+            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0">
+              <Button variant="outline" onClick={clearSignature} className="bg-white" type="button">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Ulangi
+              </Button>
+              <Button onClick={handleNext} className="min-w-[120px]">
+                Lanjut Validasi Wajah
+              </Button>
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 p-4 shrink-0">
-            <Button variant="outline" onClick={clearSignature} className="bg-white" type="button">
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Ulangi
-            </Button>
-            <Button onClick={handleSubmit} disabled={loading} className="min-w-[120px]">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Simpan TTD"}
-            </Button>
+          {/* Face Validation Step */}
+          <div className={`flex-1 flex flex-col ${!isFaceValidation ? 'hidden' : ''}`}>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-blue-50/50">
+              <div className="w-[200px] h-[200px] sm:w-[280px] sm:h-[280px] shrink-0 bg-black rounded-full overflow-hidden border-4 border-primary/20 mb-6 shadow-lg">
+                <Webcam
+                  ref={webcamRef}
+                  audio={false}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: "user" }}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="text-center text-blue-900 max-w-md">
+                <p className="font-bold text-lg mb-2">Validasi Wajah</p>
+                <p className="text-sm">Silakan posisikan wajah Anda di dalam lingkaran kamera. Foto akan diambil secara otomatis saat Anda menekan tombol Simpan.</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between border-t border-blue-100 bg-white p-4 shrink-0">
+              <Button variant="outline" onClick={() => setIsFaceValidation(false)} type="button">
+                Kembali
+              </Button>
+              <Button onClick={handleSubmit} disabled={loading} className="min-w-[120px]">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Simpan TTD & Wajah"}
+              </Button>
+            </div>
           </div>
+
         </div>
       </div>
     </div>

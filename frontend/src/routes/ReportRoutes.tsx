@@ -9,6 +9,7 @@ const ReportBilling = lazy(() => import('@/pages/reports/index').then(m => ({ de
 const ReportInpatient = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportInpatientPage })));
 const ReportPharmacy = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportPharmacyPage })));
 const ReportPenunjang = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportPenunjangPage })));
+const ReportServices = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportServicesPage })));
 const ReportInventory = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportInventoryPage })));
 const ReportHR = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportHRPage })));
 const ReportKemenkes = lazy(() => import('@/pages/reports/index').then(m => ({ default: m.ReportKemenkesPage })));
@@ -28,6 +29,7 @@ export default function ReportRoutes() {
         <Route path="inpatient" element={<ReportInpatient />} />
         <Route path="pharmacy" element={<ReportPharmacy />} />
         <Route path="penunjang" element={<ReportPenunjang />} />
+        <Route path="services" element={<ReportServices />} />
         <Route path="inventory" element={<ReportInventory />} />
         <Route path="hr" element={<ReportHR />} />
         <Route path="kemenkes" element={<ReportKemenkes />} />

@@ -13,8 +13,8 @@ import {
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { bpjsApi, roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
-import type { AplicareBedItem, AplicareRefKelasItem } from "@/lib/api/bpjs";
+import { bpjsApi, roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type DoctorSchedule } from "@/lib/api";
+import type { AplicareBedItem, AplicareRefKelasItem, BPJSPoliMapping } from "@/lib/api/bpjs";
 import { roomProceduresApi } from "@/lib/api/procedures";
 import type { RoomProcedure } from "@/lib/api/procedures";
 import { roomInventoriesApi, type RoomInventory } from "@/lib/api/inventories";
@@ -40,13 +40,16 @@ import {
   Monitor,
   Eye,
   Search,
+  Building2,
 } from "lucide-react";
 import { UnitFormDialog } from "./components/kamar/unit-form-dialog";
 import { BedFormDialog } from "./components/bed/bed-form-dialog";
 import { StaffFormDialog } from "./components/staff/staff-form-dialog";
-import { ScheduleFormDialog } from "./components/jadwal/schedule-form-dialog";
 import { DoctorScheduleFormDialog } from "./components/jadwal/doctor-schedule-form-dialog";
+import { BpjsPoliMappingDialog } from "./components/jadwal/bpjs-poli-mapping-dialog";
+import { PullHfisScheduleDialog } from "./components/jadwal/pull-hfis-schedule-dialog";
 import { RoomProcedureFormDialog } from "./components/tindakan/room-procedure-form-dialog";
+import { RoomClinicalPackageFormDialog } from "./components/clinical-package-form-dialog";
 import { ProcedureAssignmentPanel } from "./components/tindakan/procedure-assignment-panel";
 import { RoomInventoryFormDialog } from "./components/inventory/room-inventory-form-dialog";
 import { InventoryAssignmentPanel } from "./components/inventory/inventory-assignment-panel";
@@ -91,22 +94,11 @@ export default function RoomShow() {
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [loading, setLoading] = useState(true);
   const [registeringAplicare, setRegisteringAplicare] = useState(false);
-  const [aplicareMapping, setAplicareMapping] = useState<AplicareBedItem | null>(null);
+  const [aplicareMappings, setAplicareMappings] = useState<AplicareBedItem[]>([]);
   const [aplicareDialogOpen, setAplicareDialogOpen] = useState(false);
   const [aplicareDeleteDialogOpen, setAplicareDeleteDialogOpen] = useState(false);
   const [aplicareRefKelas, setAplicareRefKelas] = useState<AplicareRefKelasItem[]>([]);
   const [_aplicareRefKelasLoading, setAplicareRefKelasLoading] = useState(false);
-  const [_useGenderAvailability, setUseGenderAvailability] = useState(false);
-  const [aplicareForm, setAplicareForm] = useState({
-    kodekelas: "",
-    koderuang: "",
-    namaruang: "",
-    kapasitas: "0",
-    tersedia: "0",
-    tersediapria: "0",
-    tersediawanita: "0",
-    tersediapriawanita: "0",
-  });
 
   // Selected unit for bed management
   const [selectedUnit, setSelectedUnit] = useState<RoomUnit | null>(null);
@@ -129,12 +121,12 @@ export default function RoomShow() {
   const [staffToDelete, setStaffToDelete] = useState<number | null>(null);
 
   // Schedule states
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [doctorSchedules, setDoctorSchedules] = useState<DoctorSchedule[]>([]);
-  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [deleteScheduleDialogOpen, setDeleteScheduleDialogOpen] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState<number | null>(null);
+  const [poliMapping, setPoliMapping] = useState<BPJSPoliMapping | null>(null);
+  const [poliMappingDialogOpen, setPoliMappingDialogOpen] = useState(false);
+  const [pullHfisDialogOpen, setPullHfisDialogOpen] = useState(false);
+
+  // Doctor Schedule states
   const [doctorScheduleDialogOpen, setDoctorScheduleDialogOpen] = useState(false);
 
   const [editingDoctorSchedule, setEditingDoctorSchedule] = useState<DoctorSchedule | null>(null);
@@ -160,6 +152,11 @@ export default function RoomShow() {
   const [deleteRoomMedicineDialogOpen, setDeleteRoomMedicineDialogOpen] = useState(false);
   const [roomMedicineToDelete, setRoomMedicineToDelete] = useState<number | null>(null);
 
+  // Room Clinical Packages states
+  const [roomClinicalPackageDialogOpen, setRoomClinicalPackageDialogOpen] = useState(false);
+  const [deleteRoomClinicalPackageDialogOpen, setDeleteRoomClinicalPackageDialogOpen] = useState(false);
+  const [roomClinicalPackageToDelete, setRoomClinicalPackageToDelete] = useState<number | null>(null);
+
   const loadData = useCallback(async () => {
     if (!id) return;
 
@@ -179,12 +176,16 @@ export default function RoomShow() {
 
       // Load schedules if room has schedule
       if (roomData.has_schedule) {
-        const [schedulesRes, doctorSchedulesRes] = await Promise.all([
-          roomsApi.getSchedules(parseInt(id)),
-          roomsApi.getDoctorSchedules(parseInt(id)),
-        ]);
-        setSchedules(schedulesRes.data.data || []);
+        const doctorSchedulesRes = await roomsApi.getDoctorSchedules(parseInt(id));
         setDoctorSchedules(doctorSchedulesRes.data.data || []);
+
+        try {
+          const poliMapRes = await bpjsApi.getPoliMappings({ room_id: parseInt(id) });
+          const poliMap = poliMapRes.data.data?.[0] || null;
+          setPoliMapping(poliMap);
+        } catch {
+          setPoliMapping(null);
+        }
       }
 
       // Load room procedures
@@ -243,17 +244,32 @@ export default function RoomShow() {
   }, [id, navigate, toast, selectedUnit?.id]);
 
   const loadAplicareMapping = useCallback(async () => {
-    if (!id || !room?.code) return;
+    if (!id || !room) return;
 
     try {
       const response = await bpjsApi.aplicareReadBed(1, 500);
       const items = response.data.data || [];
-      const mappedRoom = items.find((item) => item.koderuang === room.code) || null;
-      setAplicareMapping(mappedRoom);
+
+      // Kumpulkan semua kode unit dari ruangan ini (max 10 karakter, sesuai truncation di backend)
+      const unitCodes = new Set(
+        (room.units || []).map((u) => {
+          const code = u.code || `${room.code}-${u.id}`;
+          // Konsisten dengan backend: ambil 10 karakter TERAKHIR
+          return code.length > 10 ? code.slice(code.length - 10) : code;
+        })
+      );
+
+      // Kumpulkan semua unit yang sudah terdaftar di Aplicare
+      const mappedItems = items.filter((item) =>
+        unitCodes.has(item.koderuang) ||
+        item.koderuang === room.code
+      );
+
+      setAplicareMappings(mappedItems);
     } catch {
-      setAplicareMapping(null);
+      setAplicareMappings([]);
     }
-  }, [id, room?.code]);
+  }, [id, room]);
 
   const loadAplicareRefKelas = useCallback(async () => {
     try {
@@ -272,30 +288,6 @@ export default function RoomShow() {
     }
   }, [toast]);
 
-  const initializeAplicareForm = useCallback(() => {
-    if (!room) return;
-
-    const tersediapria = String(aplicareMapping?.tersediapria ?? 0);
-    const tersediawanita = String(aplicareMapping?.tersediawanita ?? 0);
-    const tersediapriawanita = String(aplicareMapping?.tersediapriawanita ?? 0);
-
-    setUseGenderAvailability(
-      (aplicareMapping?.tersediapria ?? 0) > 0 ||
-      (aplicareMapping?.tersediawanita ?? 0) > 0
-    );
-
-    setAplicareForm({
-      kodekelas: aplicareMapping?.kodekelas || room.kode_kelas_bpjs || mapRoomClassToAplicare(room.room_class),
-      koderuang: aplicareMapping?.koderuang || room.code || "",
-      namaruang: aplicareMapping?.namaruang || room.name || "",
-      kapasitas: String(aplicareMapping?.kapasitas ?? room.total_beds ?? 0),
-      tersedia: String(aplicareMapping?.tersedia ?? room.available_beds ?? 0),
-      tersediapria: tersediapria,
-      tersediawanita: tersediawanita,
-      tersediapriawanita: tersediapriawanita,
-    });
-  }, [aplicareMapping, room]);
-
   useEffect(() => {
     loadData();
   }, []);
@@ -308,12 +300,11 @@ export default function RoomShow() {
 
   useEffect(() => {
     if (aplicareDialogOpen && room) {
-      initializeAplicareForm();
-      if (!aplicareMapping && aplicareRefKelas.length === 0) {
+      if (aplicareMappings.length === 0 && aplicareRefKelas.length === 0) {
         loadAplicareRefKelas();
       }
     }
-  }, [aplicareDialogOpen, aplicareMapping, aplicareRefKelas.length, initializeAplicareForm, loadAplicareRefKelas, room]);
+  }, [aplicareDialogOpen, aplicareMappings.length, aplicareRefKelas.length, loadAplicareRefKelas, room]);
 
   // Reload when selectedUnit changes (to refresh bed data)
   useEffect(() => {
@@ -332,21 +323,23 @@ export default function RoomShow() {
 
   const filteredUnits = useMemo(() => {
     const query = unitSearch.trim().toLowerCase();
-    if (!query) return units;
+    const result = !query
+      ? [...units]
+      : units.filter((unit) => {
+        const searchable = [
+          unit.name,
+          unit.code,
+          `lantai ${unit.floor}`,
+          unit.is_active ? 'aktif' : 'tidak aktif',
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
 
-    return units.filter((unit) => {
-      const searchable = [
-        unit.name,
-        unit.code,
-        `lantai ${unit.floor}`,
-        unit.is_active ? 'aktif' : 'tidak aktif',
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+        return searchable.includes(query);
+      });
 
-      return searchable.includes(query);
-    });
+    return result.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'id', { sensitivity: 'base' }));
   }, [unitSearch, units]);
 
   const filteredBeds = useMemo(() => {
@@ -475,45 +468,6 @@ export default function RoomShow() {
     }
   };
 
-  // Schedule handlers
-  const handleAddSchedule = () => {
-    setEditingSchedule(null);
-    setScheduleDialogOpen(true);
-  };
-
-  const handleEditSchedule = (schedule: Schedule) => {
-    setEditingSchedule(schedule);
-    setScheduleDialogOpen(true);
-  };
-
-  const handleDeleteSchedule = (scheduleId: number) => {
-    setScheduleToDelete(scheduleId);
-    setDeleteScheduleDialogOpen(true);
-  };
-
-  const confirmDeleteSchedule = async () => {
-    if (!id || !scheduleToDelete) return;
-
-    try {
-      await roomsApi.deleteSchedule(parseInt(id), scheduleToDelete);
-      toast({
-        variant: "success",
-        title: "Berhasil!",
-        description: "Jadwal berhasil dihapus.",
-      });
-      loadData();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error!",
-        description: error.response?.data?.error || "Gagal menghapus jadwal.",
-      });
-    } finally {
-      setDeleteScheduleDialogOpen(false);
-      setScheduleToDelete(null);
-    }
-  };
-
   // Doctor Schedule handlers
   const handleAddDoctorSchedule = () => {
     setEditingDoctorSchedule(null);
@@ -624,12 +578,34 @@ export default function RoomShow() {
     }
   };
 
+  const handleDeleteRoomClinicalPackage = async () => {
+    if (!roomClinicalPackageToDelete) return;
+    try {
+      await roomClinicalPackagesApi.delete(parseInt(id as string), roomClinicalPackageToDelete);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Paket klinis berhasil dihapus dari ruangan.",
+      });
+      loadData();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: "Gagal menghapus paket klinis dari ruangan.",
+      });
+    } finally {
+      setDeleteRoomClinicalPackageDialogOpen(false);
+      setRoomClinicalPackageToDelete(null);
+    }
+  };
+
   const unitStats = useMemo(() => {
     if (!room?.units) return [];
     return room.units.map(unit => {
       const totalBeds = unit.beds?.length || 0;
       const availableBeds = unit.beds?.filter(b => b.status === 'available').length || 0;
-      
+
       return {
         unitCode: unit.code || "",
         unitName: unit.name || "",
@@ -666,12 +642,14 @@ export default function RoomShow() {
     return null;
   }
 
+  // Daftarkan ke Aplicare — hanya mendaftarkan kamar yang BELUM terdaftar (sync_mode=false)
   const handleRegisterAplicare = async () => {
     if (!room) return;
     try {
       setRegisteringAplicare(true);
       const response = await bpjsApi.aplicareCreateRoom({
         room_id: room.id,
+        sync_mode: false,
       });
       toast({
         variant: "success",
@@ -691,18 +669,45 @@ export default function RoomShow() {
     }
   };
 
+  // Sinkronisasi Kamar — mendaftarkan kamar baru + update yang sudah ada (sync_mode=true)
+  const handleSyncAplicare = async () => {
+    if (!room) return;
+    try {
+      setRegisteringAplicare(true);
+      const response = await bpjsApi.aplicareCreateRoom({
+        room_id: room.id,
+        sync_mode: true,
+      });
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: response.data.message || "Kamar berhasil disinkronisasi ke Aplicare.",
+      });
+      setAplicareDialogOpen(false);
+      await loadAplicareMapping();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal sinkronisasi",
+        description: error.response?.data?.error || "Sinkronisasi kamar ke Aplicare gagal.",
+      });
+    } finally {
+      setRegisteringAplicare(false);
+    }
+  };
+
   const handleDeleteAplicare = async () => {
-    if (!aplicareMapping) return;
+    if (!room || aplicareMappings.length === 0) return;
 
     try {
       setRegisteringAplicare(true);
-      const response = await bpjsApi.aplicareDeleteRoom(aplicareMapping.kodekelas, aplicareMapping.koderuang);
+      const response = await bpjsApi.aplicareDeleteRoom(room.id);
       toast({
         variant: "success",
         title: "Berhasil!",
         description: response.data.message || "Ruangan berhasil dihapus dari Aplicare.",
       });
-      setAplicareMapping(null);
+      setAplicareMappings([]);
       setAplicareDeleteDialogOpen(false);
       setAplicareDialogOpen(false);
       await loadAplicareMapping();
@@ -720,11 +725,6 @@ export default function RoomShow() {
 
   const totalBeds = room.total_beds || 0;
   const availableBeds = room.available_beds || 0;
-
-  const aplicareSummary = {
-    kodeRuang: aplicareMapping?.koderuang || aplicareForm.koderuang || room.code,
-    namaRuang: aplicareMapping?.namaruang || aplicareForm.namaruang || room.name,
-  };
 
   const aplicareValidations = [
     {
@@ -793,7 +793,7 @@ export default function RoomShow() {
                 ) : (
                   <BedDouble className="mr-2 h-4 w-4" />
                 )}
-                {aplicareMapping ? "Detail Aplicare" : "Tambah ke Aplicare"}
+                {aplicareMappings.length > 0 ? "Detail Aplicare" : "Tambah ke Aplicare"}
               </Button>
             )}
             {hasPermission("rooms.update") && (
@@ -806,8 +806,8 @@ export default function RoomShow() {
         }
       >
       </PageHeader>
-      <PageContent className="min-w-0 overflow-x-hidden">
-        <div className="min-w-0 overflow-hidden border border-border/70 bg-background">
+      <PageContent className="flex-none pb-8 min-w-0">
+        <div className="min-w-0 border border-border/70 bg-background rounded-b-lg">
           <div className="min-w-0 p-3 sm:p-4">
             {/* Show beds for selected unit OR show main tabs */}
             {selectedUnit ? (
@@ -815,35 +815,43 @@ export default function RoomShow() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant="outline"
                       onClick={() => setSelectedUnit(null)}
                     >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Kembali
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <div>
                       <h3 className="text-sm font-semibold">{selectedUnit.name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedUnit.code} ├óÔé¼┬ó Lantai {selectedUnit.floor} ├óÔé¼┬ó
-                        Kapasitas {selectedUnit.capacity} bed
-                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          <Building2 className="h-3 w-3" />
+                          {selectedUnit.code}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          <Layers className="h-3 w-3" />
+                          Lantai {selectedUnit.floor}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          <BedDouble className="h-3 w-3" />
+                          Kapasitas {selectedUnit.capacity} bed
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {hasPermission('rooms.update') && (selectedUnit.beds?.length || 0) < selectedUnit.capacity && (
-                    <Button onClick={handleAddBed} size="sm">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Tambah Bed
-                    </Button>
-                  )}
-                </div>
-                {hasPermission('rooms.update') && (selectedUnit.beds?.length || 0) >= selectedUnit.capacity && (
-                  <div className="flex justify-end">
-                    <p className="text-sm text-muted-foreground">
-                      Kapasitas kamar sudah penuh ({selectedUnit.beds?.length || 0}/{selectedUnit.capacity})
-                    </p>
+                  <div className="flex items-center gap-2">
+                    {(selectedUnit.beds?.length || 0) >= selectedUnit.capacity && (
+                      <Badge variant="destructive" className="text-xs">
+                        Penuh ({selectedUnit.beds?.length || 0}/{selectedUnit.capacity})
+                      </Badge>
+                    )}
+                    {hasPermission('rooms.update') && (selectedUnit.beds?.length || 0) < selectedUnit.capacity && (
+                      <Button onClick={handleAddBed} size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Tambah Bed
+                      </Button>
+                    )}
                   </div>
-                )}
+                </div>
                 <div className="min-w-0 overflow-hidden border border-border/70">
                   {(selectedUnit.beds || []).length > 0 ? (
                     <>
@@ -858,7 +866,7 @@ export default function RoomShow() {
                           />
                         </div>
                       </div>
-                      <div className="max-h-[26rem] overflow-y-auto pb-3">
+                      <div className="max-h-[40rem] overflow-y-auto pb-3">
                         <table className="w-full table-fixed text-sm">
                           <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
                             <tr>
@@ -911,7 +919,7 @@ export default function RoomShow() {
               </div>
             ) : (
               <Tabs defaultValue="detail" className="flex flex-col md:flex-row min-w-0 w-full gap-4 md:gap-6">
-                <TabsList className="flex flex-row md:flex-col h-auto justify-start w-full md:w-48 shrink-0 overflow-x-auto bg-transparent p-0 space-y-0 md:space-y-1 space-x-1 md:space-x-0">
+                <TabsList className="flex flex-row md:flex-col h-auto justify-start w-full md:w-48 shrink-0 overflow-x-auto bg-transparent p-0 space-y-0 md:space-y-1 space-x-1 md:space-x-0 sticky top-4 self-start">
                   <TabsTrigger value="detail" className="justify-start px-4 py-2 text-sm w-full rounded-md data-[state=active]:bg-muted data-[state=active]:shadow-none">
                     Detail
                   </TabsTrigger>
@@ -1092,7 +1100,7 @@ export default function RoomShow() {
                         <div className="min-w-0 overflow-hidden border border-border/70">
                           {units.length > 0 ? (
                             <>
-                              <div className="max-h-[26rem] overflow-y-auto pb-3">
+                              <div className="max-h-[42rem] overflow-y-auto pb-3">
                                 <table className="w-full table-fixed text-sm">
                                   <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
                                     <tr>
@@ -1164,100 +1172,50 @@ export default function RoomShow() {
                   </TabsContent>
 
                   {/* Schedules Tab */}
-                  <TabsContent value="schedules" className="mt-0 min-w-0 overflow-hidden">
-                    <div className="space-y-6">
+                  <TabsContent value="schedules" className="mt-0 min-w-0 overflow-visible">
+                    <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 max-h-[calc(100vh-16rem)]">
                       {/* Room Schedule (Jadwal Poli) */}
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h4 className="text-sm font-semibold flex items-center gap-2">
-                              <Clock className="h-4 w-4" />
-                              Jadwal Operasional
-                            </h4>
-                            <p className="text-xs text-muted-foreground">Jadwal buka ruangan per hari</p>
-                          </div>
-                          {hasPermission('rooms.update') && (
-                            <Button onClick={handleAddSchedule} size="sm">
-                              <Plus className="mr-2 h-4 w-4" />
-                              Tambah Jadwal
-                            </Button>
-                          )}
-                        </div>
-
-                        {schedules.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
-                              const dayIdx = idx === 6 ? 0 : idx + 1; // Convert to 0=Sunday format
-                              const daySchedules = schedules.filter(s => s.day_of_week === dayIdx);
-                              return (
-                                <div key={dayName} className="border rounded-lg p-3">
-                                  <div className="font-medium text-sm mb-2">{dayName}</div>
-                                  {daySchedules.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {daySchedules.map(schedule => (
-                                        <div key={schedule.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
-                                          <span>{schedule.start_time} - {schedule.end_time}</span>
-                                          <div className="flex items-center gap-1">
-                                            {schedule.max_patients > 0 && (
-                                              <Badge variant="outline" className="text-xs">Max {schedule.max_patients}</Badge>
-                                            )}
-                                            {hasPermission('rooms.update') && (
-                                              <>
-                                                <Button
-                                                  variant="ghost"
-                                                  size="icon"
-                                                  className="h-6 w-6"
-                                                  onClick={() => handleEditSchedule(schedule)}
-                                                >
-                                                  <Pencil className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                  variant="ghost"
-                                                  size="icon"
-                                                  className="h-6 w-6 text-destructive"
-                                                  onClick={() => handleDeleteSchedule(schedule.id)}
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                </Button>
-                                              </>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">Tutup</p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-6 text-muted-foreground border rounded-lg">
-                            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                            <p className="text-sm">Belum ada jadwal operasional</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <hr className="border-border/50" />
-
                       {/* Doctor Schedule (Jadwal Dokter) */}
                       <div>
                         <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h4 className="text-sm font-semibold flex items-center gap-2">
-                              <User className="h-4 w-4" />
-                              Jadwal Dokter
-                            </h4>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                Jadwal Dokter
+                              </h4>
+                              {poliMapping ? (
+                                <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/20">
+                                  Poli BPJS: {poliMapping.nama_poli_bpjs}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-500 border-amber-500/20">
+                                  Belum di-mapping BPJS
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">Jadwal praktik dokter di ruangan ini</p>
                           </div>
-                          {hasPermission('rooms.update') && (
-                            <Button onClick={handleAddDoctorSchedule} size="sm">
-                              <Plus className="mr-2 h-4 w-4" />
-                              Tambah Jadwal Dokter
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {hasPermission('rooms.update') && (
+                              <>
+                                <Button variant="outline" onClick={() => setPoliMappingDialogOpen(true)} size="sm">
+                                  <Building2 className="mr-2 h-4 w-4" />
+                                  {poliMapping ? 'Ubah Mapping Poli' : 'Mapping Poli BPJS'}
+                                </Button>
+                                {poliMapping && (
+                                  <Button variant="outline" onClick={() => setPullHfisDialogOpen(true)} size="sm" className="bg-blue-50/50 text-blue-600 border-blue-200 hover:bg-blue-100/50 hover:text-blue-700">
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    Tarik Jadwal HFIS
+                                  </Button>
+                                )}
+                                <Button onClick={handleAddDoctorSchedule} size="sm">
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Tambah Jadwal Dokter
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
 
                         {doctorSchedules.length > 0 ? (
@@ -1318,7 +1276,7 @@ export default function RoomShow() {
                             })}
                           </div>
                         ) : (
-                          <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                          <div className="text-center py-24 text-muted-foreground border rounded-lg">
                             <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
                             <p className="text-sm">Belum ada jadwal dokter</p>
                           </div>
@@ -1346,6 +1304,11 @@ export default function RoomShow() {
                       roomProcedures={roomProcedures}
                       onRefresh={loadData}
                       hasPermission={hasPermission('rooms.update')}
+                      onAdd={() => setRoomProcedureDialogOpen(true)}
+                      onDelete={(rpId) => {
+                        setRoomProcedureToDelete(rpId);
+                        setDeleteRoomProcedureDialogOpen(true);
+                      }}
                     />
                   </TabsContent>
 
@@ -1355,6 +1318,11 @@ export default function RoomShow() {
                       assignments={roomClinicalPackages}
                       onRefresh={loadData}
                       hasPermission={hasPermission('rooms.update')}
+                      onAdd={() => setRoomClinicalPackageDialogOpen(true)}
+                      onDelete={(cp) => {
+                        setRoomClinicalPackageToDelete(cp.id);
+                        setDeleteRoomClinicalPackageDialogOpen(true);
+                      }}
                     />
                   </TabsContent>
 
@@ -1452,11 +1420,19 @@ export default function RoomShow() {
           />
 
           {/* Schedule Dialogs */}
-          <ScheduleFormDialog
-            open={scheduleDialogOpen}
-            onOpenChange={setScheduleDialogOpen}
+          <BpjsPoliMappingDialog
+            open={poliMappingDialogOpen}
+            onOpenChange={setPoliMappingDialogOpen}
+            room={room}
+            poliMapping={poliMapping}
+            onSuccess={loadData}
+          />
+
+          <PullHfisScheduleDialog
+            open={pullHfisDialogOpen}
+            onOpenChange={setPullHfisDialogOpen}
             roomId={parseInt(id!)}
-            schedule={editingSchedule}
+            poliMapping={poliMapping}
             onSuccess={loadData}
           />
 
@@ -1476,14 +1452,21 @@ export default function RoomShow() {
             onSuccess={loadData}
           />
 
+          <RoomClinicalPackageFormDialog
+            open={roomClinicalPackageDialogOpen}
+            onOpenChange={setRoomClinicalPackageDialogOpen}
+            roomId={parseInt(id!)}
+            assignedPackageIds={roomClinicalPackages.map((cp) => cp.clinical_package_id)}
+            onSuccess={loadData}
+          />
+
           <ConfirmDialog
-            open={deleteScheduleDialogOpen}
-            onOpenChange={setDeleteScheduleDialogOpen}
-            onConfirm={confirmDeleteSchedule}
-            title="Hapus Jadwal"
-            description="Apakah Anda yakin ingin menghapus jadwal ini?"
+            open={deleteRoomClinicalPackageDialogOpen}
+            onOpenChange={setDeleteRoomClinicalPackageDialogOpen}
+            title="Hapus Paket Klinis"
+            description="Apakah Anda yakin ingin menghapus paket klinis ini dari ruangan? Tindakan ini tidak dapat dibatalkan."
+            onConfirm={handleDeleteRoomClinicalPackage}
             confirmText="Hapus"
-            cancelText="Batal"
             variant="destructive"
           />
 
@@ -1550,122 +1533,165 @@ export default function RoomShow() {
           />
 
           <Dialog open={aplicareDialogOpen} onOpenChange={setAplicareDialogOpen}>
-            <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[720px]">
+            <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>
-                  {aplicareMapping ? "Detail Mapping Aplicare" : "Validasi Pendaftaran ke Aplicare"}
-                </DialogTitle>
-                <DialogDescription>
-                  {aplicareMapping
-                    ? "Detail mapping ruangan yang sudah terdaftar di BPJS Aplicare."
-                    : "Periksa data ruangan sebelum didaftarkan ke BPJS Aplicare."}
-                </DialogDescription>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <BedDouble className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base">
+                      {aplicareMappings.length > 0 ? "Kelola Aplicare" : "Daftarkan ke Aplicare"}
+                    </DialogTitle>
+                    <DialogDescription className="mt-0.5 text-xs">
+                      {aplicareMappings.length > 0
+                        ? "Ruangan sudah terdaftar. Klik Sinkronisasi untuk mendaftarkan kamar baru."
+                        : "Periksa data sebelum mendaftarkan ruangan ke BPJS Aplicare."}
+                    </DialogDescription>
+                  </div>
+                  {aplicareMappings.length > 0 && (
+                    <Badge className="ml-auto shrink-0 bg-green-600 hover:bg-green-600 text-white">
+                      Terdaftar ({aplicareMappings.length})
+                    </Badge>
+                  )}
+                </div>
               </DialogHeader>
 
-              <div className="max-h-[calc(85vh-10rem)] space-y-4 overflow-y-auto pr-1">
-                <div className="rounded-lg border border-border/70 bg-background p-4">
-                  <div className="mb-4">
-                    <div className="text-sm font-semibold text-foreground">Daftar Kamar yang Akan Didaftarkan</div>
-                    <div className="text-xs text-muted-foreground">BPJS Aplicare mewajibkan pendaftaran per Kamar. Berikut daftar kamar dari ruangan ini beserta ketersediaan bed-nya.</div>
-                  </div>
-
-                  <div className="max-h-[calc(85vh-10rem)] space-y-4 overflow-y-auto pr-1 custom-scrollbar">
-                    <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
-                      {unitStats.map((stat, index) => (
-                        <div key={index} className="flex flex-col gap-1 rounded border border-border/70 bg-background p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="font-semibold">{stat.unitName}</div>
-                            <Badge variant="outline">{stat.aplicareKodeKelas} ({stat.className})</Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">Kode: {stat.unitCode}</div>
-                          <div className="mt-2 text-sm font-medium">
-                            Tersedia: {stat.available} / {stat.total} bed
-                          </div>
+              <div className="max-h-[calc(85vh-12rem)] space-y-4 overflow-y-auto">
+                {/* Mapping info ringkas - hanya saat sudah terdaftar dan jika jumlah mapping tidak terlalu banyak */}
+                {aplicareMappings.length > 0 && aplicareMappings.length <= 3 && (
+                  <div className="flex flex-col gap-2">
+                    {aplicareMappings.map((mapping, idx) => (
+                      <div key={idx} className="flex flex-wrap gap-4 rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm">
+                        <div>
+                          <span className="text-xs text-muted-foreground">Kode Ruang</span>
+                          <div className="font-medium">{mapping.koderuang}</div>
                         </div>
-                      ))}
+                        <div>
+                          <span className="text-xs text-muted-foreground">Nama</span>
+                          <div className="font-medium">{mapping.namaruang}</div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Kelas</span>
+                          <div className="font-medium">{mapping.namakelas || mapping.kodekelas}</div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Tersedia / Kap.</span>
+                          <div className="font-medium">{mapping.tersedia} / {mapping.kapasitas}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Daftar kamar */}
+                <div className="rounded-lg border border-border/70 overflow-hidden">
+                  <div className="border-b border-border/70 bg-muted/50 px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Daftar Kamar ({unitStats.length})
                     </div>
+                  </div>
+                  <div className="divide-y divide-border/60">
+                    {[...unitStats]
+                      .sort((a, b) => a.unitName.localeCompare(b.unitName, 'id', { sensitivity: 'base' }))
+                      .map((stat, index) => {
+                        const isRegistered = aplicareMappings.some(mapping =>
+                          stat.unitCode === mapping.koderuang ||
+                          (stat.unitCode.length > 10 ? stat.unitCode.slice(stat.unitCode.length - 10) : stat.unitCode) === mapping.koderuang
+                        );
+                        const isFull = stat.total > 0 && stat.available === 0;
+                        return (
+                          <div key={index} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{stat.unitName}</span>
+                                {isRegistered && (
+                                  <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                    ✓ Terdaftar
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-0.5 text-xs text-muted-foreground">{stat.unitCode}</div>
+                            </div>
+                            <Badge variant="outline" className="shrink-0 text-xs">
+                              {stat.aplicareKodeKelas}
+                            </Badge>
+                            <div className="shrink-0 text-right">
+                              <div className={`text-sm font-semibold ${isFull ? 'text-destructive' : 'text-foreground'}`}>
+                                {stat.available}/{stat.total}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">tersedia</div>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
 
-                {/* Redundant room summary block removed to avoid confusing 'Ruangan' vs 'Kamar' semantics */}
-
-                {!aplicareMapping ? (
-                  <div className="space-y-4">
-
-
-                    <div className="rounded-lg border border-border/70 bg-background p-4">
-                      <div className="mb-4">
-                        <div className="text-sm font-semibold text-foreground">Checklist Validasi</div>
-                        <div className="text-xs text-muted-foreground">Ruangan hanya bisa didaftarkan jika seluruh syarat minimum sudah terpenuhi.</div>
+                {/* Checklist validasi - hanya saat belum terdaftar */}
+                {aplicareMappings.length === 0 && (
+                  <div className="rounded-lg border border-border/70 overflow-hidden">
+                    <div className="border-b border-border/70 bg-muted/50 px-4 py-2.5">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Checklist Validasi
                       </div>
-
-                      <div className="space-y-3">
-                        {aplicareValidations.map((item) => (
-                          <div key={item.label} className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-4 py-3">
-                            <div>
-                              <div className="text-sm font-medium text-foreground">{item.label}</div>
-                              <div className="mt-1 text-xs text-muted-foreground">{item.value}</div>
-                            </div>
-                            <Badge variant={item.passed ? "default" : "secondary"} className={item.passed ? "bg-green-600 hover:bg-green-600" : ""}>
-                              {item.passed ? "Valid" : "Perlu dicek"}
-                            </Badge>
+                    </div>
+                    <div className="divide-y divide-border/60">
+                      {aplicareValidations.map((item) => (
+                        <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">{item.label}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground truncate">{item.value}</div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-border/70 bg-background p-4">
-                    <div className="mb-4">
-                      <div className="text-sm font-semibold text-foreground">Detail Mapping Aplicare</div>
-                      <div className="text-xs text-muted-foreground">Informasi ruangan yang saat ini sudah terdaftar di BPJS Aplicare.</div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruang Aplicare</div>
-                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.koderuang}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruang Aplicare</div>
-                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namaruang}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kelas Aplicare</div>
-                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namakelas || aplicareMapping.kodekelas}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kapasitas / Tersedia</div>
-                        <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.tersedia} / {aplicareMapping.kapasitas}</div>
-                      </div>
+                          <Badge
+                            variant={item.passed ? "default" : "secondary"}
+                            className={`shrink-0 ${item.passed ? "bg-green-600 hover:bg-green-600" : ""}`}
+                          >
+                            {item.passed ? "✓ Valid" : "Perlu dicek"}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
 
-              <DialogFooter>
-                {aplicareMapping ? (
-                  <>
+              <DialogFooter className="gap-2 sm:gap-0">
+                {aplicareMappings.length > 0 ? (
+                  <div className="flex w-full items-center justify-between gap-2">
                     <Button
                       type="button"
-                      variant="destructive"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => setAplicareDeleteDialogOpen(true)}
                       disabled={registeringAplicare}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Hapus dari Aplicare
+                      <Trash2 className="mr-1.5 h-4 w-4" />
+                      Hapus
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setAplicareDialogOpen(false)}>
-                      Tutup
-                    </Button>
-                  </>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setAplicareDialogOpen(false)}>
+                        Tutup
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSyncAplicare}
+                        disabled={!canSubmitAplicare || registeringAplicare}
+                      >
+                        {registeringAplicare ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <BedDouble className="mr-1.5 h-4 w-4" />}
+                        Sinkronisasi Kamar
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <>
-                    <Button type="button" variant="outline" onClick={() => setAplicareDialogOpen(false)}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setAplicareDialogOpen(false)}>
                       Batal
                     </Button>
-                    <Button type="button" onClick={handleRegisterAplicare} disabled={!canSubmitAplicare || registeringAplicare}>
-                      {registeringAplicare ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BedDouble className="mr-2 h-4 w-4" />}
+                    <Button type="button" size="sm" onClick={handleRegisterAplicare} disabled={!canSubmitAplicare || registeringAplicare}>
+                      {registeringAplicare ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <BedDouble className="mr-1.5 h-4 w-4" />}
                       Daftarkan ke Aplicare
                     </Button>
                   </>

@@ -32,6 +32,7 @@ interface PageHeaderProps {
   onBack?: () => void | Promise<void>
   // Slot untuk konten tambahan di bawah title row (misal: tabs)
   children?: React.ReactNode
+  badges?: React.ReactNode
 }
 
 export function PageHeader({
@@ -42,6 +43,7 @@ export function PageHeader({
   className,
   onBack,
   children,
+  badges,
 }: PageHeaderProps) {
   return (
     <div className={cn("border-b border-border/70 bg-background/95 backdrop-blur", className)}>
@@ -68,6 +70,11 @@ export function PageHeader({
                   <h1 className="min-w-0 text-xl font-semibold leading-tight tracking-tight text-foreground break-words">
                     {title}
                   </h1>
+                  {badges && (
+                    <div className="flex items-center gap-2">
+                      {badges}
+                    </div>
+                  )}
                 </div>
                 {description && (
                   <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">

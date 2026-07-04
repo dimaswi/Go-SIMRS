@@ -22,6 +22,8 @@ import {
   ArrowRight,
   XCircle,
   Trash2,
+  PenTool,
+  Printer,
 } from "lucide-react";
 import { useMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, type Disposition } from "@/lib/api/medical-records";
@@ -31,6 +33,8 @@ import { vclaimApi, type SEPLocal, type VClaimSPRIResponse, type SuratKontrolRes
 import { visitsApi } from "@/lib/api/visits";
 import { registrationApi } from "@/lib/api/queue";
 import { useToast } from "@/hooks/use-toast";
+import { printApi } from "@/lib/api/print";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 import { cn } from "@/lib/utils";
 import {
   DischargeDrawer,
@@ -134,8 +138,10 @@ export function DispositionForm({
   // ===== BPJS Control State =====
   const [activeSEP, setActiveSEP] = useState<SEPLocal | null>(null);
   const [_loadingSEP, setLoadingSEP] = useState(false);
-  const [spriResult, setSpriResult] = useState<VClaimSPRIResponse | null>(null);
-  const [suratKontrolResult, setSuratKontrolResult] = useState<SuratKontrolResponse | null>(null);
+  const [spriResult, setSpriResult] = useState<(VClaimSPRIResponse & { id?: number }) | null>(null);
+  const [suratKontrolResult, setSuratKontrolResult] = useState<(SuratKontrolResponse & { id?: number }) | null>(null);
+  const [signDoc, setSignDoc] = useState<{ id: number; type: string; title: string } | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
   
   const [patientNoBpjs, setPatientNoBpjs] = useState<string | null>(null);
   const [registrationId, setRegistrationId] = useState<number | null>(null);
@@ -404,6 +410,7 @@ export function DispositionForm({
               if (spriResponse.data?.data) {
                 const spriData = spriResponse.data.data;
                 setSpriResult({
+                  id: spriData.id,
                   noSPRI: spriData.no_spri,
                   tglRencanaKontrol: spriData.tgl_rencana_kontrol,
                   namaDokter: spriData.nama_dokter,
@@ -426,6 +433,7 @@ export function DispositionForm({
               if (skResponse.data?.data) {
                 const skData = skResponse.data.data;
                 setSuratKontrolResult({
+                  id: skData.id,
                   noSuratKontrol: skData.no_surat_kontrol,
                   tglRencanaKontrol: skData.tgl_rencana_kontrol,
                   namaDokter: skData.nama_dokter,
@@ -723,8 +731,9 @@ export function DispositionForm({
           title: "Pembatalan Berhasil",
           description: `Berhasil membatalkan: ${canceledItems.join(", ")}`,
         });
-        // Refresh the page to reload data
-        window.location.reload();
+        // Trigger data refresh
+        setLoadedDispositionData(null);
+        onSave?.({} as any);
       } else {
         toast({
           title: "Pembatalan Sebagian Berhasil",
@@ -974,12 +983,9 @@ export function DispositionForm({
         
         // Close drawer
         setAdmissionDrawerOpen(false);
+        setLoadedDispositionData(payload as any);
         onSave?.(payload as any);
         
-        // Reload page to reflect new state (patient discharged)
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
         return;
       }
       
@@ -1017,12 +1023,9 @@ export function DispositionForm({
         window.dispatchEvent(new CustomEvent("refresh-final-visit"));
         
         setAdmissionDrawerOpen(false);
+        setLoadedDispositionData(payload as any);
         onSave?.(payload as any);
         
-        // Reload page to reflect new state (patient discharged)
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
         return;
       }
       
@@ -1048,12 +1051,9 @@ export function DispositionForm({
         window.dispatchEvent(new CustomEvent("refresh-final-visit"));
 
         setOutpatientTransferDrawerOpen(false);
+        setLoadedDispositionData(payload as any);
         onSave?.(payload as any);
 
-        // Reload page to reflect new state
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
         return;
       }
 
@@ -1121,12 +1121,9 @@ export function DispositionForm({
       setDeathDrawerOpen(false);
       setOutpatientTransferDrawerOpen(false);
       
+      setLoadedDispositionData(response.data);
       onSave?.(response.data);
       
-      // Reload page to reflect new state (patient discharged)
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (err) {
       const errorMessage = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Gagal menyimpan disposisi";
       toast({
@@ -1205,31 +1202,90 @@ export function DispositionForm({
                       
                       {/* Surat Kontrol BPJS */}
                       {suratKontrolResult && (
-                        <div className="pt-2 border-t">
-                          <span className="text-xs text-muted-foreground">Surat Kontrol BPJS</span>
-                          <p className="font-medium">{suratKontrolResult.noSuratKontrol}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
-                          </p>
+                        <div className="pt-2 border-t flex justify-between items-center">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Surat Kontrol BPJS</span>
+                            <p className="font-medium">{suratKontrolResult.noSuratKontrol}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {suratKontrolResult.id && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
+                                  setSignDoc({ id: suratKontrolResult.id!, type: "surat_kontrol", title: suratKontrolResult.noSuratKontrol });
+                                  setShowSignDialog(true);
+                                }} title="Tanda Tangan">
+                                  <PenTool className="h-3.5 w-3.5 mr-1" />
+                                  TTD
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => printApi.suratKontrol(suratKontrolResult.id!)} title="Cetak Surat Kontrol">
+                                  <Printer className="h-3.5 w-3.5 mr-1" />
+                                  Cetak
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       )}
                       
                       {/* SPRI */}
                       {spriResult && (
-                        <div className="pt-2 border-t">
-                          <span className="text-xs text-muted-foreground">SPRI (Surat Perintah Rawat Inap)</span>
-                          <p className="font-medium">{spriResult.noSPRI}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Tanggal Rencana: {spriResult.tglRencanaKontrol}
-                          </p>
+                        <div className="pt-2 border-t flex justify-between items-center">
+                          <div>
+                            <span className="text-xs text-muted-foreground">SPRI (Surat Perintah Rawat Inap)</span>
+                            <p className="font-medium">{spriResult.noSPRI}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Tanggal Rencana: {spriResult.tglRencanaKontrol}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {spriResult.id && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
+                                  setSignDoc({ id: spriResult.id!, type: "spri", title: spriResult.noSPRI });
+                                  setShowSignDialog(true);
+                                }} title="Tanda Tangan">
+                                  <PenTool className="h-3.5 w-3.5 mr-1" />
+                                  TTD
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => printApi.spri(spriResult.id!)} title="Cetak SPRI">
+                                  <Printer className="h-3.5 w-3.5 mr-1" />
+                                  Cetak
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       )}
                       
                       {/* Jadwal Kontrol SIMRS */}
                       {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
-                        <div className="pt-2 border-t">
-                          <span className="text-xs text-muted-foreground">Jadwal Kontrol SIMRS</span>
-                          <p className="font-medium text-green-700">✓ Sudah dibuat</p>
+                        <div className="pt-2 border-t flex justify-between items-center">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Jadwal Kontrol SIMRS</span>
+                            <p className="font-medium text-green-700">✓ Sudah dibuat</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
+                              const regId = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
+                              if (regId) {
+                                setSignDoc({ id: regId, type: "surat_kontrol", title: "Kontrol SIMRS" });
+                                setShowSignDialog(true);
+                              }
+                            }} title="Tanda Tangan">
+                              <PenTool className="h-3.5 w-3.5 mr-1" />
+                              TTD
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => {
+                              const regId = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
+                              if (regId) printApi.suratKontrolSimrs(regId);
+                            }} title="Cetak Kontrol SIMRS">
+                              <Printer className="h-3.5 w-3.5 mr-1" />
+                              Cetak
+                            </Button>
+                          </div>
                         </div>
                       )}
                       
@@ -1475,6 +1531,24 @@ export function DispositionForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
+
+      {/* Tanda Tangan Modal */}
+      {signDoc && (
+        <SignOnBehalfDialog
+          open={showSignDialog}
+          onOpenChange={(isOpen) => {
+            setShowSignDialog(isOpen);
+          }}
+          documentType={signDoc.type}
+          documentId={signDoc.id}
+          documentTitle={signDoc.title}
+          signerHint={`Tanda Tangan ${signDoc.title}`}
+          requiredSignatures={2}
+          slotLabels={{ left: "Pasien / Keluarga", right: "Mengetahui DPJP" }}
+          fixedRoles={{ left: "pasien", right: "dpjp" }}
+          onSuccess={() => {}}
+        />
       )}
     </>
   );

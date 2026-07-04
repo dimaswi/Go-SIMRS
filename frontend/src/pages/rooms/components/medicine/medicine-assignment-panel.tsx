@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Info, Pill, Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2 } from "lucide-react";
 import { medicineTypeLabels, type RoomMedicine } from "@/lib/api/medicines";
 
 interface MedicineAssignmentPanelProps {
@@ -24,9 +23,6 @@ export function MedicineAssignmentPanel({
   onDelete,
 }: MedicineAssignmentPanelProps) {
   const [search, setSearch] = useState("");
-  const lowStockCount = roomMedicines.filter(
-    (rm) => rm.quantity <= rm.min_quantity
-  ).length;
 
   const filteredMedicines = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -47,34 +43,9 @@ export function MedicineAssignmentPanel({
 
   return (
     <div className="min-w-0 space-y-4 overflow-x-hidden">
-      {/* Info Alert */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          Obat di ruangan ini dikelola melalui{" "}
-          <strong>Permintaan Logistik</strong>. Untuk menambah stok obat,
-          silakan buat permintaan melalui menu Permintaan Stok.
-        </AlertDescription>
-      </Alert>
-
       {/* Medicine Table */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Pill className="h-5 w-5 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold">
-                Obat di Ruangan
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Daftar obat yang tersedia di ruangan ini ({roomMedicines.length}{" "}
-                obat
-                {lowStockCount > 0 && `, ${lowStockCount} stok rendah`})
-              </p>
-            </div>
-          </div>
           {hasPermission && onAdd && (
             <Button onClick={onAdd} size="sm">
               <Plus className="mr-2 h-4 w-4" />
@@ -82,16 +53,16 @@ export function MedicineAssignmentPanel({
             </Button>
           )}
         </div>
-        
+
         <div className="min-w-0 overflow-hidden rounded-lg border">
           <div className="border-b border-border/70 bg-muted/20 p-3">
             <div className="relative max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                value={search} 
-                onChange={(event) => setSearch(event.target.value)} 
-                placeholder="Cari obat..." 
-                className="pl-9 h-9" 
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari obat..."
+                className="pl-9 h-9"
               />
             </div>
           </div>

@@ -142,11 +142,29 @@ function App() {
           <Route path="/portal/dashboard" element={<PatientPortalDashboard />} />
           
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="dashboard.view">
+                <DashboardPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/account/signature-pin" element={<ProtectedRoute><SignaturePINSetupPage /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-          <Route path="/settings/audit-log" element={<ProtectedRoute><AuditLogPage /></ProtectedRoute>} />
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="settings.view">
+                <SettingsPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
+          <Route path="/settings/audit-log" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="settings.view">
+                <AuditLogPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           
           {/* Bed Monitoring (Protected) */}
           <Route path="/bed-monitoring" element={
@@ -285,8 +303,20 @@ function App() {
           } />
           
           {/* Patient Search (from header) */}
-          <Route path="/patient-search" element={<ProtectedRoute><PatientSearchIndex /></ProtectedRoute>} />
-          <Route path="/patient-search/:id" element={<ProtectedRoute><PatientSearchShow /></ProtectedRoute>} />
+          <Route path="/patient-search" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="patients.view">
+                <PatientSearchIndex />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
+          <Route path="/patient-search/:id" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="patients.view">
+                <PatientSearchShow />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
           
           {/* Admission Requests */}
           <Route path="/admisi" element={
@@ -383,7 +413,13 @@ function App() {
           {ClinicalPackageRoutes(ProtectedRoute)}
 
           {/* Reports / Laporan */}
-          <Route path="/reports/*" element={<ProtectedRoute><ReportRoutes /></ProtectedRoute>} />
+          <Route path="/reports/*" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="reports.view">
+                <ReportRoutes />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

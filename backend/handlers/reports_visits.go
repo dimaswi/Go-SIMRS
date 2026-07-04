@@ -98,7 +98,13 @@ func ReportVisitsByRoom(c *gin.Context) {
 			rm.id AS room_id,
 			rm.code AS kode_ruangan,
 			rm.name AS nama_ruangan,
-			rm.service_type,
+			CASE
+				WHEN rm.service_type = 'rawat_jalan' THEN 'Rawat Jalan'
+				WHEN rm.service_type = 'rawat_inap' THEN 'Rawat Inap'
+				WHEN rm.service_type = 'gawat_darurat' THEN 'Gawat Darurat'
+				WHEN rm.service_type = 'penunjang' THEN 'Penunjang'
+				ELSE COALESCE(rm.service_type, '-')
+			END AS service_type,
 			COUNT(DISTINCT r.id) AS jumlah,
 			COUNT(DISTINCT r.id) FILTER (WHERE p.jenis_kelamin = 'L') AS laki,
 			COUNT(DISTINCT r.id) FILTER (WHERE p.jenis_kelamin = 'P') AS perempuan,
@@ -196,6 +202,80 @@ func ReportVisitsByDoctor(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": rows})
 }
 
+// --- A3b: Kunjungan Per Pasien ---
+
+type VisitPerPatientRow struct {
+	NoRM           string `json:"no_rm"`
+	NamaPasien     string `json:"nama_pasien"`
+	JenisKelamin   string `json:"jenis_kelamin"`
+	Total          int64  `json:"total"`
+	RawatJalan     int64  `json:"rawat_jalan"`
+	RawatInap      int64  `json:"rawat_inap"`
+	IGD            int64  `json:"igd"`
+	KunjunganAwal  string `json:"kunjungan_awal"`
+	KunjunganAkhir string `json:"kunjungan_akhir"`
+}
+
+func ReportVisitsPerPatient(c *gin.Context) {
+	dr := ParseDateRange(c)
+	db := database.DB
+	limit := c.DefaultQuery("limit", "200")
+
+	var rows []VisitPerPatientRow
+	db.Raw(`
+		SELECT
+			p.no_rm AS no_rm,
+			p.nama_lengkap AS nama_pasien,
+			CASE
+				WHEN p.jenis_kelamin = 'L' THEN 'Laki-laki'
+				WHEN p.jenis_kelamin = 'P' THEN 'Perempuan'
+				ELSE '-'
+			END AS jenis_kelamin,
+			COUNT(DISTINCT r.id) AS total,
+			COUNT(DISTINCT r.id) FILTER (WHERE r.registration_type = 'outpatient') AS rawat_jalan,
+			COUNT(DISTINCT r.id) FILTER (WHERE r.registration_type = 'inpatient') AS rawat_inap,
+			COUNT(DISTINCT r.id) FILTER (WHERE r.registration_type = 'emergency') AS igd,
+			TO_CHAR(MIN(r.registration_date), 'YYYY-MM-DD') AS kunjungan_awal,
+			TO_CHAR(MAX(r.registration_date), 'YYYY-MM-DD') AS kunjungan_akhir
+		FROM registrations r
+		JOIN patients p ON p.id = r.patient_id
+		WHERE r.deleted_at IS NULL
+		  AND r.registration_date BETWEEN ? AND ?
+		  AND r.status NOT IN ('cancelled')
+		GROUP BY p.no_rm, p.nama_lengkap, p.jenis_kelamin
+		ORDER BY total DESC, p.nama_lengkap ASC
+		LIMIT ?
+	`, dr.StartDate, dr.EndDate, limit).Scan(&rows)
+
+	if IsExcelExport(c) {
+		f, styles, _ := NewExcelFile("Kunjungan Per Pasien")
+		sheet := "Kunjungan Per Pasien"
+		headers := []string{"No RM", "Nama Pasien", "Jenis Kelamin", "Total", "Rawat Jalan", "Rawat Inap", "IGD", "Kunjungan Awal", "Kunjungan Akhir"}
+		WriteExcelHeader(f, sheet, headers, styles.HeaderStyle)
+		for i, row := range rows {
+			r := i + 2
+			f.SetCellValue(sheet, fmt.Sprintf("A%d", r), row.NoRM)
+			f.SetCellValue(sheet, fmt.Sprintf("B%d", r), row.NamaPasien)
+			f.SetCellValue(sheet, fmt.Sprintf("C%d", r), row.JenisKelamin)
+			f.SetCellValue(sheet, fmt.Sprintf("D%d", r), row.Total)
+			f.SetCellValue(sheet, fmt.Sprintf("E%d", r), row.RawatJalan)
+			f.SetCellValue(sheet, fmt.Sprintf("F%d", r), row.RawatInap)
+			f.SetCellValue(sheet, fmt.Sprintf("G%d", r), row.IGD)
+			f.SetCellValue(sheet, fmt.Sprintf("H%d", r), row.KunjunganAwal)
+			f.SetCellValue(sheet, fmt.Sprintf("I%d", r), row.KunjunganAkhir)
+		}
+		f.SetColWidth(sheet, "A", "A", 12)
+		f.SetColWidth(sheet, "B", "B", 30)
+		f.SetColWidth(sheet, "C", "C", 14)
+		f.SetColWidth(sheet, "D", "G", 12)
+		f.SetColWidth(sheet, "H", "I", 14)
+		SendExcel(c, f, "laporan_kunjungan_per_pasien")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rows})
+}
+
 // --- A4: Demografi Pasien ---
 
 type DemographicRow struct {
@@ -283,6 +363,96 @@ func ReportPatientDemographics(c *gin.Context) {
 	}
 
 	allRows := append(append(genderRows, ageRows...), paymentRows...)
+	c.JSON(http.StatusOK, gin.H{"data": allRows})
+}
+
+// ReportPatientDemographicsV2 uses registration_date for age grouping
+// so historical periods are calculated against the date of service.
+func ReportPatientDemographicsV2(c *gin.Context) {
+	dr := ParseDateRange(c)
+	db := database.DB
+
+	var genderRows []DemographicRow
+	db.Raw(`
+		SELECT 'Jenis Kelamin' AS kategori,
+			CASE
+				WHEN p.jenis_kelamin = 'L' THEN 'Laki-laki'
+				WHEN p.jenis_kelamin = 'P' THEN 'Perempuan'
+				ELSE 'Tidak Diketahui'
+			END AS nilai,
+			COUNT(DISTINCT r.patient_id) AS jumlah
+		FROM registrations r
+		JOIN patients p ON p.id = r.patient_id
+		WHERE r.deleted_at IS NULL
+		  AND r.registration_date BETWEEN ? AND ?
+		  AND r.status NOT IN ('cancelled')
+		GROUP BY p.jenis_kelamin
+		ORDER BY jumlah DESC
+	`, dr.StartDate, dr.EndDate).Scan(&genderRows)
+
+	var ageRows []DemographicRow
+	db.Raw(`
+		SELECT 'Kelompok Umur' AS kategori,
+			CASE
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) < 1 THEN '< 1 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) BETWEEN 1 AND 4 THEN '1-4 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) BETWEEN 5 AND 14 THEN '5-14 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) BETWEEN 15 AND 24 THEN '15-24 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) BETWEEN 25 AND 44 THEN '25-44 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) BETWEEN 45 AND 64 THEN '45-64 tahun'
+				WHEN EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)) >= 65 THEN '65+ tahun'
+				ELSE 'Tidak Diketahui'
+			END AS nilai,
+			COUNT(DISTINCT r.patient_id) AS jumlah
+		FROM registrations r
+		JOIN patients p ON p.id = r.patient_id
+		WHERE r.deleted_at IS NULL
+		  AND r.registration_date BETWEEN ? AND ?
+		  AND r.status NOT IN ('cancelled')
+		  AND p.tanggal_lahir IS NOT NULL
+		GROUP BY nilai
+		ORDER BY MIN(EXTRACT(YEAR FROM AGE(r.registration_date, p.tanggal_lahir)))
+	`, dr.StartDate, dr.EndDate).Scan(&ageRows)
+
+	var paymentRows []DemographicRow
+	db.Raw(`
+		SELECT 'Metode Pembayaran' AS kategori,
+			CASE
+				WHEN r.payment_method = 'bpjs' THEN 'BPJS'
+				WHEN r.payment_method = 'cash' THEN 'Umum/Cash'
+				WHEN r.payment_method = 'insurance' THEN 'Asuransi'
+				ELSE COALESCE(r.payment_method, 'Lainnya')
+			END AS nilai,
+			COUNT(*) AS jumlah
+		FROM registrations r
+		WHERE r.deleted_at IS NULL
+		  AND r.registration_date BETWEEN ? AND ?
+		  AND r.status NOT IN ('cancelled')
+		GROUP BY nilai
+		ORDER BY jumlah DESC
+	`, dr.StartDate, dr.EndDate).Scan(&paymentRows)
+
+	allRows := append(append(genderRows, ageRows...), paymentRows...)
+
+	if IsExcelExport(c) {
+		f, styles, _ := NewExcelFile("Demografi Pasien")
+		sheet := "Demografi Pasien"
+		headers := []string{"Kategori", "Nilai", "Jumlah"}
+		WriteExcelHeader(f, sheet, headers, styles.HeaderStyle)
+		row := 2
+		for _, d := range allRows {
+			f.SetCellValue(sheet, fmt.Sprintf("A%d", row), d.Kategori)
+			f.SetCellValue(sheet, fmt.Sprintf("B%d", row), d.Nilai)
+			f.SetCellValue(sheet, fmt.Sprintf("C%d", row), d.Jumlah)
+			row++
+		}
+		f.SetColWidth(sheet, "A", "A", 20)
+		f.SetColWidth(sheet, "B", "B", 25)
+		f.SetColWidth(sheet, "C", "C", 12)
+		SendExcel(c, f, "laporan_demografi_pasien")
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": allRows})
 }
 

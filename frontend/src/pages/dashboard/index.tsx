@@ -305,9 +305,9 @@ export default function DashboardPage() {
   })) || [];
 
   const bedOccupancy = bedMonitoring?.summary.occupancy_rate || stats?.bed_occupancy_rate || 0;
-  const showFrontOffice = canShowSection(['overview', 'frontOffice']);
-  const showRooms = canShowSection(['overview', 'rooms']);
-  const showBilling = canShowSection(['overview', 'billing']);
+  const showFrontOffice = canShowSection(['frontOffice']);
+  const showRooms = canShowSection(['rooms']);
+  const showBilling = canShowSection(['billing']);
   const showPharmacy = canShowSection(['pharmacy']);
   const showProcedures = canShowSection(['procedures']);
   const serviceTotal = (stats?.outpatient_today || 0) + (stats?.inpatient_today || 0) + (stats?.emergency_today || 0);
@@ -340,7 +340,7 @@ export default function DashboardPage() {
       icon: Users,
       tintClass: 'bg-cyan-50',
       iconClass: 'text-cyan-700',
-      permissions: ['overview', 'frontOffice'],
+      permissions: ['frontOffice'],
     },
     {
       key: 'revenue-today',
@@ -350,7 +350,7 @@ export default function DashboardPage() {
       icon: DollarSign,
       tintClass: 'bg-emerald-50',
       iconClass: 'text-emerald-700',
-      permissions: ['overview', 'billing'],
+      permissions: ['billing'],
     },
     {
       key: 'active-queue',
@@ -360,7 +360,7 @@ export default function DashboardPage() {
       icon: Clock,
       tintClass: 'bg-amber-50',
       iconClass: 'text-amber-700',
-      permissions: ['overview', 'frontOffice'],
+      permissions: ['frontOffice'],
     },
     {
       key: 'bed-occupancy',
@@ -370,7 +370,7 @@ export default function DashboardPage() {
       icon: Bed,
       tintClass: 'bg-slate-100',
       iconClass: 'text-slate-700',
-      permissions: ['overview', 'rooms'],
+      permissions: ['rooms'],
     },
     {
       key: 'pending-billings',
@@ -468,7 +468,7 @@ export default function DashboardPage() {
       key: 'front-office-trend',
       title: 'Front Office',
       description: 'Kunjungan, jenis layanan, dan pola pembayaran sesuai permission operasional pendaftaran.',
-      permissions: ['overview', 'frontOffice'],
+      permissions: ['frontOffice'],
       content: (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
           <DashboardShellCard>
@@ -591,7 +591,7 @@ export default function DashboardPage() {
       key: 'service-summary',
       title: 'Layanan Hari Ini',
       description: 'Ringkasan operasional rawat jalan, rawat inap, dan IGD untuk pengguna klinis.',
-      permissions: ['overview', 'frontOffice', 'procedures'],
+      permissions: ['frontOffice', 'procedures'],
       content: (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <DashboardShellCard>
@@ -633,7 +633,7 @@ export default function DashboardPage() {
       key: 'room-monitoring',
       title: 'Manajemen Ruangan',
       description: 'Panel BOR dan status tempat tidur untuk role yang punya akses ruangan.',
-      permissions: ['overview', 'rooms'],
+      permissions: ['rooms'],
       content: (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <DashboardShellCard>
@@ -699,7 +699,7 @@ export default function DashboardPage() {
       key: 'billing-finance',
       title: 'Billing',
       description: 'Kartu keuangan khusus permission billing dan laporan tagihan berjalan.',
-      permissions: ['overview', 'billing'],
+      permissions: ['billing'],
       content: (
         <div className="grid gap-4 lg:grid-cols-2">
           <DashboardShellCard>

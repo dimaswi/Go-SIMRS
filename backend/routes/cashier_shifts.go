@@ -12,8 +12,8 @@ func SetupCashierShiftRoutes(rg *gin.RouterGroup) {
 	shifts := rg.Group("/cashier-shifts")
 	shifts.Use(middleware.AuthMiddleware())
 	{
-		shifts.GET("/current", handlers.GetCurrentShift)
-		shifts.POST("/open", handlers.OpenShift)
-		shifts.POST("/close", handlers.CloseShift)
+		shifts.GET("/current", middleware.RequirePermission("cashier_shifts.view"), handlers.GetCurrentShift)
+		shifts.POST("/open", middleware.RequirePermission("cashier_shifts.open"), handlers.OpenShift)
+		shifts.POST("/close", middleware.RequirePermission("cashier_shifts.close"), handlers.CloseShift)
 	}
 }

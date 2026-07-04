@@ -1,31 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { setPageTitle } from '@/lib/page-title';
 import {
   reportVisitsApi, reportBpjsApi, reportBillingApi, reportInpatientApi,
-  reportPharmacyApi, reportPenunjangApi, reportInventoryApi, reportHrApi, reportKemenkesApi
+  reportPharmacyApi, reportPenunjangApi, reportServicesApi, reportInventoryApi, reportHrApi, reportKemenkesApi
 } from '@/lib/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
 import {
-  Loader2, Download, BarChart3, TrendingUp, Building2, DollarSign,
+  Loader2, Download, TrendingUp, Building2, DollarSign,
   HeartPulse, Pill, FlaskConical, Boxes, UserCheck, Landmark, Calendar,
   ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import {
+  PageShell,
+  PageContent,
+  PageHeader as ShellPageHeader,
+  FilterBar,
+  FilterPill,
+} from '@/components/layout/page-shell';
+import {
+  reportCategories,
+  reportQuickStats,
+} from './report-catalog';
+import {
+  ReportKpiGrid,
+  ReportPanel,
+  REPORT_MONO_FAMILY,
+} from './report-ui';
 
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-
 const formatCurrency = (v: number) => {
   if (v == null || isNaN(Number(v))) return '-';
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(v));
@@ -43,6 +55,65 @@ const formatDecimal = (v: number) => {
   return Number(v).toFixed(2);
 };
 
+function renderReportBadge(value: string | number | null | undefined, key: string) {
+  const text = value == null ? '-' : String(value);
+  const normalized = text.toLowerCase();
+  const titleized = text
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  if (key === 'status') {
+    if (normalized.includes('paid') || normalized.includes('completed')) return <Badge className="rounded-none bg-emerald-600 hover:bg-emerald-600">Selesai</Badge>;
+    if (normalized.includes('ideal') || normalized.includes('active') || normalized.includes('aktif') || normalized.includes('success')) return <Badge className="rounded-none bg-emerald-600 hover:bg-emerald-600">Aktif</Badge>;
+    if (normalized.includes('partial') || normalized.includes('pending')) return <Badge variant="secondary" className="rounded-none">Pending</Badge>;
+    if (normalized.includes('warning') || normalized.includes('low') || normalized.includes('minimum')) return <Badge variant="secondary" className="rounded-none border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">Perhatian</Badge>;
+    if (normalized.includes('expired') || normalized.includes('critical') || normalized.includes('kritis')) return <Badge variant="destructive" className="rounded-none">Kritis</Badge>;
+    if (normalized.includes('cancel')) return <Badge variant="destructive" className="rounded-none">Batal</Badge>;
+    return <Badge variant="outline" className="rounded-none">{titleized}</Badge>;
+  }
+
+  if (key === 'metode_bayar' || key === 'payment_method') {
+    if (normalized.includes('bpjs')) return <Badge variant="secondary" className="rounded-none border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">BPJS</Badge>;
+    if (normalized.includes('cash') || normalized.includes('umum')) return <Badge variant="secondary" className="rounded-none">Umum</Badge>;
+    if (normalized.includes('asuransi')) return <Badge variant="secondary" className="rounded-none border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-50">Asuransi</Badge>;
+  }
+
+  if (key === 'jenis_kelamin' || key === 'jk') {
+    if (normalized.includes('laki')) return <Badge variant="secondary" className="rounded-none border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">L</Badge>;
+    if (normalized.includes('perempuan')) return <Badge variant="secondary" className="rounded-none border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-50">P</Badge>;
+  }
+
+  if (key === 'service_type') {
+    return <Badge variant="outline" className="rounded-none">{titleized}</Badge>;
+  }
+
+  if (key === 'order_type') {
+    if (normalized.includes('laboratory')) return <Badge variant="secondary" className="rounded-none border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">Laboratory</Badge>;
+    if (normalized.includes('radiology')) return <Badge variant="secondary" className="rounded-none border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Radiology</Badge>;
+    if (normalized.includes('consultation')) return <Badge variant="secondary" className="rounded-none border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">Consultation</Badge>;
+    if (normalized.includes('surgery')) return <Badge variant="destructive" className="rounded-none">Surgery</Badge>;
+    return <Badge variant="outline" className="rounded-none">{titleized}</Badge>;
+  }
+
+  if (key === 'nama_ruangan' || key === 'nama_depo' || key === 'nama_poli') {
+    return <Badge variant="outline" className="rounded-none border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-50">{titleized}</Badge>;
+  }
+
+  if (key === 'kategori' || key === 'tipe' || key === 'tipe_karyawan' || key === 'jenis_surat') {
+    return <Badge variant="secondary" className="rounded-none border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">{titleized}</Badge>;
+  }
+
+  if (key === 'kondisi' || key === 'status_kepegawaian' || key === 'status_str') {
+    return <Badge variant="outline" className="rounded-none">{titleized}</Badge>;
+  }
+
+  if (key === 'kelas') {
+    return <Badge variant="outline" className="rounded-none border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-50">{titleized}</Badge>;
+  }
+
+  return null;
+}
+
 // ============================================================
 // Reusable Inline Nav
 // ============================================================
@@ -52,22 +123,20 @@ function InlineNav({ items, value, onChange }: {
   onChange: (v: string) => void;
 }) {
   return (
-    <nav className="flex items-center gap-1 border-b border-border overflow-x-auto">
-      {items.map(item => (
-        <button
-          key={item.value}
-          onClick={() => onChange(item.value)}
-          className={cn(
-            'px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
-            value === item.value
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
-          )}
-        >
-          {item.label}
-        </button>
-      ))}
-    </nav>
+    <div className="border border-border/70 bg-background px-3 py-3">
+      <FilterBar className="gap-2">
+        {items.map(item => (
+          <FilterPill
+            key={item.value}
+            onClick={() => onChange(item.value)}
+            active={value === item.value}
+            className="min-h-[38px] px-3 py-2 text-[10px] leading-none"
+          >
+            {item.label}
+          </FilterPill>
+        ))}
+      </FilterBar>
+    </div>
   );
 }
 
@@ -80,18 +149,20 @@ function DateFilter({ startDate, endDate, onStartChange, onEndChange, onApply, o
   onApply: () => void; onExport?: () => void; loading?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-      <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="w-[140px] h-8 text-xs rounded-none" />
-      <span className="text-muted-foreground text-xs">s/d</span>
-      <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="w-[140px] h-8 text-xs rounded-none" />
-      <Button onClick={onApply} disabled={loading} size="sm" className="h-8 rounded-none text-xs">
+    <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+      <div className="flex items-center gap-1.5 border border-border/70 bg-background px-2 py-2">
+        <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </div>
+      <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="h-9 w-[124px] rounded-none border-border/70 px-2 text-xs" />
+      <span className ="shrink-0 text-[11px] text-muted-foreground">/</span>
+      <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="h-9 w-[124px] rounded-none border-border/70 px-2 text-xs" />
+      <Button onClick={onApply} disabled={loading} size="sm" className="h-9 shrink-0 rounded-none px-3 text-xs">
         {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-        Tampilkan
+        OK
       </Button>
       {onExport && (
-        <Button variant="outline" size="sm" onClick={onExport} className="h-8 rounded-none text-xs">
-          <Download className="h-3 w-3 mr-1" /> Excel
+        <Button variant="outline" size="sm" onClick={onExport} className="h-9 shrink-0 rounded-none border-border/70 px-3 text-xs">
+          <Download className="h-3 w-3" />
         </Button>
       )}
     </div>
@@ -103,12 +174,12 @@ function DateFilter({ startDate, endDate, onStartChange, onEndChange, onApply, o
 // ============================================================
 function PageHeader({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
-      <h1 className="text-lg font-semibold flex items-center gap-2">
-        {icon} {title}
-      </h1>
-      {children}
-    </div>
+    <ShellPageHeader
+      title={title}
+      actions={null}
+      className="border-border/70 bg-background/95"
+      badges={icon}
+    />
   );
 }
 
@@ -125,32 +196,44 @@ function getDefaultEnd() {
 // Shared data table component
 // ============================================================
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function DataTable({ columns, data }: { columns: { key: string; label: string; format?: (v: any) => string; align?: string }[]; data: any[] }) {
+function DataTable({ columns, data }: { columns: { key: string; label: string; format?: (v: any) => string; align?: string; width?: string; wrap?: boolean }[]; data: any[] }) {
   if (!data || data.length === 0) return <p className="text-muted-foreground text-center py-8">Tidak ada data untuk periode ini.</p>;
   return (
-    <div className="border border-border overflow-auto max-h-[600px]">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
+    <div className="overflow-hidden border border-border/70 bg-background">
+      <div
+        className="hidden border-b border-border/70 bg-muted/20 px-4 py-3 md:grid"
+        style={{ gridTemplateColumns: columns.map((col) => col.width || 'minmax(0,1fr)').join(' ') }}
+      >
+        {columns.map(col => (
+          <div
+            key={col.key}
+            className={cn('px-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground', col.align === 'right' && 'text-right')}
+            style={{ fontFamily: REPORT_MONO_FAMILY }}
+          >
+            {col.label}
+          </div>
+        ))}
+      </div>
+      <div className="divide-y divide-dashed divide-border/70">
+        {data.map((row, i) => (
+          <div
+            key={i}
+            className="grid gap-3 px-4 py-3 md:items-center"
+            style={{ gridTemplateColumns: columns.map((col) => col.width || 'minmax(0,1fr)').join(' ') }}
+          >
             {columns.map(col => (
-              <TableHead key={col.key} className={cn('text-xs font-semibold uppercase tracking-wider', col.align === 'right' && 'text-right')}>
-                {col.label}
-              </TableHead>
+              <div key={col.key} className={cn('min-w-0 px-2', col.align === 'right' && 'md:text-right')}>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground md:hidden" style={{ fontFamily: REPORT_MONO_FAMILY }}>
+                  {col.label}
+                </div>
+                <div className={cn('text-sm', col.wrap ? 'whitespace-normal break-words' : 'truncate')}>
+                  {renderReportBadge(row[col.key], col.key) ?? (col.format ? col.format(row[col.key]) : (row[col.key] != null ? String(row[col.key]) : '-'))}
+                </div>
+              </div>
             ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((row, i) => (
-            <TableRow key={i} className="hover:bg-muted/30">
-              {columns.map(col => (
-                <TableCell key={col.key} className={cn('text-sm', col.align === 'right' && 'text-right')}>
-                  {col.format ? col.format(row[col.key]) : (row[col.key] != null ? String(row[col.key]) : '-')}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -160,9 +243,9 @@ function DataTable({ columns, data }: { columns: { key: string; label: string; f
 // ============================================================
 function KPICard({ label, value, subtitle, status }: { label: string; value: string; subtitle?: string; status?: 'good' | 'warning' | 'bad' }) {
   return (
-    <div className="border border-border p-4">
-      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
+    <div className="bg-background px-4 py-4">
+      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.24em]" style={{ fontFamily: REPORT_MONO_FAMILY }}>{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
       {subtitle && (
         <div className="flex items-center gap-2 mt-2">
           <span className="text-xs text-muted-foreground">{subtitle}</span>
@@ -177,58 +260,223 @@ function KPICard({ label, value, subtitle, status }: { label: string; value: str
   );
 }
 
+function ReportFilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function ReportExplorerLayout({
+  sidebarTitle,
+  reportItems,
+  activeTab,
+  onTabChange,
+  onApply,
+  onExport,
+  filters,
+  previewTitle,
+  previewChildren,
+  showPreview = false,
+}: {
+  sidebarTitle: string;
+  reportItems: { value: string; label: string; note: string }[];
+  activeTab: string;
+  onTabChange: (value: string) => void;
+  onApply: () => void;
+  onExport: () => void;
+  filters: ReactNode;
+  previewTitle: string;
+  previewChildren: ReactNode;
+  showPreview?: boolean;
+}) {
+  const [opened, setOpened] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="border border-border/70 bg-background">
+          <div className="space-y-3 p-4">
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: REPORT_MONO_FAMILY }}>Filter</p>
+              <p className="text-sm font-medium">{sidebarTitle}</p>
+            </div>
+            {filters}
+          </div>
+
+          <div className="grid grid-cols-4 border-t border-border/70">
+            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={onApply}>HTML</Button>
+            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs">WORD</Button>
+            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={onExport}>EXCEL</Button>
+            <Button variant="ghost" className="h-11 rounded-none text-xs">PDF</Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {opened ? (
+            <ReportPanel
+              eyebrow="Data"
+              title={previewTitle}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none border-border/70 text-xs"
+                  onClick={() => setOpened(false)}
+                >
+                  Kembali
+                </Button>
+              }
+            >
+              {previewChildren}
+            </ReportPanel>
+          ) : (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {reportItems.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => {
+                    onTabChange(item.value);
+                    setOpened(true);
+                  }}
+                  className={cn(
+                    'flex min-h-[108px] items-start justify-between border px-4 py-4 text-left transition-colors',
+                    activeTab === item.value ? 'border-foreground bg-muted/10' : 'border-border/70 bg-background hover:bg-muted/10',
+                  )}
+                >
+                  <div className="flex gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center border border-border/70 bg-muted/20 text-[10px] font-semibold">
+                      R
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold leading-6">{item.label}</p>
+                      <p className="text-sm text-muted-foreground">{item.note}</p>
+                      <p className="text-sm text-muted-foreground">keterangan:</p>
+                    </div>
+                  </div>
+                  <Download className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showPreview ? (
+        <div className="pt-2">
+          <ReportPanel eyebrow="Data" title={previewTitle}>
+            {previewChildren}
+          </ReportPanel>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function aggregateByKey<T extends Record<string, any>>(
+  rows: T[],
+  key: keyof T,
+  metricKeys: string[],
+  labelKey = 'label',
+) {
+  const map = new Map<string, Record<string, any>>();
+  rows.forEach((row) => {
+    const label = String(row[key] ?? '-');
+    if (!map.has(label)) {
+      const initial: Record<string, any> = { [labelKey]: label };
+      metricKeys.forEach((metric) => {
+        initial[metric] = 0;
+      });
+      map.set(label, initial);
+    }
+    const target = map.get(label)!;
+    metricKeys.forEach((metric) => {
+      target[metric] += Number(row[metric] ?? 0);
+    });
+  });
+  return Array.from(map.values());
+}
+
 // ============================================================
 // Report Index Page (Dashboard with category cards)
 // ============================================================
 
-interface ReportCategory {
-  path: string;
-  title: string;
-  description: string;
-  icon: ReactNode;
-  count: number;
+function ReportIndexHero() {
+  return (
+    <div className="grid gap-px border border-border/70 bg-border/70 md:grid-cols-3">
+      {reportQuickStats.map((item) => (
+        <div key={item.label} className="bg-background px-4 py-4">
+          <div
+            className="text-[10px] uppercase leading-[1.6] tracking-[0.24em] text-muted-foreground"
+            style={{ fontFamily: REPORT_MONO_FAMILY }}
+          >
+            {item.label}
+          </div>
+          <div className="mt-2 text-xl font-semibold text-foreground">{item.value}</div>
+          <div className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">{item.hint}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
-
-const categories: ReportCategory[] = [
-  { path: '/reports/visits', title: 'Kunjungan & Pasien', description: 'Kunjungan harian, per poli, per dokter, demografi, diagnosa terbanyak, wilayah pasien', icon: <TrendingUp className="h-5 w-5" />, count: 9 },
-  { path: '/reports/bpjs', title: 'BPJS', description: 'Kunjungan BPJS, SEP, Surat Kontrol, Antrean Mobile JKN, E-Klaim', icon: <Building2 className="h-5 w-5" />, count: 6 },
-  { path: '/reports/billing', title: 'Keuangan', description: 'Pendapatan harian, per metode bayar, per ruangan, per dokter, piutang', icon: <DollarSign className="h-5 w-5" />, count: 6 },
-  { path: '/reports/inpatient', title: 'Rawat Inap', description: 'Indikator BOR/ALOS/BTO/TOI, sensus harian, daftar pasien dirawat', icon: <HeartPulse className="h-5 w-5" />, count: 4 },
-  { path: '/reports/pharmacy', title: 'Farmasi', description: 'Resep harian, obat terbanyak, per dokter, per depo, waktu tunggu', icon: <Pill className="h-5 w-5" />, count: 5 },
-  { path: '/reports/penunjang', title: 'Penunjang', description: 'Order lab/radiologi, pemeriksaan terbanyak, hasil kritis, TAT', icon: <FlaskConical className="h-5 w-5" />, count: 5 },
-  { path: '/reports/inventory', title: 'Inventaris & Stok', description: 'Stok obat, obat kadaluarsa, stok inventaris, mutasi stok', icon: <Boxes className="h-5 w-5" />, count: 4 },
-  { path: '/reports/hr', title: 'SDM', description: 'Rekap pegawai, daftar dokter, STR/SIP expiry, beban kerja dokter', icon: <UserCheck className="h-5 w-5" />, count: 4 },
-  { path: '/reports/kemenkes', title: 'Kemenkes / RL', description: 'RL 1.2 TT, RL 3 penyakit terbesar, RL 4A kunjungan, RL 5.1 ketenagaan, indikator mutu', icon: <Landmark className="h-5 w-5" />, count: 6 },
-];
 
 export default function ReportIndexPage() {
   useEffect(() => { setPageTitle('Laporan'); }, []);
   return (
-    <div className="p-6 space-y-6">
-      <div className="border-b border-border pb-4">
-        <h1 className="text-xl font-semibold flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Sistem Laporan SIMRS</h1>
-        <p className="text-sm text-muted-foreground mt-1">Pilih kategori laporan yang ingin ditampilkan. Semua laporan mendukung ekspor Excel.</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0">
-        {categories.map(cat => (
-          <Link to={cat.path} key={cat.path} className="group">
-            <div className="border border-border p-4 hover:bg-muted/40 transition-colors h-full flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-primary">{cat.icon}</div>
-                  <span className="font-medium text-sm">{cat.title}</span>
-                  <Badge variant="secondary" className="ml-auto rounded-none text-[10px]">{cat.count} Laporan</Badge>
+    <PageShell>
+      <PageContent className="space-y-6 px-4 pb-4 pt-4 md:px-6">
+        <ReportIndexHero />
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {reportCategories.map(cat => {
+            const Icon = cat.icon;
+            return (
+            <Link to={cat.path} key={cat.path} className="group">
+              <div className="group relative h-full overflow-hidden border border-border/70 bg-background transition-colors duration-200 hover:bg-muted/10">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-500 via-cyan-500 to-emerald-500" />
+                <div className="flex h-full flex-col justify-between">
+                  <div className="space-y-2 px-4 pb-0 pt-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border/70 bg-muted/20 text-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-sm font-semibold text-foreground">{cat.title}</h2>
+                          <Badge variant="secondary" className="ml-auto rounded-none px-2 py-0 text-[10px]">
+                            {cat.count}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{cat.description}</p>
+                        <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80" style={{ fontFamily: REPORT_MONO_FAMILY }}>
+                          {cat.auditFocus}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-[11px] text-muted-foreground">
+                    <span>Masuk</span>
+                    <span className="inline-flex items-center gap-1 font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                      Buka <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{cat.description}</p>
               </div>
-              <div className="flex items-center gap-1 text-xs text-primary mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                Buka laporan <ArrowRight className="h-3 w-3" />
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </div>
+            </Link>
+            );
+          })}
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -261,6 +509,9 @@ export function ReportVisitsPage() {
       let res;
       switch (tab) {
         case 'daily': res = await reportVisitsApi.daily(startDate, endDate); break;
+        case 'summary': res = await reportVisitsApi.daily(startDate, endDate); break;
+        case 'per-patient': res = await reportVisitsApi.perPatient(startDate, endDate); break;
+        case 'service-mix': res = await reportVisitsApi.daily(startDate, endDate); break;
         case 'by-room': res = await reportVisitsApi.byRoom(startDate, endDate); break;
         case 'by-doctor': res = await reportVisitsApi.byDoctor(startDate, endDate); break;
         case 'demographics': res = await reportVisitsApi.demographics(startDate, endDate); break;
@@ -275,18 +526,25 @@ export function ReportVisitsPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportVisitsApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportVisitsApi.exportExcel(
+    tab === 'service-mix' || tab === 'summary' ? 'daily' : tab,
+    startDate,
+    endDate,
+  );
 
-  const navItems = [
-    { value: 'daily', label: 'Harian' },
-    { value: 'by-room', label: 'Per Poli' },
-    { value: 'by-doctor', label: 'Per Dokter' },
-    { value: 'demographics', label: 'Demografi' },
-    { value: 'regions', label: 'Wilayah' },
-    { value: 'top-diagnoses', label: 'Diagnosa' },
-    { value: 'new-vs-old', label: 'Baru vs Lama' },
-    { value: 'payment-methods', label: 'Cara Bayar' },
-    { value: 'referrals', label: 'Rujukan' },
+  const reportItems = [
+    { value: 'per-patient', label: 'Kunjungan Per Pasien', note: 'download: Kunjungan Per Pasien' },
+    { value: 'daily', label: 'Kunjungan Per Hari', note: 'download: Kunjungan Per Hari' },
+    { value: 'payment-methods', label: 'Kunjungan Per Cara Bayar', note: 'download: Kunjungan Per Cara Bayar' },
+    { value: 'by-room', label: 'Kunjungan Per Unit', note: 'download: Kunjungan Per Unit' },
+    { value: 'summary', label: 'Kunjungan Rekap', note: 'download: Kunjungan Rekap' },
+    { value: 'service-mix', label: 'Mix Layanan', note: 'download: Mix Layanan' },
+    { value: 'by-doctor', label: 'Kunjungan Per Dokter', note: 'download: Kunjungan Per Dokter' },
+    { value: 'demographics', label: 'Demografi Pasien', note: 'download: Demografi Pasien' },
+    { value: 'regions', label: 'Sebaran Wilayah', note: 'download: Sebaran Wilayah' },
+    { value: 'top-diagnoses', label: 'Top Diagnosa', note: 'download: Top Diagnosa' },
+    { value: 'new-vs-old', label: 'Pasien Baru vs Lama', note: 'download: Pasien Baru vs Lama' },
+    { value: 'referrals', label: 'Rujukan Masuk', note: 'download: Rujukan Masuk' },
   ];
 
   // Demographics data is grouped: {kategori, nilai, jumlah}[]
@@ -297,68 +555,187 @@ export function ReportVisitsPage() {
   const demographicsAge = data.filter((r: any) => r.kategori === 'Kelompok Umur').map((r: any) => ({ name: r.nilai, value: Number(r.jumlah) || 0 }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const demographicsPayment = data.filter((r: any) => r.kategori === 'Metode Pembayaran').map((r: any) => ({ name: r.nilai, value: Number(r.jumlah) || 0 }));
+  const totalRows = Array.isArray(data) ? data.length : 0;
+  const serviceMixRows = (() => {
+    const totals = data.reduce((acc: { layanan: string; jumlah: number }[], row: any) => {
+      const entries = [
+        { layanan: 'Rawat Jalan', jumlah: Number(row?.rawat_jalan ?? 0) },
+        { layanan: 'Rawat Inap', jumlah: Number(row?.rawat_inap ?? 0) },
+        { layanan: 'IGD', jumlah: Number(row?.igd ?? 0) },
+      ];
+      entries.forEach((entry) => {
+        const found = acc.find((item) => item.layanan === entry.layanan);
+        if (found) found.jumlah += entry.jumlah;
+        else acc.push({ ...entry });
+      });
+      return acc;
+    }, []);
+    return totals.filter((item) => item.jumlah > 0);
+  })();
+  const summaryRows = [
+    {
+      kategori: 'Rawat Jalan',
+      jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.rawat_jalan ?? 0), 0),
+    },
+    {
+      kategori: 'Rawat Inap',
+      jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.rawat_inap ?? 0), 0),
+    },
+    {
+      kategori: 'IGD',
+      jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.igd ?? 0), 0),
+    },
+    {
+      kategori: 'Total',
+      jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.total ?? 0), 0),
+    },
+  ].filter((item) => item.jumlah > 0);
+  const totalVisitCount = Array.isArray(data)
+    ? data.reduce((sum: number, row: any) => {
+        const directValue = Number(row?.total ?? row?.jumlah ?? 0);
+        if (!Number.isNaN(directValue) && directValue > 0) return sum + directValue;
+        return sum;
+      }, 0)
+    : 0;
+  const activeReport = reportItems.find((item) => item.value === tab);
+  const normalizedData = Array.isArray(data)
+    ? data.map((row: any) => ({
+        ...row,
+        service_type:
+          row?.service_type === 'rawat_jalan' ? 'Rawat Jalan'
+            : row?.service_type === 'rawat_inap' ? 'Rawat Inap'
+              : row?.service_type === 'gawat_darurat' ? 'Gawat Darurat'
+                : row?.service_type,
+        nilai: row?.nilai === 'â‰¥ 65 tahun' ? '65+ tahun' : row?.nilai,
+      }))
+    : data;
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<TrendingUp className="h-5 w-5" />} title="Laporan Kunjungan & Pasien">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan kunjungan"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                Baris: {formatNumber(totalRows)} | Total: {formatNumber(totalVisitCount)}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
+        {tab === 'per-patient' && (
+            <DataTable columns={[
+              { key: 'no_rm', label: 'No RM', width: '0.85fr' },
+              { key: 'nama_pasien', label: 'Pasien', width: '1.4fr' },
+              { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
+              { key: 'total', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
+              { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.8fr' },
+              { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.8fr' },
+              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.7fr' },
+              { key: 'kunjungan_awal', label: 'Awal', width: '0.9fr' },
+              { key: 'kunjungan_akhir', label: 'Akhir', width: '0.9fr' },
+            ]} data={normalizedData} />
+        )}
 
-      <div className="pt-2">
         {tab === 'daily' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Kunjungan Per Hari">
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <BarChart data={normalizedData}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#3b82f6" name="Rawat Jalan" radius={[2,2,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#22c55e" name="Rawat Inap" radius={[2,2,0,0]} />
-                  <Bar dataKey="igd" fill="#ef4444" name="IGD" radius={[2,2,0,0]} />
+                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0,0,0,0]} />
+                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0,0,0,0]} />
+                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Kunjungan Per Hari">
+              <DataTable columns={[
               { key: 'tanggal', label: 'Tanggal' },
               { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
               { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
               { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
               { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-            ]} data={data} />
+              ]} data={normalizedData} />
+            </ReportPanel>
+          </div>
+        )}
+
+        {tab === 'summary' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Kunjungan Rekap">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={summaryRows}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="kategori" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Kunjungan Rekap">
+              <DataTable columns={[
+                { key: 'kategori', label: 'Kategori' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              ]} data={summaryRows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'by-room' && (
-          <DataTable columns={[
-            { key: 'kode_ruangan', label: 'Kode' },
-            { key: 'nama_ruangan', label: 'Poli/Ruangan' },
-            { key: 'service_type', label: 'Tipe Layanan' },
-            { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber },
-            { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-            { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-            { key: 'baru', label: 'Baru', align: 'right', format: formatNumber },
-            { key: 'lama', label: 'Lama', align: 'right', format: formatNumber },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Kunjungan Per Unit">
+            <DataTable columns={[
+              { key: 'kode_ruangan', label: 'Kode' },
+              { key: 'nama_ruangan', label: 'Unit/Ruangan' },
+              { key: 'service_type', label: 'Layanan' },
+              { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber },
+              { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+              { key: 'baru', label: 'Baru', align: 'right', format: formatNumber },
+              { key: 'lama', label: 'Lama', align: 'right', format: formatNumber },
+            ]} data={normalizedData} />
+          </ReportPanel>
         )}
 
         {tab === 'by-doctor' && (
-          <DataTable columns={[
-            { key: 'nama_dokter', label: 'Dokter' },
-            { key: 'spesialisasi', label: 'Spesialisasi' },
-            { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber },
-            { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber },
-            { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber },
-            { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Kunjungan Per Dokter">
+            <DataTable columns={[
+              { key: 'nama_dokter', label: 'Dokter', width: '1.5fr', wrap: true },
+              { key: 'spesialisasi', label: 'Spesialisasi', width: '1fr' },
+              { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
+              { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.7fr' },
+              { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.7fr' },
+              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.6fr' },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'demographics' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="rounded-none border-border"><CardHeader className="pb-2"><CardTitle className="text-sm">Jenis Kelamin</CardTitle></CardHeader><CardContent>
+            <ReportPanel eyebrow="Chart" title="Jenis Kelamin">
                 {demographicsGender.length > 0 ? (
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart><Pie data={demographicsGender} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
@@ -366,19 +743,19 @@ export function ReportVisitsPage() {
                     </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
                   </ResponsiveContainer>
                 ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-              </CardContent></Card>
-              <Card className="rounded-none border-border"><CardHeader className="pb-2"><CardTitle className="text-sm">Kelompok Umur</CardTitle></CardHeader><CardContent>
+            </ReportPanel>
+            <ReportPanel eyebrow="Chart" title="Kelompok Umur">
                 {demographicsAge.length > 0 ? (
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={demographicsAge}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
                       <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="value" fill="#3b82f6" name="Jumlah" radius={[2,2,0,0]} />
+                      <Bar dataKey="value" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-              </CardContent></Card>
-              <Card className="rounded-none border-border"><CardHeader className="pb-2"><CardTitle className="text-sm">Metode Pembayaran</CardTitle></CardHeader><CardContent>
+            </ReportPanel>
+            <ReportPanel eyebrow="Chart" title="Metode Pembayaran">
                 {demographicsPayment.length > 0 ? (
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart><Pie data={demographicsPayment} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
@@ -386,51 +763,79 @@ export function ReportVisitsPage() {
                     </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
                   </ResponsiveContainer>
                 ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-              </CardContent></Card>
+            </ReportPanel>
             </div>
-            <DataTable columns={[
-              { key: 'kategori', label: 'Kategori' },
-              { key: 'nilai', label: 'Nilai' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            ]} data={data} />
+            <ReportPanel eyebrow="Data" title="Demografi">
+              <DataTable columns={[
+                { key: 'kategori', label: 'Kategori' },
+                { key: 'nilai', label: 'Nilai' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              ]} data={normalizedData} />
+            </ReportPanel>
+          </div>
+        )}
+
+        {tab === 'service-mix' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Mix Layanan">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={serviceMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="layanan" label={{ fontSize: 11 }}>
+                    {serviceMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Mix Layanan">
+              <DataTable columns={[
+                { key: 'layanan', label: 'Layanan' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              ]} data={serviceMixRows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'regions' && (
-          <DataTable columns={[
-            { key: 'provinsi', label: 'Provinsi' },
-            { key: 'kabupaten', label: 'Kabupaten' },
-            { key: 'kecamatan', label: 'Kecamatan' },
-            { key: 'jumlah', label: 'Jumlah Pasien', align: 'right', format: formatNumber },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Sebaran Wilayah Pasien">
+            <DataTable columns={[
+              { key: 'provinsi', label: 'Provinsi', width: '1.2fr', wrap: true },
+              { key: 'kabupaten', label: 'Kabupaten', width: '1.2fr', wrap: true },
+              { key: 'kecamatan', label: 'Kecamatan', width: '1.2fr', wrap: true },
+              { key: 'jumlah', label: 'Jumlah Pasien', align: 'right', format: formatNumber, width: '0.8fr' },
+            ]} data={normalizedData} />
+          </ReportPanel>
         )}
 
         {tab === 'top-diagnoses' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Diagnosa Terbanyak">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.slice(0, 15)} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis dataKey="kode_icd10" type="category" width={80} tick={{ fontSize: 10 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="jumlah" fill="#3b82f6" name="Jumlah" radius={[0,2,2,0]} />
+                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'kode_icd10', label: 'Kode ICD-10' },
-              { key: 'nama', label: 'Nama Penyakit' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Top Diagnosa">
+              <DataTable columns={[
+                { key: 'kode_icd10', label: 'Kode ICD-10' },
+                { key: 'nama', label: 'Nama Penyakit', width: '1.5fr' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+              ]} data={normalizedData} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'new-vs-old' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Pasien Baru vs Lama">
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
@@ -440,42 +845,49 @@ export function ReportVisitsPage() {
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </LineChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'pasien_baru', label: 'Pasien Baru', align: 'right', format: formatNumber },
-              { key: 'pasien_lama', label: 'Pasien Lama', align: 'right', format: formatNumber },
-              { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Pasien Baru vs Lama">
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'pasien_baru', label: 'Pasien Baru', align: 'right', format: formatNumber },
+                { key: 'pasien_lama', label: 'Pasien Lama', align: 'right', format: formatNumber },
+                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+              ]} data={normalizedData} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'payment-methods' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Chart" title="Kunjungan Per Cara Bayar">
               <ResponsiveContainer width="100%" height={250}>
-                <PieChart><Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="jumlah" nameKey="metode_bayar" label={{ fontSize: 11 }}>
-                  {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                <PieChart><Pie data={normalizedData} cx="50%" cy="50%" outerRadius={80} dataKey="jumlah" nameKey="metode_bayar" label={{ fontSize: 11 }}>
+                  {normalizedData.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'metode_bayar', label: 'Cara Bayar' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'persentase', label: '%', align: 'right', format: formatPercent },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Kunjungan Per Cara Bayar">
+              <DataTable columns={[
+                { key: 'metode_bayar', label: 'Cara Bayar' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+              ]} data={normalizedData} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'referrals' && (
-          <DataTable columns={[
-            { key: 'asal_rujukan', label: 'Asal Rujukan' },
-            { key: 'nama_rujukan', label: 'Nama Perujuk' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-          ]} data={data} />
+            <DataTable columns={[
+              { key: 'asal_rujukan', label: 'Asal Rujukan', width: '1.1fr', wrap: true },
+              { key: 'nama_rujukan', label: 'Nama Perujuk', width: '1.8fr', wrap: true },
+              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
+            ]} data={normalizedData} />
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -522,44 +934,70 @@ export function ReportBPJSPage() {
   const rows: any[] = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
   const summary = data?.summary || null;
 
-  const navItems = [
-    { value: 'daily', label: 'Harian' },
-    { value: 'sep', label: 'SEP' },
-    { value: 'surat-kontrol', label: 'Surat Kontrol' },
-    { value: 'antrean', label: 'Antrean' },
-    { value: 'eklaim', label: 'E-Klaim' },
-    { value: 'by-poli', label: 'Per Poli' },
+  const reportItems = [
+    { value: 'daily', label: 'Kunjungan BPJS Harian', note: 'download: Kunjungan BPJS Harian' },
+    { value: 'sep', label: 'Data SEP', note: 'download: Data SEP' },
+    { value: 'surat-kontrol', label: 'Surat Kontrol', note: 'download: Surat Kontrol' },
+    { value: 'antrean', label: 'Antrean BPJS', note: 'download: Antrean BPJS' },
+    { value: 'eklaim', label: 'E-Klaim', note: 'download: E-Klaim' },
+    { value: 'by-poli', label: 'BPJS Per Poli', note: 'download: BPJS Per Poli' },
   ];
+  const activeReport = reportItems.find((item) => item.value === tab);
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<Building2 className="h-5 w-5" />} title="Laporan BPJS">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
-
-      <div className="pt-2">
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan BPJS"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                Baris: {formatNumber(rows.length)} {summary ? `| Total: ${formatNumber(Number(summary.total ?? summary.total_sep ?? 0))}` : ''}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
         {tab === 'daily' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Kunjungan BPJS Harian">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#3b82f6" name="Rajal" radius={[2,2,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#22c55e" name="Ranap" radius={[2,2,0,0]} />
-                  <Bar dataKey="igd" fill="#ef4444" name="IGD" radius={[2,2,0,0]} />
+                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rajal" radius={[0,0,0,0]} />
+                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Ranap" radius={[0,0,0,0]} />
+                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
-              { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
-              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-              { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-            ]} data={rows} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Harian">
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
+                { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
+                { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
+                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+              ]} data={rows} />
+            </ReportPanel>
           </div>
         )}
 
@@ -595,29 +1033,32 @@ export function ReportBPJSPage() {
 
         {tab === 'antrean' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Antrean Mobile JKN">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="total_booking" fill="#3b82f6" name="Booking" radius={[2,2,0,0]} />
-                  <Bar dataKey="checkin" fill="#22c55e" name="Check-in" radius={[2,2,0,0]} />
-                  <Bar dataKey="dilayani" fill="#f59e0b" name="Dilayani" radius={[2,2,0,0]} />
-                  <Bar dataKey="selesai" fill="#8b5cf6" name="Selesai" radius={[2,2,0,0]} />
+                  <Bar dataKey="total_booking" fill="#1d4ed8" name="Booking" radius={[0,0,0,0]} />
+                  <Bar dataKey="checkin" fill="#0f766e" name="Check-in" radius={[0,0,0,0]} />
+                  <Bar dataKey="dilayani" fill="#d97706" name="Dilayani" radius={[0,0,0,0]} />
+                  <Bar dataKey="selesai" fill="#7c3aed" name="Selesai" radius={[0,0,0,0]} />
+                  <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'total_booking', label: 'Booking', align: 'right', format: formatNumber },
-              { key: 'checkin', label: 'Check-in', align: 'right', format: formatNumber },
-              { key: 'dilayani', label: 'Dilayani', align: 'right', format: formatNumber },
-              { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
-              { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
-              { key: 'jkn', label: 'JKN', align: 'right', format: formatNumber },
-              { key: 'non_jkn', label: 'Non-JKN', align: 'right', format: formatNumber },
-            ]} data={rows} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Antrean">
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'total_booking', label: 'Booking', align: 'right', format: formatNumber },
+                { key: 'checkin', label: 'Check-in', align: 'right', format: formatNumber },
+                { key: 'dilayani', label: 'Dilayani', align: 'right', format: formatNumber },
+                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
+                { key: 'jkn', label: 'JKN', align: 'right', format: formatNumber },
+                { key: 'non_jkn', label: 'Non-JKN', align: 'right', format: formatNumber },
+              ]} data={rows} />
+            </ReportPanel>
           </div>
         )}
 
@@ -654,8 +1095,11 @@ export function ReportBPJSPage() {
             { key: 'sep_count', label: 'Jumlah SEP', align: 'right', format: formatNumber },
           ]} data={rows} />
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -689,6 +1133,7 @@ export function ReportBillingPage() {
         case 'by-room': res = await reportBillingApi.byRoom(startDate, endDate); break;
         case 'by-doctor': res = await reportBillingApi.byDoctor(startDate, endDate); break;
         case 'receivables': res = await reportBillingApi.receivables(); break;
+        case 'aging-receivables': res = await reportBillingApi.receivables(); break;
         case 'by-item-type': res = await reportBillingApi.byItemType(startDate, endDate); break;
       }
       setData(res?.data || null);
@@ -696,122 +1141,193 @@ export function ReportBillingPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportBillingApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportBillingApi.exportExcel(tab === 'aging-receivables' ? 'receivables' : tab, startDate, endDate);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
   const summary = data?.summary || null;
 
-  const navItems = [
-    { value: 'daily-revenue', label: 'Harian' },
-    { value: 'by-payment', label: 'Cara Bayar' },
-    { value: 'by-room', label: 'Per Ruangan' },
-    { value: 'by-doctor', label: 'Per Dokter' },
-    { value: 'receivables', label: 'Piutang' },
-    { value: 'by-item-type', label: 'Per Tipe Item' },
+  const reportItems = [
+    { value: 'daily-revenue', label: 'Pendapatan Harian', note: 'download: Pendapatan Harian' },
+    { value: 'by-payment', label: 'Pendapatan Per Cara Bayar', note: 'download: Pendapatan Per Cara Bayar' },
+    { value: 'by-room', label: 'Pendapatan Per Ruangan', note: 'download: Pendapatan Per Ruangan' },
+    { value: 'by-doctor', label: 'Pendapatan Per Dokter', note: 'download: Pendapatan Per Dokter' },
+    { value: 'receivables', label: 'Piutang Pasien', note: 'download: Piutang Pasien' },
+    { value: 'aging-receivables', label: 'Aging Piutang', note: 'download: Aging Piutang' },
+    { value: 'by-item-type', label: 'Billing Per Tipe', note: 'download: Billing Per Tipe' },
   ];
+  const receivableAgingRows = [
+    { bucket: '0-30 Hari', jumlah_billing: 0, total_piutang: 0 },
+    { bucket: '31-60 Hari', jumlah_billing: 0, total_piutang: 0 },
+    { bucket: '61-90 Hari', jumlah_billing: 0, total_piutang: 0 },
+    { bucket: '> 90 Hari', jumlah_billing: 0, total_piutang: 0 },
+  ];
+  rows.forEach((row: any) => {
+    const umur = Number(row?.umur_hari ?? 0);
+    const nominal = Number(row?.sisa_piutang ?? 0);
+    const target = umur <= 30 ? receivableAgingRows[0] : umur <= 60 ? receivableAgingRows[1] : umur <= 90 ? receivableAgingRows[2] : receivableAgingRows[3];
+    target.jumlah_billing += 1;
+    target.total_piutang += nominal;
+  });
+
+  const activeReport = reportItems.find((item) => item.value === tab);
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<DollarSign className="h-5 w-5" />} title="Laporan Keuangan">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
-
-      <div className="pt-2">
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan keuangan"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                Tagihan: {summary ? formatCurrency(summary.total_tagihan) : '-'} | Piutang: {summary ? formatCurrency(summary.total_piutang) : '-'}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
         {tab === 'daily-revenue' && (
           <div className="space-y-4">
-            {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
-                <KPICard label="Total Tagihan" value={formatCurrency(summary.total_tagihan)} />
-                <KPICard label="Total Dibayar" value={formatCurrency(summary.total_bayar)} />
-                <KPICard label="Total Piutang" value={formatCurrency(summary.total_piutang)} />
-                <KPICard label="Jumlah Billing" value={formatNumber(summary.total_billing)} />
-              </div>
-            )}
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="total_tagihan" fill="#3b82f6" name="Tagihan" radius={[2,2,0,0]} />
-                  <Bar dataKey="total_bayar" fill="#22c55e" name="Dibayar" radius={[2,2,0,0]} />
-                  <Bar dataKey="total_piutang" fill="#ef4444" name="Piutang" radius={[2,2,0,0]} />
+            <ReportPanel eyebrow="Trend" title="Harian">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={rows}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
+                  <Bar dataKey="total_tagihan" fill="#1d4ed8" name="Tagihan" radius={[0,0,0,0]} />
+                  <Bar dataKey="total_bayar" fill="#0f766e" name="Bayar" radius={[0,0,0,0]} />
+                  <Bar dataKey="total_piutang" fill="#dc2626" name="Piutang" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'total_tagihan', label: 'Total Tagihan', align: 'right', format: formatCurrency },
-              { key: 'total_bayar', label: 'Dibayar', align: 'right', format: formatCurrency },
-              { key: 'total_piutang', label: 'Piutang', align: 'right', format: formatCurrency },
-              { key: 'jumlah_billing', label: 'Jumlah Billing', align: 'right', format: formatNumber },
-            ]} data={rows} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Harian">
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
+                { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
+                { key: 'total_piutang', label: 'Piutang', align: 'right', format: formatCurrency },
+                { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
+              ]} data={rows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'by-payment' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart><Pie data={rows} cx="50%" cy="50%" outerRadius={80} dataKey="total_tagihan" nameKey="metode_bayar" label={{ fontSize: 11 }}>
+            <ReportPanel eyebrow="Mix" title="Cara Bayar">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart><Pie data={rows} cx="50%" cy="50%" innerRadius={50} outerRadius={74} dataKey="total_tagihan" nameKey="metode_bayar">
                   {rows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => formatCurrency(v)} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
+                </Pie><RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'metode_bayar', label: 'Cara Bayar' },
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Cara Bayar">
+              <DataTable columns={[
+              { key: 'metode_bayar', label: 'Metode' },
               { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
               { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-              { key: 'total_bayar', label: 'Dibayar', align: 'right', format: formatCurrency },
+              { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
             ]} data={rows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'by-room' && (
+          <ReportPanel eyebrow="Data" title="Per Ruangan">
           <DataTable columns={[
             { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'service_type', label: 'Tipe Layanan' },
+            { key: 'service_type', label: 'Layanan' },
             { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
             { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-            { key: 'total_bayar', label: 'Dibayar', align: 'right', format: formatCurrency },
+            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
           ]} data={rows} />
+          </ReportPanel>
         )}
 
         {tab === 'by-doctor' && (
+          <ReportPanel eyebrow="Data" title="Per Dokter">
           <DataTable columns={[
             { key: 'nama_dokter', label: 'Dokter' },
             { key: 'spesialisasi', label: 'Spesialisasi' },
             { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
             { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-            { key: 'total_bayar', label: 'Dibayar', align: 'right', format: formatCurrency },
+            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
           ]} data={rows} />
+          </ReportPanel>
         )}
 
         {tab === 'receivables' && (
+          <ReportPanel eyebrow="Data" title="Piutang">
           <DataTable columns={[
-            { key: 'billing_number', label: 'No Billing' },
-            { key: 'nama_pasien', label: 'Pasien' },
-            { key: 'no_rm', label: 'No RM' },
-            { key: 'metode_bayar', label: 'Cara Bayar' },
-            { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-            { key: 'total_bayar', label: 'Dibayar', align: 'right', format: formatCurrency },
-            { key: 'sisa_piutang', label: 'Sisa Piutang', align: 'right', format: formatCurrency },
-            { key: 'tgl_billing', label: 'Tgl Billing' },
-            { key: 'status', label: 'Status' },
+            { key: 'billing_number', label: 'No Billing', width: '1.1fr' },
+            { key: 'nama_pasien', label: 'Pasien', width: '1.3fr' },
+            { key: 'no_rm', label: 'No RM', width: '0.8fr' },
+            { key: 'metode_bayar', label: 'Metode', width: '0.9fr' },
+            { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency, width: '1fr' },
+            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency, width: '1fr' },
+            { key: 'sisa_piutang', label: 'Piutang', align: 'right', format: formatCurrency, width: '1fr' },
+            { key: 'tgl_billing', label: 'Tanggal', width: '0.9fr' },
+            { key: 'umur_hari', label: 'Umur', align: 'right', format: formatNumber, width: '0.7fr' },
+            { key: 'status', label: 'Status', width: '0.8fr' },
           ]} data={rows} />
+          </ReportPanel>
+        )}
+
+        {tab === 'aging-receivables' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Trend" title="Aging Piutang">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={receivableAgingRows}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="bucket" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
+                  <Bar dataKey="total_piutang" fill="#1d4ed8" name="Piutang" radius={[0,0,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Aging Piutang">
+              <DataTable columns={[
+                { key: 'bucket', label: 'Umur Piutang' },
+                { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
+                { key: 'total_piutang', label: 'Total Piutang', align: 'right', format: formatCurrency },
+              ]} data={receivableAgingRows} />
+            </ReportPanel>
+          </div>
         )}
 
         {tab === 'by-item-type' && (
+          <ReportPanel eyebrow="Data" title="Per Tipe">
           <DataTable columns={[
             { key: 'item_type', label: 'Tipe Item' },
             { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
             { key: 'total_nilai', label: 'Total Nilai', align: 'right', format: formatCurrency },
           ]} data={rows} />
+          </ReportPanel>
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -841,6 +1357,7 @@ export function ReportInpatientPage() {
         case 'indicators': res = await reportInpatientApi.indicators(startDate, endDate); break;
         case 'census': res = await reportInpatientApi.census(); break;
         case 'list': res = await reportInpatientApi.list(startDate, endDate); break;
+        case 'by-payment': res = await reportInpatientApi.list(startDate, endDate); break;
         case 'by-room': res = await reportInpatientApi.byRoom(startDate, endDate); break;
       }
       setData(res?.data?.data || res?.data || null);
@@ -848,21 +1365,32 @@ export function ReportInpatientPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportInpatientApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportInpatientApi.exportExcel(tab === 'by-payment' ? 'list' : tab, startDate, endDate);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = Array.isArray(data) ? data : [];
 
-  const navItems = [
-    { value: 'indicators', label: 'Indikator' },
-    { value: 'census', label: 'Sensus' },
-    { value: 'list', label: 'Daftar Pasien' },
-    { value: 'by-room', label: 'Per Ruangan' },
+  const reportItems = [
+    { value: 'indicators', label: 'Indikator Rawat Inap', note: 'download: Indikator Rawat Inap' },
+    { value: 'census', label: 'Sensus Rawat Inap', note: 'download: Sensus Rawat Inap' },
+    { value: 'list', label: 'Daftar Pasien Rawat Inap', note: 'download: Daftar Pasien Rawat Inap' },
+    { value: 'by-payment', label: 'Rawat Inap Per Cara Bayar', note: 'download: Rawat Inap Per Cara Bayar' },
+    { value: 'by-room', label: 'Rawat Inap Per Ruangan', note: 'download: Rawat Inap Per Ruangan' },
   ];
+  const inpatientPaymentRows = aggregateByKey(rows, 'metode_bayar', ['los'], 'metode_bayar').map((row) => {
+    const subset = rows.filter((item: any) => String(item?.metode_bayar ?? '-') === String(row.metode_bayar));
+    return {
+      metode_bayar: row.metode_bayar,
+      jumlah_pasien: subset.length,
+      total_los: Number(row.los ?? 0),
+      avg_los: subset.length ? Number(row.los ?? 0) / subset.length : 0,
+    };
+  });
 
   // Indicators is a single object, not an array
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ind: any = (tab === 'indicators' && data && !Array.isArray(data)) ? data : null;
+  const activeReport = reportItems.find((item) => item.value === tab);
 
   const getBORStatus = (v: number): 'good' | 'warning' | 'bad' => {
     if (v >= 60 && v <= 85) return 'good';
@@ -888,22 +1416,45 @@ export function ReportInpatientPage() {
   const getNDRStatus = (v: number): 'good' | 'warning' | 'bad' => v <= 25 ? 'good' : 'bad';
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Rawat Inap">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
-
-      <div className="pt-2">
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan rawat inap"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                BOR: {ind ? `${formatDecimal(ind.bor)}%` : '-'} | ALOS: {ind ? formatDecimal(ind.alos) : '-'}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
         {tab === 'indicators' && ind && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-0">
+            <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-4">
               <KPICard label="Total TT" value={formatNumber(ind.total_beds)} subtitle="Tempat Tidur" />
               <KPICard label="Hari Rawat" value={formatNumber(ind.occupied_days)} subtitle="Occupied Days" />
               <KPICard label="Pasien Keluar" value={formatNumber(ind.total_discharges)} subtitle="Discharges" />
               <KPICard label="Kematian" value={formatNumber(ind.total_deaths)} subtitle={`< 48 jam: ${formatNumber(ind.deaths_less_48h)}`} />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-0">
+            <div className="grid gap-px bg-border/70 md:grid-cols-3">
               <KPICard label="BOR" value={formatDecimal(ind.bor) + '%'} subtitle="Standar: 60-85%" status={getBORStatus(Number(ind.bor))} />
               <KPICard label="ALOS" value={formatDecimal(ind.alos) + ' hari'} subtitle="Standar: 6-9 hari" status={getALOSStatus(Number(ind.alos))} />
               <KPICard label="BTO" value={formatDecimal(ind.bto) + ' kali'} subtitle="Standar: 40-50 kali" status={getBTOStatus(Number(ind.bto))} />
@@ -918,6 +1469,7 @@ export function ReportInpatientPage() {
         )}
 
         {tab === 'census' && (
+          <ReportPanel eyebrow="Data" title="Sensus">
           <DataTable columns={[
             { key: 'nama_ruangan', label: 'Ruangan' },
             { key: 'room_class', label: 'Kelas' },
@@ -926,25 +1478,53 @@ export function ReportInpatientPage() {
             { key: 'kosong', label: 'Kosong', align: 'right', format: formatNumber },
             { key: 'bor', label: 'BOR (%)', align: 'right', format: formatDecimal },
           ]} data={rows} />
+          </ReportPanel>
         )}
 
         {tab === 'list' && (
+          <ReportPanel eyebrow="Data" title="Daftar Pasien">
           <DataTable columns={[
-            { key: 'no_rm', label: 'No RM' },
-            { key: 'nama_pasien', label: 'Pasien' },
-            { key: 'jenis_kelamin', label: 'JK' },
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'nama_bed', label: 'Bed' },
-            { key: 'dokter_dpjp', label: 'DPJP' },
-            { key: 'tgl_masuk', label: 'Tgl Masuk' },
-            { key: 'tgl_keluar', label: 'Tgl Keluar' },
-            { key: 'los', label: 'LOS', align: 'right', format: formatNumber },
-            { key: 'metode_bayar', label: 'Bayar' },
-            { key: 'status', label: 'Status' },
+            { key: 'no_rm', label: 'No RM', width: '0.85fr' },
+            { key: 'nama_pasien', label: 'Pasien', width: '1.2fr' },
+            { key: 'jenis_kelamin', label: 'JK', width: '0.8fr' },
+            { key: 'nama_ruangan', label: 'Ruangan', width: '1fr' },
+            { key: 'nama_bed', label: 'Bed', width: '0.7fr' },
+            { key: 'dokter_dpjp', label: 'DPJP', width: '1.2fr' },
+            { key: 'tgl_masuk', label: 'Tgl Masuk', width: '1fr' },
+            { key: 'tgl_keluar', label: 'Tgl Keluar', width: '1fr' },
+            { key: 'los', label: 'LOS', align: 'right', format: formatNumber, width: '0.6fr' },
+            { key: 'metode_bayar', label: 'Bayar', width: '0.9fr' },
+            { key: 'status', label: 'Status', width: '0.8fr' },
           ]} data={rows} />
+          </ReportPanel>
+        )}
+
+        {tab === 'by-payment' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Cara Bayar">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={inpatientPaymentRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah_pasien" nameKey="metode_bayar" label={{ fontSize: 11 }}>
+                    {inpatientPaymentRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Cara Bayar">
+              <DataTable columns={[
+                { key: 'metode_bayar', label: 'Metode Bayar' },
+                { key: 'jumlah_pasien', label: 'Pasien', align: 'right', format: formatNumber },
+                { key: 'total_los', label: 'Total LOS', align: 'right', format: formatNumber },
+                { key: 'avg_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
+              ]} data={inpatientPaymentRows} />
+            </ReportPanel>
+          </div>
         )}
 
         {tab === 'by-room' && (
+          <ReportPanel eyebrow="Data" title="Per Ruangan">
           <DataTable columns={[
             { key: 'nama_ruangan', label: 'Ruangan' },
             { key: 'room_class', label: 'Kelas' },
@@ -953,9 +1533,13 @@ export function ReportInpatientPage() {
             { key: 'masih_rawat', label: 'Masih Rawat', align: 'right', format: formatNumber },
             { key: 'rata_rata_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
           ]} data={rows} />
+          </ReportPanel>
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -984,6 +1568,7 @@ export function ReportPharmacyPage() {
       let res;
       switch (tab) {
         case 'daily': res = await reportPharmacyApi.daily(startDate, endDate); break;
+        case 'mix-resep': res = await reportPharmacyApi.daily(startDate, endDate); break;
         case 'top-medicines': res = await reportPharmacyApi.topMedicines(startDate, endDate); break;
         case 'by-doctor': res = await reportPharmacyApi.byDoctor(startDate, endDate); break;
         case 'by-depo': res = await reportPharmacyApi.byDepo(startDate, endDate); break;
@@ -994,39 +1579,71 @@ export function ReportPharmacyPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportPharmacyApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportPharmacyApi.exportExcel(tab === 'mix-resep' ? 'daily' : tab, startDate, endDate);
 
-  const navItems = [
-    { value: 'daily', label: 'Harian' },
-    { value: 'top-medicines', label: 'Obat Terbanyak' },
-    { value: 'by-doctor', label: 'Per Dokter' },
-    { value: 'by-depo', label: 'Per Depo' },
-    { value: 'tat', label: 'Waktu Tunggu' },
+  const reportItems = [
+    { value: 'daily', label: 'Resep Harian', note: 'download: Resep Harian' },
+    { value: 'mix-resep', label: 'Mix Resep', note: 'download: Mix Resep' },
+    { value: 'top-medicines', label: 'Obat Terbanyak', note: 'download: Obat Terbanyak' },
+    { value: 'by-doctor', label: 'Resep Per Dokter', note: 'download: Resep Per Dokter' },
+    { value: 'by-depo', label: 'Resep Per Depo', note: 'download: Resep Per Depo' },
+    { value: 'tat', label: 'Waktu Tunggu Farmasi', note: 'download: Waktu Tunggu Farmasi' },
   ];
+  const activeReport = reportItems.find((item) => item.value === tab);
+  const pharmacyMixRows = [
+    { kategori: 'Racikan', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.racikan ?? 0), 0) },
+    { kategori: 'Non Racikan', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.non_racikan ?? 0), 0) },
+    { kategori: 'Pending', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.pending ?? 0), 0) },
+    { kategori: 'Diserahkan', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.diserahkan ?? 0), 0) },
+  ].filter((item) => item.jumlah > 0);
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<Pill className="h-5 w-5" />} title="Laporan Farmasi">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
-
-      <div className="pt-2">
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan farmasi"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_resep ?? row?.jumlah_resep ?? row?.jumlah_qty ?? 0), 0))}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
         {tab === 'daily' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="disiapkan" fill="#3b82f6" name="Disiapkan" radius={[2,2,0,0]} />
-                  <Bar dataKey="diserahkan" fill="#22c55e" name="Diserahkan" radius={[2,2,0,0]} />
-                  <Bar dataKey="pending" fill="#f59e0b" name="Pending" radius={[2,2,0,0]} />
-                  <Bar dataKey="dibatalkan" fill="#ef4444" name="Dibatalkan" radius={[2,2,0,0]} />
+            <ReportPanel eyebrow="Trend" title="Harian">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="disiapkan" fill="#1d4ed8" name="Siap" radius={[0,0,0,0]} />
+                  <Bar dataKey="diserahkan" fill="#0f766e" name="Serah" radius={[0,0,0,0]} />
+                  <Bar dataKey="pending" fill="#d97706" name="Pending" radius={[0,0,0,0]} />
+                  <Bar dataKey="dibatalkan" fill="#dc2626" name="Batal" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Harian">
             <DataTable columns={[
               { key: 'tanggal', label: 'Tanggal' },
               { key: 'total_resep', label: 'Total', align: 'right', format: formatNumber },
@@ -1037,22 +1654,46 @@ export function ReportPharmacyPage() {
               { key: 'racikan', label: 'Racikan', align: 'right', format: formatNumber },
               { key: 'non_racikan', label: 'Non-Racikan', align: 'right', format: formatNumber },
             ]} data={data} />
+            </ReportPanel>
+          </div>
+        )}
+
+        {tab === 'mix-resep' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Komposisi Resep">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={pharmacyMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
+                    {pharmacyMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Mix Resep">
+              <DataTable columns={[
+                { key: 'kategori', label: 'Kategori' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              ]} data={pharmacyMixRows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'top-medicines' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={300}>
+            <ReportPanel eyebrow="Trend" title="Obat">
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.slice(0, 15)} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="nama_obat" type="category" width={150} tick={{ fontSize: 10 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="jumlah_qty" fill="#3b82f6" name="Qty" radius={[0,2,2,0]} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="nama_obat" type="category" width={150} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah_qty" fill="#1d4ed8" name="Qty" radius={[0,0,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Obat">
             <DataTable columns={[
               { key: 'kode_obat', label: 'Kode Obat' },
               { key: 'nama_obat', label: 'Nama Obat' },
@@ -1060,28 +1701,34 @@ export function ReportPharmacyPage() {
               { key: 'jumlah_qty', label: 'Total Qty', align: 'right', format: formatNumber },
               { key: 'jumlah_rx', label: 'Jumlah Resep', align: 'right', format: formatNumber },
             ]} data={data} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'by-doctor' && (
+          <ReportPanel eyebrow="Data" title="Per Dokter">
           <DataTable columns={[
             { key: 'nama_dokter', label: 'Dokter' },
             { key: 'spesialisasi', label: 'Spesialisasi' },
             { key: 'jumlah_resep', label: 'Resep', align: 'right', format: formatNumber },
             { key: 'jumlah_item', label: 'Jumlah Item', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'by-depo' && (
+          <ReportPanel eyebrow="Data" title="Per Depo">
           <DataTable columns={[
             { key: 'nama_depo', label: 'Depo Farmasi' },
             { key: 'jumlah_resep', label: 'Total Resep', align: 'right', format: formatNumber },
             { key: 'delivered', label: 'Diserahkan', align: 'right', format: formatNumber },
             { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'tat' && (
+          <ReportPanel eyebrow="Data" title="Waktu Tunggu">
           <DataTable columns={[
             { key: 'nama_depo', label: 'Depo' },
             { key: 'avg_tat_menit', label: 'Rata-rata (menit)', align: 'right', format: formatDecimal },
@@ -1089,9 +1736,13 @@ export function ReportPharmacyPage() {
             { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
             { key: 'jumlah_resep', label: 'Jumlah Resep', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -1120,6 +1771,7 @@ export function ReportPenunjangPage() {
       let res;
       switch (tab) {
         case 'daily': res = await reportPenunjangApi.daily(startDate, endDate); break;
+        case 'mix-order': res = await reportPenunjangApi.daily(startDate, endDate); break;
         case 'top-lab': res = await reportPenunjangApi.topLab(startDate, endDate); break;
         case 'top-radiology': res = await reportPenunjangApi.topRadiology(startDate, endDate); break;
         case 'critical-results': res = await reportPenunjangApi.criticalResults(startDate, endDate); break;
@@ -1130,38 +1782,72 @@ export function ReportPenunjangPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportPenunjangApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportPenunjangApi.exportExcel(tab === 'mix-order' ? 'daily' : tab, startDate, endDate);
 
-  const navItems = [
-    { value: 'daily', label: 'Harian' },
-    { value: 'top-lab', label: 'Lab Terbanyak' },
-    { value: 'top-radiology', label: 'Radiologi Terbanyak' },
-    { value: 'critical-results', label: 'Hasil Kritis' },
-    { value: 'tat', label: 'TAT' },
+  const reportItems = [
+    { value: 'daily', label: 'Order Penunjang Harian', note: 'download: Order Penunjang Harian' },
+    { value: 'mix-order', label: 'Mix Order Penunjang', note: 'download: Mix Order Penunjang' },
+    { value: 'top-lab', label: 'Lab Terbanyak', note: 'download: Lab Terbanyak' },
+    { value: 'top-radiology', label: 'Radiologi Terbanyak', note: 'download: Radiologi Terbanyak' },
+    { value: 'critical-results', label: 'Hasil Kritis', note: 'download: Hasil Kritis' },
+    { value: 'tat', label: 'TAT Penunjang', note: 'download: TAT Penunjang' },
   ];
+  const activeReport = reportItems.find((item) => item.value === tab);
+  const penunjangMixRows = [
+    { kategori: 'Laboratorium', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.laboratorium ?? 0), 0) },
+    { kategori: 'Radiologi', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.radiologi ?? 0), 0) },
+    { kategori: 'Konsultasi', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.konsultasi ?? 0), 0) },
+    { kategori: 'Operasi', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.operasi ?? 0), 0) },
+    { kategori: 'Selesai', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.completed ?? 0), 0) },
+    { kategori: 'Pending', jumlah: data.reduce((sum: number, row: any) => sum + Number(row?.pending ?? 0), 0) },
+  ].filter((item) => item.jumlah > 0);
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<FlaskConical className="h-5 w-5" />} title="Laporan Penunjang (Lab & Radiologi)">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
-
-      <div className="pt-2">
+      <ReportExplorerLayout
+        sidebarTitle="Parameter laporan penunjang"
+        reportItems={reportItems}
+        activeTab={tab}
+        onTabChange={setTab}
+        onApply={fetchData}
+        onExport={exportExcel}
+        previewTitle={activeReport?.label || 'Preview'}
+        filters={
+          <>
+            <ReportFilterField label="Periode Awal">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Periode Akhir">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+            </ReportFilterField>
+            <ReportFilterField label="Ringkasan">
+              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_order ?? row?.jumlah ?? row?.jumlah_order ?? 0), 0))}
+              </div>
+            </ReportFilterField>
+          </>
+        }
+        previewChildren={
+          <>
         {tab === 'daily' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="laboratorium" fill="#3b82f6" name="Laboratorium" radius={[2,2,0,0]} />
-                  <Bar dataKey="radiologi" fill="#22c55e" name="Radiologi" radius={[2,2,0,0]} />
-                  <Bar dataKey="operasi" fill="#ef4444" name="Operasi" radius={[2,2,0,0]} />
+            <ReportPanel eyebrow="Trend" title="Harian">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="laboratorium" fill="#1d4ed8" name="Lab" radius={[0,0,0,0]} />
+                  <Bar dataKey="radiologi" fill="#0f766e" name="Radiologi" radius={[0,0,0,0]} />
+                  <Bar dataKey="operasi" fill="#dc2626" name="Operasi" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Harian">
             <DataTable columns={[
               { key: 'tanggal', label: 'Tanggal' },
               { key: 'total_order', label: 'Total Order', align: 'right', format: formatNumber },
@@ -1172,26 +1858,54 @@ export function ReportPenunjangPage() {
               { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
               { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
             ]} data={data} />
+            </ReportPanel>
+          </div>
+        )}
+
+        {tab === 'mix-order' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Komposisi Order">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={penunjangMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
+                    {penunjangMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Mix Order">
+              <DataTable columns={[
+                { key: 'kategori', label: 'Kategori' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              ]} data={penunjangMixRows} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'top-lab' && (
+          <ReportPanel eyebrow="Data" title="Lab">
           <DataTable columns={[
             { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
             { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
             { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'top-radiology' && (
+          <ReportPanel eyebrow="Data" title="Radiologi">
           <DataTable columns={[
             { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
             { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
             { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'critical-results' && (
+          <ReportPanel eyebrow="Data" title="Hasil Kritis">
           <DataTable columns={[
             { key: 'tanggal', label: 'Tanggal' },
             { key: 'nama_pasien', label: 'Pasien' },
@@ -1201,9 +1915,11 @@ export function ReportPenunjangPage() {
             { key: 'nama_ruangan', label: 'Ruangan' },
             { key: 'nama_dokter', label: 'Dokter' },
           ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'tat' && (
+          <ReportPanel eyebrow="Data" title="TAT">
           <DataTable columns={[
             { key: 'order_type', label: 'Tipe Order' },
             { key: 'nama_ruangan', label: 'Ruangan' },
@@ -1212,14 +1928,328 @@ export function ReportPenunjangPage() {
             { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
             { key: 'jumlah_order', label: 'Jumlah', align: 'right', format: formatNumber },
           ]} data={data} />
+          </ReportPanel>
         )}
-      </div>
-    </div>
+          </>
+        }
+      />
+      </PageContent>
+    </PageShell>
   );
 }
 
 // ============================================================
-// Category G: Inventaris
+// Category G: Layanan
+// Backend JSON keys from reports_services.go:
+//   perPatient: no_rm, nama_pasien, jenis_kelamin, jumlah, selesai, terakhir
+//   summary: tanggal, jumlah, selesai, pasien_unik
+//   byPayment: payment_method, jumlah, persentase
+//   byClass: kelas, jumlah, persentase
+//   surgeryPatients: no_rm, nama_pasien, tindakan, dokter_bedah, ruangan, jadwal, status
+//   surgerySchedule: tanggal, ruangan, total, pending, selesai
+// ============================================================
+export function ReportServicesPage() {
+  const [tab, setTab] = useState('per-patient');
+  const [startDate, setStartDate] = useState(getDefaultStart());
+  const [endDate, setEndDate] = useState(getDefaultEnd());
+  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [doctorFilter, setDoctorFilter] = useState('all');
+  const [serviceFilter, setServiceFilter] = useState('all');
+  const [roomFilter, setRoomFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [data, setData] = useState<any[]>([]);
+
+  useEffect(() => { setPageTitle('Laporan Layanan'); }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let res;
+      switch (tab) {
+        case 'per-patient': res = await reportServicesApi.perPatient(startDate, endDate); break;
+        case 'summary': res = await reportServicesApi.summary(startDate, endDate); break;
+        case 'by-payment': res = await reportServicesApi.byPayment(startDate, endDate); break;
+        case 'by-class': res = await reportServicesApi.byClass(startDate, endDate); break;
+        case 'surgery-patients': res = await reportServicesApi.surgeryPatients(startDate, endDate); break;
+        case 'surgery-schedule': res = await reportServicesApi.surgerySchedule(startDate, endDate); break;
+      }
+      setData(res?.data?.data || []);
+    } catch { setData([]); } finally { setLoading(false); }
+  }, [tab, startDate, endDate]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  const exportExcel = () => reportServicesApi.exportExcel(tab, startDate, endDate);
+
+  const reportItems = [
+    { value: 'per-patient', label: 'Volume Tindakan Per Pasien', note: 'download: Volume Tindakan Per Pasien' },
+    { value: 'summary', label: 'Volume Tindakan Rekap', note: 'download: Volume Tindakan Rekap' },
+    { value: 'by-payment', label: 'Laporan Tindakan Cara Bayar', note: 'download: Laporan Tindakan Cara Bayar' },
+    { value: 'by-class', label: 'Laporan Tindakan Per Kelas', note: 'download: Laporan Tindakan Per Kelas' },
+    { value: 'surgery-patients', label: 'Laporan Pasien Operasi', note: 'download: Laporan Pasien Operasi' },
+    { value: 'surgery-schedule', label: 'Laporan Penjadwalan Operasi', note: 'download: Laporan Penjadwalan Operasi' },
+  ];
+  const activeReport = reportItems.find((item) => item.value === tab);
+
+  return (
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
+        <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Layanan">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+
+        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="border border-border/70 bg-background">
+            <div className="space-y-3 p-4">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: REPORT_MONO_FAMILY }}>Filter</p>
+                <p className="text-sm font-medium">Parameter laporan layanan</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Periode Awal</label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Periode Akhir</label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Cara Bayar</label>
+                <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                  <SelectTrigger className="h-10 rounded-none border-border/70 text-sm">
+                    <SelectValue placeholder="Pilih cara bayar" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="bpjs">BPJS</SelectItem>
+                    <SelectItem value="cash">Umum/Cash</SelectItem>
+                    <SelectItem value="insurance">Asuransi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Dokter</label>
+                <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                  <SelectTrigger className="h-10 rounded-none border-border/70 text-sm">
+                    <SelectValue placeholder="Pilih dokter" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all">Semua Dokter</SelectItem>
+                    <SelectItem value="surgeon">Dokter Bedah</SelectItem>
+                    <SelectItem value="operator">Dokter Operator</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Tindakan</label>
+                <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                  <SelectTrigger className="h-10 rounded-none border-border/70 text-sm">
+                    <SelectValue placeholder="Pilih tindakan" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all">Semua Tindakan</SelectItem>
+                    <SelectItem value="medical">Tindakan Langsung</SelectItem>
+                    <SelectItem value="surgery">Operasi</SelectItem>
+                    <SelectItem value="lab-rad">Lab/Radiologi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Ruangan</label>
+                <Select value={roomFilter} onValueChange={setRoomFilter}>
+                  <SelectTrigger className="h-10 rounded-none border-border/70 text-sm">
+                    <SelectValue placeholder="Pilih ruangan" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all">Semua Ruangan</SelectItem>
+                    <SelectItem value="ok">Kamar Operasi</SelectItem>
+                    <SelectItem value="poli">Poli</SelectItem>
+                    <SelectItem value="penunjang">Penunjang</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 border-t border-border/70">
+              <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={fetchData}>HTML</Button>
+              <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs">WORD</Button>
+              <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={exportExcel}>EXCEL</Button>
+              <Button variant="ghost" className="h-11 rounded-none text-xs">PDF</Button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 xl:grid-cols-2">
+              {reportItems.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setTab(item.value)}
+                  className={cn(
+                    'flex min-h-[108px] items-start justify-between border px-4 py-4 text-left transition-colors',
+                    tab === item.value ? 'border-foreground bg-muted/10' : 'border-border/70 bg-background hover:bg-muted/10',
+                  )}
+                >
+                  <div className="flex gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center border border-border/70 bg-muted/20 text-[10px] font-semibold">
+                      R
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold leading-6">{item.label}</p>
+                      <p className="text-sm text-muted-foreground">{item.note}</p>
+                      <p className="text-sm text-muted-foreground">keterangan:</p>
+                    </div>
+                  </div>
+                  <Download className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <ReportPanel eyebrow="Data" title={activeReport?.label || 'Preview'}>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="rounded-none">{activeReport?.label || '-'}</Badge>
+              <Badge variant="outline" className="rounded-none">{startDate} s/d {endDate}</Badge>
+            </div>
+
+          {tab === 'per-patient' && (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={data.slice(0, 10)}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="nama_pasien" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} hide />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </BarChart>
+              </ResponsiveContainer>
+              <DataTable columns={[
+                { key: 'no_rm', label: 'No RM', width: '0.8fr' },
+                { key: 'nama_pasien', label: 'Pasien', width: '1.5fr', wrap: true },
+                { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
+                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber, width: '0.7fr' },
+                { key: 'terakhir', label: 'Terakhir', width: '0.9fr' },
+              ]} data={data} />
+            </div>
+          )}
+
+          {tab === 'summary' && (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={data}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </BarChart>
+              </ResponsiveContainer>
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                { key: 'pasien_unik', label: 'Pasien', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </div>
+          )}
+
+          {tab === 'by-payment' && (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={data} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="payment_method" label={{ fontSize: 11 }}>
+                    {data.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <DataTable columns={[
+                { key: 'payment_method', label: 'Cara Bayar' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+              ]} data={data} />
+            </div>
+          )}
+
+          {tab === 'by-class' && (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={data}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <DataTable columns={[
+                { key: 'kelas', label: 'Kelas' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+              ]} data={data} />
+            </div>
+          )}
+
+          {tab === 'surgery-patients' && (
+            <DataTable columns={[
+              { key: 'no_rm', label: 'No RM', width: '0.8fr' },
+              { key: 'nama_pasien', label: 'Pasien', width: '1.2fr', wrap: true },
+              { key: 'tindakan', label: 'Tindakan', width: '1.3fr', wrap: true },
+              { key: 'dokter_bedah', label: 'Dokter', width: '1.2fr', wrap: true },
+              { key: 'ruangan', label: 'Ruangan', width: '1fr' },
+              { key: 'jadwal', label: 'Jadwal', width: '0.9fr' },
+              { key: 'status', label: 'Status', width: '0.8fr' },
+            ]} data={data} />
+          )}
+
+          {tab === 'surgery-schedule' && (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={data}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="total" fill="#1d4ed8" name="Total" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="pending" fill="#f59e0b" name="Pending" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0, 0, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </BarChart>
+              </ResponsiveContainer>
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'ruangan', label: 'Ruangan', wrap: true },
+                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
+                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </div>
+          )}
+          </ReportPanel>
+        </div>
+      </PageContent>
+    </PageShell>
+  );
+}
+
+// ============================================================
+// Category H: Inventaris
 // Backend JSON keys from reports_inventory.go:
 //   medicineStock: nama_depo, kode_obat, nama_obat, satuan, stok_saat_ini, stok_min, stok_max, harga_satuan, nilai_stok, status
 //   expiredMedicines: kode_obat, nama_obat, no_batch, tgl_kadaluarsa, sisa, nama_depo
@@ -1261,7 +2291,8 @@ export function ReportInventoryPage() {
   ];
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<Boxes className="h-5 w-5" />} title="Laporan Inventaris & Stok">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
@@ -1269,55 +2300,64 @@ export function ReportInventoryPage() {
 
       <div className="pt-2">
         {tab === 'medicine-stock' && (
-          <DataTable columns={[
-            { key: 'nama_depo', label: 'Depo' },
-            { key: 'kode_obat', label: 'Kode Obat' },
-            { key: 'nama_obat', label: 'Nama Obat' },
-            { key: 'satuan', label: 'Satuan' },
-            { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
-            { key: 'stok_min', label: 'Min Stok', align: 'right', format: formatNumber },
-            { key: 'stok_max', label: 'Max Stok', align: 'right', format: formatNumber },
-            { key: 'harga_satuan', label: 'Harga Satuan', align: 'right', format: formatCurrency },
-            { key: 'nilai_stok', label: 'Nilai Stok', align: 'right', format: formatCurrency },
-            { key: 'status', label: 'Status' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Stok Obat">
+            <DataTable columns={[
+              { key: 'nama_depo', label: 'Depo' },
+              { key: 'kode_obat', label: 'Kode Obat' },
+              { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
+              { key: 'satuan', label: 'Satuan' },
+              { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
+              { key: 'stok_min', label: 'Min', align: 'right', format: formatNumber },
+              { key: 'stok_max', label: 'Max', align: 'right', format: formatNumber },
+              { key: 'harga_satuan', label: 'Harga', align: 'right', format: formatCurrency, width: '1.1fr' },
+              { key: 'nilai_stok', label: 'Nilai', align: 'right', format: formatCurrency, width: '1.1fr' },
+              { key: 'status', label: 'Status' },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'expired-medicines' && (
-          <DataTable columns={[
-            { key: 'kode_obat', label: 'Kode Obat' },
-            { key: 'nama_obat', label: 'Nama Obat' },
-            { key: 'no_batch', label: 'No Batch' },
-            { key: 'tgl_kadaluarsa', label: 'Kadaluarsa' },
-            { key: 'sisa', label: 'Sisa', align: 'right', format: formatNumber },
-            { key: 'nama_depo', label: 'Depo' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Obat Kadaluarsa">
+            <DataTable columns={[
+              { key: 'kode_obat', label: 'Kode Obat' },
+              { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
+              { key: 'no_batch', label: 'Batch' },
+              { key: 'tgl_kadaluarsa', label: 'Kadaluarsa' },
+              { key: 'sisa', label: 'Sisa', align: 'right', format: formatNumber },
+              { key: 'nama_depo', label: 'Depo' },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'stock' && (
-          <DataTable columns={[
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'kode_barang', label: 'Kode Barang' },
-            { key: 'nama_barang', label: 'Nama Barang' },
-            { key: 'kategori', label: 'Kategori' },
-            { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
-            { key: 'kondisi', label: 'Kondisi' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Stok Inventaris">
+            <DataTable columns={[
+              { key: 'nama_ruangan', label: 'Ruangan' },
+              { key: 'kode_barang', label: 'Kode Barang' },
+              { key: 'nama_barang', label: 'Nama Barang', width: '1.5fr' },
+              { key: 'kategori', label: 'Kategori' },
+              { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
+              { key: 'kondisi', label: 'Kondisi' },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'mutations' && (
-          <DataTable columns={[
-            { key: 'tanggal', label: 'Tanggal' },
-            { key: 'kode_obat', label: 'Kode Obat' },
-            { key: 'nama_obat', label: 'Obat' },
-            { key: 'tipe', label: 'Tipe' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'nama_depo', label: 'Depo' },
-            { key: 'keterangan', label: 'Keterangan' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Mutasi Stok">
+            <DataTable columns={[
+              { key: 'tanggal', label: 'Tanggal' },
+              { key: 'kode_obat', label: 'Kode Obat' },
+              { key: 'nama_obat', label: 'Obat', width: '1.3fr' },
+              { key: 'tipe', label: 'Tipe' },
+              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              { key: 'nama_depo', label: 'Depo' },
+              { key: 'keterangan', label: 'Keterangan', width: '1.5fr' },
+            ]} data={data} />
+          </ReportPanel>
         )}
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -1346,6 +2386,7 @@ export function ReportHRPage() {
       switch (tab) {
         case 'summary': res = await reportHrApi.summary(); break;
         case 'doctors': res = await reportHrApi.doctors(); break;
+        case 'by-specialization': res = await reportHrApi.doctors(); break;
         case 'license-expiry': res = await reportHrApi.licenseExpiry(); break;
         case 'doctor-workload': res = await reportHrApi.doctorWorkload(startDate, endDate); break;
       }
@@ -1354,17 +2395,23 @@ export function ReportHRPage() {
   }, [tab, startDate, endDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  const exportExcel = () => reportHrApi.exportExcel(tab, startDate, endDate);
+  const exportExcel = () => reportHrApi.exportExcel(tab === 'by-specialization' ? 'doctors' : tab, startDate, endDate);
 
   const navItems = [
     { value: 'summary', label: 'Rekap' },
     { value: 'doctors', label: 'Daftar Dokter' },
+    { value: 'by-specialization', label: 'Spesialisasi' },
     { value: 'license-expiry', label: 'STR/SIP' },
     { value: 'doctor-workload', label: 'Beban Kerja' },
   ];
+  const specializationRows = aggregateByKey(data, 'spesialisasi', [], 'spesialisasi').map((row) => ({
+    spesialisasi: row.spesialisasi,
+    jumlah_dokter: data.filter((item: any) => String(item?.spesialisasi ?? '-') === String(row.spesialisasi)).length,
+  }));
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<UserCheck className="h-5 w-5" />} title="Laporan SDM">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
@@ -1373,56 +2420,84 @@ export function ReportHRPage() {
       <div className="pt-2">
         {tab === 'summary' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Komposisi Pegawai">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="laki" fill="#3b82f6" name="Laki-laki" radius={[2,2,0,0]} />
-                  <Bar dataKey="perempuan" fill="#ec4899" name="Perempuan" radius={[2,2,0,0]} />
+                  <Bar dataKey="laki" fill="#1d4ed8" name="Laki-laki" radius={[0,0,0,0]} />
+                  <Bar dataKey="perempuan" fill="#db2777" name="Perempuan" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tipe_karyawan', label: 'Tipe' },
-              { key: 'status_kepegawaian', label: 'Status' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Rekap Pegawai">
+              <DataTable columns={[
+                { key: 'tipe_karyawan', label: 'Tipe' },
+                { key: 'status_kepegawaian', label: 'Status' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'doctors' && (
-          <DataTable columns={[
-            { key: 'nama_lengkap', label: 'Nama' },
-            { key: 'spesialisasi', label: 'Spesialisasi' },
-            { key: 'no_str', label: 'No STR' },
-            { key: 'masa_berlaku_str', label: 'Berlaku STR' },
-            { key: 'no_sip', label: 'No SIP' },
-            { key: 'masa_berlaku_sip', label: 'Berlaku SIP' },
-            { key: 'status_kepegawaian', label: 'Status Pegawai' },
-            { key: 'status_str', label: 'Status STR' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Daftar Dokter">
+            <DataTable columns={[
+              { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
+              { key: 'spesialisasi', label: 'Spesialisasi' },
+              { key: 'no_str', label: 'No STR' },
+              { key: 'masa_berlaku_str', label: 'Berlaku STR' },
+              { key: 'no_sip', label: 'No SIP' },
+              { key: 'masa_berlaku_sip', label: 'Berlaku SIP' },
+              { key: 'status_kepegawaian', label: 'Status Pegawai' },
+              { key: 'status_str', label: 'Status STR' },
+            ]} data={data} />
+          </ReportPanel>
+        )}
+
+        {tab === 'by-specialization' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Sebaran Spesialisasi">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={specializationRows}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="spesialisasi" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="jumlah_dokter" fill="#1d4ed8" name="Dokter" radius={[0,0,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Spesialisasi">
+              <DataTable columns={[
+                { key: 'spesialisasi', label: 'Spesialisasi' },
+                { key: 'jumlah_dokter', label: 'Jumlah Dokter', align: 'right', format: formatNumber },
+              ]} data={specializationRows} />
+            </ReportPanel>
+          </div>
         )}
 
         {tab === 'license-expiry' && (
-          <DataTable columns={[
-            { key: 'nama_lengkap', label: 'Nama' },
-            { key: 'tipe_karyawan', label: 'Tipe' },
-            { key: 'spesialisasi', label: 'Spesialisasi' },
-            { key: 'jenis_surat', label: 'Jenis' },
-            { key: 'nomor_surat', label: 'Nomor' },
-            { key: 'tgl_berlaku', label: 'Berlaku s/d' },
-            { key: 'sisa_hari', label: 'Sisa Hari', align: 'right', format: formatNumber },
-            { key: 'status', label: 'Status' },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="Masa Berlaku STR / SIP">
+            <DataTable columns={[
+              { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
+              { key: 'tipe_karyawan', label: 'Tipe' },
+              { key: 'spesialisasi', label: 'Spesialisasi' },
+              { key: 'jenis_surat', label: 'Jenis' },
+              { key: 'nomor_surat', label: 'Nomor' },
+              { key: 'tgl_berlaku', label: 'Berlaku s/d' },
+              { key: 'sisa_hari', label: 'Sisa Hari', align: 'right', format: formatNumber },
+              { key: 'status', label: 'Status' },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'doctor-workload' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="Beban Kerja Dokter">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.slice(0, 15)} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1434,19 +2509,22 @@ export function ReportHRPage() {
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'nama_dokter', label: 'Dokter' },
-              { key: 'spesialisasi', label: 'Spesialisasi' },
-              { key: 'jumlah_pasien', label: 'Total', align: 'right', format: formatNumber },
-              { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber },
-              { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber },
-              { key: 'avg_per_hari', label: 'Avg/Hari', align: 'right', format: formatDecimal },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Beban Kerja">
+              <DataTable columns={[
+                { key: 'nama_dokter', label: 'Dokter', width: '1.3fr' },
+                { key: 'spesialisasi', label: 'Spesialisasi' },
+                { key: 'jumlah_pasien', label: 'Total', align: 'right', format: formatNumber },
+                { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber },
+                { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber },
+                { key: 'avg_per_hari', label: 'Avg/Hari', align: 'right', format: formatDecimal },
+              ]} data={data} />
+            </ReportPanel>
           </div>
         )}
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }
 
@@ -1476,6 +2554,7 @@ export function ReportKemenkesPage() {
       switch (tab) {
         case 'quality-indicators': res = await reportKemenkesApi.qualityIndicators(startDate, endDate); break;
         case 'rl12-beds': res = await reportKemenkesApi.rl12Beds(); break;
+        case 'bed-summary': res = await reportKemenkesApi.rl12Beds(); break;
         case 'rl31-outpatient': res = await reportKemenkesApi.rl31OutpatientDiseases(startDate, endDate); break;
         case 'rl32-inpatient': res = await reportKemenkesApi.rl32InpatientDiseases(startDate, endDate); break;
         case 'rl4a-visits': res = await reportKemenkesApi.rl4aVisits(startDate, endDate); break;
@@ -1490,6 +2569,7 @@ export function ReportKemenkesPage() {
     const endpointMap: Record<string, string> = {
       'quality-indicators': 'quality-indicators',
       'rl12-beds': 'rl12-beds',
+      'bed-summary': 'rl12-beds',
       'rl31-outpatient': 'rl31-top-diseases-outpatient',
       'rl32-inpatient': 'rl32-top-diseases-inpatient',
       'rl4a-visits': 'rl4a-visits',
@@ -1501,14 +2581,23 @@ export function ReportKemenkesPage() {
   const navItems = [
     { value: 'quality-indicators', label: 'Indikator Mutu' },
     { value: 'rl12-beds', label: 'RL 1.2 TT' },
+    { value: 'bed-summary', label: 'Ringkas TT' },
     { value: 'rl31-outpatient', label: 'RL 3.1 Rajal' },
     { value: 'rl32-inpatient', label: 'RL 3.2 Ranap' },
     { value: 'rl4a-visits', label: 'RL 4A Kunjungan' },
     { value: 'rl51-workforce', label: 'RL 5.1 Ketenagaan' },
   ];
+  const bedSummaryRows = aggregateByKey(data, 'kelas', ['total_bed', 'bed_terisi', 'bed_kosong'], 'kelas').map((row) => ({
+    kelas: row.kelas,
+    total_bed: Number(row.total_bed ?? 0),
+    bed_terisi: Number(row.bed_terisi ?? 0),
+    bed_kosong: Number(row.bed_kosong ?? 0),
+    persentase: Number(row.total_bed ?? 0) > 0 ? (Number(row.bed_terisi ?? 0) / Number(row.total_bed ?? 0)) * 100 : 0,
+  }));
 
   return (
-    <div className="p-6 space-y-4">
+    <PageShell>
+      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
       <PageHeader icon={<Landmark className="h-5 w-5" />} title="Laporan Kemenkes / RL">
         <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
       </PageHeader>
@@ -1516,7 +2605,7 @@ export function ReportKemenkesPage() {
 
       <div className="pt-2">
         {tab === 'quality-indicators' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0">
+          <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-3">
             {data.map((row: { indikator: string; nilai: string; standar: string; status: string }, i: number) => (
               <KPICard
                 key={i}
@@ -1531,73 +2620,108 @@ export function ReportKemenkesPage() {
         )}
 
         {tab === 'rl12-beds' && (
-          <DataTable columns={[
-            { key: 'ruang_perawatan', label: 'Ruang' },
-            { key: 'kelas', label: 'Kelas' },
-            { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
-            { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
-            { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
-            { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="RL 1.2 Tempat Tidur">
+            <DataTable columns={[
+              { key: 'ruang_perawatan', label: 'Ruang', width: '1.3fr' },
+              { key: 'kelas', label: 'Kelas' },
+              { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
+              { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
+              { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
+              { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
+            ]} data={data} />
+          </ReportPanel>
+        )}
+
+        {tab === 'bed-summary' && (
+          <div className="space-y-4">
+            <ReportPanel eyebrow="Chart" title="Ringkasan Tempat Tidur">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={bedSummaryRows}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                  <Bar dataKey="bed_terisi" fill="#0f766e" name="Terisi" radius={[0,0,0,0]} />
+                  <Bar dataKey="bed_kosong" fill="#dc2626" name="Kosong" radius={[0,0,0,0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="Ringkas Tempat Tidur">
+              <DataTable columns={[
+                { key: 'kelas', label: 'Kelas' },
+                { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
+                { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
+                { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
+                { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
+              ]} data={bedSummaryRows} />
+            </ReportPanel>
+          </div>
         )}
 
         {tab === 'rl31-outpatient' && (
-          <DataTable columns={[
-            { key: 'ranking', label: '#', align: 'right' },
-            { key: 'icd10_code', label: 'Kode ICD-10' },
-            { key: 'icd10_name', label: 'Penyakit' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
-            { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-            { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
-            { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="RL 3.1 Rajal">
+            <DataTable columns={[
+              { key: 'ranking', label: '#', align: 'right' },
+              { key: 'icd10_code', label: 'Kode ICD-10' },
+              { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
+              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
+              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+              { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
+              { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'rl32-inpatient' && (
-          <DataTable columns={[
-            { key: 'ranking', label: '#', align: 'right' },
-            { key: 'icd10_code', label: 'Kode ICD-10' },
-            { key: 'icd10_name', label: 'Penyakit' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
-            { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-            { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
-            { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
-            { key: 'lama_laki', label: 'Lama L', align: 'right', format: formatNumber },
-            { key: 'lama_wanita', label: 'Lama P', align: 'right', format: formatNumber },
-          ]} data={data} />
+          <ReportPanel eyebrow="Data" title="RL 3.2 Ranap">
+            <DataTable columns={[
+              { key: 'ranking', label: '#', align: 'right' },
+              { key: 'icd10_code', label: 'Kode ICD-10' },
+              { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
+              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+              { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
+              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+              { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
+              { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
+              { key: 'lama_laki', label: 'Lama L', align: 'right', format: formatNumber },
+              { key: 'lama_wanita', label: 'Lama P', align: 'right', format: formatNumber },
+            ]} data={data} />
+          </ReportPanel>
         )}
 
         {tab === 'rl4a-visits' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="RL 4A Kunjungan">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="bulan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                   <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#3b82f6" name="Rawat Jalan" radius={[2,2,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#22c55e" name="Rawat Inap" radius={[2,2,0,0]} />
-                  <Bar dataKey="igd" fill="#ef4444" name="IGD" radius={[2,2,0,0]} />
+                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0,0,0,0]} />
+                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0,0,0,0]} />
+                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'bulan', label: 'Bulan' },
-              { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
-              { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
-              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-              { key: 'total_pasien', label: 'Total', align: 'right', format: formatNumber },
-              { key: 'pasien_baru', label: 'Baru', align: 'right', format: formatNumber },
-              { key: 'pasien_lama', label: 'Lama', align: 'right', format: formatNumber },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="RL 4A Kunjungan">
+              <DataTable columns={[
+                { key: 'bulan', label: 'Bulan' },
+                { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
+                { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
+                { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
+                { key: 'total_pasien', label: 'Total', align: 'right', format: formatNumber },
+                { key: 'pasien_baru', label: 'Baru', align: 'right', format: formatNumber },
+                { key: 'pasien_lama', label: 'Lama', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </ReportPanel>
           </div>
         )}
 
         {tab === 'rl51-workforce' && (
           <div className="space-y-4">
-            <Card className="rounded-none border-border"><CardContent className="pt-4">
+            <ReportPanel eyebrow="Trend" title="RL 5.1 Ketenagaan">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
@@ -1610,19 +2734,22 @@ export function ReportKemenkesPage() {
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent></Card>
-            <DataTable columns={[
-              { key: 'tipe_karyawan', label: 'Tipe' },
-              { key: 'pns', label: 'PNS', align: 'right', format: formatNumber },
-              { key: 'kontrak', label: 'Kontrak', align: 'right', format: formatNumber },
-              { key: 'honorer', label: 'Honorer', align: 'right', format: formatNumber },
-              { key: 'magang', label: 'Magang', align: 'right', format: formatNumber },
-              { key: 'lainnya', label: 'Lainnya', align: 'right', format: formatNumber },
-              { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-            ]} data={data} />
+            </ReportPanel>
+            <ReportPanel eyebrow="Data" title="RL 5.1 Ketenagaan">
+              <DataTable columns={[
+                { key: 'tipe_karyawan', label: 'Tipe' },
+                { key: 'pns', label: 'PNS', align: 'right', format: formatNumber },
+                { key: 'kontrak', label: 'Kontrak', align: 'right', format: formatNumber },
+                { key: 'honorer', label: 'Honorer', align: 'right', format: formatNumber },
+                { key: 'magang', label: 'Magang', align: 'right', format: formatNumber },
+                { key: 'lainnya', label: 'Lainnya', align: 'right', format: formatNumber },
+                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </ReportPanel>
           </div>
         )}
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

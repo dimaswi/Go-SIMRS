@@ -748,6 +748,11 @@ func SeedData() error {
 		{Name: "patients.update", Module: "Patient Management", Category: "Patients", Description: "Update patient data", Actions: `["update"]`},
 		{Name: "patients.delete", Module: "Patient Management", Category: "Patients", Description: "Delete patient records", Actions: `["delete"]`},
 
+		// Cashier Shift Management (Shift Kasir)
+		{Name: "cashier_shifts.view", Module: "Cashier Shift Management", Category: "Kasir", Description: "View active cashier shift status", Actions: `["read"]`},
+		{Name: "cashier_shifts.open", Module: "Cashier Shift Management", Category: "Kasir", Description: "Open a new cashier shift", Actions: `["create"]`},
+		{Name: "cashier_shifts.close", Module: "Cashier Shift Management", Category: "Kasir", Description: "Close an active cashier shift", Actions: `["update"]`},
+
 		// Inventory Management (Inventaris)
 		{Name: "inventories.view", Module: "Inventory Management", Category: "Inventories", Description: "View inventories list and details", Actions: `["read"]`},
 		{Name: "inventories.create", Module: "Inventory Management", Category: "Inventories", Description: "Create new inventory items", Actions: `["create"]`},
@@ -1035,6 +1040,18 @@ func seedRolesAndAdmin() error {
 		"procedure_orders.perform",
 	})
 	assignPermissionsToRoles([]string{"Rekam Medis"}, rekamMedisDefaultPermissions, false)
+
+	kasirDefaultPermissions := loadPermissionsByNames([]string{
+		"billing.view",
+		"billing.create",
+		"billing.update",
+		"billing.payment",
+		"billing.finalize",
+		"cashier_shifts.view",
+		"cashier_shifts.open",
+		"cashier_shifts.close",
+	})
+	assignPermissionsToRoles([]string{"Kasir"}, kasirDefaultPermissions, false)
 
 	// Create default admin user
 	var adminUser models.User

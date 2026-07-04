@@ -30,6 +30,7 @@ const downloadExcel = async (url: string, startDate?: string, endDate?: string, 
 // ---- Category A: Kunjungan & Pasien ----
 export const reportVisitsApi = {
   daily: (s?: string, e?: string) => api.get('/reports/visits/daily', buildParams(s, e)),
+  perPatient: (s?: string, e?: string, limit?: string) => api.get('/reports/visits/per-patient', buildParams(s, e, limit ? { limit } : undefined)),
   byRoom: (s?: string, e?: string) => api.get('/reports/visits/by-room', buildParams(s, e)),
   byDoctor: (s?: string, e?: string) => api.get('/reports/visits/by-doctor', buildParams(s, e)),
   demographics: (s?: string, e?: string) => api.get('/reports/visits/demographics', buildParams(s, e)),
@@ -92,7 +93,18 @@ export const reportPenunjangApi = {
   exportExcel: (endpoint: string, s?: string, e?: string) => downloadExcel(`/reports/penunjang/${endpoint}`, s, e),
 };
 
-// ---- Category G: Inventaris ----
+// ---- Category G: Layanan ----
+export const reportServicesApi = {
+  perPatient: (s?: string, e?: string) => api.get('/reports/services/per-patient', buildParams(s, e)),
+  summary: (s?: string, e?: string) => api.get('/reports/services/summary', buildParams(s, e)),
+  byPayment: (s?: string, e?: string) => api.get('/reports/services/by-payment', buildParams(s, e)),
+  byClass: (s?: string, e?: string) => api.get('/reports/services/by-class', buildParams(s, e)),
+  surgeryPatients: (s?: string, e?: string) => api.get('/reports/services/surgery-patients', buildParams(s, e)),
+  surgerySchedule: (s?: string, e?: string) => api.get('/reports/services/surgery-schedule', buildParams(s, e)),
+  exportExcel: (endpoint: string, s?: string, e?: string) => downloadExcel(`/reports/services/${endpoint}`, s, e),
+};
+
+// ---- Category H: Inventaris ----
 export const reportInventoryApi = {
   medicineStock: () => api.get('/reports/inventory/medicine-stock'),
   expiredMedicines: () => api.get('/reports/inventory/expired-medicines'),
@@ -101,7 +113,7 @@ export const reportInventoryApi = {
   exportExcel: (endpoint: string, s?: string, e?: string) => downloadExcel(`/reports/inventory/${endpoint}`, s, e),
 };
 
-// ---- Category H: SDM ----
+// ---- Category I: SDM ----
 export const reportHrApi = {
   summary: () => api.get('/reports/hr/summary'),
   doctors: () => api.get('/reports/hr/doctors'),
@@ -110,7 +122,7 @@ export const reportHrApi = {
   exportExcel: (endpoint: string, s?: string, e?: string) => downloadExcel(`/reports/hr/${endpoint}`, s, e),
 };
 
-// ---- Category I: Kemenkes ----
+// ---- Category J: Kemenkes ----
 export const reportKemenkesApi = {
   rl12Beds: () => api.get('/reports/kemenkes/rl12-beds'),
   rl31OutpatientDiseases: (s?: string, e?: string) => api.get('/reports/kemenkes/rl31-top-diseases-outpatient', buildParams(s, e)),

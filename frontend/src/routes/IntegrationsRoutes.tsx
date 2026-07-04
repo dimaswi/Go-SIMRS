@@ -8,7 +8,6 @@ const SatuSehatSender = lazy(() => import('@/pages/integrations/satusehat-sender
 const SatuSehatLogs = lazy(() => import('@/pages/integrations/satusehat-logs'));
 
 // BPJS Pages
-const BPJSMapping = lazy(() => import('@/pages/bpjs/mapping/index'));
 const BPJSLogs = lazy(() => import('@/pages/bpjs/logs'));
 const BPJSAPITester = lazy(() => import('@/pages/bpjs/api-tester'));
 const BPJSQueueMonitoring = lazy(() => import('@/pages/bpjs/queue-monitoring'));
@@ -50,13 +49,6 @@ export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ childre
       } />
 
       {/* BPJS Routes */}
-      <Route path="/bpjs/mapping" element={
-        <ProtectedRoute>
-          <PermissionGuard permission="integrations.view">
-            <BPJSMapping />
-          </PermissionGuard>
-        </ProtectedRoute>
-      } />
       <Route path="/bpjs/logs" element={
         <ProtectedRoute>
           <PermissionGuard permission="integrations.view">

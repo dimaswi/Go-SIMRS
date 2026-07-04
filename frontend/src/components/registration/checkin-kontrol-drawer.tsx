@@ -20,7 +20,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetFooter,
 } from "@/components/ui/sheet";
 
 interface KontrolInfoResponse {
@@ -670,6 +669,7 @@ export function CheckInKontrolDrawer({
       <SEPFormSheet
         open={open}
         onOpenChange={onOpenChange}
+        sourceContext="kontrol"
         patient={{
           id: kontrolInfo.patient.id,
           no_rm: kontrolInfo.patient.no_rm,

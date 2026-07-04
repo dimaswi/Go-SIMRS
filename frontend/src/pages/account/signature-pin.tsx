@@ -6,26 +6,29 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
 import { Loader2, ShieldCheck, KeyRound, Eye, EyeOff } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 export default function SignaturePINSetupPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+  const { user, setUser } = useAuthStore();
+
   const [mode, setMode] = useState<"setup" | "change">("setup");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Setup mode states
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
   const [confirmPin, setConfirmPin] = useState(["", "", "", "", "", ""]);
-  
+
   // Change mode states
   const [oldPin, setOldPin] = useState(["", "", "", "", "", ""]);
   const [newPin, setNewPin] = useState(["", "", "", "", "", ""]);
   const [confirmNewPin, setConfirmNewPin] = useState(["", "", "", "", "", ""]);
-  
+
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const confirmPinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const oldPinRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -34,17 +37,16 @@ export default function SignaturePINSetupPage() {
 
   useEffect(() => {
     document.title = "Pengaturan PIN Tanda Tangan";
-    
+
     // Check if user already has PIN set
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    if (user.has_signature_pin) {
+    if (user?.has_signature_pin) {
       setMode("change");
     }
   }, []);
 
   const handlePinChange = (
-    index: number, 
-    value: string, 
+    index: number,
+    value: string,
     stateSetter: React.Dispatch<React.SetStateAction<string[]>>,
     refs: React.MutableRefObject<(HTMLInputElement | null)[]>
   ) => {
@@ -62,7 +64,7 @@ export default function SignaturePINSetupPage() {
   };
 
   const handleKeyDown = (
-    index: number, 
+    index: number,
     e: React.KeyboardEvent<HTMLInputElement>,
     state: string[],
     refs: React.MutableRefObject<(HTMLInputElement | null)[]>
@@ -79,8 +81,8 @@ export default function SignaturePINSetupPage() {
     label: string
   ) => (
     <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex justify-center gap-2">
+      <Label className="flex justify-center">{label}</Label>
+      <div className="flex justify-center gap-2 sm:gap-4 flex-wrap">
         {state.map((digit, index) => (
           <Input
             key={index}
@@ -138,10 +140,10 @@ export default function SignaturePINSetupPage() {
         password: password,
       });
 
-      // Update local user data
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      user.has_signature_pin = true;
-      localStorage.setItem("user", JSON.stringify(user));
+      // Update global user data
+      if (user) {
+        setUser({ ...user, has_signature_pin: true });
+      }
 
       toast({
         variant: "success",
@@ -222,143 +224,129 @@ export default function SignaturePINSetupPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">
-            {mode === "setup" ? "Atur PIN Tanda Tangan" : "Ubah PIN Tanda Tangan"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {mode === "setup" 
-              ? "PIN 6 digit ini akan digunakan untuk menandatangani dokumen secara digital"
-              : "Ubah PIN tanda tangan Anda untuk keamanan akun"
-            }
-          </p>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={mode === "setup" ? "Atur PIN Tanda Tangan" : "Ubah PIN Tanda Tangan"}
+        description={mode === "setup"
+          ? "PIN 6 digit ini akan digunakan untuk menandatangani dokumen secara digital"
+          : "Ubah PIN tanda tangan Anda untuk keamanan akun"
+        }
+        onBack={() => navigate(-1)}
+      />
 
-      <Card className="max-w-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            {mode === "setup" ? "Setup PIN" : "Ubah PIN"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {mode === "setup" ? (
-            <>
-              {/* Password verification */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4" />
-                  Password Akun (untuk verifikasi)
-                </Label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan password akun Anda"
-                    disabled={loading}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+      <PageContent>
+        <Card className="w-full border-0 shadow-none bg-transparent sm:bg-card sm:border sm:shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              {mode === "setup" ? "Setup PIN" : "Ubah PIN"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {mode === "setup" ? (
+              <>
+                {/* Password verification */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Password Akun (untuk verifikasi)
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Masukkan password akun Anda"
+                      disabled={loading}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              {/* New PIN */}
-              {renderPinInputs(pin, setPin, pinRefs, "PIN Baru (6 digit)")}
-              
-              {/* Confirm PIN */}
-              {renderPinInputs(confirmPin, setConfirmPin, confirmPinRefs, "Konfirmasi PIN")}
+                {/* New PIN */}
+                {renderPinInputs(pin, setPin, pinRefs, "PIN Baru (6 digit)")}
 
+                {/* Confirm PIN */}
+                {renderPinInputs(confirmPin, setConfirmPin, confirmPinRefs, "Konfirmasi PIN")}
+
+                <Button
+                  onClick={handleSetup}
+                  disabled={loading || pin.some(d => !d) || confirmPin.some(d => !d) || !password}
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Simpan PIN
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* Old PIN */}
+                {renderPinInputs(oldPin, setOldPin, oldPinRefs, "PIN Lama")}
+
+                {/* New PIN */}
+                {renderPinInputs(newPin, setNewPin, newPinRefs, "PIN Baru")}
+
+                {/* Confirm New PIN */}
+                {renderPinInputs(confirmNewPin, setConfirmNewPin, confirmNewPinRefs, "Konfirmasi PIN Baru")}
+
+                <Button
+                  onClick={handleChange}
+                  disabled={loading || oldPin.some(d => !d) || newPin.some(d => !d) || confirmNewPin.some(d => !d)}
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Ubah PIN
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+
+            {mode === "setup" && (
               <Button
-                onClick={handleSetup}
-                disabled={loading || pin.some(d => !d) || confirmPin.some(d => !d) || !password}
-                className="w-full"
+                variant="link"
+                onClick={() => setMode("change")}
+                className="w-full text-sm"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    Simpan PIN
-                  </>
-                )}
+                Sudah punya PIN? Ubah PIN
               </Button>
-            </>
-          ) : (
-            <>
-              {/* Old PIN */}
-              {renderPinInputs(oldPin, setOldPin, oldPinRefs, "PIN Lama")}
-              
-              {/* New PIN */}
-              {renderPinInputs(newPin, setNewPin, newPinRefs, "PIN Baru")}
-              
-              {/* Confirm New PIN */}
-              {renderPinInputs(confirmNewPin, setConfirmNewPin, confirmNewPinRefs, "Konfirmasi PIN Baru")}
-
+            )}
+            {mode === "change" && (
               <Button
-                onClick={handleChange}
-                disabled={loading || oldPin.some(d => !d) || newPin.some(d => !d) || confirmNewPin.some(d => !d)}
-                className="w-full"
+                variant="link"
+                onClick={() => setMode("setup")}
+                className="w-full text-sm"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    Ubah PIN
-                  </>
-                )}
+                Belum punya PIN? Atur PIN baru
               </Button>
-            </>
-          )}
-
-          {/* Info */}
-          <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4 text-sm">
-            <p className="font-medium text-blue-800 dark:text-blue-200 mb-2">Penting:</p>
-            <ul className="list-disc list-inside text-blue-700 dark:text-blue-300 space-y-1">
-              <li>PIN tanda tangan berbeda dengan password login</li>
-              <li>Jangan bagikan PIN Anda kepada siapapun</li>
-              <li>PIN digunakan sebagai bukti Anda yang menandatangani dokumen</li>
-              <li>Hubungi administrator jika Anda lupa PIN</li>
-            </ul>
-          </div>
-
-          {mode === "setup" && (
-            <Button
-              variant="link"
-              onClick={() => setMode("change")}
-              className="w-full text-sm"
-            >
-              Sudah punya PIN? Ubah PIN
-            </Button>
-          )}
-          {mode === "change" && (
-            <Button
-              variant="link"
-              onClick={() => setMode("setup")}
-              className="w-full text-sm"
-            >
-              Belum punya PIN? Atur PIN baru
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            )}
+          </CardContent>
+        </Card>
+      </PageContent>
+    </PageShell>
   );
 }
