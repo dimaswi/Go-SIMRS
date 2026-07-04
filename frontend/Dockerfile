@@ -2,17 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy only package.json (without lock file to regenerate fresh dependencies)
-COPY package.json ./
+# Copy dependency manifests first for better layer caching
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install
+# Install exact locked dependencies to reduce disk usage during build
+RUN npm ci --no-audit --no-fund
 
-# Copy source code (excluding package-lock.json via .dockerignore or overwrite)
+# Copy source code
 COPY . .
-
-# Remove any package-lock.json that might have been copied
-RUN rm -f package-lock.json
 
 # Build argument for API URL
 ARG VITE_API_URL=http://localhost:8899/api
