@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"starter/backend/migrations"
 	"starter/backend/models"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ func Connect(dsn string, casemixDsn string) error {
 		return fmt.Errorf("failed to connect to main database: %w", err)
 	}
 	configurePool(DB)
+	sanitizeInventoryNullDefaults(DB)
 
 	if casemixDsn == "" || casemixDsn == dsn {
 		CasemixDB = DB
@@ -64,6 +66,18 @@ func configurePool(db *gorm.DB) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 }
 
+// sanitizeInventoryNullDefaults fills any existing NULL columns in inventories
+// table with default values BEFORE GORM migration attempts to set them to NOT NULL.
+// This prevents the application from crashing on startup in production environments.
+func sanitizeInventoryNullDefaults(db *gorm.DB) {
+	var tblExists int64
+	db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'inventories'").Scan(&tblExists)
+	if tblExists > 0 {
+		db.Exec("UPDATE inventories SET item_group = 'other' WHERE item_group IS NULL")
+		db.Exec("UPDATE inventories SET item_scope = 'both' WHERE item_scope IS NULL")
+	}
+}
+
 // dropAllForeignKeys drops ALL foreign key constraints from all tables in the database.
 func dropAllForeignKeys(db *gorm.DB) {
 	log.Println("Dropping all foreign key constraints before migration...")
@@ -88,392 +102,392 @@ func dropAllForeignKeys(db *gorm.DB) {
 	log.Printf("Dropped %d foreign key constraints", len(constraints))
 }
 
-// func Migrate() error {
-// 	var err error
-// 	// ==========================================
-// 	// STEP 1: Drop ALL existing foreign key constraints
-// 	// ==========================================
-// 	dropAllForeignKeys(DB)
-// 	if CasemixDB != nil && CasemixDB != DB {
-// 		dropAllForeignKeys(CasemixDB)
-// 	}
+func Migrate() error {
+	var err error
+	// ==========================================
+	// STEP 1: Drop ALL existing foreign key constraints
+	// ==========================================
+	dropAllForeignKeys(DB)
+	if CasemixDB != nil && CasemixDB != DB {
+		dropAllForeignKeys(CasemixDB)
+	}
 
-// 	// ==========================================
-// 	// STEP 2: Handle legacy schema migrations
-// 	// ==========================================
+	// ==========================================
+	// STEP 2: Handle legacy schema migrations
+	// ==========================================
 
-// 	// Handle room module restructure - drop old tables if they exist with old schema
-// 	// Check if beds table has old room_id column (indicating old schema)
-// 	if DB.Migrator().HasColumn(&models.Bed{}, "room_id") {
-// 		log.Println("Detected old room schema, migrating to new structure...")
-// 		// Nullify FK references in visits before dropping beds
-// 		DB.Exec("UPDATE visits SET bed_id = NULL WHERE bed_id IS NOT NULL")
-// 		DB.Exec("UPDATE bed_transfers SET from_bed_id = NULL, to_bed_id = NULL")
-// 		DB.Exec("UPDATE admission_requests SET approved_bed_id = NULL")
-// 		DB.Exec("UPDATE dispositions SET admission_bed_id = NULL")
-// 		// Drop old tables in correct order
-// 		DB.Exec("DROP TABLE IF EXISTS beds CASCADE")
-// 		DB.Exec("DROP TABLE IF EXISTS room_staff CASCADE")
-// 		DB.Exec("DROP TABLE IF EXISTS room_units CASCADE")
-// 		DB.Exec("DROP TABLE IF EXISTS rooms CASCADE")
-// 		log.Println("Dropped old room tables for schema migration")
-// 	}
+	// Handle room module restructure - drop old tables if they exist with old schema
+	// Check if beds table has old room_id column (indicating old schema)
+	if DB.Migrator().HasColumn(&models.Bed{}, "room_id") {
+		log.Println("Detected old room schema, migrating to new structure...")
+		// Nullify FK references in visits before dropping beds
+		DB.Exec("UPDATE visits SET bed_id = NULL WHERE bed_id IS NOT NULL")
+		DB.Exec("UPDATE bed_transfers SET from_bed_id = NULL, to_bed_id = NULL")
+		DB.Exec("UPDATE admission_requests SET approved_bed_id = NULL")
+		DB.Exec("UPDATE dispositions SET admission_bed_id = NULL")
+		// Drop old tables in correct order
+		DB.Exec("DROP TABLE IF EXISTS beds CASCADE")
+		DB.Exec("DROP TABLE IF EXISTS room_staff CASCADE")
+		DB.Exec("DROP TABLE IF EXISTS room_units CASCADE")
+		DB.Exec("DROP TABLE IF EXISTS rooms CASCADE")
+		log.Println("Dropped old room tables for schema migration")
+	}
 
-// 	// Handle new service_type column - check if rooms table exists but doesn't have service_type
-// 	if DB.Migrator().HasTable(&models.Room{}) && !DB.Migrator().HasColumn(&models.Room{}, "service_type") {
-// 		log.Println("Adding new columns to rooms table...")
-// 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS service_type varchar(50)")
-// 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_bed boolean DEFAULT false")
-// 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_schedule boolean DEFAULT false")
-// 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS operating_hours varchar(100)")
-// 		DB.Exec(`UPDATE rooms SET service_type = 'rawat_inap', has_bed = true WHERE service_type IS NULL`)
-// 		DB.Exec("ALTER TABLE rooms ALTER COLUMN service_type SET NOT NULL")
-// 		log.Println("Updated rooms table with new columns")
-// 	}
+	// Handle new service_type column - check if rooms table exists but doesn't have service_type
+	if DB.Migrator().HasTable(&models.Room{}) && !DB.Migrator().HasColumn(&models.Room{}, "service_type") {
+		log.Println("Adding new columns to rooms table...")
+		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS service_type varchar(50)")
+		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_bed boolean DEFAULT false")
+		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_schedule boolean DEFAULT false")
+		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS operating_hours varchar(100)")
+		DB.Exec(`UPDATE rooms SET service_type = 'rawat_inap', has_bed = true WHERE service_type IS NULL`)
+		DB.Exec("ALTER TABLE rooms ALTER COLUMN service_type SET NOT NULL")
+		log.Println("Updated rooms table with new columns")
+	}
 
-// 	// Handle removing operating_hours column if it exists (replaced by schedules table)
-// 	if DB.Migrator().HasColumn(&models.Room{}, "operating_hours") {
-// 		DB.Exec("ALTER TABLE rooms DROP COLUMN IF EXISTS operating_hours")
-// 		log.Println("Removed operating_hours column from rooms table (replaced by schedules)")
-// 	}
+	// Handle removing operating_hours column if it exists (replaced by schedules table)
+	if DB.Migrator().HasColumn(&models.Room{}, "operating_hours") {
+		DB.Exec("ALTER TABLE rooms DROP COLUMN IF EXISTS operating_hours")
+		log.Println("Removed operating_hours column from rooms table (replaced by schedules)")
+	}
 
-// 	// Remove BPJS master-data fields from medicines. This feature was reverted and the stale data must be deleted.
-// 	if DB.Migrator().HasTable(&models.Medicine{}) {
-// 		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_kode_obat")
-// 		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_status")
-// 		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_message")
-// 		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_synced_at")
-// 		log.Println("Removed legacy BPJS medicine master-data columns from medicines table")
-// 	}
+	// Remove BPJS master-data fields from medicines. This feature was reverted and the stale data must be deleted.
+	if DB.Migrator().HasTable(&models.Medicine{}) {
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_kode_obat")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_status")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_message")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_synced_at")
+		log.Println("Removed legacy BPJS medicine master-data columns from medicines table")
+	}
 
-// 	// Handle queue counter migration - migrate from counter (int) to counter_id (FK)
-// 	if DB.Migrator().HasTable(&models.Queue{}) {
-// 		hasOldCounter := DB.Migrator().HasColumn(&models.Queue{}, "counter")
-// 		hasCounterID := DB.Migrator().HasColumn(&models.Queue{}, "counter_id")
+	// Handle queue counter migration - migrate from counter (int) to counter_id (FK)
+	if DB.Migrator().HasTable(&models.Queue{}) {
+		hasOldCounter := DB.Migrator().HasColumn(&models.Queue{}, "counter")
+		hasCounterID := DB.Migrator().HasColumn(&models.Queue{}, "counter_id")
 
-// 		if hasOldCounter || hasCounterID {
-// 			log.Println("Migrating queue counter to counter_id...")
+		if hasOldCounter || hasCounterID {
+			log.Println("Migrating queue counter to counter_id...")
 
-// 			// First, ensure counters table exists and has seed data
-// 			if !DB.Migrator().HasTable(&models.Counter{}) {
-// 				log.Println("Creating counters table first...")
-// 				DB.AutoMigrate(&models.Counter{})
-// 				// Seed default counters if not exists
-// 				for i := 1; i <= 4; i++ {
-// 					var counter models.Counter
-// 					result := DB.Where("code = ?", fmt.Sprintf("L%d", i)).First(&counter)
-// 					if result.RowsAffected == 0 {
-// 						DB.Create(&models.Counter{
-// 							Name:         fmt.Sprintf("Loket %d", i),
-// 							Code:         fmt.Sprintf("L%d", i),
-// 							Description:  fmt.Sprintf("Loket Pendaftaran %d", i),
-// 							IsActive:     true,
-// 							DisplayOrder: i,
-// 							Location:     "Lantai 1 - Depan",
-// 						})
-// 						log.Printf("Created counter: Loket %d", i)
-// 					}
-// 				}
-// 			}
+			// First, ensure counters table exists and has seed data
+			if !DB.Migrator().HasTable(&models.Counter{}) {
+				log.Println("Creating counters table first...")
+				DB.AutoMigrate(&models.Counter{})
+				// Seed default counters if not exists
+				for i := 1; i <= 4; i++ {
+					var counter models.Counter
+					result := DB.Where("code = ?", fmt.Sprintf("L%d", i)).First(&counter)
+					if result.RowsAffected == 0 {
+						DB.Create(&models.Counter{
+							Name:         fmt.Sprintf("Loket %d", i),
+							Code:         fmt.Sprintf("L%d", i),
+							Description:  fmt.Sprintf("Loket Pendaftaran %d", i),
+							IsActive:     true,
+							DisplayOrder: i,
+							Location:     "Lantai 1 - Depan",
+						})
+						log.Printf("Created counter: Loket %d", i)
+					}
+				}
+			}
 
-// 			// Add counter_id column as nullable first if not exists
-// 			if !hasCounterID {
-// 				log.Println("Adding counter_id column...")
-// 				DB.Exec("ALTER TABLE queues ADD COLUMN counter_id bigint")
-// 			}
+			// Add counter_id column as nullable first if not exists
+			if !hasCounterID {
+				log.Println("Adding counter_id column...")
+				DB.Exec("ALTER TABLE queues ADD COLUMN counter_id bigint")
+			}
 
-// 			// If old counter column exists, migrate the data
-// 			if hasOldCounter {
-// 				var counters []models.Counter
-// 				DB.Order("display_order").Find(&counters)
+			// If old counter column exists, migrate the data
+			if hasOldCounter {
+				var counters []models.Counter
+				DB.Order("display_order").Find(&counters)
 
-// 				if len(counters) >= 4 {
-// 					log.Println("Migrating queue data from counter to counter_id...")
-// 					for i := 0; i < 4 && i < len(counters); i++ {
-// 						oldCounterValue := i + 1
-// 						result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter = ? AND counter_id IS NULL", counters[i].ID, oldCounterValue)
-// 						log.Printf("Migrated %d queues from counter=%d to counter_id=%d", result.RowsAffected, oldCounterValue, counters[i].ID)
-// 					}
-// 				}
+				if len(counters) >= 4 {
+					log.Println("Migrating queue data from counter to counter_id...")
+					for i := 0; i < 4 && i < len(counters); i++ {
+						oldCounterValue := i + 1
+						result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter = ? AND counter_id IS NULL", counters[i].ID, oldCounterValue)
+						log.Printf("Migrated %d queues from counter=%d to counter_id=%d", result.RowsAffected, oldCounterValue, counters[i].ID)
+					}
+				}
 
-// 				if len(counters) > 0 {
-// 					result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter_id IS NULL", counters[0].ID)
-// 					if result.RowsAffected > 0 {
-// 						log.Printf("Set default counter_id for %d remaining queues", result.RowsAffected)
-// 					}
-// 				}
+				if len(counters) > 0 {
+					result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter_id IS NULL", counters[0].ID)
+					if result.RowsAffected > 0 {
+						log.Printf("Set default counter_id for %d remaining queues", result.RowsAffected)
+					}
+				}
 
-// 				DB.Exec("ALTER TABLE queues DROP COLUMN IF EXISTS counter")
-// 				log.Println("Dropped old counter column")
-// 			}
+				DB.Exec("ALTER TABLE queues DROP COLUMN IF EXISTS counter")
+				log.Println("Dropped old counter column")
+			}
 
-// 			// Force delete any queues with null counter_id
-// 			var nullCount int64
-// 			DB.Model(&models.Queue{}).Where("counter_id IS NULL").Count(&nullCount)
-// 			if nullCount > 0 {
-// 				log.Printf("Deleting %d old queue records with null counter_id...", nullCount)
-// 				DB.Exec("DELETE FROM queues WHERE counter_id IS NULL")
-// 				log.Println("Old queue records deleted")
-// 			}
+			// Force delete any queues with null counter_id
+			var nullCount int64
+			DB.Model(&models.Queue{}).Where("counter_id IS NULL").Count(&nullCount)
+			if nullCount > 0 {
+				log.Printf("Deleting %d old queue records with null counter_id...", nullCount)
+				DB.Exec("DELETE FROM queues WHERE counter_id IS NULL")
+				log.Println("Old queue records deleted")
+			}
 
-// 			log.Println("Queue counter migration completed")
-// 		}
-// 	}
+			log.Println("Queue counter migration completed")
+		}
+	}
 
-// 	// ==========================================
-// 	// STEP 3: Auto-migrate all models with proper order for dependencies
-// 	// ==========================================
+	// ==========================================
+	// STEP 3: Auto-migrate all models with proper order for dependencies
+	// ==========================================
 
-// 	// Clean up orphaned eklaim_rm_order_items/results with NULL FK before NOT NULL migration.
-// 	// They will be re-synced from the visit on next InitRMDuplicate / SyncRMFromVisit.
-// 	{
-// 		// Fix GORM column name mismatches: e_klaim_rm_order_id → eklaim_rm_order_id, etc.
-// 		renameIfExists := func(table, oldCol, newCol string) {
-// 			var exists int64
-// 			DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, oldCol).Scan(&exists)
-// 			if exists > 0 {
-// 				var newExists int64
-// 				DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, newCol).Scan(&newExists)
-// 				if newExists > 0 {
-// 					// Both exist: copy data from old to new where new is null, then drop old
-// 					DB.Exec(fmt.Sprintf("UPDATE %s SET %s = %s WHERE %s IS NULL", table, newCol, oldCol, newCol))
-// 					DB.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, oldCol))
-// 					log.Printf("Merged %s.%s into %s and dropped old column", table, oldCol, newCol)
-// 				} else {
-// 					DB.Exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, oldCol, newCol))
-// 					log.Printf("Renamed %s.%s → %s", table, oldCol, newCol)
-// 				}
-// 			}
-// 		}
-// 		renameIfExists("eklaim_rm_order_items", "e_klaim_rm_order_id", "eklaim_rm_order_id")
-// 		renameIfExists("eklaim_rm_order_results", "e_klaim_rm_order_item_id", "eklaim_rm_order_item_id")
+	// Clean up orphaned eklaim_rm_order_items/results with NULL FK before NOT NULL migration.
+	// They will be re-synced from the visit on next InitRMDuplicate / SyncRMFromVisit.
+	{
+		// Fix GORM column name mismatches: e_klaim_rm_order_id → eklaim_rm_order_id, etc.
+		renameIfExists := func(table, oldCol, newCol string) {
+			var exists int64
+			DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, oldCol).Scan(&exists)
+			if exists > 0 {
+				var newExists int64
+				DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, newCol).Scan(&newExists)
+				if newExists > 0 {
+					// Both exist: copy data from old to new where new is null, then drop old
+					DB.Exec(fmt.Sprintf("UPDATE %s SET %s = %s WHERE %s IS NULL", table, newCol, oldCol, newCol))
+					DB.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, oldCol))
+					log.Printf("Merged %s.%s into %s and dropped old column", table, oldCol, newCol)
+				} else {
+					DB.Exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, oldCol, newCol))
+					log.Printf("Renamed %s.%s → %s", table, oldCol, newCol)
+				}
+			}
+		}
+		renameIfExists("eklaim_rm_order_items", "e_klaim_rm_order_id", "eklaim_rm_order_id")
+		renameIfExists("eklaim_rm_order_results", "e_klaim_rm_order_item_id", "eklaim_rm_order_item_id")
 
-// 		// Also clean up NULL FK rows
-// 		var tblExists int64
-// 		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_items'").Scan(&tblExists)
-// 		if tblExists > 0 {
-// 			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE eklaim_rm_order_id IS NULL OR eklaim_rm_order_id = 0")
-// 			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE procedure_id IS NULL OR procedure_id = 0")
-// 		}
-// 		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_results'").Scan(&tblExists)
-// 		if tblExists > 0 {
-// 			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE eklaim_rm_order_item_id IS NULL OR eklaim_rm_order_item_id = 0")
-// 			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE procedure_parameter_id IS NULL OR procedure_parameter_id = 0")
-// 		}
-// 	}
+		// Also clean up NULL FK rows
+		var tblExists int64
+		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_items'").Scan(&tblExists)
+		if tblExists > 0 {
+			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE eklaim_rm_order_id IS NULL OR eklaim_rm_order_id = 0")
+			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE procedure_id IS NULL OR procedure_id = 0")
+		}
+		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_results'").Scan(&tblExists)
+		if tblExists > 0 {
+			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE eklaim_rm_order_item_id IS NULL OR eklaim_rm_order_item_id = 0")
+			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE procedure_parameter_id IS NULL OR procedure_parameter_id = 0")
+		}
+	}
 
-// 	err = DB.AutoMigrate(
-// 		&models.User{}, &models.Role{}, &models.Permission{},
-// 		&models.Setting{}, &models.MasterData{}, &models.Counter{},
-// 		&models.Employee{}, &models.Province{}, &models.Regency{},
-// 		&models.District{}, &models.Village{},
-// 		&models.Building{}, &models.Room{},
-// 		&models.RoomUnit{}, &models.Bed{}, &models.RoomStaff{},
-// 		&models.Patient{}, &models.PatientAllergy{},
-// 		&models.Registration{}, &models.Visit{}, &models.Queue{},
-// 		&models.RegistrationTariff{}, &models.Billing{}, &models.BillingItem{}, &models.BillingPayment{},
-// 		&models.CashierShift{},
-// 		&models.RoomQueue{}, &models.Schedule{},
-// 		&models.Procedure{}, &models.ProcedureParameter{},
-// 		&models.ICD10{}, &models.ICD9CM{}, &models.ICDOMorphology{},
-// 		&models.LoincMaster{}, &models.SnomedMaster{},
-// 		&models.Medicine{}, &models.MedicineBatch{}, &models.MedicineTransaction{},
-// 		&models.Inventory{}, &models.InventoryItem{}, &models.InventoryTransaction{},
-// 		&models.StockRequest{}, &models.StockRequestItem{},
-// 		&models.StockRequestApproval{}, &models.StockRequestApprovalItem{},
-// 		&models.StockDistribution{}, &models.StockDistributionItem{},
-// 		&models.Purchase{}, &models.PurchaseItem{}, &models.PurchasePayment{},
-// 		&models.StockOpname{}, &models.StockOpnameItem{}, &models.Supplier{},
-// 		&models.RoomMedicine{}, &models.RoomInventory{},
-// 		&models.MedicineOrder{}, &models.MedicineOrderItem{}, &models.PrescriptionReview{}, &models.MedicineReturn{},
-// 		&models.ProcedureOrder{}, &models.ProcedureOrderItem{}, &models.ProcedureOrderResult{},
-// 		&models.Triage{}, &models.Anamnesis{}, &models.PhysicalExamination{},
-// 		&models.Diagnosis{}, &models.DiagnosisSummary{}, &models.AssessmentPlan{},
-// 		&models.Disposition{}, &models.DischargePlanning{}, &models.BodyMarker{}, &models.AdmissionRequest{},
-// 		&models.VitalSign{}, &models.CPPT{}, &models.FluidBalance{},
-// 		&models.NursingCare{}, &models.BedTransfer{},
-// 		&models.MedicineAdministrationTimesheetItem{}, &models.MedicineAdministrationTimesheetEntry{},
-// 		&models.VisitProcedure{}, &models.VisitProcedureResult{},
-// 		&models.MedicalRecordEditLog{},
-// 		&models.FallRiskAssessment{}, // Resiko Jatuh
-// 		&models.BersalinRecord{},     // Bersalin / Partus
-// 		&models.O2UsageRecord{},      // Penggunaan Oksigen
-// 		&models.VisitBHPUsage{},      // Penggunaan BHP per kunjungan
-// 		&models.Notification{}, &models.UserTabPreference{},
-// 		&models.EKlaimLocalLog{}, // E-Klaim Local Communication Logs
-// 		// Digital Signatures & Audit Trail
-// 		&models.SignatureLog{},            // Signature Activity Logs
-// 		&models.DocumentSignature{},       // Document Signature Status
-// 		&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
-// 		&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
-// 		// Nutrition/Gizi Management
-// 		&models.NutritionIngredient{},            // Master Bahan Gizi
-// 		&models.NutritionIngredientInvoice{},     // Faktur Bahan Gizi
-// 		&models.NutritionIngredientInvoiceItem{}, // Item Faktur Bahan Gizi
-// 		&models.NutritionMenu{},                  // Master Menu Makanan
-// 		&models.NutritionMenuIngredient{},        // Komposisi bahan per menu
-// 		&models.NutritionPackage{},               // Master Paket Makanan
-// 		&models.NutritionPackageItem{},           // Item Paket Makanan
-// 		&models.NutritionOrder{},                 // Order Gizi Pasien
-// 		&models.NutritionOrderItem{},             // Item Order Gizi
-// 	)
+	err = DB.AutoMigrate(
+		&models.User{}, &models.Role{}, &models.Permission{},
+		&models.Setting{}, &models.MasterData{}, &models.Counter{},
+		&models.Employee{}, &models.Province{}, &models.Regency{},
+		&models.District{}, &models.Village{},
+		&models.Building{}, &models.Room{},
+		&models.RoomUnit{}, &models.Bed{}, &models.RoomStaff{},
+		&models.Patient{}, &models.PatientAllergy{},
+		&models.Registration{}, &models.Visit{}, &models.Queue{},
+		&models.RegistrationTariff{}, &models.Billing{}, &models.BillingItem{}, &models.BillingPayment{},
+		&models.CashierShift{},
+		&models.RoomQueue{}, &models.Schedule{},
+		&models.Procedure{}, &models.ProcedureParameter{},
+		&models.ICD10{}, &models.ICD9CM{}, &models.ICDOMorphology{},
+		&models.LoincMaster{}, &models.SnomedMaster{},
+		&models.Medicine{}, &models.MedicineBatch{}, &models.MedicineTransaction{},
+		&models.Inventory{}, &models.InventoryItem{}, &models.InventoryTransaction{},
+		&models.StockRequest{}, &models.StockRequestItem{},
+		&models.StockRequestApproval{}, &models.StockRequestApprovalItem{},
+		&models.StockDistribution{}, &models.StockDistributionItem{},
+		&models.Purchase{}, &models.PurchaseItem{}, &models.PurchasePayment{},
+		&models.StockOpname{}, &models.StockOpnameItem{}, &models.Supplier{},
+		&models.RoomMedicine{}, &models.RoomInventory{},
+		&models.MedicineOrder{}, &models.MedicineOrderItem{}, &models.PrescriptionReview{}, &models.MedicineReturn{},
+		&models.ProcedureOrder{}, &models.ProcedureOrderItem{}, &models.ProcedureOrderResult{},
+		&models.Triage{}, &models.Anamnesis{}, &models.PhysicalExamination{},
+		&models.Diagnosis{}, &models.DiagnosisSummary{}, &models.AssessmentPlan{},
+		&models.Disposition{}, &models.DischargePlanning{}, &models.BodyMarker{}, &models.AdmissionRequest{},
+		&models.VitalSign{}, &models.CPPT{}, &models.FluidBalance{},
+		&models.NursingCare{}, &models.BedTransfer{},
+		&models.MedicineAdministrationTimesheetItem{}, &models.MedicineAdministrationTimesheetEntry{},
+		&models.VisitProcedure{}, &models.VisitProcedureResult{},
+		&models.MedicalRecordEditLog{},
+		&models.FallRiskAssessment{}, // Resiko Jatuh
+		&models.BersalinRecord{},     // Bersalin / Partus
+		&models.O2UsageRecord{},      // Penggunaan Oksigen
+		&models.VisitBHPUsage{},      // Penggunaan BHP per kunjungan
+		&models.Notification{}, &models.UserTabPreference{},
+		&models.EKlaimLocalLog{}, // E-Klaim Local Communication Logs
+		// Digital Signatures & Audit Trail
+		&models.SignatureLog{},            // Signature Activity Logs
+		&models.DocumentSignature{},       // Document Signature Status
+		&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
+		&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
+		// Nutrition/Gizi Management
+		&models.NutritionIngredient{},            // Master Bahan Gizi
+		&models.NutritionIngredientInvoice{},     // Faktur Bahan Gizi
+		&models.NutritionIngredientInvoiceItem{}, // Item Faktur Bahan Gizi
+		&models.NutritionMenu{},                  // Master Menu Makanan
+		&models.NutritionMenuIngredient{},        // Komposisi bahan per menu
+		&models.NutritionPackage{},               // Master Paket Makanan
+		&models.NutritionPackageItem{},           // Item Paket Makanan
+		&models.NutritionOrder{},                 // Order Gizi Pasien
+		&models.NutritionOrderItem{},             // Item Order Gizi
+	)
 
-// 	if err != nil {
-// 		return err
-// 	}
+	if err != nil {
+		return err
+	}
 
-// 	// ==========================================
-// 	// STEP 4: Auto-migrate Casemix database (Mirrored RM tables)
-// 	// ==========================================
-// 	if CasemixDB == nil {
-// 		return fmt.Errorf("casemix database connection is not initialized")
-// 	}
+	// ==========================================
+	// STEP 4: Auto-migrate Casemix database (Mirrored RM tables)
+	// ==========================================
+	if CasemixDB == nil {
+		return fmt.Errorf("casemix database connection is not initialized")
+	}
 
-// 	if CasemixDB == DB {
-// 		log.Println("Skipping separate Casemix migration: using main database connection")
-// 	} else {
-// 		log.Println("Migrating Casemix database...")
-// 		err = CasemixDB.AutoMigrate(
-// 			&models.Triage{},               // Triage (UGD/IGD only)
-// 			&models.Anamnesis{},            // Anamnesis
-// 			&models.PhysicalExamination{},  // Physical Examination
-// 			&models.Diagnosis{},            // Diagnoses
-// 			&models.DiagnosisSummary{},     // Diagnosis Summary
-// 			&models.AssessmentPlan{},       // Assessment & Plan
-// 			&models.Disposition{},          // Disposition/Discharge
-// 			&models.DischargePlanning{},    // Discharge Planning checklist
-// 			&models.BodyMarker{},           // Body marker images and points
-// 			&models.VitalSign{},            // Vital Signs History
-// 			&models.MedicineOrder{},        // Medicine Orders
-// 			&models.MedicineOrderItem{},    // Medicine Order Items
-// 			&models.PrescriptionReview{},   // Telaah Resep
-// 			&models.MedicineReturn{},       // Return Obat
-// 			&models.ProcedureOrder{},       // Procedure Orders
-// 			&models.ProcedureOrderItem{},   // Procedure Order Items
-// 			&models.ProcedureOrderResult{}, // Procedure Order Results
-// 			&models.VisitProcedure{},       // Visit Procedures
-// 			&models.VisitProcedureResult{}, // Visit Procedure Results
-// 			&models.CPPT{},                 // CPPT
-// 			&models.FluidBalance{},         // Fluid Balance
-// 			&models.NursingCare{},          // Nursing Care
-// 			&models.FallRiskAssessment{},   // Fall Risk
-// 			&models.BersalinRecord{},       // Bersalin
-// 			&models.VisitBHPUsage{},        // Penggunaan BHP
-// 			&models.BedTransfer{},          // Bed Transfer/Mutation
-// 			// Digital Signatures & Audit Trail
-// 			&models.SignatureLog{},            // Signature Activity Logs
-// 			&models.DocumentSignature{},       // Document Signature Status
-// 			&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
-// 			&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
-// 			// Nutrition/Gizi Management
-// 			&models.NutritionIngredient{},     // Master Bahan Gizi
-// 			&models.NutritionMenu{},           // Master Menu Makanan
-// 			&models.NutritionMenuIngredient{}, // Komposisi bahan per menu
-// 			&models.NutritionPackage{},        // Master Paket Makanan
-// 			&models.NutritionPackageItem{},    // Item Paket Makanan
-// 			&models.NutritionOrder{},          // Order Gizi Pasien
-// 			&models.NutritionOrderItem{},      // Item Order Gizi
-// 		)
+	if CasemixDB == DB {
+		log.Println("Skipping separate Casemix migration: using main database connection")
+	} else {
+		log.Println("Migrating Casemix database...")
+		err = CasemixDB.AutoMigrate(
+			&models.Triage{},               // Triage (UGD/IGD only)
+			&models.Anamnesis{},            // Anamnesis
+			&models.PhysicalExamination{},  // Physical Examination
+			&models.Diagnosis{},            // Diagnoses
+			&models.DiagnosisSummary{},     // Diagnosis Summary
+			&models.AssessmentPlan{},       // Assessment & Plan
+			&models.Disposition{},          // Disposition/Discharge
+			&models.DischargePlanning{},    // Discharge Planning checklist
+			&models.BodyMarker{},           // Body marker images and points
+			&models.VitalSign{},            // Vital Signs History
+			&models.MedicineOrder{},        // Medicine Orders
+			&models.MedicineOrderItem{},    // Medicine Order Items
+			&models.PrescriptionReview{},   // Telaah Resep
+			&models.MedicineReturn{},       // Return Obat
+			&models.ProcedureOrder{},       // Procedure Orders
+			&models.ProcedureOrderItem{},   // Procedure Order Items
+			&models.ProcedureOrderResult{}, // Procedure Order Results
+			&models.VisitProcedure{},       // Visit Procedures
+			&models.VisitProcedureResult{}, // Visit Procedure Results
+			&models.CPPT{},                 // CPPT
+			&models.FluidBalance{},         // Fluid Balance
+			&models.NursingCare{},          // Nursing Care
+			&models.FallRiskAssessment{},   // Fall Risk
+			&models.BersalinRecord{},       // Bersalin
+			&models.VisitBHPUsage{},        // Penggunaan BHP
+			&models.BedTransfer{},          // Bed Transfer/Mutation
+			// Digital Signatures & Audit Trail
+			&models.SignatureLog{},            // Signature Activity Logs
+			&models.DocumentSignature{},       // Document Signature Status
+			&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
+			&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
+			// Nutrition/Gizi Management
+			&models.NutritionIngredient{},     // Master Bahan Gizi
+			&models.NutritionMenu{},           // Master Menu Makanan
+			&models.NutritionMenuIngredient{}, // Komposisi bahan per menu
+			&models.NutritionPackage{},        // Master Paket Makanan
+			&models.NutritionPackageItem{},    // Item Paket Makanan
+			&models.NutritionOrder{},          // Order Gizi Pasien
+			&models.NutritionOrderItem{},      // Item Order Gizi
+		)
 
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
+		if err != nil {
+			return err
+		}
+	}
 
-// 	// Drop old unique index on nutrition_package_items if exists (replaced with regular composite index)
-// 	if DB.Migrator().HasTable(&models.NutritionPackageItem{}) {
-// 		DB.Exec("DROP INDEX IF EXISTS idx_package_menu")
-// 	}
+	// Drop old unique index on nutrition_package_items if exists (replaced with regular composite index)
+	if DB.Migrator().HasTable(&models.NutritionPackageItem{}) {
+		DB.Exec("DROP INDEX IF EXISTS idx_package_menu")
+	}
 
-// 	log.Println("Database migrated successfully")
+	log.Println("Database migrated successfully")
 
-// 	// Fix existing SPRI records: set is_bpjs=true for non-LOCAL SPRIs that were created before is_bpjs column existed
-// 	DB.Exec("UPDATE spri SET is_bpjs = true WHERE no_spri NOT LIKE 'LOCAL-%' AND is_bpjs = false AND deleted_at IS NULL")
+	// Fix existing SPRI records: set is_bpjs=true for non-LOCAL SPRIs that were created before is_bpjs column existed
+	DB.Exec("UPDATE spri SET is_bpjs = true WHERE no_spri NOT LIKE 'LOCAL-%' AND is_bpjs = false AND deleted_at IS NULL")
 
-// 	// Create partial unique indexes for soft delete support
-// 	// These indexes only apply to non-deleted records (WHERE deleted_at IS NULL)
-// 	createPartialUniqueIndexes()
+	// Create partial unique indexes for soft delete support
+	// These indexes only apply to non-deleted records (WHERE deleted_at IS NULL)
+	createPartialUniqueIndexes()
 
-// 	// Create additional performance indexes
-// 	createPerformanceIndexes()
+	// Create additional performance indexes
+	createPerformanceIndexes()
 
-// 	// Seed default data (with optimized checks)
-// 	if err := SeedData(); err != nil {
-// 		return err
-// 	}
+	// Seed default data (with optimized checks)
+	if err := SeedData(); err != nil {
+		return err
+	}
 
-// 	// Check if seed data already exists to skip unnecessary seeding
-// 	var permCount, masterDataCount int64
-// 	DB.Model(&models.Permission{}).Count(&permCount)
-// 	DB.Model(&models.MasterData{}).Count(&masterDataCount)
+	// Check if seed data already exists to skip unnecessary seeding
+	var permCount, masterDataCount int64
+	DB.Model(&models.Permission{}).Count(&permCount)
+	DB.Model(&models.MasterData{}).Count(&masterDataCount)
 
-// 	// Only seed if tables are empty (first run)
-// 	if masterDataCount == 0 {
-// 		log.Println("Seeding master data (first run)...")
-// 		if err := migrations.SeedMasterData(DB); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		log.Println("Skipping master data seed - data already exists")
-// 	}
+	// Only seed if tables are empty (first run)
+	if masterDataCount == 0 {
+		log.Println("Seeding master data (first run)...")
+		if err := migrations.SeedMasterData(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping master data seed - data already exists")
+	}
 
-// 	// Add general_condition master data (untuk update tanpa drop table)
-// 	if err := migrations.AddGeneralConditionData(DB); err != nil {
-// 		log.Printf("Error adding general_condition data: %v", err)
-// 	}
+	// Add general_condition master data (untuk update tanpa drop table)
+	if err := migrations.AddGeneralConditionData(DB); err != nil {
+		log.Printf("Error adding general_condition data: %v", err)
+	}
 
-// 	// Check inventory/medicine/supplier data
-// 	var supplierCount int64
-// 	DB.Model(&models.Supplier{}).Count(&supplierCount)
-// 	if supplierCount == 0 {
-// 		log.Println("Seeding inventory/medicine/supplier data (first run)...")
-// 		if err := migrations.SeedInventoryMedicineSupplier(DB); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		log.Println("Skipping inventory/medicine/supplier seed - data already exists")
-// 	}
+	// Check inventory/medicine/supplier data
+	var supplierCount int64
+	DB.Model(&models.Supplier{}).Count(&supplierCount)
+	if supplierCount == 0 {
+		log.Println("Seeding inventory/medicine/supplier data (first run)...")
+		if err := migrations.SeedInventoryMedicineSupplier(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping inventory/medicine/supplier seed - data already exists")
+	}
 
-// 	// Check procedures data
-// 	var procedureCount int64
-// 	DB.Model(&models.Procedure{}).Count(&procedureCount)
-// 	if procedureCount == 0 {
-// 		log.Println("Seeding procedures data (first run)...")
-// 		if err := migrations.SeedProcedures(DB); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		log.Println("Skipping procedures seed - data already exists")
-// 	}
+	// Check procedures data
+	var procedureCount int64
+	DB.Model(&models.Procedure{}).Count(&procedureCount)
+	if procedureCount == 0 {
+		log.Println("Seeding procedures data (first run)...")
+		if err := migrations.SeedProcedures(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping procedures seed - data already exists")
+	}
 
-// 	// Check billing data
-// 	var tariffCount int64
-// 	DB.Model(&models.RegistrationTariff{}).Count(&tariffCount)
-// 	if tariffCount == 0 {
-// 		log.Println("Seeding billing data (first run)...")
-// 		if err := migrations.SeedBillingData(DB); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		log.Println("Skipping billing seed - data already exists")
-// 	}
+	// Check billing data
+	var tariffCount int64
+	DB.Model(&models.RegistrationTariff{}).Count(&tariffCount)
+	if tariffCount == 0 {
+		log.Println("Seeding billing data (first run)...")
+		if err := migrations.SeedBillingData(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping billing seed - data already exists")
+	}
 
-// 	// Note: LOINC & SNOMED master data diimport manual oleh user
-// 	// Gunakan file SQL yang sudah disiapkan untuk mengisi tabel loinc_terminologi dan snomed_masters
-// 	var loincCount int64
-// 	DB.Model(&models.LoincMaster{}).Count(&loincCount)
-// 	log.Printf("LOINC master data: %d rows", loincCount)
+	// Note: LOINC & SNOMED master data diimport manual oleh user
+	// Gunakan file SQL yang sudah disiapkan untuk mengisi tabel loinc_terminologi dan snomed_masters
+	var loincCount int64
+	DB.Model(&models.LoincMaster{}).Count(&loincCount)
+	log.Printf("LOINC master data: %d rows", loincCount)
 
-// 	var snomedCount int64
-// 	DB.Model(&models.SnomedMaster{}).Count(&snomedCount)
-// 	log.Printf("SNOMED master data: %d rows", snomedCount)
+	var snomedCount int64
+	DB.Model(&models.SnomedMaster{}).Count(&snomedCount)
+	log.Printf("SNOMED master data: %d rows", snomedCount)
 
-// 	if err := ensureBPJSApotekDefaults(); err != nil {
-// 		return err
-// 	}
+	if err := ensureBPJSApotekDefaults(); err != nil {
+		return err
+	}
 
-// 	return nil
-// }
+	return nil
+}
 
 func ensureBPJSApotekDefaults() error {
 	configKeys := models.GetIntegrationConfigKeys(models.IntegrationTypeBPJSApotek)

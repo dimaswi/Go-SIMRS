@@ -74,9 +74,9 @@ func main() {
 	fmt.Println("✅ Database connected!")
 
 	// Run migrations
-	// if err := database.Migrate(); err != nil {
-	// 	log.Fatal("❌ Failed to migrate database:", err)
-	// }
+	if err := database.Migrate(); err != nil {
+		log.Fatal("❌ Failed to migrate database:", err)
+	}
 
 	// Execute based on flags
 	if *syncAll {
