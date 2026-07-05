@@ -302,7 +302,12 @@ func CreateMedicineOrder(c *gin.Context) {
 		var medicine models.Medicine
 		if err := tx.First(&medicine, item.MedicineID).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Medicine ID %d not found", item.MedicineID)})
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Obat dengan ID %d tidak ditemukan", item.MedicineID)})
+				return
+			}
+			if !medicine.IsActive {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Obat %s berstatus non-aktif dan tidak dapat dipesan", medicine.Name)})
 			return
 		}
 
@@ -875,6 +880,10 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 		var medicine models.Medicine
 		if err := database.DB.First(&medicine, *input.MedicineID).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Obat tidak ditemukan"})
+			return
+		}
+		if !medicine.IsActive {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Obat '%s' berstatus non-aktif dan tidak dapat digunakan sebagai pengganti", medicine.Name)})
 			return
 		}
 
@@ -1699,7 +1708,8 @@ func GetPharmacyRoomMedicines(c *gin.Context) {
 	roomID := c.Param("room_id")
 
 	var roomMedicines []models.RoomMedicine
-	if err := database.DB.Where("room_id = ? AND quantity > 0", roomID).
+	if err := database.DB.Joins("JOIN medicines ON medicines.id = room_medicines.medicine_id").
+		Where("room_medicines.room_id = ? AND room_medicines.quantity > 0 AND medicines.is_active = ?", roomID, true).
 		Preload("Medicine").
 		Find(&roomMedicines).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

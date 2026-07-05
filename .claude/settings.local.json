@@ -8,7 +8,10 @@
       "Bash(go build:*)",
       "WebFetch(domain:github.com)",
       "Bash(npx vite build)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(go build *)"
     ]
   }
 }

@@ -29,6 +29,31 @@ func resolveMedicineCurrentStock(medicineID uint, fallback int) int {
 	return fallback
 }
 
+// resolveMedicineStockBatch resolves current stock for multiple medicine IDs
+// in a single query, returning a map of medicineID → stock.
+// This eliminates N+1 queries when listing medicines.
+func resolveMedicineStockBatch(medicineIDs []uint) map[uint]int {
+	if len(medicineIDs) == 0 {
+		return make(map[uint]int)
+	}
+	type stockRow struct {
+		MedicineID uint
+		Total      int
+	}
+	var rows []stockRow
+	database.DB.Model(&models.RoomMedicine{}).
+		Select("medicine_id, COALESCE(SUM(quantity), 0) as total").
+		Where("medicine_id IN ?", medicineIDs).
+		Group("medicine_id").
+		Find(&rows)
+
+	m := make(map[uint]int, len(rows))
+	for _, r := range rows {
+		m[r.MedicineID] = r.Total
+	}
+	return m
+}
+
 type medicineTraceabilityStats struct {
 	TotalStock        int `json:"total_stock"`
 	RoomCount         int `json:"room_count"`
@@ -515,7 +540,7 @@ func GetMedicines(c *gin.Context) {
 	if search != "" {
 		searchPattern := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			"LOWER(code) LIKE ? OR LOWER(name) LIKE ? OR LOWER(generic_name) LIKE ? OR LOWER(manufacturer) LIKE ?",
+			"(LOWER(code) LIKE ? OR LOWER(name) LIKE ? OR LOWER(generic_name) LIKE ? OR LOWER(manufacturer) LIKE ?)",
 			searchPattern, searchPattern, searchPattern, searchPattern,
 		)
 	}
@@ -549,8 +574,14 @@ func GetMedicines(c *gin.Context) {
 		return
 	}
 
+	// Batch resolve stock in a single query (eliminates N+1)
+	ids := make([]uint, len(medicines))
+	for i, m := range medicines {
+		ids[i] = m.ID
+	}
+	stockMap := resolveMedicineStockBatch(ids)
 	for i := range medicines {
-		medicines[i].CurrentStock = resolveMedicineCurrentStock(medicines[i].ID, medicines[i].CurrentStock)
+		medicines[i].CurrentStock = stockMap[medicines[i].ID]
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -29,6 +29,31 @@ func resolveInventoryCurrentStock(inventoryID uint, fallback int) int {
 	return fallback
 }
 
+// resolveInventoryStockBatch resolves current stock for multiple inventory IDs
+// in a single query, returning a map of inventoryID → stock.
+// This eliminates N+1 queries when listing inventories.
+func resolveInventoryStockBatch(inventoryIDs []uint) map[uint]int {
+	if len(inventoryIDs) == 0 {
+		return make(map[uint]int)
+	}
+	type stockRow struct {
+		InventoryID uint
+		Total       int
+	}
+	var rows []stockRow
+	database.DB.Model(&models.RoomInventory{}).
+		Select("inventory_id, COALESCE(SUM(quantity), 0) as total").
+		Where("inventory_id IN ?", inventoryIDs).
+		Group("inventory_id").
+		Find(&rows)
+
+	m := make(map[uint]int, len(rows))
+	for _, r := range rows {
+		m[r.InventoryID] = r.Total
+	}
+	return m
+}
+
 // GetInventories returns all inventories with pagination and search
 func GetInventories(c *gin.Context) {
 	var inventories []models.Inventory
@@ -51,7 +76,7 @@ func GetInventories(c *gin.Context) {
 	if search != "" {
 		searchPattern := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			"LOWER(code) LIKE ? OR LOWER(name) LIKE ? OR LOWER(brand) LIKE ?",
+			"(LOWER(code) LIKE ? OR LOWER(name) LIKE ? OR LOWER(brand) LIKE ?)",
 			searchPattern, searchPattern, searchPattern,
 		)
 	}
@@ -95,8 +120,14 @@ func GetInventories(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventories"})
 		return
 	}
+	// Batch resolve stock in a single query (eliminates N+1)
+	ids := make([]uint, len(inventories))
+	for i, inv := range inventories {
+		ids[i] = inv.ID
+	}
+	stockMap := resolveInventoryStockBatch(ids)
 	for i := range inventories {
-		inventories[i].CurrentStock = resolveInventoryCurrentStock(inventories[i].ID, inventories[i].CurrentStock)
+		inventories[i].CurrentStock = stockMap[inventories[i].ID]
 		inventories[i].TotalValue = float64(inventories[i].CurrentStock) * inventories[i].Price
 	}
 

@@ -22,34 +22,14 @@ import { api } from "@/lib/api/client";
 import {
   ItemPickerDialog,
   SelectedItemsTable,
-  type SelectableItem,
   type SelectedItemWithQty,
+  fetchPurchaseItems,
 } from "@/components/item-picker";
 
 interface Room {
   id: number;
   code: string;
   name: string;
-}
-
-interface Inventory {
-  id: number;
-  code: string;
-  name: string;
-  unit: string;
-  current_stock: number;
-  purchase_price: number;
-}
-
-interface Medicine {
-  id: number;
-  code: string;
-  name: string;
-  unit: string;
-  unit_large?: string;
-  large_to_small_factor?: number;
-  current_stock: number;
-  purchase_price: number;
 }
 
 function resolveOrderedQtySmall(item: SelectedItemWithQty) {
@@ -69,7 +49,6 @@ export default function PurchaseCreate() {
   const [loading, setLoading] = useState(true);
   const [depoRooms, setDepoRooms] = useState<ComboboxOption[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [allItems, setAllItems] = useState<SelectableItem[]>([]);
   const [useManualSupplier, setUseManualSupplier] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -91,10 +70,8 @@ export default function PurchaseCreate() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [roomsRes, inventoriesRes, medicinesRes, suppliersRes] = await Promise.all([
+      const [roomsRes, suppliersRes] = await Promise.all([
         api.get("/rooms", { params: { limit: 500 } }),
-        api.get("/inventories", { params: { limit: 500, is_active: true } }),
-        api.get("/medicines", { params: { limit: 500, is_active: true } }),
         suppliersApi.getAllActive(),
       ]);
 
@@ -107,35 +84,6 @@ export default function PurchaseCreate() {
         label: `${r.code} - ${r.name}`,
       })));
       setSuppliers(suppliersRes.data.data || []);
-
-      // Combine inventories and medicines into selectable items
-      const inventories: Inventory[] = inventoriesRes.data.data || [];
-      const medicines: Medicine[] = medicinesRes.data.data || [];
-
-      const items: SelectableItem[] = [
-        ...inventories.map((inv) => ({
-          id: inv.id,
-          code: inv.code,
-          name: inv.name,
-          unit: inv.unit,
-          type: "inventory" as const,
-          current_stock: inv.current_stock,
-          price: inv.purchase_price || 0,
-        })),
-        ...medicines.map((med) => ({
-          id: med.id,
-          code: med.code,
-          name: med.name,
-          unit: med.unit,
-          unit_large: med.unit_large,
-          large_to_small_factor: med.large_to_small_factor || 1,
-          type: "medicine" as const,
-          current_stock: med.current_stock,
-          price: med.purchase_price || 0,
-        })),
-      ];
-
-      setAllItems(items);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -173,7 +121,7 @@ export default function PurchaseCreate() {
           unit_small: item.unit_small || item.unit,
           conversion_factor: factor,
           quantity_large: item.quantity_large ?? 0,
-          quantity_small: item.quantity_small ?? 0,
+          quantity_small: item.quantity_small || item.quantity || 1,
         };
       })
     );
@@ -489,8 +437,9 @@ export default function PurchaseCreate() {
                 enableDualUnit={true}
                 compactMode={true}
                 showPrice={true}
-                showBatch={true}
+                showBatch={false}
                 showExpiry={true}
+                enforceStockLimit={false}
                 emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
                 className="flex min-h-0 flex-1 flex-col"
                 scrollAreaClassName="min-h-0 h-full flex-1"
@@ -517,15 +466,16 @@ export default function PurchaseCreate() {
       <ItemPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        title="Rincian Item Pembelian"
-        description="Susun item pembelian dalam tabel besar, lengkap dengan batch, diskon, PPN, dan nilai total per baris."
-        items={allItems}
+        title="Pilih Item Pembelian"
+        description="Centang item yang ingin dibeli. Anda dapat mengatur jumlah, batch, dan harga pada tabel di halaman sebelumnya."
+        fetchItems={fetchPurchaseItems}
         selectedItems={selectedItems}
         onConfirm={handleItemsConfirm}
-        showPrice={true}
+        showPrice={false}
         showStock={true}
+        enforceStockLimit={false}
         showTabs={true}
-        enableDualUnit={true}
+        enableDualUnit={false}
       />
     </PageShell>
   );

@@ -134,6 +134,79 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// PrintAuthMiddleware is a relaxed version of AuthMiddleware specifically for printing documents.
+// It accepts either a standard Bearer token OR a JWT token from query parameters.
+// This allows patients to view the document they are about to sign via the public patient-sign page.
+func PrintAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tokenString string
+
+		// 1. Try Authorization header
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
+		}
+
+		// 2. Try URL parameter ?token=
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header or token query required"})
+			c.Abort()
+			return
+		}
+
+		// Parse token using generic MapClaims
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		mapClaims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims format"})
+			c.Abort()
+			return
+		}
+
+		// Check if it's an Employee token
+		if userID, exists := mapClaims["user_id"]; exists {
+			c.Set("userID", uint(userID.(float64)))
+			c.Set("user_id", uint(userID.(float64)))
+			c.Set("email", mapClaims["email"])
+			c.Set("roleID", uint(mapClaims["role_id"].(float64)))
+			c.Set("role_id", uint(mapClaims["role_id"].(float64)))
+		} else if docType, exists := mapClaims["doc_type"]; exists {
+			// Check if it's a Patient Signature token
+			c.Set("doc_type", docType)
+			c.Set("doc_id", uint(mapClaims["doc_id"].(float64)))
+			c.Set("req_id", uint(mapClaims["req_id"].(float64)))
+
+			// Set dummy IDs so normal print endpoints don't crash
+			// Patient tokens don't have roles, so we bypass permissions for prints
+			c.Set("userID", uint(999999))
+			c.Set("roleID", uint(999999))
+			c.Set("patient_token", true)
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unknown token type"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleID, exists := c.Get("roleID")

@@ -71,10 +71,10 @@ export function SelectedItemsTable({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className={cn("min-h-0 overflow-hidden rounded-lg border border-border/80 bg-background", scrollAreaClassName)}>
-        <ScrollArea className="h-full">
+      <div className={cn("min-h-0 overflow-hidden rounded-lg border border-border/80 bg-background flex flex-col", scrollAreaClassName)}>
+        <div className="flex-1 overflow-auto">
           {useCompactPurchaseHeader ? (
-            <table className="min-w-[1450px] w-full table-fixed border-collapse text-sm">
+            <table className="min-w-[1250px] w-full table-fixed border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-background">
                 <tr className="bg-muted/20">
                   <th rowSpan={2} className="h-9 w-[24%] border-b border-r border-border/70 px-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
@@ -423,7 +423,7 @@ export function SelectedItemsTable({
               </tbody>
             </table>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       <div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/15 px-3 py-2">

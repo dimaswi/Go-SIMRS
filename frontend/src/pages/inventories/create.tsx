@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -283,18 +284,15 @@ export default function InventoryCreate() {
                     className="text-xs font-medium flex items-center gap-2"
                   >
                     <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                    Harga Satuan (Rp)
+                    Harga Satuan
                   </Label>
-                  <Input
+                  <CurrencyInput
                     id="price"
-                    type="number"
-                    min={0}
                     placeholder="0"
-                    value={formData.price || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, price: parseInt(e.target.value) || 0 })
+                    value={formData.price || 0}
+                    onChange={(val) =>
+                      setFormData({ ...formData, price: Number(val) || 0 })
                     }
-                    className="h-9 text-sm"
                   />
                 </div>
               </div>

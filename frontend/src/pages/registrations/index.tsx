@@ -1301,18 +1301,6 @@ export default function RegistrationIndex() {
     },
   ];
 
-  if (
-    loading &&
-    ((isAdmissionRequestTab && admissionRequests.length === 0) ||
-      (!isAdmissionRequestTab && registrations.length === 0))
-  ) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   const renderRoomFilterSlot = (
     roomValue: string,
     onRoomChange: (roomId: string) => void,

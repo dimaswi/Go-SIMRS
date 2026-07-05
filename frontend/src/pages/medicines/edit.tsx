@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -538,16 +539,13 @@ export default function MedicineEdit() {
                       <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
                       Harga Beli (HNA)
                     </Label>
-                    <Input
+                    <CurrencyInput
                       id="purchase_price"
-                      type="number"
-                      min={0}
                       placeholder="0"
-                      value={formData.purchase_price || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, purchase_price: parseInt(e.target.value) || 0 })
+                      value={formData.purchase_price || 0}
+                      onChange={(val) =>
+                        setFormData({ ...formData, purchase_price: Number(val) || 0 })
                       }
-                      className="h-9 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
@@ -558,16 +556,13 @@ export default function MedicineEdit() {
                       <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
                       Harga Jual (HET)
                     </Label>
-                    <Input
+                    <CurrencyInput
                       id="selling_price"
-                      type="number"
-                      min={0}
                       placeholder="0"
-                      value={formData.selling_price || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, selling_price: parseInt(e.target.value) || 0 })
+                      value={formData.selling_price || 0}
+                      onChange={(val) =>
+                        setFormData({ ...formData, selling_price: Number(val) || 0 })
                       }
-                      className="h-9 text-sm"
                     />
                   </div>
                   <div className="space-y-2">

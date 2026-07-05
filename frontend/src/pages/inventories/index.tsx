@@ -11,6 +11,15 @@ import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
 import { Loader2, Plus } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+type InventoryStatusFilter = 'active' | 'inactive' | 'all';
 
 export default function InventoriesPage() {
   const navigate = useNavigate();
@@ -20,10 +29,14 @@ export default function InventoriesPage() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [inventoryToDelete, setInventoryToDelete] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<InventoryStatusFilter>('active');
 
   const loadData = useCallback(async () => {
     try {
-      const response = await inventoriesApi.getAll({ limit: 100 });
+      const response = await inventoriesApi.getAll({
+        limit: 100,
+        is_active: statusFilter === 'all' ? undefined : statusFilter === 'active',
+      });
       setInventories(response.data.data || []);
     } catch (error) {
       toast({
@@ -34,7 +47,7 @@ export default function InventoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, statusFilter]);
 
   useEffect(() => {
     setPageTitle('Inventaris');
@@ -121,6 +134,18 @@ export default function InventoriesPage() {
           searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
           pageSize={10}
           tableId="inventories"
+          searchSlot={
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as InventoryStatusFilter)}>
+              <SelectTrigger className="h-7 w-[150px] bg-background text-xs">
+                <SelectValue placeholder="Status inventaris" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Hanya aktif</SelectItem>
+                <SelectItem value="all">Semua status</SelectItem>
+                <SelectItem value="inactive">Hanya nonaktif</SelectItem>
+              </SelectContent>
+            </Select>
+          }
         />
   </div>
 </div>

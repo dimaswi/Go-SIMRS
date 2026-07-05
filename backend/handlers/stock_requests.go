@@ -307,6 +307,36 @@ func CreateStockRequest(c *gin.Context) {
 		receiptDate = &parsedDate
 	}
 
+	// Extract and validate items
+	var medicineIDs []uint
+	var inventoryIDs []uint
+	for _, item := range input.Items {
+		if item.MedicineID != nil {
+			medicineIDs = append(medicineIDs, *item.MedicineID)
+		}
+		if item.InventoryID != nil {
+			inventoryIDs = append(inventoryIDs, *item.InventoryID)
+		}
+	}
+
+	// Safety check: ensure requested items are active
+	if len(medicineIDs) > 0 {
+		var inactiveCount int64
+		database.DB.Model(&models.Medicine{}).Where("id IN ? AND is_active = ?", medicineIDs, false).Count(&inactiveCount)
+		if inactiveCount > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Satu atau lebih obat yang diminta berstatus non-aktif"})
+			return
+		}
+	}
+	if len(inventoryIDs) > 0 {
+		var inactiveCount int64
+		database.DB.Model(&models.Inventory{}).Where("id IN ? AND is_active = ?", inventoryIDs, false).Count(&inactiveCount)
+		if inactiveCount > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Satu atau lebih inventaris yang diminta berstatus non-aktif"})
+			return
+		}
+	}
+
 	request := models.StockRequest{
 		RequestNumber:  requestNumber,
 		RequestType:    input.RequestType,

@@ -10,7 +10,7 @@ import (
 // SetupPrintRoutes configures routes for PDF printing
 func SetupPrintRoutes(api *gin.RouterGroup) {
 	print := api.Group("/print")
-	print.Use(middleware.AuthMiddleware())
+	print.Use(middleware.PrintAuthMiddleware())
 	{
 		// Available docs check (lightweight)
 		print.GET("/available-docs/:visitId", handlers.GetAvailableDocs)

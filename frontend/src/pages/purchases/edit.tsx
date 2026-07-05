@@ -18,7 +18,6 @@ import { PageShell, PageHeader, PageContent } from "@/components/layout/page-she
 import { SectionPanel } from "@/components/layout/section-panel";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { api } from "@/lib/api/client";
 import {
   purchasesApi,
   purchaseStatusLabels,
@@ -27,29 +26,9 @@ import {
 import {
   ItemPickerDialog,
   SelectedItemsTable,
-  type SelectableItem,
   type SelectedItemWithQty,
+  fetchPurchaseItems,
 } from "@/components/item-picker";
-
-interface Inventory {
-  id: number;
-  code: string;
-  name: string;
-  unit: string;
-  current_stock: number;
-  purchase_price: number;
-}
-
-interface Medicine {
-  id: number;
-  code: string;
-  name: string;
-  unit: string;
-  unit_large?: string;
-  large_to_small_factor?: number;
-  current_stock: number;
-  purchase_price: number;
-}
 
 function resolveOrderedQtySmall(item: SelectedItemWithQty) {
   const factor = Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1));
@@ -70,7 +49,6 @@ export default function PurchaseEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [allItems, setAllItems] = useState<SelectableItem[]>([]);
 
   const [formData, setFormData] = useState({
     supplier_name: "",
@@ -87,11 +65,7 @@ export default function PurchaseEdit() {
 
   const loadData = useCallback(async () => {
     try {
-      const [response, inventoriesRes, medicinesRes] = await Promise.all([
-        purchasesApi.getById(Number(id)),
-        api.get("/inventories", { params: { limit: 500, is_active: true } }),
-        api.get("/medicines", { params: { limit: 500, is_active: true } }),
-      ]);
+      const response = await purchasesApi.getById(Number(id));
       const data = response.data.data as Purchase;
 
       // Check if editable (only draft or pending status)
@@ -116,34 +90,6 @@ export default function PurchaseEdit() {
         due_date: data.due_date ? new Date(data.due_date).toISOString().split("T")[0] : "",
         notes: data.notes || "",
       });
-
-      // Map items
-      const inventories: Inventory[] = inventoriesRes.data.data || [];
-      const medicines: Medicine[] = medicinesRes.data.data || [];
-
-      const selectableItems: SelectableItem[] = [
-        ...inventories.map((inventory) => ({
-          id: inventory.id,
-          code: inventory.code,
-          name: inventory.name,
-          unit: inventory.unit,
-          type: "inventory" as const,
-          current_stock: inventory.current_stock,
-          price: inventory.purchase_price || 0,
-        })),
-        ...medicines.map((medicine) => ({
-          id: medicine.id,
-          code: medicine.code,
-          name: medicine.name,
-          unit: medicine.unit,
-          unit_large: medicine.unit_large,
-          large_to_small_factor: medicine.large_to_small_factor || 1,
-          type: "medicine" as const,
-          current_stock: medicine.current_stock,
-          price: medicine.purchase_price || 0,
-        })),
-      ];
-      setAllItems(selectableItems);
 
       const editItems: SelectedItemWithQty[] = (data.items || []).map((item) => {
         const itemData = item.inventory || item.medicine;
@@ -199,7 +145,7 @@ export default function PurchaseEdit() {
           unit_small: item.unit_small || item.unit,
           conversion_factor: factor,
           quantity_large: item.quantity_large ?? 0,
-          quantity_small: item.quantity_small ?? 0,
+          quantity_small: item.quantity_small || item.quantity || 1,
         };
       })
     );
@@ -477,8 +423,9 @@ export default function PurchaseEdit() {
                 enableDualUnit={true}
                 compactMode={true}
                 showPrice={true}
-                showBatch={true}
+                showBatch={false}
                 showExpiry={true}
+                enforceStockLimit={false}
                 emptyMessage="Klik 'Kelola Item' untuk menambahkan atau mengubah item pembelian"
                 className="flex min-h-0 flex-1 flex-col"
                 scrollAreaClassName="min-h-0 flex-1"
@@ -505,15 +452,16 @@ export default function PurchaseEdit() {
       <ItemPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        title="Rincian Item Pembelian"
-        description="Kelola item, batch, diskon, PPN, dan total harga dalam satu tabel besar yang bisa diedit penuh."
-        items={allItems}
+        title="Pilih Item Pembelian"
+        description="Centang item yang ingin ditambahkan. Anda dapat mengatur jumlah, batch, dan harga pada tabel di halaman sebelumnya."
+        fetchItems={fetchPurchaseItems}
         selectedItems={items}
         onConfirm={handleItemsConfirm}
-        showPrice={true}
+        showPrice={false}
         showStock={true}
+        enforceStockLimit={false}
         showTabs={true}
-        enableDualUnit={true}
+        enableDualUnit={false}
       />
     </PageShell>
   );

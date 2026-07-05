@@ -346,8 +346,8 @@ export default function LogisticsDashboardPage() {
         roomMedicinesRes,
         roomInventoriesRes,
       ] = await Promise.all([
-        permissionFlags.canViewMedicines ? medicinesApi.getAll({ limit: 500 }) : Promise.resolve({ data: { data: [] } }),
-        permissionFlags.canViewInventories ? inventoriesApi.getAll({ limit: 500 }) : Promise.resolve({ data: { data: [] } }),
+        permissionFlags.canViewMedicines ? medicinesApi.getAll({ limit: 500, is_active: true }) : Promise.resolve({ data: { data: [] } }),
+        permissionFlags.canViewInventories ? inventoriesApi.getAll({ limit: 500, is_active: true }) : Promise.resolve({ data: { data: [] } }),
         permissionFlags.canViewSuppliers ? suppliersApi.getAll({ limit: 500 }) : Promise.resolve({ data: { data: [] } }),
         permissionFlags.canViewRequests ? stockRequestsApi.getAll({ limit: 500 }) : Promise.resolve({ data: { data: [] } }),
         permissionFlags.canViewDistributions ? distributionsApi.getAll({ limit: 500 }) : Promise.resolve({ data: { data: [] } }),

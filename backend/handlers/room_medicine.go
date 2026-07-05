@@ -109,11 +109,11 @@ func GetMedicinesByRoom(c *gin.Context) {
 
 	query := database.DB.Model(&models.RoomMedicine{}).
 		Preload("Medicine").
-		Where("room_id = ?", roomID)
+		Joins("JOIN medicines ON medicines.id = room_medicines.medicine_id").
+		Where("room_medicines.room_id = ? AND medicines.is_active = ?", roomID, true)
 
 	if search != "" {
-		query = query.Joins("LEFT JOIN medicines ON medicines.id = room_medicines.medicine_id").
-			Where("medicines.name ILIKE ? OR medicines.code ILIKE ?", "%"+search+"%", "%"+search+"%")
+		query = query.Where("(medicines.name ILIKE ? OR medicines.code ILIKE ?)", "%"+search+"%", "%"+search+"%")
 	}
 
 	query.Count(&total)

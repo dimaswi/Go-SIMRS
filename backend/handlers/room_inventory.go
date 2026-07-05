@@ -109,11 +109,11 @@ func GetInventoriesByRoom(c *gin.Context) {
 
 	query := database.DB.Model(&models.RoomInventory{}).
 		Preload("Inventory").
-		Where("room_id = ?", roomID)
+		Joins("JOIN inventories ON inventories.id = room_inventories.inventory_id").
+		Where("room_inventories.room_id = ? AND inventories.is_active = ?", roomID, true)
 
 	if search != "" {
-		query = query.Joins("LEFT JOIN inventories ON inventories.id = room_inventories.inventory_id").
-			Where("inventories.name ILIKE ? OR inventories.code ILIKE ?", "%"+search+"%", "%"+search+"%")
+		query = query.Where("(inventories.name ILIKE ? OR inventories.code ILIKE ?)", "%"+search+"%", "%"+search+"%")
 	}
 
 	query.Count(&total)

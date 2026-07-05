@@ -17,6 +17,7 @@ require (
 	github.com/pieroxy/lz-string-go v0.0.0-20150527125527-815b44bac831
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/xuri/excelize/v2 v2.10.0
+	gorm.io/datatypes v1.2.7
 )
 
 require (
@@ -28,7 +29,6 @@ require (
 	github.com/tiendc/go-deepcopy v1.7.1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
-	gorm.io/datatypes v1.2.7 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 )
 

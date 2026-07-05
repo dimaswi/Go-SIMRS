@@ -258,8 +258,11 @@ func preparePurchaseItem(item CreatePurchaseItemInput) (preparedPurchaseItem, er
 
 	if item.MedicineID != nil && *item.MedicineID > 0 {
 		var medicine models.Medicine
-		if err := database.DB.Select("id", "unit", "unit_large", "large_to_small_factor").First(&medicine, *item.MedicineID).Error; err != nil {
+		if err := database.DB.Select("id", "unit", "unit_large", "large_to_small_factor", "is_active").First(&medicine, *item.MedicineID).Error; err != nil {
 			return prepared, fmt.Errorf("obat tidak ditemukan")
+		}
+		if !medicine.IsActive {
+			return prepared, fmt.Errorf("obat dengan ID %d berstatus non-aktif", medicine.ID)
 		}
 
 		if prepared.UnitSmall == "" {
@@ -273,8 +276,13 @@ func preparePurchaseItem(item CreatePurchaseItemInput) (preparedPurchaseItem, er
 		}
 	} else if item.InventoryID != nil && *item.InventoryID > 0 {
 		var inventory models.Inventory
-		if err := database.DB.Select("id", "unit").First(&inventory, *item.InventoryID).Error; err == nil && prepared.UnitSmall == "" {
-			prepared.UnitSmall = strings.TrimSpace(inventory.Unit)
+		if err := database.DB.Select("id", "unit", "is_active").First(&inventory, *item.InventoryID).Error; err == nil {
+			if !inventory.IsActive {
+				return prepared, fmt.Errorf("inventaris dengan ID %d berstatus non-aktif", inventory.ID)
+			}
+			if prepared.UnitSmall == "" {
+				prepared.UnitSmall = strings.TrimSpace(inventory.Unit)
+			}
 		}
 	}
 
