@@ -330,6 +330,12 @@ export function SignOnBehalfDialog({
       return;
     }
     if (role === "pasien" || role === "wali") {
+      if (step === "form") {
+        setIsFaceValidation(false);
+        setStep("patient_mode");
+        return;
+      }
+
       if (sigPad.current?.isEmpty()) {
         toast({ variant: "destructive", title: "Peringatan", description: "Harap gambar tanda tangan terlebih dahulu." });
         return;

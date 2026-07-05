@@ -60,8 +60,6 @@ export function BHPUsageForm({ visitId, readOnly = false }: BHPUsageFormProps) {
   );
 
   const totalRows = records.length;
-  const totalQty = useMemo(() => records.reduce((sum, item) => sum + (item.quantity || 0), 0), [records]);
-  const totalNominal = useMemo(() => records.reduce((sum, item) => sum + (item.subtotal || 0), 0), [records]);
 
   const breakdown = useMemo(() => {
     const grouped = new Map<number, { inventory_id: number; name: string; unit: string; quantity: number; subtotal: number }>();
@@ -217,25 +215,6 @@ export function BHPUsageForm({ visitId, readOnly = false }: BHPUsageFormProps) {
                   <Plus className="mr-1 h-3.5 w-3.5" />Tambah
                 </Button>
               )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 border-b border-border/70 bg-muted/10 px-4 py-2.5 text-xs md:grid-cols-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Entry</p>
-              <p className="text-base font-semibold">{totalRows}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Qty</p>
-              <p className="text-base font-semibold">{totalQty}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Jenis BHP</p>
-              <p className="text-base font-semibold">{breakdown.length}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Nilai</p>
-              <p className="text-base font-semibold text-emerald-600">{formatCurrency(totalNominal)}</p>
             </div>
           </div>
 

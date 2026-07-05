@@ -158,7 +158,7 @@ export function MedicalRecordTabs({
     },
     {
       id: "bhp-usage",
-      label: "Penggunaan BHP",
+      label: "Penggunaan Film",
       icon: <Package />,
       permission: "procedure_orders.perform",
       section: "radiology",
@@ -183,7 +183,7 @@ export function MedicalRecordTabs({
     },
     {
       id: "bhp-usage",
-      label: "Penggunaan BHP",
+      label: "Penggunaan Film",
       icon: <Package />,
       permission: "procedure_orders.perform",
       section: "laboratory",
@@ -306,7 +306,7 @@ export function MedicalRecordTabs({
     }] : []),
     {
       id: "bhp-usage",
-      label: "Penggunaan BHP",
+      label: "Penggunaan Penunjang",
       icon: <Package />,
       permission: "medical_records.procedure",
       section: "care",
