@@ -15,6 +15,6 @@ export default defineConfig({
     // Use default chunk splitting to avoid runtime module init-order issues.
   },
   server: {
-    allowedHosts: ['bpjs_dev.dimaswysnu.com', 'localhost','simrs.klinikmuhammadiyahkedungadem.id','simrs.klinikmuhammadiyahkedungadem.id:3000','simrs.klinikmuhammadiyahkedungadem.id:5173'],
+    allowedHosts: ['bpjs_dev.dimaswysnu.com', 'localhost','simrs.klinikmuhammadiyahkedungadem.id','simrs.klinikmuhammadiyahkedungadem.id:3000','simrs.klinikmuhammadiyahkedungadem.id:5173', '192.168.12.125:3232'],
   },
 })

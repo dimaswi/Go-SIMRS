@@ -104,6 +104,13 @@ func dropAllForeignKeys(db *gorm.DB) {
 
 func Migrate() error {
 	var err error
+
+	// Heal legacy NULL values before any migration touches NOT NULL constraints.
+	sanitizeInventoryNullDefaults(DB)
+	if CasemixDB != nil && CasemixDB != DB {
+		sanitizeInventoryNullDefaults(CasemixDB)
+	}
+
 	// ==========================================
 	// STEP 1: Drop ALL existing foreign key constraints
 	// ==========================================
