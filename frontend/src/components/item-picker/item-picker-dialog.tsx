@@ -184,7 +184,7 @@ export function ItemPickerDialog({
     return filtered;
   }, [isServerMode, serverItems, items, activeTab, debouncedSearch]);
 
-  // Tab counts (client mode only — server mode shows total from meta)
+  // Tab counts (client mode only â€” server mode shows total from meta)
   const inventoryCount = useMemo(() => {
     if (isServerMode) return null;
     return (items || []).filter((i) => i.type === "inventory").length;
@@ -454,7 +454,7 @@ export function ItemPickerDialog({
                           <td style={{ height: rowVirtualizer.getVirtualItems()[0]?.start ?? 0, padding: 0, border: 0 }} colSpan={99} />
                         </tr>
                       )}
-                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      {rowVirtualizer.getVirtualItems().map((virtualRow: any) => {
                         const item = displayItems[virtualRow.index];
                         if (!item) return null;
                         const selected = isSelected(item);
