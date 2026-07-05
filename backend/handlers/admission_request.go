@@ -236,8 +236,7 @@ func CreateAdmissionRequest(c *gin.Context) {
 			roomName = request.SourceVisit.Room.Name
 		}
 
-		go NotifService.NotifyByRoles(
-			[]string{"Pendaftaran", "Admisi", "pendaftaran", "admisi"},
+		go NotifService.NotifyAdmins(
 			models.NotificationTypeAdmissionRequest,
 			"Permintaan Rawat Inap Baru",
 			fmt.Sprintf("Pasien %s dari %s membutuhkan rawat inap (%s)", patientName, roomName, input.Priority),
@@ -268,7 +267,7 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		BedID         uint   `json:"bed_id" binding:"required"`
 		DoctorID      uint   `json:"doctor_id" binding:"required"` // DPJP
 		AdminNotes    string `json:"admin_notes"`
-		PaymentMethod string `json:"payment_method"` // cash, bpjs, insurance — override metode bayar
+		PaymentMethod string `json:"payment_method"` // cash, bpjs, insurance Ã¢â‚¬â€ override metode bayar
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -591,3 +590,4 @@ func createInpatientVisitFromRequest(tx *gorm.DB, request *models.AdmissionReque
 
 	return &inpatientVisit, nil
 }
+

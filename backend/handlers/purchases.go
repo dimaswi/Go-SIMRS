@@ -605,6 +605,18 @@ func CreatePurchase(c *gin.Context) {
 	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("Items").Preload("Payments").Preload("Payments.RecordedBy").
 		Preload("Items.Inventory").Preload("Items.Medicine").First(&purchase, purchase.ID)
 
+	if NotifService != nil {
+		go NotifService.NotifyAdmins(
+			models.NotificationTypePurchaseCreated,
+			"Purchase Order Baru",
+			fmt.Sprintf("PO %s telah dibuat untuk %s", purchase.PurchaseNumber, purchase.SupplierName),
+			map[string]interface{}{
+				"purchase_id":     purchase.ID,
+				"purchase_number": purchase.PurchaseNumber,
+			},
+		)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"data": purchase})
 }
 
@@ -813,7 +825,7 @@ func DeletePurchase(c *gin.Context) {
 
 // SubmitPurchase godoc
 // @Summary Submit a purchase for approval
-// @Description Submit a draft purchase for approval (draft → pending)
+// @Description Submit a draft purchase for approval (draft Ã¢â€ â€™ pending)
 // @Tags Purchases
 // @Accept json
 // @Produce json
@@ -1109,6 +1121,28 @@ func ReceivePurchase(c *gin.Context) {
 	// Reload
 	database.DB.Preload("ToRoom").Preload("CreatedBy").Preload("ReceivedBy").
 		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").Preload("Payments").Preload("Payments.RecordedBy").First(&purchase, purchase.ID)
+
+	if NotifService != nil {
+		go NotifService.NotifyRoomUsers(
+			purchase.ToRoomID,
+			models.NotificationTypePurchaseReceived,
+			"Barang Pembelian Diterima",
+			fmt.Sprintf("Barang dari PO %s telah diterima di ruangan Anda", purchase.PurchaseNumber),
+			map[string]interface{}{
+				"purchase_id":     purchase.ID,
+				"purchase_number": purchase.PurchaseNumber,
+				"supplier_name":   purchase.SupplierName,
+			},
+		)
+		go NotifService.NotifyAdmins(
+			models.NotificationTypePurchaseReceived,
+			"Barang Pembelian Diterima",
+			fmt.Sprintf("PO %s dari %s telah diterima", purchase.PurchaseNumber, purchase.SupplierName),
+			map[string]interface{}{
+				"purchase_id": purchase.ID,
+			},
+		)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": purchase, "message": "Barang berhasil diterima dan stok ditambahkan"})
 }

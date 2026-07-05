@@ -340,6 +340,19 @@ func AdjustRoomMedicineStock(c *gin.Context) {
 		return
 	}
 
+	if NotifService != nil && newStock < previousStock {
+		var medicine models.Medicine
+		if err := tx.First(&medicine, roomMedicine.MedicineID).Error; err == nil {
+			NotifService.CheckAndNotifyLowStock(
+				roomMedicine.RoomID,
+				medicine.Name,
+				previousStock,
+				newStock,
+				roomMedicine.MinQuantity,
+			)
+		}
+	}
+
 	// Create transaction record
 	transaction := models.MedicineTransaction{
 		TransactionType: "adjustment",
@@ -450,6 +463,19 @@ func TransferMedicineStock(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update destination stock"})
 		return
+	}
+
+	if NotifService != nil {
+		var medicine models.Medicine
+		if err := tx.First(&medicine, input.MedicineID).Error; err == nil {
+			NotifService.CheckAndNotifyLowStock(
+				input.FromRoomID,
+				medicine.Name,
+				sourcePrevious,
+				sourceRoomMedicine.Quantity,
+				sourceRoomMedicine.MinQuantity,
+			)
+		}
 	}
 
 	// Create transaction record

@@ -40,6 +40,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    audioRef.current = new Audio('/notifications.wav');
+  }, []);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch notifications from API
@@ -138,6 +143,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         toast.warning(data.title || "Peringatan", toastOpts);
       } else {
         toast.info(data.title || "Notifikasi Baru", toastOpts);
+      }
+
+      // Play sound
+      if (audioRef.current) {
+        audioRef.current.play().catch((err) => console.log('Audio play failed:', err));
       }
 
       // Add to notifications list if has ID
@@ -310,3 +320,5 @@ export function useNotifications() {
   }
   return context;
 }
+
+

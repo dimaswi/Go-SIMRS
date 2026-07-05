@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"starter/backend/database"
@@ -439,45 +440,52 @@ func (s *NotificationService) NotifyUsers(userIDs []uint, notifType models.Notif
 	return nil
 }
 
-// NotifyByRole sends notifications to all users with a specific role
-func (s *NotificationService) NotifyByRole(roleName string, notifType models.NotificationType, title, message string, data interface{}) error {
-	// Get all users with this role
-	var userIDs []uint
-	if err := database.DB.Table("users").
-		Joins("JOIN roles ON users.role_id = roles.id").
-		Where("roles.name = ? AND users.deleted_at IS NULL", roleName).
-		Pluck("users.id", &userIDs).Error; err != nil {
-		return err
-	}
 
-	if len(userIDs) == 0 {
+// NotifyAdmins sends notifications to all system administrators
+func (s *NotificationService) NotifyAdmins(notifType models.NotificationType, title, message string, data interface{}) error {
+	adminIDs := getAdminUserIDs()
+	if len(adminIDs) == 0 {
 		return nil
 	}
-
-	return s.NotifyUsers(userIDs, notifType, title, message, data)
+	return s.NotifyUsers(adminIDs, notifType, title, message, data)
 }
 
-// NotifyByRoles sends notifications to all users with any of the specified roles
-func (s *NotificationService) NotifyByRoles(roleNames []string, notifType models.NotificationType, title, message string, data interface{}) error {
-	if len(roleNames) == 0 {
-		return nil
+// CheckAndNotifyLowStock checks if stock dropped below minimum and notifies if needed
+func (s *NotificationService) CheckAndNotifyLowStock(roomID uint, itemName string, oldQty, newQty, minQty int) {
+	if newQty > minQty {
+		return // Stock is still good
 	}
 
-	// Get all users with these roles
-	var userIDs []uint
-	if err := database.DB.Table("users").
-		Joins("JOIN roles ON users.role_id = roles.id").
-		Where("roles.name IN ? AND users.deleted_at IS NULL", roleNames).
-		Pluck("users.id", &userIDs).Error; err != nil {
-		log.Printf("[NotifyByRoles] Error: %v", err)
-		return err
+	// Only notify if we just crossed the threshold (was good, now low/out) OR was low, now out
+	justHitZero := oldQty > 0 && newQty == 0
+	justHitLow := oldQty > minQty && newQty <= minQty && newQty > 0
+
+	if !justHitZero && !justHitLow {
+		return // Already notified previously, don't spam
 	}
 
-	log.Printf("[NotifyByRoles] Found %d users with roles %v", len(userIDs), roleNames)
+	var notifType models.NotificationType
+	var title, message string
 
-	if len(userIDs) == 0 {
-		return nil
+	if justHitZero {
+		notifType = models.NotificationTypeOutOfStock
+		title = "Stok Habis"
+		message = fmt.Sprintf("Stok %s di ruangan Anda telah habis (Sisa: 0).", itemName)
+	} else if justHitLow {
+		notifType = models.NotificationTypeLowStock
+		title = "Peringatan Stok Menipis"
+		message = fmt.Sprintf("Stok %s di ruangan Anda sudah menipis (Sisa: %d).", itemName, newQty)
 	}
 
-	return s.NotifyUsers(userIDs, notifType, title, message, data)
+	data := map[string]interface{}{
+		"item_name": itemName,
+		"old_qty":   oldQty,
+		"new_qty":   newQty,
+		"min_qty":   minQty,
+	}
+
+	// Notify the room
+	go s.NotifyRoomUsers(roomID, notifType, title, message, data)
+	// And notify admins
+	go s.NotifyAdmins(notifType, title, message, data)
 }

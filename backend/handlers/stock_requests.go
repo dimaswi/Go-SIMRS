@@ -468,7 +468,7 @@ func UpdateStockRequest(c *gin.Context) {
 
 // SubmitStockRequest godoc
 // @Summary Submit a stock request for approval
-// @Description Submit a draft stock request for approval (draft → pending)
+// @Description Submit a draft stock request for approval (draft Ã¢â€ â€™ pending)
 // @Tags Stock Requests
 // @Accept json
 // @Produce json

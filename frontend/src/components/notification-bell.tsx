@@ -84,6 +84,22 @@ export function NotificationBell() {
             setOpen(false);
           }
           break;
+        case "stock_request_created":
+        case "stock_request_approved":
+        case "stock_request_rejected":
+        case "stock_request_completed":
+          if (data.stock_request_id) {
+            navigate(`/stock-requests/${data.stock_request_id}`);
+            setOpen(false);
+          }
+          break;
+        case "purchase_created":
+        case "purchase_received":
+          if (data.purchase_id) {
+            navigate(`/purchases/${data.purchase_id}`);
+            setOpen(false);
+          }
+          break;
         default:
           break;
       }
@@ -95,23 +111,41 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "visit_created":
-        return "🏥";
+        return "ðŸ¥";
       case "admission_request":
-        return "📋";
+        return "ðŸ“‹";
       case "admission_approved":
-        return "✅";
+        return "âœ…";
       case "admission_rejected":
-        return "❌";
+        return "âŒ";
       case "procedure_order":
-        return "🧪";
+        return "ðŸ§ª";
       case "medicine_order":
-        return "💊";
+        return "ðŸ’Š";
       case "bed_transfer":
-        return "🛏️";
+        return "ðŸ›ï¸";
       case "discharge":
         return "🚪";
+      case "stock_request_created":
+        return "📦";
+      case "stock_request_approved":
+        return "✅";
+      case "stock_request_rejected":
+        return "❌";
+      case "stock_request_completed":
+        return "📬";
+      case "low_stock":
+        return "⚠️";
+      case "out_of_stock":
+        return "⛔";
+      case "item_expiring":
+        return "⏳";
+      case "purchase_created":
+        return "🧾";
+      case "purchase_received":
+        return "📥";
       default:
-        return "🔔";
+        return "ðŸ””";
     }
   };
 

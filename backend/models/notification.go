@@ -18,8 +18,19 @@ const (
 	NotificationTypeProcedureOrder    NotificationType = "procedure_order"
 	NotificationTypeMedicineOrder     NotificationType = "medicine_order"
 	NotificationTypeBedTransfer       NotificationType = "bed_transfer"
-	NotificationTypeDischarge         NotificationType = "discharge"
+		NotificationTypeDischarge         NotificationType = "discharge"
 	NotificationTypeGeneral           NotificationType = "general"
+
+	// Logistic & Inventory Notification Types
+	NotificationTypeStockReqCreated   NotificationType = "stock_request_created"
+	NotificationTypeStockReqApproved  NotificationType = "stock_request_approved"
+	NotificationTypeStockReqRejected  NotificationType = "stock_request_rejected"
+	NotificationTypeStockReqCompleted NotificationType = "stock_request_completed"
+	NotificationTypeLowStock          NotificationType = "low_stock"
+	NotificationTypeOutOfStock        NotificationType = "out_of_stock"
+	NotificationTypeItemExpiring      NotificationType = "item_expiring"
+	NotificationTypePurchaseCreated   NotificationType = "purchase_created"
+	NotificationTypePurchaseReceived  NotificationType = "purchase_received"
 )
 
 // Notification represents a notification for a user

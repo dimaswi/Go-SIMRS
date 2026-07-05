@@ -185,6 +185,16 @@ func CreateVisitBHPUsage(c *gin.Context) {
 		return
 	}
 
+	if NotifService != nil {
+		NotifService.CheckAndNotifyLowStock(
+			visit.RoomID,
+			inventory.Name,
+			prevStock,
+			roomInventory.Quantity,
+			roomInventory.MinQuantity,
+		)
+	}
+
 	usage := models.VisitBHPUsage{
 		VisitID:     visit.ID,
 		RoomID:      visit.RoomID,
