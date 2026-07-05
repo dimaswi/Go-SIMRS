@@ -44,9 +44,9 @@ func main() {
 	}
 
 	// Run migrations
-	if err := database.Migrate(); err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
+	// if err := database.Migrate(); err != nil {
+	// 	log.Fatal("Failed to migrate database:", err)
+	// }
 
 	// Migrate E-Klaim Local tables (targeted migration)
 	if err := database.MigrateEKlaimLocal(); err != nil {
