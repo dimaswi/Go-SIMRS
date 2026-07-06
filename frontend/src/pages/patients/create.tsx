@@ -805,10 +805,12 @@ export default function PatientCreate() {
 
                       <div className="space-y-2">
                         <Label className="text-xs font-medium">Tanggal Lahir</Label>
-                        <DatePickerDropdown
-                          value={formData.tanggal_lahir}
-                          onChange={handleDOBChange}
-                          disableFuture
+                        <Input
+                          type="date"
+                          max={new Date().toISOString().split("T")[0]}
+                          value={formData.tanggal_lahir ? formData.tanggal_lahir.split("T")[0] : ""}
+                          onChange={(e) => handleDOBChange(e.target.value)}
+                          className="h-9 text-sm"
                           tabIndex={6}
                         />
                       </div>
