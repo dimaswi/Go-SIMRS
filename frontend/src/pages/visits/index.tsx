@@ -112,7 +112,7 @@ const getRoomQueueAnnouncementVersion = (queue: { id: number; called_at?: string
 const PHARMACY_REVIEW_REQUEST_EVENT = "pharmacy-review-request";
 
 
-// ── Tab definitions ─────────────────────────────────────────────────────────
+// â”€â”€ Tab definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface VisitTab {
   key: string;               // visit_type value(s) sent to API (comma-separated)
   label: string;             // displayed label
@@ -232,9 +232,9 @@ export default function VisitsIndex() {
   const { user } = useAuthStore();
   const isDoctor = (user?.employee?.tipe_karyawan?.toLowerCase() === "dokter" || user?.role?.name?.toLowerCase().includes("dokter")) ?? false;
 
-  // ── All visits (no visit_type filter) used for badge counts ──
+  // â”€â”€ All visits (no visit_type filter) used for badge counts â”€â”€
   const [allVisits, setAllVisits] = useState<Visit[]>([]);
-  // ── Filtered visits displayed in table ──
+  // â”€â”€ Filtered visits displayed in table â”€â”€
   const [visits, setVisits] = useState<Visit[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
 
@@ -712,7 +712,7 @@ export default function VisitsIndex() {
     cancellingId,
     hasCallPermission: hasPermission("room_queues.call"),
     hasAcceptPermission: hasPermission("visits.update"),
-    hasViewPermission: hasPermission("medical_records.view"),
+    hasViewPermission: hasPermission("medical_records.view") || hasPermission("pharmacy.dispense") || hasPermission("pharmacy.edit") || hasPermission("procedure_orders.perform"),
     hasCancelPermission: hasPermission("visits.delete"),
   });
 
