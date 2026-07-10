@@ -583,30 +583,15 @@ export function ProcedureForm({
                     <thead className="sticky top-0 bg-background z-10 border-b">
                       <tr>
                         <th className="py-2 px-3 text-left">Tindakan</th>
-                        <th className="py-2 px-3 w-24 text-left">Kode</th>
-                        <th className="py-2 px-3 w-24 text-left">Status</th>
                         <th className="py-2 px-3 w-16 text-left">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredProcedures.map((proc) => {
-                        const addedCount = procedureCounts[proc.id] || 0;
                         return (
                           <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
                             <td className="py-2 px-3">
                               <p className="font-medium text-sm truncate">{proc.name}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                {proc.has_parameters && <span>Memiliki parameter</span>}
-                                {proc.duration && <span>â€¢ {proc.duration} menit</span>}
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-xs text-muted-foreground">{proc.code}</td>
-                            <td className="py-2 px-3">
-                              {addedCount > 0 ? (
-                                <Badge variant="secondary" className="text-xs">{addedCount}x</Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">baru</span>
-                              )}
                             </td>
                             <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                               <Button
