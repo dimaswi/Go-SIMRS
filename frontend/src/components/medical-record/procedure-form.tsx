@@ -597,7 +597,7 @@ export function ProcedureForm({
                               <p className="font-medium text-sm truncate">{proc.name}</p>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                                 {proc.has_parameters && <span>Memiliki parameter</span>}
-                                {proc.duration && <span>• {proc.duration} menit</span>}
+                                {proc.duration && <span>â€¢ {proc.duration} menit</span>}
                               </div>
                             </td>
                             <td className="py-2 px-3 text-xs text-muted-foreground">{proc.code}</td>
@@ -711,7 +711,7 @@ export function ProcedureForm({
                                 <span>{vp.procedure?.code}</span>
                                 {vp.created_by && (
                                   <>
-                                    <span>•</span>
+                                    <span>â€¢</span>
                                     <span className="flex items-center gap-1" title="Dibuat oleh">
                                       <Plus className="h-3 w-3" />
                                       {vp.created_by.full_name}
@@ -720,7 +720,7 @@ export function ProcedureForm({
                                 )}
                                 {vp.filled_by && vp.filled_by.id !== vp.created_by?.id && (
                                   <>
-                                    <span>•</span>
+                                    <span>â€¢</span>
                                     <span className="flex items-center gap-1" title="Dikerjakan oleh">
                                       <User className="h-3 w-3" />
                                       {vp.filled_by.full_name}
@@ -729,7 +729,7 @@ export function ProcedureForm({
                                 )}
                                 {vp.performed_at && (
                                   <>
-                                    <span>•</span>
+                                    <span>â€¢</span>
                                     <span>{format(new Date(vp.performed_at), "dd MMM HH:mm", { locale: idLocale })}</span>
                                   </>
                                 )}
