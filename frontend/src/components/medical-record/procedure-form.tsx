@@ -492,12 +492,6 @@ export function ProcedureForm({
     return proc.name.toLowerCase().includes(q) || proc.code.toLowerCase().includes(q);
   });
 
-  // Count how many times each procedure has been added
-  const procedureCounts = visitProcedures.reduce((acc, vp) => {
-    acc[vp.procedure_id] = (acc[vp.procedure_id] || 0) + 1;
-    return acc;
-  }, {} as Record<number, number>);
-
   const scopedVisitProcedures = useMemo(() => {
     if (!procedureTypeFilter) return visitProcedures;
     return visitProcedures.filter((vp) => vp.procedure?.procedure_type === procedureTypeFilter);
