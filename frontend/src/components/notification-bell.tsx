@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, X, ExternalLink } from "lucide-react";
+import { Bell, Check, X, ExternalLink, Activity, FileText, Pill, LogOut, Package, CheckCheck, AlertTriangle, AlertOctagon, Clock, Receipt, Download, Hotel } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -110,42 +110,24 @@ export function NotificationBell() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "visit_created":
-        return "ðŸ¥";
-      case "admission_request":
-        return "ðŸ“‹";
-      case "admission_approved":
-        return "âœ…";
-      case "admission_rejected":
-        return "âŒ";
-      case "procedure_order":
-        return "ðŸ§ª";
-      case "medicine_order":
-        return "ðŸ’Š";
-      case "bed_transfer":
-        return "ðŸ›ï¸";
-      case "discharge":
-        return "🚪";
-      case "stock_request_created":
-        return "📦";
-      case "stock_request_approved":
-        return "✅";
-      case "stock_request_rejected":
-        return "❌";
-      case "stock_request_completed":
-        return "📬";
-      case "low_stock":
-        return "⚠️";
-      case "out_of_stock":
-        return "⛔";
-      case "item_expiring":
-        return "⏳";
-      case "purchase_created":
-        return "🧾";
-      case "purchase_received":
-        return "📥";
-      default:
-        return "ðŸ””";
+      case "visit_created": return <Activity className="h-5 w-5 text-blue-500" />;
+      case "admission_request": return <FileText className="h-5 w-5 text-amber-500" />;
+      case "admission_approved": return <Check className="h-5 w-5 text-emerald-500" />;
+      case "admission_rejected": return <X className="h-5 w-5 text-red-500" />;
+      case "procedure_order": return <Activity className="h-5 w-5 text-purple-500" />;
+      case "medicine_order": return <Pill className="h-5 w-5 text-green-500" />;
+      case "bed_transfer": return <Hotel className="h-5 w-5 text-indigo-500" />;
+      case "discharge": return <LogOut className="h-5 w-5 text-slate-500" />;
+      case "stock_request_created": return <Package className="h-5 w-5 text-blue-500" />;
+      case "stock_request_approved": return <Check className="h-5 w-5 text-emerald-500" />;
+      case "stock_request_rejected": return <X className="h-5 w-5 text-red-500" />;
+      case "stock_request_completed": return <CheckCheck className="h-5 w-5 text-emerald-600" />;
+      case "low_stock": return <AlertTriangle className="h-5 w-5 text-amber-500" />;
+      case "out_of_stock": return <AlertOctagon className="h-5 w-5 text-red-500" />;
+      case "item_expiring": return <Clock className="h-5 w-5 text-orange-500" />;
+      case "purchase_created": return <Receipt className="h-5 w-5 text-blue-500" />;
+      case "purchase_received": return <Download className="h-5 w-5 text-emerald-500" />;
+      default: return <Bell className="h-5 w-5 text-slate-500" />;
     }
   };
 
@@ -203,7 +185,7 @@ export function NotificationBell() {
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex gap-3">
-                    <span className="text-lg flex-shrink-0">
+                    <span className="flex-shrink-0 mt-0.5">
                       {getNotificationIcon(notification.type)}
                     </span>
                     <div className="flex-1 min-w-0">
