@@ -14,6 +14,20 @@ import (
 
 // ==================== Room Handlers ====================
 
+// GetPharmacyRooms returns active pharmacy rooms without requiring rooms.view permission
+func GetPharmacyRooms(c *gin.Context) {
+	var rooms []models.Room
+
+	if err := database.DB.Where("is_active = ? AND service_type = ? AND room_type != ?", true, "farmasi", "depo_farmasi").
+		Order("name ASC").Find(&rooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch pharmacy rooms"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rooms})
+}
+
+
 // GetRooms returns all rooms with pagination and filtering
 func GetRooms(c *gin.Context) {
 	var rooms []models.Room

@@ -209,6 +209,20 @@ export function ItemPickerDialog({
     overscan: 8,
   });
 
+  // Fix for virtualizer not rendering initially in animated Dialog
+  const [, setForceRender] = useState(0);
+  useEffect(() => {
+    if (open) {
+      // Force a re-render after dialog animation completes
+      const timer1 = setTimeout(() => setForceRender(1), 50);
+      const timer2 = setTimeout(() => setForceRender(2), 200);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [open]);
+
   const toggleItem = useCallback((item: SelectableItem) => {
     const key = `${item.type}_${item.id}`;
     setTempSelected((prev) => {

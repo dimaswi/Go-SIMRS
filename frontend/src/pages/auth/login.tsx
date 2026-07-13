@@ -312,10 +312,29 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = (account: SavedAuthAccount) => {
-    login(account.token, account.user);
-    touchSavedAccount(account.key);
-    navigate('/dashboard');
+  const handleQuickLogin = async (account: SavedAuthAccount) => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Temporary set token to test
+      localStorage.setItem('token', account.token);
+      
+      // Verify token validity
+      await authApi.getProfile();
+      
+      login(account.token, account.user);
+      touchSavedAccount(account.key);
+      navigate('/dashboard');
+    } catch (err: any) {
+      localStorage.removeItem('token');
+      setError('Sesi telah berakhir atau tidak valid. Silakan login kembali.');
+      // Optional: remove invalid account automatically
+      // removeSavedAccount(account.key);
+      // refreshSavedAccounts();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRemoveSavedAccount = (e: React.MouseEvent, accountKey: string) => {

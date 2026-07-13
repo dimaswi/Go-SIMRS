@@ -11,6 +11,9 @@ func setupRoomRoutes(rg *gin.RouterGroup) {
 	// My assigned rooms (must be before :id route)
 	rg.GET("/rooms/my-assigned", middleware.AuthMiddleware(), handlers.GetMyAssignedRooms)
 
+	// Public lookup endpoints
+	rg.GET("/rooms/pharmacy", middleware.AuthMiddleware(), handlers.GetPharmacyRooms)
+
 	// Rooms (Ruangan/Bangsal)
 	rg.GET("/rooms", middleware.RequirePermission("rooms.view"), handlers.GetRooms)
 	rg.GET("/rooms/:id", middleware.RequirePermission("rooms.view"), handlers.GetRoom)

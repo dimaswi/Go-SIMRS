@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"starter/backend/database"
 	"starter/backend/models"
@@ -752,7 +753,7 @@ func SubmitProcedureResults(c *gin.Context) {
 		order.StartedAt = &now
 	}
 
-	if err := tx.Save(&order).Error; err != nil {
+	if err := tx.Omit(clause.Associations).Save(&order).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -998,7 +999,10 @@ func SaveItemResults(c *gin.Context) {
 		}
 	}
 
-	if err := tx.Save(&order).Error; err != nil {
+	if err := tx.Model(&order).Select(
+		"ResultSummary", "Conclusion", "Suggestion", "IsCritical", "CriticalNotes",
+		"Status", "PerformedByID", "StartedAt",
+	).Updates(order).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1158,7 +1162,9 @@ func CompleteProcedureOrder(c *gin.Context) {
 		order.StartedAt = &now
 	}
 
-	if err := tx.Save(&order).Error; err != nil {
+	if err := tx.Model(&order).Select(
+		"Status", "CompletedAt", "PerformedByID", "StartedAt",
+	).Updates(order).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

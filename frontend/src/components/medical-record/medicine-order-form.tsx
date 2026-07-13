@@ -517,10 +517,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   ].map((o) => ({ value: o, label: o }));
 
   // Only pharmacy rooms with service_type 'farmasi' (exclude depo_farmasi)
-  const isPharmacyRoom = (room: any) =>
-    room.service_type === 'farmasi' &&
-    room.room_type !== 'depo_farmasi' &&
-    room.is_active;
+  // const isPharmacyRoom = (room: any) =>
+  //   room.service_type === 'farmasi' &&
+  //   room.room_type !== 'depo_farmasi' &&
+  //   room.is_active;
 
   useEffect(() => {
     loadData();
@@ -559,10 +559,9 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       const updatedOrdersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
       setExistingOrders(updatedOrdersRes.data || []);
 
-      // Load pharmacy rooms - use high limit to get all rooms
-      const roomsRes = await roomsApi.getAll({ limit: 1000, is_active: 'true' });
-      const allRooms = roomsRes.data?.data || [];
-      const pharmRooms = allRooms.filter(isPharmacyRoom);
+      // Load pharmacy rooms
+      const roomsRes = await roomsApi.getPharmacyRooms();
+      const pharmRooms = roomsRes.data?.data || [];
       setPharmacyRooms(pharmRooms);
 
       // Load private doctor templates (optionally scoped by DPJP of this visit)
@@ -2288,15 +2287,15 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                     setEditingItemDraft((prev) =>
                                       prev
                                         ? {
-                                            ...prev,
-                                            medicine_id: nextMedicine.medicine.id,
-                                            medicine_name: nextMedicine.medicine.name,
-                                            medicine_code: nextMedicine.medicine.code,
-                                            unit: nextMedicine.medicine.unit,
-                                            available_stock: nextMedicine.quantity,
-                                            unit_price: nextUnitPrice,
-                                            quantity: Math.min(prev.quantity, Math.max(1, nextMedicine.quantity)),
-                                          }
+                                          ...prev,
+                                          medicine_id: nextMedicine.medicine.id,
+                                          medicine_name: nextMedicine.medicine.name,
+                                          medicine_code: nextMedicine.medicine.code,
+                                          unit: nextMedicine.medicine.unit,
+                                          available_stock: nextMedicine.quantity,
+                                          unit_price: nextUnitPrice,
+                                          quantity: Math.min(prev.quantity, Math.max(1, nextMedicine.quantity)),
+                                        }
                                         : prev,
                                     );
                                   }}

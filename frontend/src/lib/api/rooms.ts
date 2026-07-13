@@ -304,6 +304,10 @@ export const roomsApi = {
     return api.get<RoomListResponse>(`/rooms${queryString ? `?${queryString}` : ''}`);
   },
 
+  getPharmacyRooms: () =>
+    api.get<{ data: Room[] }>('/rooms/pharmacy'),
+
+
   // Get rooms assigned to current user (via RoomStaff)
   getMyAssignedRooms: (params?: { service_type?: string; room_type?: string }) => {
     const searchParams = new URLSearchParams();
