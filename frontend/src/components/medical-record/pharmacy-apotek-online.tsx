@@ -1088,19 +1088,19 @@ export function PharmacyApotekOnline({
             <div className="grid grid-cols-4 gap-3">
               <div>
                 <Label className="text-xs">Signa 1</Label>
-                <Input type="number" value={kirimForm.SIGNA1OBT || ""} onChange={e => setKirimForm({ ...kirimForm, SIGNA1OBT: e.target.value })} className="h-8 text-xs" />
+                <Input type="number" value={kirimForm.SIGNA1OBT ?? ""} onChange={e => setKirimForm({ ...kirimForm, SIGNA1OBT: e.target.value })} className="h-8 text-xs" />
               </div>
               <div>
                 <Label className="text-xs">Signa 2</Label>
-                <Input type="number" value={kirimForm.SIGNA2OBT || ""} onChange={e => setKirimForm({ ...kirimForm, SIGNA2OBT: e.target.value })} className="h-8 text-xs" />
+                <Input type="number" value={kirimForm.SIGNA2OBT ?? ""} onChange={e => setKirimForm({ ...kirimForm, SIGNA2OBT: e.target.value })} className="h-8 text-xs" />
               </div>
               <div>
                 <Label className="text-xs">Jumlah</Label>
-                <Input type="number" value={kirimForm.JMLOBT || ""} onChange={e => setKirimForm({ ...kirimForm, JMLOBT: e.target.value })} className="h-8 text-xs" />
+                <Input type="number" value={kirimForm.JMLOBT ?? ""} onChange={e => setKirimForm({ ...kirimForm, JMLOBT: e.target.value })} className="h-8 text-xs" />
               </div>
               <div>
                 <Label className="text-xs">Hari</Label>
-                <Input type="number" value={kirimForm.JHO || ""} onChange={e => setKirimForm({ ...kirimForm, JHO: e.target.value })} className="h-8 text-xs" />
+                <Input type="number" value={kirimForm.JHO ?? ""} onChange={e => setKirimForm({ ...kirimForm, JHO: e.target.value })} className="h-8 text-xs" />
               </div>
             </div>
 
@@ -1112,7 +1112,7 @@ export function PharmacyApotekOnline({
                 </div>
                 <div>
                   <Label className="text-xs">Permintaan</Label>
-                  <Input type="number" value={kirimForm.PERMINTAAN || ""} onChange={e => setKirimForm({ ...kirimForm, PERMINTAAN: e.target.value })} className="h-8 text-xs" />
+                  <Input type="number" value={kirimForm.PERMINTAAN ?? ""} onChange={e => setKirimForm({ ...kirimForm, PERMINTAAN: e.target.value })} className="h-8 text-xs" />
                 </div>
               </div>
             )}
@@ -1125,7 +1125,7 @@ export function PharmacyApotekOnline({
             <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded">
               <Label className="text-xs font-semibold text-amber-800 dark:text-amber-500">Update Stok BPJS</Label>
               <p className="text-[10px] text-amber-700/80 dark:text-amber-600/80 mb-2">Setelah kirim obat, stok di DPHO akan diperbarui. Masukkan SISA STOK obat saat ini.</p>
-              <Input type="number" value={kirimForm.SISA_STOK || ""} onChange={e => setKirimForm({ ...kirimForm, SISA_STOK: e.target.value })} className="h-8 text-xs font-mono" placeholder="Jumlah Sisa Stok" />
+              <Input type="number" value={kirimForm.SISA_STOK ?? ""} onChange={e => setKirimForm({ ...kirimForm, SISA_STOK: e.target.value })} className="h-8 text-xs font-mono" placeholder="Jumlah Sisa Stok" />
             </div>
 
             <div className="pt-2 flex justify-end gap-2">

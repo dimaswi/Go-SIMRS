@@ -62,11 +62,7 @@ import { ObservationReportDrawer } from "@/components/medical-record/observation
 import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
 import type { MedicalRecordSummary } from "@/lib/api/medical-records";
 
-const isMeaningfulAllergySummary = (value?: string) => {
-  const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return false;
-  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
-};
+
 
 const ORDER_TAB_IDS = new Set([
   "medicine-order",
@@ -695,7 +691,7 @@ export default function VisitShow() {
           a.current_medications,
         ];
         const filledText = textFields.filter(v => v && v.trim() !== "").length;
-        const hasLegacyAllergy = isMeaningfulAllergySummary(a.allergies);
+
 
         let hasStructuredAllergy = false;
         if (preloadPatientId) {
@@ -707,8 +703,8 @@ export default function VisitShow() {
           }
         }
 
-        const hasAllergy = hasLegacyAllergy || hasStructuredAllergy;
-        const filled = filledText + (hasAllergy ? 1 : 0);
+        const isAllergyFilled = (a.allergies && a.allergies.trim() !== "") || hasStructuredAllergy;
+        const filled = filledText + (isAllergyFilled ? 1 : 0);
         emitMedicalRecordTabIndicator("anamnesis", `${filled}/9`);
         emitMedicalRecordTabSaved("anamnesis", !!a.id && filled > 0);
       } else {
@@ -720,7 +716,7 @@ export default function VisitShow() {
       // even before user opens the tab.
       if (summary.physical_exam) {
         const p = summary.physical_exam;
-        const pExtras = p as unknown as { pain_scale?: unknown; pain_location?: unknown };
+        const pExtras = p as unknown as { pain_scale?: unknown; pain_location?: unknown; pain_method?: unknown };
         const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
         const hasText = (v: unknown) => typeof v === "string" && v.trim() !== "";
         const hasPositiveNumber = (v: unknown) => {
@@ -731,6 +727,7 @@ export default function VisitShow() {
           const val = p[id as keyof typeof p];
           return hasText(val);
         }).length;
+        const isNoPain = pExtras.pain_location === "Tidak ada nyeri";
         const filledVitals = [
           hasText(p.general_condition) ? 1 : 0,
           hasText(p.consciousness) ? 1 : 0,
@@ -740,17 +737,19 @@ export default function VisitShow() {
           hasPositiveNumber(p.respiratory_rate) ? 1 : 0,
           hasPositiveNumber(p.temperature) ? 1 : 0,
           hasPositiveNumber(p.oxygen_saturation) ? 1 : 0,
-          hasPositiveNumber(pExtras.pain_scale) ? 1 : 0,
-          hasText(pExtras.pain_location) ? 1 : 0,
           hasText(p.upper_arm_circum) ? 1 : 0,
           hasText(p.head_circum) ? 1 : 0,
           hasText(p.waist) ? 1 : 0,
-        ].reduce((a, b) => a + b, 0);
+        ].reduce((a, b) => a + b, 0) + (isNoPain ? 3 : (
+          (hasText(pExtras.pain_method) ? 1 : 0) +
+          (hasPositiveNumber(pExtras.pain_scale) ? 1 : 0) +
+          (hasText(pExtras.pain_location) ? 1 : 0)
+        ));
         const totalFilled = filledBody + filledVitals;
-        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/26`);
+        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/27`);
         emitMedicalRecordTabSaved("physical-exam", !!p.id && totalFilled > 0);
       } else {
-        emitMedicalRecordTabIndicator("physical-exam", "0/26");
+        emitMedicalRecordTabIndicator("physical-exam", "0/27");
       }
 
       // Diagnosis: count items + item-level differential diagnoses + legacy global differential diagnosis
@@ -1391,10 +1390,7 @@ export default function VisitShow() {
         }
         return <BHPUsageForm key={`bhp-usage-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
-        // CPPT for inpatient and emergency visits
-        if (!allowsInpatientOrEmergencyCare) {
-          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
-        }
+        // CPPT for all visit types
         if (!hasPermission("medical_records.cppt")) {
           return (
             <Card className="p-6">
@@ -1406,10 +1402,7 @@ export default function VisitShow() {
         }
         return <CPPTForm key={`cppt-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "nursing-care":
-        // Nursing care for inpatient and emergency visits
-        if (!allowsInpatientOrEmergencyCare) {
-          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
-        }
+        // Nursing care for all visit types
         if (!hasPermission("medical_records.nursing_care")) {
           return (
             <Card className="p-6">
@@ -1440,10 +1433,7 @@ export default function VisitShow() {
         }
         return <O2UsageForm key={`o2-usage-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
-        // Fluid balance for inpatient and emergency visits
-        if (!allowsInpatientOrEmergencyCare) {
-          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
-        }
+        // Fluid balance for all visit types
         if (!hasPermission("medical_records.fluid_balance")) {
           return (
             <Card className="p-6">

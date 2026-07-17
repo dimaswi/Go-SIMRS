@@ -1292,6 +1292,14 @@ func RecalculateProcedureOrderStatus(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		// Also update target visit if the order is cancelled
+		if newStatus == models.ProcedureOrderStatusCancelled && order.TargetVisitID != nil && !order.IsCasemix {
+			database.DB.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
+				Update("status", models.VisitStatusCancelled)
+			database.DB.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
+				Update("status", models.RoomQueueStatusCancelled)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -249,7 +249,7 @@ func printBersalinRecordImpl(c *gin.Context, isRMDup bool) {
 			pdf.Ln(4)
 			addTableHeader(pdf, "LAPORAN TINDAKAN PERSALINAN")
 			pdf.SetFont("Arial", "", 9)
-			pdf.SetDrawColor(0, 0, 0)
+			pdf.SetDrawColor(100, 100, 100)
 			pdf.MultiCell(190, 5, ket, "1", "L", false)
 		}
 	}
@@ -332,6 +332,107 @@ func printBersalinRecordImpl(c *gin.Context, isRMDup bool) {
 	addTableRow(pdf, "Berat / Panjang", safeString(bbpb), 45)
 	addTableRow(pdf, "APGAR Score", safeString(apgar), 45)
 	addTableRow(pdf, "Cacat Bawaan", safeString(cacat), 45)
+	
+	addTableEnd(pdf)
+
+	// G. ANALISA DAN RENCANA ASUHAN
+	checkPageBreak(pdf, 20)
+	addTableHeader(pdf, "G. ANALISA DAN RENCANA ASUHAN")
+
+	var rencana map[string]interface{}
+	if len(bersalin.RencanaAsuhanJSON) > 0 {
+		json.Unmarshal(bersalin.RencanaAsuhanJSON, &rencana)
+	}
+
+	masalah := ""
+	if m, ok := rencana["masalah_kebidanan"]; ok && m != nil {
+		if mArr, isArr := m.([]interface{}); isArr {
+			var strArr []string
+			for i, v := range mArr {
+				strArr = append(strArr, fmt.Sprintf("%d. %v", i+1, v))
+			}
+			masalah = strings.Join(strArr, "\n")
+		} else if mStr, isStr := m.(string); isStr {
+			masalah = mStr
+		}
+	}
+	
+	diagnosa := ""
+	if d, ok := rencana["diagnosa_kebidanan"]; ok && d != nil {
+		if dArr, isArr := d.([]interface{}); isArr {
+			var strArr []string
+			for i, v := range dArr {
+				strArr = append(strArr, fmt.Sprintf("%d. %v", i+1, v))
+			}
+			diagnosa = strings.Join(strArr, "\n")
+		} else if dStr, isStr := d.(string); isStr {
+			diagnosa = dStr
+		}
+	}
+	
+	addTableRow(pdf, "Masalah Kebidanan", safeString(masalah), 45)
+	addTableRow(pdf, "Diagnosa Kebidanan", safeString(diagnosa), 45)
+	
+	var penunjang []string
+	if performed, _ := rencana["lab_performed"].(bool); performed {
+		res, _ := rencana["lab_result"].(string)
+		if res == "" { 
+			rStr, _ := rencana["lab"].(string)
+			res = safeString(rStr) 
+		}
+		interp, _ := rencana["lab_interpretation"].(string)
+		text := "Lab: " + res
+		if interp != "" { text += " (Int: " + interp + ")" }
+		penunjang = append(penunjang, text)
+	} else if l, ok := rencana["lab"].(string); ok && l != "" {
+		penunjang = append(penunjang, "Lab: "+l)
+	}
+
+	if performed, _ := rencana["rontgen_performed"].(bool); performed {
+		res, _ := rencana["rontgen_result"].(string)
+		if res == "" { 
+			rStr, _ := rencana["rontgen"].(string)
+			res = safeString(rStr) 
+		}
+		interp, _ := rencana["rontgen_interpretation"].(string)
+		text := "Rontgen: " + res
+		if interp != "" { text += " (Int: " + interp + ")" }
+		penunjang = append(penunjang, text)
+	} else if r, ok := rencana["rontgen"].(string); ok && r != "" {
+		penunjang = append(penunjang, "Rontgen: "+r)
+	}
+
+	if performed, _ := rencana["ecg_performed"].(bool); performed {
+		res, _ := rencana["ecg_result"].(string)
+		if res == "" { 
+			rStr, _ := rencana["ecg"].(string)
+			res = safeString(rStr) 
+		}
+		interp, _ := rencana["ecg_interpretation"].(string)
+		text := "ECG: " + res
+		if interp != "" { text += " (Int: " + interp + ")" }
+		penunjang = append(penunjang, text)
+	} else if e, ok := rencana["ecg"].(string); ok && e != "" {
+		penunjang = append(penunjang, "ECG: "+e)
+	}
+
+	if performed, _ := rencana["lainnya_performed"].(bool); performed {
+		res, _ := rencana["lainnya_result"].(string)
+		if res == "" { 
+			rStr, _ := rencana["penunjang_lain"].(string)
+			res = safeString(rStr) 
+		}
+		interp, _ := rencana["lainnya_interpretation"].(string)
+		text := "Lainnya: " + res
+		if interp != "" { text += " (Int: " + interp + ")" }
+		penunjang = append(penunjang, text)
+	} else if lain, ok := rencana["penunjang_lainnya"].(string); ok && lain != "" {
+		penunjang = append(penunjang, "Lainnya: "+lain)
+	}
+
+	if len(penunjang) > 0 {
+		addTableRow(pdf, "Pemeriksaan Penunjang", safeString(strings.Join(penunjang, "\n")), 45)
+	}
 	
 	addTableEnd(pdf)
 

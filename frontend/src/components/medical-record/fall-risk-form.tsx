@@ -31,6 +31,74 @@ interface FallRiskFormProps {
   useExternalData?: boolean;
 }
 
+const humptyDumptyParameters = [
+  {
+    id: "hd_umur",
+    label: "1. Umur",
+    options: [
+      { value: "4", label: "< 3 tahun", score: 4 },
+      { value: "3", label: "3 - < 7 tahun", score: 3 },
+      { value: "2", label: "7 - < 13 tahun", score: 2 },
+      { value: "1", label: "≥ 13 tahun", score: 1 },
+    ],
+  },
+  {
+    id: "hd_jenis_kelamin",
+    label: "2. Jenis Kelamin",
+    options: [
+      { value: "2", label: "Laki-laki", score: 2 },
+      { value: "1", label: "Perempuan", score: 1 },
+    ],
+  },
+  {
+    id: "hd_diagnosis",
+    label: "3. Diagnosis",
+    options: [
+      { value: "4", label: "Diagnosis Neurologis", score: 4 },
+      { value: "3", label: "Perubahan Oksigenasi (Diagnosis Respiratorik, Dehidrasi, dll)", score: 3 },
+      { value: "2", label: "Gangguan Psikiatrik / Perilaku", score: 2 },
+      { value: "1", label: "Diagnosis Lainnya", score: 1 },
+    ],
+  },
+  {
+    id: "hd_gangguan_kognitif",
+    label: "4. Gangguan Kognitif",
+    options: [
+      { value: "3", label: "Tidak menyadari keterbatasan dirinya", score: 3 },
+      { value: "2", label: "Lupa akan keterbatasan dirinya", score: 2 },
+      { value: "1", label: "Sadar akan kemampuan dirinya", score: 1 },
+    ],
+  },
+  {
+    id: "hd_faktor_lingkungan",
+    label: "5. Faktor Lingkungan",
+    options: [
+      { value: "4", label: "Riwayat jatuh / bayi-balita di tempat tidur dewasa", score: 4 },
+      { value: "3", label: "Pasien menggunakan alat bantu / bayi-balita dalam boks bayi", score: 3 },
+      { value: "2", label: "Pasien ditempatkan di tempat tidur", score: 2 },
+      { value: "1", label: "Area di luar rumah sakit / Rawat Jalan", score: 1 },
+    ],
+  },
+  {
+    id: "hd_respon_operasi",
+    label: "6. Respon Pembedahan / Sedasi / Anestesi",
+    options: [
+      { value: "3", label: "Dalam 24 jam", score: 3 },
+      { value: "2", label: "Dalam 48 jam", score: 2 },
+      { value: "1", label: "> 48 jam / Tidak ada", score: 1 },
+    ],
+  },
+  {
+    id: "hd_penggunaan_obat",
+    label: "7. Penggunaan Obat",
+    options: [
+      { value: "3", label: "Penggunaan obat sedatif/hipnotik/antidepresan/dll", score: 3 },
+      { value: "2", label: "Salah satu dari obat di atas", score: 2 },
+      { value: "1", label: "Obat lainnya / Tidak ada obat", score: 1 },
+    ],
+  },
+];
+
 const morseScaleParameters = [
   {
     id: "riwayat_jatuh",
@@ -90,6 +158,11 @@ const getMorseRiskLevel = (score: number) => {
   return { level: "Rendah", color: "text-green-600", bg: "bg-green-100", border: "border-green-200" };
 };
 
+const getHumptyRiskLevel = (score: number) => {
+  if (score >= 12) return { level: "Tinggi", color: "text-red-600", bg: "bg-red-100", border: "border-red-200" };
+  return { level: "Rendah", color: "text-green-600", bg: "bg-green-100", border: "border-green-200" };
+};
+
 const defaultInterventions = {
   Rendah: [
     "Edukasi pasien dan keluarga",
@@ -113,9 +186,28 @@ const defaultInterventions = {
   ]
 };
 
+const defaultInterventionsHumpty = {
+  Rendah: [
+    "Edukasi orang tua / keluarga pencegahan jatuh",
+    "Pastikan tempat tidur pada posisi paling rendah",
+    "Pagar tempat tidur selalu terpasang",
+    "Roda tempat tidur / boks bayi terkunci",
+    "Bel panggilan dalam jangkauan"
+  ],
+  Tinggi: [
+    "Lakukan intervensi risiko rendah",
+    "Pasang pita/stiker kuning risiko jatuh (anak)",
+    "Pasang tanda peringatan risiko jatuh di tempat tidur",
+    "Observasi / patroli oleh perawat lebih sering",
+    "Edukasi intensif orang tua agar anak selalu didampingi"
+  ]
+};
+
 function FallRiskCollapsibleRow({ record, onDelete }: { record: FallRiskAssessment; onDelete: (id: number) => void; }) {
   const [isOpen, setIsOpen] = useState(false);
-  const levelInfo = getMorseRiskLevel(record.total_score);
+  const isHumpty = record.scale_type === "humpty_dumpty";
+  const levelInfo = isHumpty ? getHumptyRiskLevel(record.total_score) : getMorseRiskLevel(record.total_score);
+  const activeParams = isHumpty ? humptyDumptyParameters : morseScaleParameters;
 
   let itemsRecord: Record<string, number> = {};
   try { itemsRecord = JSON.parse(record.items_json); } catch (e) { }
@@ -135,7 +227,7 @@ function FallRiskCollapsibleRow({ record, onDelete }: { record: FallRiskAssessme
             {format(new Date(record.record_date), "dd/MM/yyyy HH:mm")}
           </div>
           <div className="col-span-2 text-xs truncate">
-            {record.scale_type === "morse" ? "Morse (Dewasa)" : record.scale_type}
+            {record.scale_type === "morse" ? "Morse (Dewasa)" : record.scale_type === "humpty_dumpty" ? "Humpty Dumpty (Anak)" : record.scale_type}
           </div>
           <div className="col-span-2 text-xs">
             Skor: <span className="font-semibold">{record.total_score}</span>
@@ -163,7 +255,7 @@ function FallRiskCollapsibleRow({ record, onDelete }: { record: FallRiskAssessme
             <div>
               <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">Detail Parameter</h4>
               <div className="space-y-1.5">
-                {morseScaleParameters.map(param => {
+                {activeParams.map(param => {
                   const score = itemsRecord[param.id];
                   if (score === undefined) return null;
                   const optionLabel = param.options.find(o => o.score === score)?.label || "-";
@@ -227,7 +319,10 @@ export function FallRiskForm({ visitId, externalData, useExternalData = false }:
   const [notes, setNotes] = useState("");
 
   const totalScore = Object.values(items).reduce((sum, score) => sum + score, 0);
-  const riskInfo = getMorseRiskLevel(totalScore);
+  const isHumpty = scaleType === "humpty_dumpty";
+  const riskInfo = isHumpty ? getHumptyRiskLevel(totalScore) : getMorseRiskLevel(totalScore);
+  const activeParams = isHumpty ? humptyDumptyParameters : morseScaleParameters;
+  const activeInterventions = isHumpty ? defaultInterventionsHumpty : defaultInterventions;
 
   const fetchAssessments = async () => {
     if (useExternalData) {
@@ -408,6 +503,7 @@ export function FallRiskForm({ visitId, externalData, useExternalData = false }:
                     </SelectTrigger>
                     <SelectContent className="rounded-none">
                       <SelectItem value="morse" className="text-xs">Morse Fall Scale (Dewasa)</SelectItem>
+                      <SelectItem value="humpty_dumpty" className="text-xs">Humpty Dumpty Scale (Anak)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -428,7 +524,7 @@ export function FallRiskForm({ visitId, externalData, useExternalData = false }:
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1 overflow-y-auto min-h-0 pr-1">
-                {morseScaleParameters.map((param) => (
+                {activeParams.map((param) => (
                   <div key={param.id} className="border border-border/70 bg-background flex flex-col hover:border-border transition-colors">
                     <div className="bg-muted/10 border-b border-border/70 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate" title={param.label}>
                       {param.label}
@@ -443,8 +539,13 @@ export function FallRiskForm({ visitId, externalData, useExternalData = false }:
                               setItems((prev) => {
                                 const next = { ...prev, [param.id]: opt.score };
                                 const newTotal = Object.values(next).reduce((sum, s) => sum + s, 0);
-                                const newLevel = getMorseRiskLevel(newTotal).level as keyof typeof defaultInterventions;
-                                setSelectedInterventions([...defaultInterventions[newLevel]]);
+                                if (isHumpty) {
+                                  const newLevel = getHumptyRiskLevel(newTotal).level as keyof typeof defaultInterventionsHumpty;
+                                  setSelectedInterventions([...defaultInterventionsHumpty[newLevel]]);
+                                } else {
+                                  const newLevel = getMorseRiskLevel(newTotal).level as keyof typeof defaultInterventions;
+                                  setSelectedInterventions([...defaultInterventions[newLevel]]);
+                                }
                                 return next;
                               });
                             }}
@@ -493,7 +594,7 @@ export function FallRiskForm({ visitId, externalData, useExternalData = false }:
                 </CardHeader>
                 <CardContent className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {(defaultInterventions[(riskInfo.level || "Rendah") as keyof typeof defaultInterventions]).map((intervention, idx) => {
+                    {((activeInterventions as any)[riskInfo.level || "Rendah"]).map((intervention: string, idx: number) => {
                       const isChecked = selectedInterventions.includes(intervention);
                       return (
                         <label

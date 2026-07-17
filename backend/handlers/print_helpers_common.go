@@ -2,11 +2,18 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
+	"strconv"
 	"starter/backend/database"
 	"starter/backend/models"
 
 	"gorm.io/gorm"
 )
+
+// formatFloatNoExponent converts a float to a string without trailing zeros and without scientific notation
+func formatFloatNoExponent(val float64) string {
+	return strconv.FormatFloat(val, 'f', -1, 64)
+}
 
 func numberToWords(n int) string {
 	words := []string{"", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh"}
@@ -40,6 +47,53 @@ func formatNumber(num float64) string {
 		result = append(result, byte(c))
 	}
 	return string(result)
+}
+
+// formatNumericString adds thousand separators (dot) to a string containing numbers, 
+// leaving decimals and non-numeric characters intact.
+func formatNumericString(s string) string {
+	// Simple approach: split by space, format each part if it looks like a number
+	// More complex: use regex to find numbers and format them
+	var result strings.Builder
+	var currentNum string
+
+	formatIntPart := func(numStr string) string {
+		n := len(numStr)
+		if n <= 3 {
+			return numStr
+		}
+		var res []byte
+		for i, c := range numStr {
+			if i > 0 && (n-i)%3 == 0 {
+				res = append(res, '.')
+			}
+			res = append(res, byte(c))
+		}
+		return string(res)
+	}
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			currentNum += string(c)
+		} else {
+			if currentNum != "" {
+				result.WriteString(formatIntPart(currentNum))
+				currentNum = ""
+			}
+			// If it's a decimal dot between two digits, convert to Indonesian decimal comma
+			if c == '.' && i > 0 && i < len(s)-1 && s[i-1] >= '0' && s[i-1] <= '9' && s[i+1] >= '0' && s[i+1] <= '9' {
+				result.WriteByte(',')
+			} else {
+				result.WriteByte(c)
+			}
+		}
+	}
+	if currentNum != "" {
+		result.WriteString(formatIntPart(currentNum))
+	}
+
+	return result.String()
 }
 
 func loadRMOrderWithPatient(rmOrderID string) (*models.EKlaimRMOrder, *models.Patient, *models.Visit, error) {

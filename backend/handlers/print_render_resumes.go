@@ -1135,7 +1135,7 @@ func printInpatientResumeImpl(c *gin.Context) {
 		if anamnesisAllergies != "" {
 			pdf.SetFont("Arial", "B", 9)
 			pdf.SetTextColor(220, 53, 69)
-			pdf.SetDrawColor(0, 0, 0)
+			pdf.SetDrawColor(100, 100, 100)
 			pdf.CellFormat(40, rowHeight, " Alergi", "LB", 0, "L", false, 0, "")
 			pdf.CellFormat(contentWidth-40, rowHeight, anamnesisAllergies, "RB", 1, "L", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)

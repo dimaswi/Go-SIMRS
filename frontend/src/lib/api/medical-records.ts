@@ -6,6 +6,7 @@ export interface Triage {
   visit_id: number;
   triage_level?: string;
   arrival_mode?: string;
+  rujukan_dari?: string;
   triage_complaint?: string;
   // ABC Assessment
   airway?: string;

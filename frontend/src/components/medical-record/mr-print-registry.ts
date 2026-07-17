@@ -57,6 +57,12 @@ interface MRMeta {
   category: string;
 }
 
+const mr51: MRMeta = {
+  code: "MR.51",
+  title: "Surat-Surat & Keterangan",
+  category: "Lainnya",
+};
+
 type MRBuilder = (ctx: MRPrintContext) => MRPrintEntry[];
 
 const formatDateShort = (dateStr?: string) => {
@@ -819,6 +825,76 @@ function buildMR50(ctx: MRPrintContext): MRPrintEntry[] {
   return [makeEntry(mr50, "partial", "Modul BPJS dan e-klaim tersedia, tetapi dokumen pendukung belum semuanya dipusatkan di launcher ini.")];
 }
 
+const buildMR51: MRBuilder = (ctx) => {
+  const entries: MRPrintEntry[] = [];
+  
+  if (ctx.sickLetters && ctx.sickLetters.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.sickLetters, (l) => ({
+      key: `sick-${l.id}`,
+      description: `Surat Keterangan Sakit - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.sickLetterById(ctx.visitId, l.id),
+      documentType: DOCUMENT_TYPES.SICK_LETTER,
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (ctx.healthCertificates && ctx.healthCertificates.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.healthCertificates, (l) => ({
+      key: `health-${l.id}`,
+      description: `Surat Keterangan Sehat - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.healthCertificate(ctx.visitId, l.id),
+      documentType: DOCUMENT_TYPES.HEALTH_CERTIFICATE,
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (ctx.birthCertificates && ctx.birthCertificates.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.birthCertificates, (l) => ({
+      key: `birth-${l.id}`,
+      description: `Surat Keterangan Kelahiran - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.birthCertificate(ctx.visitId, l.id),
+      documentType: "birth_certificate", // Adjust if needed
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (ctx.leaveCertificates && ctx.leaveCertificates.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.leaveCertificates, (l) => ({
+      key: `leave-${l.id}`,
+      description: `Surat Keterangan Cuti - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.leaveCertificate(ctx.visitId, l.id),
+      documentType: "leave_certificate",
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (ctx.mcuCertificates && ctx.mcuCertificates.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.mcuCertificates, (l) => ({
+      key: `mcu-${l.id}`,
+      description: `Surat Keterangan MCU - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.mcuCertificate(ctx.visitId, l.id),
+      documentType: "mcu_certificate",
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (ctx.deathCertificates && ctx.deathCertificates.length > 0) {
+    entries.push(...makeCollectionEntries(mr51, ctx.deathCertificates, (l) => ({
+      key: `death-${l.id}`,
+      description: `Surat Keterangan Kematian - ${formatDateShort(l.created_at)}`,
+      handler: () => printApi.deathCertificate(ctx.visitId, l.id),
+      documentType: "death_certificate",
+      documentId: l.id
+    }), ""));
+  }
+  
+  if (entries.length === 0) {
+    return [makeEntry(mr51, "missing-data", "Tidak ada surat / keterangan untuk kunjungan ini.")];
+  }
+  
+  return entries;
+}
+
 const builders: MRBuilder[] = [
   buildMR00,
   buildMR01,
@@ -871,6 +947,7 @@ const builders: MRBuilder[] = [
   buildMR48,
   buildMR49,
   buildMR50,
+  buildMR51,
 ];
 
 export function buildMRPrintEntries(ctx: MRPrintContext): MRPrintEntry[] {

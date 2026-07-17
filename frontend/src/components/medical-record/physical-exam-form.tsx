@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 
@@ -850,6 +851,7 @@ export function PhysicalExamForm({
   const filledBodySections = Object.keys(checkedSections).filter(
     (k) => checkedSections[k],
   ).length;
+  const isNoPain = formData.pain_location === "Tidak ada nyeri";
   const filledVitalSigns = [
     formData.general_condition ? 1 : 0,
     formData.consciousness ? 1 : 0,
@@ -859,14 +861,16 @@ export function PhysicalExamForm({
     formData.respiratory_rate > 0 ? 1 : 0,
     formData.temperature > 0 ? 1 : 0,
     formData.oxygen_saturation > 0 ? 1 : 0,
-    formData.pain_scale > 0 ? 1 : 0,
-    formData.pain_location ? 1 : 0,
     formData.upper_arm_circum ? 1 : 0,
     formData.head_circum ? 1 : 0,
     formData.waist ? 1 : 0,
-  ].reduce((a, b) => a + b, 0);
+  ].reduce((a, b) => a + b, 0) + (isNoPain ? 3 : (
+    (formData.pain_method ? 1 : 0) +
+    (formData.pain_scale > 0 ? 1 : 0) +
+    (formData.pain_location ? 1 : 0)
+  ));
   const filledPhysicalExam = filledBodySections + filledVitalSigns;
-  const totalPhysicalExam = physicalExamSections.length + 13; // 13 body sections + 13 core fields
+  const totalPhysicalExam = physicalExamSections.length + 14; // 13 body sections + 14 core fields
   const allPhysicalChecked = filledBodySections === physicalExamSections.length;
 
   useEffect(() => {
@@ -1388,7 +1392,31 @@ export function PhysicalExamForm({
 
                 {/* Skala Nyeri */}
                 <div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="flex items-center justify-between mb-4 bg-muted/20 p-3 px-4 rounded-lg border border-border/70">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="no_pain" className="text-sm font-semibold cursor-pointer">
+                        Tidak Ada Nyeri
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Aktifkan jika pasien tidak mengalami nyeri
+                      </p>
+                    </div>
+                    <Switch
+                      id="no_pain"
+                      checked={formData.pain_location === "Tidak ada nyeri"}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          handleChange("pain_location", "Tidak ada nyeri");
+                          handleChange("pain_scale", 0);
+                        } else {
+                          handleChange("pain_location", "");
+                        }
+                      }}
+                      disabled={isFormDisabled}
+                    />
+                  </div>
+                  {formData.pain_location !== "Tidak ada nyeri" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pain_method" className="text-xs">
                         Metode Penilaian Nyeri
@@ -1568,6 +1596,7 @@ export function PhysicalExamForm({
                       </p>
                     </div>
                   </div>
+                  )}
                 </div>
 
                 {/* Antropometri */}

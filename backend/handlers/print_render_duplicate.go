@@ -103,7 +103,7 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 	marginL := 3.0
 
 	// Border box
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.Rect(marginL, 3, contentWidth, pageHeight-6, "D")
 
@@ -156,7 +156,7 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 
 	// Double line after header
 	lineY := headerStartY + logoWidth + 2
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.4)
 	pdf.Line(marginL+2, lineY, marginL+contentWidth-2, lineY)
 	pdf.SetLineWidth(0.15)
@@ -248,7 +248,7 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 		// Quantity and dosage
 		pdf.SetX(marginL + 10)
 		pdf.SetFont("Arial", "", 7)
-		qtyInfo := fmt.Sprintf("Jumlah: %d %s", item.Quantity, item.Unit)
+		qtyInfo := fmt.Sprintf("Jumlah: %s %s", formatNumber(float64(item.Quantity)), item.Unit)
 		if item.Dosage != "" {
 			qtyInfo += " | Dosis: " + item.Dosage
 		}
@@ -286,7 +286,7 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 
 	// Signature line
 	pdf.SetXY(startX+5, signY+18)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.Line(startX+5, signY+18, startX+colWidth-5, signY+18)
 
 	// Pharmacist name
@@ -606,7 +606,7 @@ func printBillingImpl(c *gin.Context) {
 					pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
 					desc := truncateText(item.Description, 50)
 					pdf.CellFormat(80, 6, desc, "1", 0, "L", false, 0, "")
-					pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+					pdf.CellFormat(15, 6, formatNumber(float64(item.Quantity)), "1", 0, "C", false, 0, "")
 					pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
 					pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
 					no++
@@ -641,7 +641,7 @@ func printBillingImpl(c *gin.Context) {
 				pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
 				desc := truncateText(item.Description, 50)
 				pdf.CellFormat(80, 6, desc, "1", 0, "L", false, 0, "")
-				pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(15, 6, formatNumber(float64(item.Quantity)), "1", 0, "C", false, 0, "")
 				pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
 				pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
 				no++
@@ -921,7 +921,7 @@ func printRMDuplicateLabResultImpl(c *gin.Context) {
 					if result.ProcedureParameter.NormalText != "" {
 						refRange = result.ProcedureParameter.NormalText
 					} else if result.ProcedureParameter.NormalMin > 0 || result.ProcedureParameter.NormalMax > 0 {
-						refRange = fmt.Sprintf("%.2f - %.2f", result.ProcedureParameter.NormalMin, result.ProcedureParameter.NormalMax)
+						refRange = formatFloatNoExponent(result.ProcedureParameter.NormalMin) + " - " + formatFloatNoExponent(result.ProcedureParameter.NormalMax)
 					}
 				}
 				if paramName == "" {
@@ -942,10 +942,10 @@ func printRMDuplicateLabResultImpl(c *gin.Context) {
 				}
 
 				pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
-				pdf.CellFormat(35, 6, result.Value, "1", 0, "C", false, 0, "")
+				pdf.CellFormat(35, 6, formatNumericString(result.Value), "1", 0, "C", false, 0, "")
 				pdf.SetTextColor(0, 0, 0)
 				pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
-				pdf.CellFormat(45, 6, refRange, "1", 0, "C", false, 0, "")
+				pdf.CellFormat(45, 6, formatNumericString(refRange), "1", 0, "C", false, 0, "")
 
 				if result.IsCritical || result.IsHigh {
 					pdf.SetTextColor(255, 0, 0)
@@ -1372,7 +1372,7 @@ func printRMDuplicatePrescriptionImpl(c *gin.Context) {
 		pdf.SetFont("Arial", "", 9)
 		for i, item := range items {
 			medName := item.MedicineName
-			qty := fmt.Sprintf("%d", item.Quantity)
+			qty := formatNumber(float64(item.Quantity))
 			dosage := item.Dosage
 			frequency := item.Frequency
 			instruction := item.Instructions
@@ -1545,7 +1545,7 @@ func printRMDuplicateBillingImpl(c *gin.Context) {
 			for _, item := range typeItems {
 				pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
 				pdf.CellFormat(80, 6, truncateText(item.Description, 50), "1", 0, "L", false, 0, "")
-				pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(15, 6, formatNumber(float64(item.Quantity)), "1", 0, "C", false, 0, "")
 				pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
 				pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
 				no++

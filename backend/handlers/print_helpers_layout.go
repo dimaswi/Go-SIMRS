@@ -207,7 +207,7 @@ func addThermalHeader(pdf *gofpdf.Fpdf, info HospitalInfo, title string) float64
 	if pdf.GetY() > lineY {
 		lineY = pdf.GetY() + 1
 	}
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.5)
 	pdf.Line(marginL, lineY, marginL+contentW, lineY)
 	pdf.SetLineWidth(0.2)
@@ -663,15 +663,16 @@ func addTableHeader(pdf *gofpdf.Fpdf, title string) {
 	checkPageBreak(pdf, 10)
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " "+title, "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
 }
 
 // addTableRow adds a label-value row in table style with auto-height for long text
 func addTableRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64) {
 	pdf.SetFont("Arial", "", 9)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 
 	valueWidth := contentWidth - labelWidth
@@ -725,7 +726,7 @@ func addTableMultiRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64)
 	}
 
 	pdf.SetFont("Arial", "", 9)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 
 	valueWidth := contentWidth - labelWidth
@@ -787,7 +788,7 @@ func addTableMultiRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64)
 // addHighlightedTableRow adds a bold, lightly shaded row for important summary signals.
 func addHighlightedTableRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64, fillR, fillG, fillB, textR, textG, textB int) {
 	pdf.SetFont("Arial", "B", 9)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 
 	valueWidth := contentWidth - labelWidth

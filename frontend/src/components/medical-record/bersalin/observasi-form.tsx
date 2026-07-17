@@ -143,21 +143,21 @@ export function ObservasiBersalin({ formData, onChange, isReadOnly }: ObservasiP
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Tanggal</Label>
                 <Input type="date" value={modalData.tanggal} onChange={(e) => setModalData({ ...modalData, tanggal: e.target.value })} className="h-9" />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Jam</Label>
                 <TimeInput value={modalData.jam} onChange={(e) => setModalData({ ...modalData, jam: e.target.value })} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Kontraksi Rahim</Label>
                 <Input value={modalData.his} onChange={(e) => setModalData({ ...modalData, his: e.target.value })} className="h-9" />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Denyut Jantung Janin (DJJ)</Label>
                 <div className="relative">
                   <Input value={modalData.djj} onChange={(e) => setModalData({ ...modalData, djj: e.target.value })} className="h-9 pr-14" />
@@ -165,11 +165,11 @@ export function ObservasiBersalin({ formData, onChange, isReadOnly }: ObservasiP
                 </div>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label className="text-xs">Cairan / Obat yang diberikan</Label>
               <Input value={modalData.cairan} onChange={(e) => setModalData({ ...modalData, cairan: e.target.value })} className="h-9" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label className="text-xs">Keterangan</Label>
               <Input value={modalData.keterangan} onChange={(e) => setModalData({ ...modalData, keterangan: e.target.value })} className="h-9" />
             </div>

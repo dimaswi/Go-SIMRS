@@ -437,7 +437,7 @@ export function PharmacyDispense({
       const itemsHtml = items.map(item => `
         <tr>
           <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty} ${item.unit}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty.toLocaleString('id-ID')} ${item.unit}</td>
           <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.dosage || "-"}</td>
           <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.frequency || "-"}</td>
         </tr>

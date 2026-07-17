@@ -77,7 +77,7 @@ func printInformedConsentImpl(c *gin.Context) {
 	labelW := 40.0
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -498,7 +498,7 @@ func printAdmissionDischargeSummaryImpl(c *gin.Context) {
 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -719,7 +719,7 @@ func printAdmissionDischargeSummaryImpl(c *gin.Context) {
 		pdf.SetLineWidth(0.3)
 		pdf.CellFormat(contentWidth, 7, " "+sectionTitle, "1", 1, "L", true, 0, "")
 		pdf.SetTextColor(0, 0, 0)
-		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetDrawColor(100, 100, 100)
 		pdf.SetLineWidth(0.2)
 		pdf.SetFont("Arial", "", 9)
 
@@ -1285,7 +1285,7 @@ func printRegistrationReceiptImpl(c *gin.Context) {
 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -1753,7 +1753,7 @@ func printRegistrationReceiptImpl(c *gin.Context) {
 	lineRight2 := marginLeft + contentWidth - 15
 	pdf.Line(lineLeft2, signY+29, lineRight2, signY+29)
 	pdf.SetDashPattern([]float64{}, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 
 	// SIP info if signed
 	if isSigned && sigLog.SignerSIP != "" {
@@ -1865,7 +1865,7 @@ func printInformedConsentReceiptImpl(c *gin.Context) {
 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -1957,7 +1957,7 @@ func printInformedConsentReceiptImpl(c *gin.Context) {
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " INFORMASI JAMINAN / PEMBAYARAN", "1", 1, "L", true, 0, "")
 	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 	pdf.SetFont("Arial", "", 8)
 
@@ -2016,7 +2016,7 @@ func printInformedConsentReceiptImpl(c *gin.Context) {
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " INFORMASI YANG TELAH DIBERIKAN", "1", 1, "L", true, 0, "")
 	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 
 	pdf.SetFont("Arial", "", 9)
@@ -2167,7 +2167,7 @@ func printInformedConsentReceiptImpl(c *gin.Context) {
 		pdf.Line(lx, signY+27, rx, signY+27)
 	}
 	pdf.SetDashPattern([]float64{}, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 
 	// Footer
 	pdf.SetY(signY + 36)
@@ -2551,7 +2551,7 @@ func printSEPImpl(c *gin.Context) {
 
 	_ = pageHeight
 	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {

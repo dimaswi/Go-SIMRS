@@ -26,6 +26,8 @@ type Triage struct {
 
 	// Arrival Information
 	ArrivalMode     string `gorm:"size:50" json:"arrival_mode,omitempty"`       // ambulans, pribadi, polisi, dll
+	RujukanDari     string `gorm:"size:255" json:"rujukan_dari,omitempty"`      // Rujukan dari fasilitas mana
+
 	TriageComplaint string `gorm:"type:text" json:"triage_complaint,omitempty"` // Chief complaint saat triase
 	TriageLevel     string `gorm:"size:20" json:"triage_level,omitempty"`       // 0-5 (ESI/ATS) - 0=DOA
 

@@ -43,12 +43,12 @@ export function emitCopyFromHistory(section: string, data: unknown) {
   );
 }
 
-const isMeaningfulAllergySummary = (value: unknown) => {
-  if (typeof value !== "string") return false;
-  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return false;
-  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
-};
+// const isMeaningfulAllergySummary = (value: unknown) => {
+//   if (typeof value !== "string") return false;
+//   const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+//   if (!normalized) return false;
+//   return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
+// };
 
 const anamnesisFields = [
   "anamnesis_source",
@@ -164,13 +164,14 @@ const physicalExamTabBodyFields = [
 const getAnamnesisTabIndicator = (source: Record<string, unknown>, hasStructuredAllergy = false) => {
   const sourceFieldFilled = 1; // defaults to autoanamnesis in form
   const filledText = sourceFieldFilled + countFilledFields(source, anamnesisTabTextFields);
-  const hasAllergy = isMeaningfulAllergySummary(source.allergies) || hasStructuredAllergy;
-  const filled = filledText + (hasAllergy ? 1 : 0);
+  const isAllergyFilled = (typeof source.allergies === 'string' && source.allergies.trim() !== "") || hasStructuredAllergy;
+  const filled = filledText + (isAllergyFilled ? 1 : 0);
   return `${filled}/9`;
 };
 
 const getPhysicalExamTabIndicator = (source: Record<string, unknown>) => {
   const filledBody = countFilledFields(source, physicalExamTabBodyFields);
+  const isNoPain = source.pain_location === "Tidak ada nyeri";
   const filledVitals = [
     hasMeaningfulValue(source.general_condition) ? 1 : 0,
     hasMeaningfulValue(source.consciousness) ? 1 : 0,
@@ -180,13 +181,15 @@ const getPhysicalExamTabIndicator = (source: Record<string, unknown>) => {
     hasMeaningfulValue(source.respiratory_rate) ? 1 : 0,
     hasMeaningfulValue(source.temperature) ? 1 : 0,
     hasMeaningfulValue(source.oxygen_saturation) ? 1 : 0,
-    hasMeaningfulValue(source.pain_scale) ? 1 : 0,
-    hasMeaningfulValue(source.pain_location) ? 1 : 0,
     hasMeaningfulValue(source.upper_arm_circum) ? 1 : 0,
     hasMeaningfulValue(source.head_circum) ? 1 : 0,
     hasMeaningfulValue(source.waist) ? 1 : 0,
-  ].reduce((a, b) => a + b, 0);
-  return `${filledBody + filledVitals}/26`;
+  ].reduce((a, b) => a + b, 0) + (isNoPain ? 3 : (
+    (hasMeaningfulValue(source.pain_method) ? 1 : 0) +
+    (hasMeaningfulValue(source.pain_scale) ? 1 : 0) +
+    (hasMeaningfulValue(source.pain_location) ? 1 : 0)
+  ));
+  return `${filledBody + filledVitals}/27`;
 };
 
 const renderDetailRows = (rows: Array<{ label: string; value: string }>) => {
@@ -462,7 +465,7 @@ export function CopyFromHistoryDrawer({
               criticality: a.criticality,
               notes: a.notes,
             })),
-          }).catch(() => {});
+          }).catch(() => { });
           if (data && typeof data === "object") {
             emitMedicalRecordTabIndicator("anamnesis", getAnamnesisTabIndicator(data as Record<string, unknown>, true));
           }
@@ -503,12 +506,14 @@ export function CopyFromHistoryDrawer({
 
     if (section === "anamnesis") {
       const filledText = countFilledFields(d, anamnesisFields);
-      const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
+      const isAllergyFilled = typeof d.allergies === 'string' && d.allergies.trim() !== "";
+      const filled = filledText + (isAllergyFilled ? 1 : 0);
       return `${filled}/${anamnesisFields.length + 1}`;
     }
 
     if (section === "physical-exam") {
       const filledBody = countFilledFields(d, physicalBodyFields);
+      const isNoPain = d.pain_location === "Tidak ada nyeri";
       const filledVitals = [
         hasMeaningfulValue(d.general_condition) ? 1 : 0,
         hasMeaningfulValue(d.consciousness) ? 1 : 0,
@@ -524,9 +529,13 @@ export function CopyFromHistoryDrawer({
         hasMeaningfulValue(d.upper_arm_circum) ? 1 : 0,
         hasMeaningfulValue(d.head_circum) ? 1 : 0,
         hasMeaningfulValue(d.waist) ? 1 : 0,
-      ].reduce((a, b) => a + b, 0);
+      ].reduce((a, b) => a + b, 0) + (isNoPain ? 3 : (
+        (hasMeaningfulValue(d.pain_method) ? 1 : 0) +
+        (hasMeaningfulValue(d.pain_scale) ? 1 : 0) +
+        (hasMeaningfulValue(d.pain_location) ? 1 : 0)
+      ));
       const filledSupporting = countFilledFields(d, physicalSupportingFields);
-      const totalTarget = 15 + physicalBodyFields.length + physicalSupportingFields.length;
+      const totalTarget = 16 + physicalBodyFields.length + physicalSupportingFields.length;
       return `${filledBody + filledVitals + filledSupporting}/${totalTarget}`;
     }
 

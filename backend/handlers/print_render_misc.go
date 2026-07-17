@@ -432,7 +432,7 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		pdf.AddPage()
 
 		// Border box
-		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetDrawColor(100, 100, 100)
 		pdf.SetLineWidth(0.3)
 		pdf.Rect(marginL, 3, contentWidth, pageHeight-6, "D")
 
@@ -485,7 +485,7 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 
 		// Double line after header
 		lineY := headerStartY + logoWidth + 1
-		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetDrawColor(100, 100, 100)
 		pdf.SetLineWidth(0.4)
 		pdf.Line(marginL+1, lineY, marginL+contentWidth-1, lineY)
 		pdf.SetLineWidth(0.15)
@@ -572,7 +572,7 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		pdf.SetX(marginL + 4)
 		pdf.SetFont("Arial", "", 8)
 		pdf.CellFormat(45, 4, formatDateIndonesian(time.Now()), "", 0, "L", false, 0, "")
-		qtyInfo := fmt.Sprintf("%d %s", item.Quantity, item.Unit)
+		qtyInfo := fmt.Sprintf("%s %s", formatNumber(float64(item.Quantity)), item.Unit)
 		pdf.SetFont("Arial", "B", 9)
 		pdf.CellFormat(43, 4, qtyInfo, "", 1, "R", false, 0, "")
 	}
@@ -664,7 +664,7 @@ func printDPJPRequestImpl(c *gin.Context) {
 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -784,7 +784,7 @@ func printDPJPRequestImpl(c *gin.Context) {
 	pdf.SetLineWidth(0.3)
 	pdf.CellFormat(contentWidth, 6, " PERMOHONAN DPJP", "1", 1, "L", true, 0, "")
 	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.2)
 	pdf.SetFont("Arial", "", 9)
 	pdf.SetFillColor(245, 245, 245)
@@ -887,7 +887,7 @@ func printDPJPRequestImpl(c *gin.Context) {
 		pdf.Line(lx, signY+27, rx, signY+27)
 	}
 	pdf.SetDashPattern([]float64{}, 0)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 
 	// Footer
 	pdf.SetY(signY + 36)
@@ -946,7 +946,7 @@ func printNutritionEtiketImpl(c *gin.Context) {
 	headerStartY := 3.0
 
 	// Border box
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 
 	// Logo
@@ -997,7 +997,7 @@ func printNutritionEtiketImpl(c *gin.Context) {
 	if pdf.GetY() > lineY {
 		lineY = pdf.GetY() + 0.5
 	}
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.4)
 	pdf.Line(marginL, lineY, marginL+contentWidth, lineY)
 	pdf.SetLineWidth(0.15)
@@ -1220,7 +1220,7 @@ func printNutritionEtiketImpl(c *gin.Context) {
 	if totalCalories > 0 {
 		pdf.SetX(marginL)
 		pdf.SetFont("Arial", "B", 7)
-		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetDrawColor(100, 100, 100)
 		pdf.CellFormat(col1W+col2W+col3W, 3.5, "Total Kalori", "T", 0, "R", false, 0, "")
 		pdf.CellFormat(col4W, 3.5, fmt.Sprintf("%.0f kkal", totalCalories), "T", 0, "R", false, 0, "")
 		pdf.CellFormat(col5W, 3.5, "", "T", 1, "C", false, 0, "")

@@ -93,7 +93,7 @@ func printCPPTImpl(c *gin.Context) {
 	// Table Header
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 
 	// Column widths for landscape A4 - MUST = 277mm (same as DATA PASIEN)
@@ -198,7 +198,7 @@ func printCPPTImpl(c *gin.Context) {
 			// Repeat header
 			pdf.SetFont("Arial", "B", 9)
 			pdf.SetFillColor(220, 220, 220)
-			pdf.SetDrawColor(0, 0, 0)
+			pdf.SetDrawColor(100, 100, 100)
 			pdf.CellFormat(colDate, 7, "Tanggal/Jam", "1", 0, "C", true, 0, "")
 			pdf.CellFormat(colProf, 7, "Prof/Format", "1", 0, "C", true, 0, "")
 			pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[0], "1", 0, "C", true, 0, "")
@@ -670,7 +670,7 @@ func printFluidBalanceImpl(c *gin.Context) {
 	// Table Header - Font 9 sama dengan identitas pasien
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
 
 	// Column widths (277mm total - SAMA dengan DATA PASIEN)

@@ -3,7 +3,7 @@
  * Button dengan dropdown menu untuk mencetak dokumen rekam medis
  */
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Loader2, Printer, ShieldCheck, ShieldX } from "lucide-react";
+import { Loader2, Printer, ShieldCheck, ShieldX, ChevronDown, ChevronRight } from "lucide-react";
 import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { unitTransferApi } from "@/lib/api/inpatient";
 import { vclaimApi, type SPRILocal, type SuratKontrolLocal } from "@/lib/api/vclaim";
@@ -95,6 +95,18 @@ export function MedicalRecordPrintSelect({
   const [revokeDoc, setRevokeDoc] = useState<{ type: string; id: number; title: string } | null>(null);
   const statusFetchAtRef = useRef<Record<string, number>>({});
   const lastBatchRef = useRef<{ key: string; at: number }>({ key: "", at: 0 });
+
+  // Accordion state for grouped MRs
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (mrCode: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [mrCode]: !prev[mrCode],
+    }));
+  };
+
+  // Listen for custom event to refresh print options
 
   // Load data when component mounts or refreshTrigger changes
   useEffect(() => {
@@ -552,6 +564,26 @@ export function MedicalRecordPrintSelect({
     ],
   );
 
+  const groupedOptions = useMemo(() => {
+    const groups: Record<string, MRPrintEntry[]> = {};
+    printOptions.forEach((opt) => {
+      if (!groups[opt.mrCode]) {
+        groups[opt.mrCode] = [];
+      }
+      groups[opt.mrCode].push(opt);
+    });
+    // Return an array of grouped entries, maintaining original MR Code order
+    const result: MRPrintEntry[][] = [];
+    const seen = new Set<string>();
+    printOptions.forEach(opt => {
+      if (!seen.has(opt.mrCode)) {
+        seen.add(opt.mrCode);
+        result.push(groups[opt.mrCode]);
+      }
+    });
+    return result;
+  }, [printOptions]);
+
   const batchDocs = useMemo(
     () =>
       printOptions
@@ -745,110 +777,141 @@ export function MedicalRecordPrintSelect({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {printOptions.map((option) => {
-                        const canSign = canSignDocument(option.documentType, option.documentId);
-                        const signReason = getSignReason(option.documentType, option.documentId);
-                        const signProgress = getSignatureProgress(option.documentType, option.documentId);
-                        const isCompleted = signProgress.signed >= signProgress.required;
-                        const isSigned = option.documentType && option.documentId ? isCompleted : false;
-                        const status = option.documentType && option.documentId ? signatureStatuses[`${option.documentType}-${option.documentId}`] : undefined;
-                        const slotLeftSigned = !!status?.signed_slots?.left;
-                        const slotRightSigned = !!status?.signed_slots?.right;
-                        const isOrderDoc = option.documentType ? ORDER_DOC_TYPES.has(option.documentType) : false;
-                        const isOrdererView = isOrderDoc && option.sourceVisitId === visitId;
-                        const isRestrictedDoc = option.documentType ? ELIGIBILITY_DOC_TYPES.has(option.documentType) : false;
-                        const canRevoke = option.documentType
-                          ? (!isOrdererView && (!isRestrictedDoc || canSign))
-                          : false;
+                      {groupedOptions.map((group) => {
+                        const mrCode = group[0].mrCode;
+                        const isExpanded = !!expandedGroups[mrCode];
 
+                        const renderRow = (option: MRPrintEntry, isSubRow: boolean) => {
+                          const canSign = canSignDocument(option.documentType, option.documentId);
+                          const signReason = getSignReason(option.documentType, option.documentId);
+                          const signProgress = getSignatureProgress(option.documentType, option.documentId);
+                          const isCompleted = signProgress.signed >= signProgress.required;
+                          const isSigned = option.documentType && option.documentId ? isCompleted : false;
+                          const status = option.documentType && option.documentId ? signatureStatuses[`${option.documentType}-${option.documentId}`] : undefined;
+                          const slotLeftSigned = !!status?.signed_slots?.left;
+                          const slotRightSigned = !!status?.signed_slots?.right;
+                          const isOrderDoc = option.documentType ? ORDER_DOC_TYPES.has(option.documentType) : false;
+                          const isOrdererView = isOrderDoc && option.sourceVisitId === visitId;
+                          const isRestrictedDoc = option.documentType ? ELIGIBILITY_DOC_TYPES.has(option.documentType) : false;
+                          const canRevoke = option.documentType
+                            ? (!isOrdererView && (!isRestrictedDoc || canSign))
+                            : false;
+
+                          return (
+                            <TableRow key={option.key} className={isSubRow ? "bg-muted/10 border-l-2 border-l-primary/30" : ""}>
+                              <TableCell className={cn("px-4 py-3 align-top", isSubRow && "pl-8 text-muted-foreground")}>
+                                {!isSubRow && <span className="font-medium">{option.mrCode}</span>}
+                              </TableCell>
+                              <TableCell className="py-3 align-top">
+                                <div className="min-w-0">
+                                  <p className={cn("text-sm", isSubRow ? "font-normal" : "font-medium")}>{option.title}</p>
+                                  <p className="mt-0.5 text-[11px] text-muted-foreground">{option.description}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3 align-top">
+                                <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(option.category))}>
+                                  {option.category}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-3 align-top">
+                                <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeClass(option.status))}>
+                                  {getStatusLabel(option.status)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-3 align-top">
+                                {option.documentType && option.documentId ? (
+                                  isSigned ? (
+                                    <Badge className="gap-1 bg-green-600 hover:bg-green-600">
+                                      <ShieldCheck className="h-3 w-3" />
+                                      Signed {Math.min(signProgress.signed, signProgress.required)}/{signProgress.required}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="gap-1 text-muted-foreground">
+                                      <ShieldX className="h-3 w-3" />
+                                      Belum {signProgress.signed}/{signProgress.required}
+                                    </Badge>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">N/A</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 align-top">
+                                <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end">
+                                  {option.documentType && option.documentId && !isSigned && canSign && (!slotLeftSigned || !slotRightSigned) && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs"
+                                      onClick={() =>
+                                        handleSignDocument(
+                                          option.documentType!,
+                                          option.documentId!,
+                                          option.title,
+                                          !slotLeftSigned ? "left" : "right",
+                                        )
+                                      }
+                                    >
+                                      <ShieldCheck className="h-3.5 w-3.5" />
+                                      TTD
+                                    </Button>
+                                  )}
+                                  {option.documentType && option.documentId && !isSigned && !canSign && (
+                                    <span className="text-[11px] text-muted-foreground">{signReason || "Tidak bisa TTD"}</span>
+                                  )}
+                                  {option.documentType && option.documentId && isSigned && canRevoke && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs text-red-600 hover:text-red-700"
+                                      onClick={() => handleRevokeDocument(option.documentType!, option.documentId!, option.title)}
+                                    >
+                                      <ShieldX className="h-3.5 w-3.5" />
+                                      Batal
+                                    </Button>
+                                  )}
+                                  {option.handler ? (
+                                    <Button
+                                      size="sm"
+                                      className="h-8 px-3 text-xs"
+                                      disabled={printing}
+                                      onClick={() => handleItemClick(option)}
+                                    >
+                                      {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                      Cetak
+                                    </Button>
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">Belum ada aksi cetak</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        };
+
+                        if (group.length === 1) {
+                          return renderRow(group[0], false);
+                        }
+
+                        // Collapsible master row
                         return (
-                          <TableRow key={option.key}>
-                            <TableCell className="px-4 py-3 align-top">
-                              <span className="font-medium">{option.mrCode}</span>
-                            </TableCell>
-                            <TableCell className="py-3 align-top">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">{option.title}</p>
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">{option.description}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-3 align-top">
-                              <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(option.category))}>
-                                {option.category}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="py-3 align-top">
-                              <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeClass(option.status))}>
-                                {getStatusLabel(option.status)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="py-3 align-top">
-                              {option.documentType && option.documentId ? (
-                                isSigned ? (
-                                  <Badge className="gap-1 bg-green-600 hover:bg-green-600">
-                                    <ShieldCheck className="h-3 w-3" />
-                                    Signed {Math.min(signProgress.signed, signProgress.required)}/{signProgress.required}
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="gap-1 text-muted-foreground">
-                                    <ShieldX className="h-3 w-3" />
-                                    Belum {signProgress.signed}/{signProgress.required}
-                                  </Badge>
-                                )
-                              ) : (
-                                <span className="text-xs text-muted-foreground">N/A</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="px-4 py-3 align-top">
-                              <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end">
-                                {option.documentType && option.documentId && !isSigned && canSign && (!slotLeftSigned || !slotRightSigned) && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 px-2 text-xs"
-                                    onClick={() =>
-                                      handleSignDocument(
-                                        option.documentType!,
-                                        option.documentId!,
-                                        option.title,
-                                        !slotLeftSigned ? "left" : "right",
-                                      )
-                                    }
-                                  >
-                                    <ShieldCheck className="h-3.5 w-3.5" />
-                                    TTD
-                                  </Button>
-                                )}
-                                {option.documentType && option.documentId && !isSigned && !canSign && (
-                                  <span className="text-[11px] text-muted-foreground">{signReason || "Tidak bisa TTD"}</span>
-                                )}
-                                {option.documentType && option.documentId && isSigned && canRevoke && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 px-2 text-xs text-red-600 hover:text-red-700"
-                                    onClick={() => handleRevokeDocument(option.documentType!, option.documentId!, option.title)}
-                                  >
-                                    <ShieldX className="h-3.5 w-3.5" />
-                                    Batal
-                                  </Button>
-                                )}
-                                {option.handler ? (
-                                  <Button
-                                    size="sm"
-                                    className="h-8 px-3 text-xs"
-                                    disabled={printing}
-                                    onClick={() => handleItemClick(option)}
-                                  >
-                                    {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-                                    Cetak
-                                  </Button>
-                                ) : (
-                                  <span className="text-[11px] text-muted-foreground">Belum ada aksi cetak</span>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                          <React.Fragment key={`group-${mrCode}`}>
+                            <TableRow
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => toggleGroup(mrCode)}
+                            >
+                              <TableCell className="px-4 py-3 align-top font-medium flex items-center gap-1.5 text-primary">
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                {mrCode}
+                              </TableCell>
+                              <TableCell colSpan={5} className="py-3 align-top">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium">{group[0].title}</p>
+                                  <p className="mt-0.5 text-[11px] text-muted-foreground">{group.length} Dokumen - Klik untuk {isExpanded ? 'menyembunyikan' : 'menampilkan'}</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && group.map((opt) => renderRow(opt, true))}
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>

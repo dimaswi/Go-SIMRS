@@ -60,20 +60,7 @@ export function BersalinForm({
   const [formData, setFormData] = useState<Partial<BersalinRecord>>(defaultFormData);
   const { toast } = useToast();
 
-  const [currentTab, setCurrentTab] = useState(initialTab);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [signatureStatus, setSignatureStatus] = useState<{ is_signed: boolean; signer_name?: string; signed_at?: string } | null>(null);
-
-  useEffect(() => {
-    if (initialTab !== currentTab) {
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setCurrentTab(initialTab);
-        setIsTransitioning(false);
-      }, 10);
-      return () => clearTimeout(timer);
-    }
-  }, [initialTab, currentTab]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -164,82 +151,62 @@ export function BersalinForm({
   }
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset
+    <div className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <fieldset
           disabled={isReadOnly}
-          className="space-y-6 [&_label]:tracking-[0.01em] [&_input:not(.h-8):not(.h-7)]:h-11 [&_[role=combobox]]:h-11"
+          className="space-y-8 [&_label]:tracking-[0.01em] [&_input:not(.h-8):not(.h-7)]:h-11 [&_[role=combobox]]:h-11"
         >
-          {isTransitioning ? (
-            <div className="flex items-center justify-center p-8 h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {currentTab === "asesmen" && (
-                <AsesmenAwalBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <AsesmenAwalBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "skrining" && (
-                <SkriningRisikoBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <SkriningRisikoBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "medis" && (
-                <AsesmenMedisBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <AsesmenMedisBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "observasi" && (
-                <ObservasiBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <ObservasiBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "partograf" && (
-                <PartografBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <PartografBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "catatan" && (
-                <CatatanPersalinanBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
+          <CatatanPersalinanBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
 
-              {currentTab === "bayi" && (
-                <BayiBaruLahirBersalin
-                  formData={formData}
-                  onChange={handleChange}
-                  isReadOnly={isReadOnly}
-                />
-              )}
-            </>
-          )}
+          <BayiBaruLahirBersalin
+            formData={formData}
+            onChange={handleChange}
+            isReadOnly={isReadOnly}
+          />
         </fieldset>
 
         {!isReadOnly && (
-          <Button type="submit" disabled={saving} className="w-fit ml-auto mt-6 flex">
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Simpan Data Bersalin
-          </Button>
+          <div className="sticky bottom-4 z-10 flex justify-end">
+            <Button type="submit" disabled={saving} size="lg" className="shadow-lg">
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan Data Bersalin
+            </Button>
+          </div>
         )}
       </form>
     </div>

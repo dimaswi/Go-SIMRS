@@ -19,37 +19,37 @@ export function BayiBaruLahirBersalin({ formData, onChange, isReadOnly }: BayiBa
 
   return (
     <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input:not(.h-9):not(.h-8):not(.h-7)]:h-10 [&_[role=combobox]:not(.h-9):not(.h-8):not(.h-7)]:h-10">
-      <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Bayi Baru Lahir (Catatan Persalinan)
-          </div>
+      <div className="rounded-xl border border-border/60 bg-card text-card-foreground shadow-sm overflow-hidden">
+      <div className="border-b border-border/50 bg-muted/40 px-4 py-3 flex items-center gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Bayi Baru Lahir (Catatan Persalinan)
         </div>
-        <div className="p-4 sm:p-6 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-border">
+      </div>
+      <div className="p-3 sm:p-4 space-y-8 bg-slate-50/40 dark:bg-transparent">
+          <div className="grid grid-cols-1 gap-6 divide-y divide-border">
 
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Berat Badan</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Berat Badan</Label>
                   <div className="relative">
-                    <Input type="number" value={bayi.berat || ""} onChange={e => updateBayi("berat", e.target.value)} disabled={isReadOnly} className="pr-10 bg-background" />
+                    <Input type="number" value={bayi.berat ?? ""} onChange={e => updateBayi("berat", e.target.value)} disabled={isReadOnly} className="pr-10 bg-background" />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">gr</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Panjang</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Panjang</Label>
                   <div className="relative">
-                    <Input type="number" value={bayi.panjang || ""} onChange={e => updateBayi("panjang", e.target.value)} disabled={isReadOnly} className="pr-12 bg-background" />
+                    <Input type="number" value={bayi.panjang ?? ""} onChange={e => updateBayi("panjang", e.target.value)} disabled={isReadOnly} className="pr-12 bg-background" />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">cm</span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Jenis Kelamin</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Jenis Kelamin</Label>
                 <Select value={bayi.jenis_kelamin || "L"} onValueChange={v => updateBayi("jenis_kelamin", v)} disabled={isReadOnly}>
-                  <SelectTrigger className="w-full md:w-full"><SelectValue placeholder="Silahkan Pilih" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Silahkan Pilih" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="L">Laki-laki</SelectItem>
                     <SelectItem value="P">Perempuan</SelectItem>
@@ -58,8 +58,8 @@ export function BayiBaruLahirBersalin({ formData, onChange, isReadOnly }: BayiBa
               </div>
 
               <div className="space-y-4 border-border/50">
-                <div className="space-y-2">
-                  <Label>Penilaian Bayi Baru Lahir</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Penilaian Bayi Baru Lahir</Label>
                   <Select value={bayi.penilaian || "Baik"} onValueChange={v => updateBayi("penilaian", v)} disabled={isReadOnly}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Silahkan Pilih" /></SelectTrigger>
                     <SelectContent>
@@ -84,7 +84,7 @@ export function BayiBaruLahirBersalin({ formData, onChange, isReadOnly }: BayiBa
                     <div className="flex items-center gap-3 pl-7 animate-in fade-in">
                       <Label className="text-sm font-normal">Waktu:</Label>
                       <div className="relative w-full">
-                        <Input type="number" className="h-9 pr-16 bg-background" value={bayi.waktu_asi || ""} onChange={e => updateBayi("waktu_asi", e.target.value)} disabled={isReadOnly} />
+                        <Input type="number" className="h-9 pr-16 bg-background" value={bayi.waktu_asi ?? ""} onChange={e => updateBayi("waktu_asi", e.target.value)} disabled={isReadOnly} />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">jam stlh lahir</span>
                       </div>
                     </div>
@@ -104,7 +104,7 @@ export function BayiBaruLahirBersalin({ formData, onChange, isReadOnly }: BayiBa
               </div>
             </div>
 
-            <div className="space-y-6 pt-6 md:pt-0 md:pl-8">
+            <div className="space-y-6 pt-6">
               <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider block mb-4">Kondisi Lahir & Tindakan</Label>
 
               <div className="space-y-6">
@@ -220,7 +220,7 @@ export function BayiBaruLahirBersalin({ formData, onChange, isReadOnly }: BayiBa
                   {((bayi.kondisi_lahir || []).includes("Hipotermi")) && (
                     <div className="pl-7 space-y-2 animate-in fade-in">
                       <Label className="text-xs text-muted-foreground mb-1 block">Tindakan:</Label>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {['a', 'b', 'c'].map(item => (
                           <div key={item} className="flex items-center gap-3">
                             <span className="text-sm font-medium w-4">{item}.</span>

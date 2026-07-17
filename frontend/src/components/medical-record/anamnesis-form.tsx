@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,11 +71,11 @@ const defaultNewAllergy: NewAllergyInput = {
   notes: "",
 };
 
-const isMeaningfulAllergySummary = (value?: string) => {
-  const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return false;
-  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
-};
+// const isMeaningfulAllergySummary = (value?: string) => {
+//   const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+//   if (!normalized) return false;
+//   return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
+// };
 
 export function AnamnesisForm({
   visitId,
@@ -116,19 +117,19 @@ export function AnamnesisForm({
 
   // Determine if form should be disabled
   const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
-  
+
   // Allergy states
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
   const [loadingAllergies, setLoadingAllergies] = useState(true);
   const [newAllergy, setNewAllergy] = useState<NewAllergyInput>(defaultNewAllergy);
   const [showAllergyForm, setShowAllergyForm] = useState(false);
-  
+
   // SNOMED search states
   const [snomedQuery, setSnomedQuery] = useState("");
   const [snomedResults, setSnomedResults] = useState<SnomedMaster[]>([]);
   const [searchingSnomed, setSearchingSnomed] = useState(false);
   const debouncedSnomedQuery = useDebounce(snomedQuery, 300);
-  
+
   // Saving states
   const [savingAllergy, setSavingAllergy] = useState(false);
   const [deletingAllergyId, setDeletingAllergyId] = useState<number | null>(null);
@@ -242,7 +243,7 @@ export function AnamnesisForm({
         setSnomedResults([]);
         return;
       }
-      
+
       setSearchingSnomed(true);
       try {
         const response = await patientAllergyApi.searchSnomed(debouncedSnomedQuery, 20);
@@ -293,12 +294,12 @@ export function AnamnesisForm({
       // Add to list
       const updatedAllergies = [response.data.data, ...patientAllergies];
       setPatientAllergies(updatedAllergies);
-      
+
       // Reset form
       setNewAllergy(defaultNewAllergy);
       setSnomedQuery("");
       setShowAllergyForm(false);
-      
+
       // Update legacy allergies field summary
       updateAllergiesSummary(updatedAllergies);
     } catch (error: any) {
@@ -320,7 +321,7 @@ export function AnamnesisForm({
     const allergyId = deleteAllergyConfirm;
     if (!allergyId) return;
     setDeleteAllergyConfirm(null);
-    
+
     setDeletingAllergyId(allergyId);
     try {
       await patientAllergyApi.delete(allergyId);
@@ -356,27 +357,27 @@ export function AnamnesisForm({
         console.error("Failed to log edit:", error);
       }
     }
-    
+
     onSave?.(formData);
     resetEditMode();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // If patient is discharged, verify PIN before saving
     if (isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
-    
+
     doSave();
   };
 
   // Count filled fields: 6 text fields + allergies (structured OR legacy text)
   const filledTextFields = Object.entries(formData).filter(([k, v]) => k !== "allergies" && v && v.trim() !== "").length;
-  const hasAllergies = patientAllergies.length > 0 || isMeaningfulAllergySummary(formData.allergies);
-  const filledFields = filledTextFields + (hasAllergies ? 1 : 0);
+  const isAllergyFilled = patientAllergies.length > 0 || (typeof formData.allergies === 'string' && formData.allergies.trim() !== "");
+  const filledFields = filledTextFields + (isAllergyFilled ? 1 : 0);
   const totalFields = 9;
 
   useEffect(() => {
@@ -443,75 +444,75 @@ export function AnamnesisForm({
   return (
     <div>
       <div>
-          {/* Edit Mode Banner for discharged patients */}
-          <EditModeBanner
-            isPatientDischarged={isPatientDischarged}
-            isEditing={isEditing}
-            onRequestEdit={handleRequestEdit}
-            recordTypeLabel="Anamnesis"
-          />
-          
+        {/* Edit Mode Banner for discharged patients */}
+        <EditModeBanner
+          isPatientDischarged={isPatientDischarged}
+          isEditing={isEditing}
+          onRequestEdit={handleRequestEdit}
+          recordTypeLabel="Anamnesis"
+        />
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-          
-          {/* Section 0: Sumber Anamnesis & Status Fungsional */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Sumber dan Status Fungsional
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 sm:p-4">
-            <div className="space-y-2">
-              <Label htmlFor="anamnesis_source" className="text-sm font-semibold">
-                Sumber Anamnesis
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Dari siapa informasi riwayat penyakit ini diperoleh?
-              </p>
-              <Select
-                value={formData.anamnesis_source}
-                onValueChange={(value) => handleChange("anamnesis_source", value)}
-              >
-                <SelectTrigger id="anamnesis_source">
-                  <SelectValue placeholder="Pilih sumber" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="autoanamnesis">Autoanamnesis (langsung dari pasien)</SelectItem>
-                  <SelectItem value="alloanamnesis">Alloanamnesis (dari keluarga/pengantar)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="functional_status" className="text-sm font-semibold">
-                Status Fungsional
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Kemampuan pasien dalam melakukan aktivitas sehari-hari (makan, mandi, berpakaian, dll)
-              </p>
-              <Select
-                value={formData.functional_status}
-                onValueChange={(value) => handleChange("functional_status", value)}
-              >
-                <SelectTrigger id="functional_status">
-                  <SelectValue placeholder="Pilih status fungsional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FUNCTIONAL_STATUS_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            </div>
-          </div>
 
-          {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Keluhan dan Riwayat Penyakit Sekarang
+            {/* Section 0: Sumber Anamnesis & Status Fungsional */}
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Sumber dan Status Fungsional
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 sm:p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="anamnesis_source" className="text-sm font-semibold">
+                    Sumber Anamnesis
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Dari siapa informasi riwayat penyakit ini diperoleh?
+                  </p>
+                  <Select
+                    value={formData.anamnesis_source}
+                    onValueChange={(value) => handleChange("anamnesis_source", value)}
+                  >
+                    <SelectTrigger id="anamnesis_source">
+                      <SelectValue placeholder="Pilih sumber" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="autoanamnesis">Autoanamnesis (langsung dari pasien)</SelectItem>
+                      <SelectItem value="alloanamnesis">Alloanamnesis (dari keluarga/pengantar)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="functional_status" className="text-sm font-semibold">
+                    Status Fungsional
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Kemampuan pasien dalam melakukan aktivitas sehari-hari (makan, mandi, berpakaian, dll)
+                  </p>
+                  <Select
+                    value={formData.functional_status}
+                    onValueChange={(value) => handleChange("functional_status", value)}
+                  >
+                    <SelectTrigger id="functional_status">
+                      <SelectValue placeholder="Pilih status fungsional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FUNCTIONAL_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <div className="space-y-4 p-3 sm:p-4"><div className="space-y-2">
+
+            {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Keluhan dan Riwayat Penyakit Sekarang
+              </div>
+              <div className="space-y-4 p-3 sm:p-4"><div className="space-y-2">
                 <Label htmlFor="chief_complaint" className="text-sm font-semibold">
                   Keluhan Utama <span className="text-destructive">*</span>
                 </Label>
@@ -525,356 +526,379 @@ export function AnamnesisForm({
                 />
               </div>
 
-              {/* Riwayat Penyakit Sekarang */}
-              <div className="space-y-2">
-                <Label htmlFor="history_of_present_illness" className="text-sm font-semibold">
-                  Riwayat Penyakit Sekarang <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="history_of_present_illness"
-                  placeholder="Jelaskan riwayat penyakit yang sedang dialami (onset, durasi, karakteristik, dll)..."
-                  value={formData.history_of_present_illness}
-                  onChange={(e) => handleChange("history_of_present_illness", e.target.value)}
-                  className="min-h-[120px] resize-none"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Detail onset, lokasi, durasi, karakteristik, faktor yang memperberat/meringankan
-                </p>
+                {/* Riwayat Penyakit Sekarang */}
+                <div className="space-y-2">
+                  <Label htmlFor="history_of_present_illness" className="text-sm font-semibold">
+                    Riwayat Penyakit Sekarang <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    id="history_of_present_illness"
+                    placeholder="Jelaskan riwayat penyakit yang sedang dialami (onset, durasi, karakteristik, dll)..."
+                    value={formData.history_of_present_illness}
+                    onChange={(e) => handleChange("history_of_present_illness", e.target.value)}
+                    className="min-h-[120px] resize-none"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Detail onset, lokasi, durasi, karakteristik, faktor yang memperberat/meringankan
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Section 2: Riwayat Medis */}
-          <div className="border border-border/70">{/* Riwayat Penyakit Dahulu */}
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Riwayat Medis
+            {/* Section 2: Riwayat Medis */}
+            <div className="border border-border/70">{/* Riwayat Penyakit Dahulu */}
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Riwayat Medis
+              </div>
+              <div className="space-y-4 p-3 sm:p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="past_medical_history" className="text-sm font-semibold">
+                    Riwayat Penyakit Dahulu
+                  </Label>
+                  <Textarea
+                    id="past_medical_history"
+                    placeholder="Riwayat penyakit yang pernah diderita sebelumnya..."
+                    value={formData.past_medical_history}
+                    onChange={(e) => handleChange("past_medical_history", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                </div>
+
+                {/* Riwayat Penyakit Keluarga */}
+                <div className="space-y-2">
+                  <Label htmlFor="family_history" className="text-sm font-semibold">
+                    Riwayat Penyakit Keluarga
+                  </Label>
+                  <Textarea
+                    id="family_history"
+                    placeholder="Riwayat penyakit dalam keluarga (hipertensi, diabetes, dll)..."
+                    value={formData.family_history}
+                    onChange={(e) => handleChange("family_history", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                </div>
+
+                {/* Riwayat Sosial */}
+                <div className="space-y-2">
+                  <Label htmlFor="social_history" className="text-sm font-semibold">
+                    Riwayat Sosial
+                  </Label>
+                  <Textarea
+                    id="social_history"
+                    placeholder="Kebiasaan merokok, konsumsi alkohol, pekerjaan, dll..."
+                    value={formData.social_history}
+                    onChange={(e) => handleChange("social_history", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-4 p-3 sm:p-4">
-              <div className="space-y-2">
-                <Label htmlFor="past_medical_history" className="text-sm font-semibold">
-                  Riwayat Penyakit Dahulu
-                </Label>
-                <Textarea
-                  id="past_medical_history"
-                  placeholder="Riwayat penyakit yang pernah diderita sebelumnya..."
-                  value={formData.past_medical_history}
-                  onChange={(e) => handleChange("past_medical_history", e.target.value)}
-                  className="min-h-[80px] resize-none"
-                />
-              </div>
 
-              {/* Riwayat Penyakit Keluarga */}
-              <div className="space-y-2">
-                <Label htmlFor="family_history" className="text-sm font-semibold">
-                  Riwayat Penyakit Keluarga
-                </Label>
-                <Textarea
-                  id="family_history"
-                  placeholder="Riwayat penyakit dalam keluarga (hipertensi, diabetes, dll)..."
-                  value={formData.family_history}
-                  onChange={(e) => handleChange("family_history", e.target.value)}
-                  className="min-h-[80px] resize-none"
-                />
-              </div>
-
-              {/* Riwayat Sosial */}
-              <div className="space-y-2">
-                <Label htmlFor="social_history" className="text-sm font-semibold">
-                  Riwayat Sosial
-                </Label>
-                <Textarea
-                  id="social_history"
-                  placeholder="Kebiasaan merokok, konsumsi alkohol, pekerjaan, dll..."
-                  value={formData.social_history}
-                  onChange={(e) => handleChange("social_history", e.target.value)}
-                  className="min-h-[80px] resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Alergi & Obat */}
+            {/* Section 3: Alergi & Obat */}
             <div className="border border-border/70">{/* Existing Allergies List */}
               <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Alergi dan Obat Aktif
               </div>
               <div className="space-y-6 p-3 sm:p-4">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                    Daftar Alergi Pasien
-                  </Label>
-                  {!readOnly && (
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setShowAllergyForm(!showAllergyForm)}
-                      className="h-8"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Tambah Alergi
-                    </Button>
+                {/* Switch Konfirmasi Tidak Ada Alergi */}
+                {!readOnly && (
+                  <div className="flex items-center justify-between bg-muted/20 p-3 px-4 rounded-lg border border-border/70 w-full mb-4 text-left">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="no_allergies" className="text-sm font-semibold cursor-pointer">
+                        Konfirmasi Tidak Ada Alergi
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Aktifkan jika pasien memang tidak memiliki riwayat alergi
+                      </p>
+                    </div>
+                    <Switch
+                      id="no_allergies"
+                      checked={formData.allergies === "Tidak ada alergi"}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allergies: checked ? "Tidak ada alergi" : "" }))}
+                    />
+                  </div>
+                )}
+
+                {formData.allergies !== "Tidak ada alergi" && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label className="text-sm font-semibold flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                          Daftar Alergi Pasien
+                        </Label>
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAllergyForm(!showAllergyForm)}
+                            className="h-8"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Tambah Alergi
+                          </Button>
+                        )}
+                      </div>
+
+                  {/* Loading allergies */}
+                  {loadingAllergies ? (
+                    <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Memuat data alergi...</span>
+                    </div>
+                  ) : patientAllergies.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-4 text-muted-foreground bg-muted/30 rounded-lg space-y-3">
+                      <AlertCircle className="h-8 w-8 opacity-50" />
+                      <p className="text-sm">Tidak ada alergi tercatat</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {patientAllergies.map((allergy) => (
+                        <div
+                          key={allergy.id}
+                          className={`p-3 border-l-4 ${ALLERGY_CRITICALITY_COLORS[allergy.criticality]}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm">{allergy.snomed_display}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {ALLERGY_CATEGORY_LABELS[allergy.category]}
+                                </Badge>
+                                <Badge
+                                  variant={allergy.criticality === 'high' ? 'destructive' : 'secondary'}
+                                  className="text-xs"
+                                >
+                                  {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                <span className="font-mono">{allergy.snomed_code}</span>
+                                {allergy.notes && <span className="ml-2">• {allergy.notes}</span>}
+                              </div>
+                            </div>
+                            {!readOnly && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDeleteAllergy(allergy.id)}
+                                disabled={deletingAllergyId === allergy.id}
+                              >
+                                {deletingAllergyId === allergy.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <X className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
-                {/* Loading allergies */}
-                {loadingAllergies ? (
-                  <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Memuat data alergi...</span>
-                  </div>
-                ) : patientAllergies.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground bg-muted/30 rounded-lg">
-                    <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Tidak ada alergi tercatat</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {patientAllergies.map((allergy) => (
-                      <div
-                        key={allergy.id}
-                        className={`p-3 border-l-4 ${ALLERGY_CRITICALITY_COLORS[allergy.criticality]}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-sm">{allergy.snomed_display}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {ALLERGY_CATEGORY_LABELS[allergy.category]}
-                              </Badge>
-                              <Badge 
-                                variant={allergy.criticality === 'high' ? 'destructive' : 'secondary'}
-                                className="text-xs"
+                {/* Add Allergy Form */}
+                {showAllergyForm && !readOnly && (
+                  <div className="border-dashed">
+                    <div className="p-4 space-y-4">
+                      <p className="text-sm font-medium">Tambah Alergi Baru</p>
+
+                      {/* SNOMED Search */}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Cari Alergi (SNOMED CT)</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Ketik minimal 3 karakter: nama alergi dalam Bahasa Inggris atau SNOMED Concept ID
+                        </p>
+
+                        {/* Google Search Tip */}
+                        {snomedQuery.length >= 3 && snomedResults.length === 0 && !searchingSnomed && (
+                          <div className="p-2 bg-muted/50 border rounded text-xs">
+                            <p className="text-muted-foreground">
+                              💡 <strong>Tip:</strong> Tidak menemukan? Cari di Google dengan kata kunci:{" "}
+                              <a
+                                href={`https://www.google.com/search?q=snomed+ct+allergy+${encodeURIComponent(snomedQuery)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline font-medium hover:text-foreground"
                               >
-                                {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
-                              </Badge>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              <span className="font-mono">{allergy.snomed_code}</span>
-                              {allergy.notes && <span className="ml-2">• {allergy.notes}</span>}
-                            </div>
+                                "snomed ct allergy {snomedQuery}"
+                              </a>
+                              , lalu masukkan Concept ID yang ditemukan.
+                            </p>
                           </div>
-                          {!readOnly && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteAllergy(allergy.id)}
-                              disabled={deletingAllergyId === allergy.id}
-                            >
-                              {deletingAllergyId === allergy.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <X className="h-3 w-3" />
-                              )}
-                            </Button>
+                        )}
+
+                        <div className="relative">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Cari: penicillin, aspirin, seafood..."
+                              value={snomedQuery}
+                              onChange={(e) => setSnomedQuery(e.target.value)}
+                              className="pl-9"
+                            />
+                            {searchingSnomed && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
+                            )}
+                          </div>
+
+                          {/* Search Results */}
+                          {snomedResults.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg">
+                              <div className="max-h-48 overflow-y-auto">
+                                <table className="w-full min-w-[640px] text-sm">
+                                  <thead className="bg-muted sticky top-0">
+                                    <tr className="border-b">
+                                      <th className="text-left p-2 font-medium w-28">Kode</th>
+                                      <th className="text-left p-2 font-medium">Term (English)</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {snomedResults.map((snomed) => (
+                                      <tr
+                                        key={snomed.pk_id}
+                                        onClick={() => handleSelectSnomed(snomed)}
+                                        className="border-b hover:bg-accent cursor-pointer"
+                                      >
+                                        <td className="p-2 font-mono text-xs text-muted-foreground">
+                                          {snomed.conceptId}
+                                        </td>
+                                        <td className="p-2">{snomed.term}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
                           )}
                         </div>
+
+                        {/* Selected SNOMED */}
+                        {newAllergy.snomed_code && (
+                          <div className="flex items-center gap-2 p-2 bg-muted/50 border rounded text-sm">
+                            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-mono text-xs">{newAllergy.snomed_code}</span>
+                            <span>-</span>
+                            <span className="font-medium">{newAllergy.snomed_display}</span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+
+                      {/* Category & Criticality */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm">Kategori</Label>
+                          <Select
+                            value={newAllergy.category}
+                            onValueChange={(value) => setNewAllergy({ ...newAllergy, category: value as AllergyCategory })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="medication">Obat</SelectItem>
+                              <SelectItem value="food">Makanan</SelectItem>
+                              <SelectItem value="environment">Lingkungan</SelectItem>
+                              <SelectItem value="biologic">Biologis</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm">Tingkat Keparahan</Label>
+                          <Select
+                            value={newAllergy.criticality}
+                            onValueChange={(value) => setNewAllergy({ ...newAllergy, criticality: value as AllergyCriticality })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">Rendah</SelectItem>
+                              <SelectItem value="high">Tinggi</SelectItem>
+                              <SelectItem value="unable-to-assess">Tidak Dapat Dinilai</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Catatan (Opsional)</Label>
+                        <Input
+                          placeholder="Reaksi yang muncul, dll..."
+                          value={newAllergy.notes}
+                          onChange={(e) => setNewAllergy({ ...newAllergy, notes: e.target.value })}
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setShowAllergyForm(false);
+                            setNewAllergy(defaultNewAllergy);
+                            setSnomedQuery("");
+                          }}
+                        >
+                          Batal
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAddAllergy}
+                          disabled={!newAllergy.snomed_code || savingAllergy}
+                        >
+                          {savingAllergy ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Menyimpan...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-3 w-3 mr-1" />
+                              Tambah
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
+                  </>
+                )}
 
-              {/* Add Allergy Form */}
-              {showAllergyForm && !readOnly && (
-                <div className="border-dashed">
-                  <div className="p-4 space-y-4">
-                    <p className="text-sm font-medium">Tambah Alergi Baru</p>
-                    
-                    {/* SNOMED Search */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Cari Alergi (SNOMED CT)</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Ketik minimal 3 karakter: nama alergi dalam Bahasa Inggris atau SNOMED Concept ID
-                      </p>
-                      
-                      {/* Google Search Tip */}
-                      {snomedQuery.length >= 3 && snomedResults.length === 0 && !searchingSnomed && (
-                        <div className="p-2 bg-muted/50 border rounded text-xs">
-                          <p className="text-muted-foreground">
-                            💡 <strong>Tip:</strong> Tidak menemukan? Cari di Google dengan kata kunci:{" "}
-                            <a 
-                              href={`https://www.google.com/search?q=snomed+ct+allergy+${encodeURIComponent(snomedQuery)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline font-medium hover:text-foreground"
-                            >
-                              "snomed ct allergy {snomedQuery}"
-                            </a>
-                            , lalu masukkan Concept ID yang ditemukan.
-                          </p>
-                        </div>
-                      )}
-                      
-                      <div className="relative">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Cari: penicillin, aspirin, seafood..."
-                            value={snomedQuery}
-                            onChange={(e) => setSnomedQuery(e.target.value)}
-                            className="pl-9"
-                          />
-                          {searchingSnomed && (
-                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />
-                          )}
-                        </div>
-                        
-                        {/* Search Results */}
-                        {snomedResults.length > 0 && (
-                          <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg">
-                            <div className="max-h-48 overflow-y-auto">
-                              <table className="w-full min-w-[640px] text-sm">
-                                <thead className="bg-muted sticky top-0">
-                                  <tr className="border-b">
-                                    <th className="text-left p-2 font-medium w-28">Kode</th>
-                                    <th className="text-left p-2 font-medium">Term (English)</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {snomedResults.map((snomed) => (
-                                    <tr
-                                      key={snomed.pk_id}
-                                      onClick={() => handleSelectSnomed(snomed)}
-                                      className="border-b hover:bg-accent cursor-pointer"
-                                    >
-                                      <td className="p-2 font-mono text-xs text-muted-foreground">
-                                        {snomed.conceptId}
-                                      </td>
-                                      <td className="p-2">{snomed.term}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Selected SNOMED */}
-                      {newAllergy.snomed_code && (
-                        <div className="flex items-center gap-2 p-2 bg-muted/50 border rounded text-sm">
-                          <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-mono text-xs">{newAllergy.snomed_code}</span>
-                          <span>-</span>
-                          <span className="font-medium">{newAllergy.snomed_display}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Category & Criticality */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Kategori</Label>
-                        <Select
-                          value={newAllergy.category}
-                          onValueChange={(value) => setNewAllergy({ ...newAllergy, category: value as AllergyCategory })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="medication">Obat</SelectItem>
-                            <SelectItem value="food">Makanan</SelectItem>
-                            <SelectItem value="environment">Lingkungan</SelectItem>
-                            <SelectItem value="biologic">Biologis</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm">Tingkat Keparahan</Label>
-                        <Select
-                          value={newAllergy.criticality}
-                          onValueChange={(value) => setNewAllergy({ ...newAllergy, criticality: value as AllergyCriticality })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Rendah</SelectItem>
-                            <SelectItem value="high">Tinggi</SelectItem>
-                            <SelectItem value="unable-to-assess">Tidak Dapat Dinilai</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div className="space-y-2">
-                      <Label className="text-sm">Catatan (Opsional)</Label>
-                      <Input
-                        placeholder="Reaksi yang muncul, dll..."
-                        value={newAllergy.notes}
-                        onChange={(e) => setNewAllergy({ ...newAllergy, notes: e.target.value })}
-                      />
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setShowAllergyForm(false);
-                          setNewAllergy(defaultNewAllergy);
-                          setSnomedQuery("");
-                        }}
-                      >
-                        Batal
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleAddAllergy}
-                        disabled={!newAllergy.snomed_code || savingAllergy}
-                      >
-                        {savingAllergy ? (
-                          <>
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            Menyimpan...
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-3 w-3 mr-1" />
-                            Tambah
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+                {/* Obat yang Sedang Dikonsumsi */}
+                <div className="space-y-2">
+                  <Label htmlFor="current_medications" className="text-sm font-semibold flex items-center gap-2">
+                    <Pill className="h-4 w-4 text-muted-foreground" />
+                    Obat yang Sedang Dikonsumsi
+                  </Label>
+                  <Textarea
+                    id="current_medications"
+                    placeholder="Daftar obat yang sedang dikonsumsi pasien saat ini..."
+                    value={formData.current_medications}
+                    onChange={(e) => handleChange("current_medications", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Termasuk dosis dan frekuensi untuk menghindari interaksi obat
+                  </p>
                 </div>
-              )}
-
-              {/* Obat yang Sedang Dikonsumsi */}
-              <div className="space-y-2">
-                <Label htmlFor="current_medications" className="text-sm font-semibold flex items-center gap-2">
-                  <Pill className="h-4 w-4 text-muted-foreground" />
-                  Obat yang Sedang Dikonsumsi
-                </Label>
-                <Textarea
-                  id="current_medications"
-                  placeholder="Daftar obat yang sedang dikonsumsi pasien saat ini..."
-                  value={formData.current_medications}
-                  onChange={(e) => handleChange("current_medications", e.target.value)}
-                  className="min-h-[80px] resize-none"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Termasuk dosis dan frekuensi untuk menghindari interaksi obat
-                </p>
               </div>
-              </div>
-          </div>
+            </div>
 
           </fieldset>
         </form>
       </div>
-      
+
       {/* Edit Confirmation Dialog */}
       <EditConfirmDialog
         open={showEditDialog}

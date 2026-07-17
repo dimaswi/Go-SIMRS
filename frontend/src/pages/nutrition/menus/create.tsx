@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,27 +174,27 @@ export default function NutritionMenuCreate() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label><Flame className="inline h-3 w-3 mr-1" />Kalori (kkal)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.calories || ""} onChange={(e) => setFormData({ ...formData, calories: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.calories ?? ""} onChange={(e) => setFormData({ ...formData, calories: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label><Beef className="inline h-3 w-3 mr-1" />Protein (g)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.protein || ""} onChange={(e) => setFormData({ ...formData, protein: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.protein ?? ""} onChange={(e) => setFormData({ ...formData, protein: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label><Droplets className="inline h-3 w-3 mr-1" />Lemak (g)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.fat || ""} onChange={(e) => setFormData({ ...formData, fat: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.fat ?? ""} onChange={(e) => setFormData({ ...formData, fat: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label><Wheat className="inline h-3 w-3 mr-1" />Karbohidrat (g)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.carbohydrate || ""} onChange={(e) => setFormData({ ...formData, carbohydrate: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.carbohydrate ?? ""} onChange={(e) => setFormData({ ...formData, carbohydrate: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label>Serat (g)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.fiber || ""} onChange={(e) => setFormData({ ...formData, fiber: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.fiber ?? ""} onChange={(e) => setFormData({ ...formData, fiber: parseFloat(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label>Natrium (mg)</Label>
-              <Input type="number" step="0.01" min="0" value={formData.sodium || ""} onChange={(e) => setFormData({ ...formData, sodium: parseFloat(e.target.value) || 0 })} />
+              <Input type="number" step="0.01" min="0" value={formData.sodium ?? ""} onChange={(e) => setFormData({ ...formData, sodium: parseFloat(e.target.value) || 0 })} />
             </div>
           </div>
         </NutritionSectionPanel>
@@ -269,7 +269,7 @@ export default function NutritionMenuCreate() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Harga per Porsi</Label>
-              <Input type="number" min="0" value={formData.unit_price || ""} onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) || 0 })} placeholder="0" />
+              <Input type="number" min="0" value={formData.unit_price ?? ""} onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) || 0 })} placeholder="0" />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} />

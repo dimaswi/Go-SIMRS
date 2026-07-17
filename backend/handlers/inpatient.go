@@ -43,8 +43,8 @@ func GetCPPTs(c *gin.Context) {
 		return
 	}
 
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "CPPT hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 
@@ -145,8 +145,8 @@ func CreateCPPT(c *gin.Context) {
 		return
 	}
 
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "CPPT hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 
@@ -355,8 +355,8 @@ func GetFluidBalances(c *gin.Context) {
 		return
 	}
 
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Balance cairan hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 
@@ -480,8 +480,8 @@ func CreateFluidBalance(c *gin.Context) {
 		return
 	}
 
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Balance cairan hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 
@@ -694,8 +694,8 @@ func GetNursingCares(c *gin.Context) {
 	}
 
 	// Nursing care only for inpatient visits
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 
@@ -812,8 +812,8 @@ func CreateNursingCare(c *gin.Context) {
 		return
 	}
 
-	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan hanya tersedia untuk rawat inap"})
+	if visit.Room == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tidak ditemukan"})
 		return
 	}
 

@@ -651,17 +651,25 @@ export const isParameterAbnormal = (
   return false;
 };
 
+// Format number with dots for thousands and comma for decimal
+export const formatNumberLocally = (num: number): string => {
+  if (num === undefined || num === null) return '';
+  const parts = num.toString().split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return parts.length > 1 ? parts[0] + ',' + parts[1] : parts[0];
+};
+
 // Format normal range display
 export const formatNormalRange = (param: ProcedureParameter): string => {
   if (param.normal_text) return param.normal_text;
   if (param.normal_min !== undefined && param.normal_max !== undefined) {
-    return `${param.normal_min} - ${param.normal_max}${param.unit ? ' ' + param.unit : ''}`;
+    return `${formatNumberLocally(param.normal_min)} - ${formatNumberLocally(param.normal_max)}${param.unit ? ' ' + param.unit : ''}`;
   }
   if (param.normal_min !== undefined) {
-    return `≥ ${param.normal_min}${param.unit ? ' ' + param.unit : ''}`;
+    return `≥ ${formatNumberLocally(param.normal_min)}${param.unit ? ' ' + param.unit : ''}`;
   }
   if (param.normal_max !== undefined) {
-    return `≤ ${param.normal_max}${param.unit ? ' ' + param.unit : ''}`;
+    return `≤ ${formatNumberLocally(param.normal_max)}${param.unit ? ' ' + param.unit : ''}`;
   }
   return '-';
 };

@@ -84,7 +84,7 @@ func printPrescriptionImpl(c *gin.Context) {
 		if item.Medicine != nil {
 			medName = item.Medicine.Name
 		}
-		qty := fmt.Sprintf("%d", item.Quantity)
+		qty := formatNumber(float64(item.Quantity))
 		dosage := item.Dosage
 		frequency := item.Frequency
 		instruction := item.Instructions
@@ -291,7 +291,7 @@ func printLabResultImpl(c *gin.Context) {
 			// Build normal range
 			normalRange := ""
 			if param.NormalMin > 0 || param.NormalMax > 0 {
-				normalRange = fmt.Sprintf("%.2f - %.2f", param.NormalMin, param.NormalMax)
+				normalRange = formatFloatNoExponent(param.NormalMin) + " - " + formatFloatNoExponent(param.NormalMax)
 			} else if param.NormalText != "" {
 				normalRange = param.NormalText
 			}
@@ -446,7 +446,7 @@ func printLaboratoryResultImpl(c *gin.Context) {
 				if result.ProcedureParameter.NormalText != "" {
 					refRange = result.ProcedureParameter.NormalText
 				} else if result.ProcedureParameter.NormalMin > 0 || result.ProcedureParameter.NormalMax > 0 {
-					refRange = fmt.Sprintf("%.2f - %.2f", result.ProcedureParameter.NormalMin, result.ProcedureParameter.NormalMax)
+					refRange = formatFloatNoExponent(result.ProcedureParameter.NormalMin) + " - " + formatFloatNoExponent(result.ProcedureParameter.NormalMax)
 				}
 			}
 
@@ -465,10 +465,10 @@ func printLaboratoryResultImpl(c *gin.Context) {
 			}
 
 			pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
-			pdf.CellFormat(35, 6, result.Value, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(35, 6, formatNumericString(result.Value), "1", 0, "C", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)
 			pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(45, 6, refRange, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(45, 6, formatNumericString(refRange), "1", 0, "C", false, 0, "")
 
 			// Status with color
 			if result.IsCritical || result.IsHigh {
@@ -595,7 +595,7 @@ func printLaboratoryResultItemImpl(c *gin.Context) {
 			if result.ProcedureParameter.NormalText != "" {
 				refRange = result.ProcedureParameter.NormalText
 			} else if result.ProcedureParameter.NormalMin > 0 || result.ProcedureParameter.NormalMax > 0 {
-				refRange = fmt.Sprintf("%.2f - %.2f", result.ProcedureParameter.NormalMin, result.ProcedureParameter.NormalMax)
+				refRange = formatFloatNoExponent(result.ProcedureParameter.NormalMin) + " - " + formatFloatNoExponent(result.ProcedureParameter.NormalMax)
 			}
 		}
 
@@ -614,10 +614,10 @@ func printLaboratoryResultItemImpl(c *gin.Context) {
 		}
 
 		pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(35, 6, result.Value, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(35, 6, formatNumericString(result.Value), "1", 0, "C", false, 0, "")
 		pdf.SetTextColor(0, 0, 0)
 		pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
-		pdf.CellFormat(45, 6, refRange, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(45, 6, formatNumericString(refRange), "1", 0, "C", false, 0, "")
 
 		// Status with color
 		if result.IsCritical || result.IsHigh {

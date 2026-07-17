@@ -249,15 +249,6 @@ export function MedicalRecordTabs({
         icon: <Users />,
         permission: "medical_records.anamnesis",
         section: "assessment",
-        subTabs: [
-          { id: "bersalin-asesmen", label: "Asesmen Awal" },
-          { id: "bersalin-skrining", label: "Skrining Risiko" },
-          { id: "bersalin-medis", label: "Riwayat & Medis" },
-          { id: "bersalin-observasi", label: "Observasi" },
-          { id: "bersalin-partograf", label: "Partograf" },
-          { id: "bersalin-catatan", label: "Catatan Kala 1-4" },
-          { id: "bersalin-bayi", label: "Bayi Baru Lahir" },
-        ]
       } as Tab
     ] : []),
     {
@@ -347,22 +338,22 @@ export function MedicalRecordTabs({
       permission: "medical_records.nutrition_order",
       section: "order",
     }] : []),
-    // CPPT tab - show for rawat_inap only
-    ...(showsInpatientOrEmergencyCareTabs ? [{
+    // CPPT tab - show for all
+    {
       id: "cppt",
       label: "CPPT",
       icon: <ClipboardCheck />,
       permission: "medical_records.cppt",
       section: "care",
-    }] : []),
-    // Nursing Care tab - show for rawat_inap and UGD
-    ...(showsInpatientOrEmergencyCareTabs ? [{
+    },
+    // Nursing Care tab - show for all
+    {
       id: "nursing-care",
       label: "Asuhan Keperawatan",
       icon: <HeartPulse />,
       permission: "medical_records.nursing_care",
       section: "care",
-    }] : []),
+    },
     // Fall Risk tab - show for rawat_inap and UGD
     ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "fall-risk",
@@ -379,14 +370,14 @@ export function MedicalRecordTabs({
       permission: "medical_records.nursing_care",
       section: "care",
     }] : []),
-    // Fluid Balance tab - show for rawat_inap and UGD
-    ...(showsInpatientOrEmergencyCareTabs ? [{
+    // Fluid Balance tab - show for all
+    {
       id: "fluid-balance",
       label: "Balance Cairan",
       icon: <Droplets />,
       permission: "medical_records.fluid_balance",
       section: "care",
-    }] : []),
+    },
     ...(isInpatient ? [{
       id: "discharge-planning",
       label: "Discharge Planning",

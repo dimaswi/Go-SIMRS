@@ -83,7 +83,7 @@ func addBPJSDocSignatureImpl(pdf *gofpdf.Fpdf, city, doctorName, label, docNumbe
 	pdf.SetDrawColor(180, 180, 180)
 	pdf.SetLineWidth(0.3)
 	pdf.Line(marginLeft, footerY, marginLeft+contentWidth, footerY)
-	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetDrawColor(100, 100, 100)
 
 	footerY += 2
 

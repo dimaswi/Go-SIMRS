@@ -161,6 +161,7 @@ const parseBP = (bp: string): { systolic: number; diastolic: number } => {
 
 const defaultFormData = {
   arrival_mode: "",
+  rujukan_dari: "",
   triage_complaint: "",
   triage_level: "",
   airway: "",
@@ -322,6 +323,7 @@ export function TriageForm({
       const d = externalData || {};
       setFormData({
         arrival_mode: (d as any).arrival_mode || "",
+        rujukan_dari: (d as any).rujukan_dari || "",
         triage_complaint: (d as any).triage_complaint || "",
         triage_level: (d as any).triage_level || "",
         airway: (d as any).airway || "",
@@ -362,6 +364,7 @@ export function TriageForm({
           
           setFormData({
             arrival_mode: data.arrival_mode || "",
+            rujukan_dari: data.rujukan_dari || "",
             triage_complaint: data.triage_complaint || "",
             triage_level: data.triage_level || "",
             airway: data.airway || "",
@@ -494,7 +497,7 @@ export function TriageForm({
 
   // Get options from master data
   const arrivalModeOptions = getOptions('arrival_mode');
-  const triageLevelOptions = getOptions('triage_level');
+  const triageLevelOptions = getOptions('triage_level').filter(opt => opt.value !== "3" && opt.value !== "5");
   const airwayOptions = getOptions('airway_status');
   const breathingOptions = getOptions('breathing_status');
   const circulationOptions = getOptions('circulation_status');
@@ -541,7 +544,7 @@ export function TriageForm({
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Informasi Kedatangan
             </div>
-            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="arrival_mode" className="text-sm font-semibold">
                     Moda Kedatangan <span className="text-destructive">*</span>
@@ -555,15 +558,27 @@ export function TriageForm({
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-
                 <div className="space-y-2">
+                  <Label htmlFor="triage_rujukan" className="text-sm font-semibold">
+                    Rujukan Dari
+                  </Label>
+                  <Input
+                    id="triage_rujukan"
+                    placeholder="Nama faskes / dokter (opsional)..."
+                    value={formData.rujukan_dari || ""}
+                    onChange={(e) => handleChange("rujukan_dari", e.target.value)}
+                    className="h-11"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-1">
                   <Label htmlFor="triage_complaint" className="text-sm font-semibold">
                     Keluhan Utama <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="triage_complaint"
                     placeholder="Keluhan utama pasien..."
-                    value={formData.triage_complaint}
+                    value={formData.triage_complaint || ""}
                     onChange={(e) => handleChange("triage_complaint", e.target.value)}
                     className="h-11"
                     required
