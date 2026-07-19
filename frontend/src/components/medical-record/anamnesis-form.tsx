@@ -53,7 +53,7 @@ const defaultFormData = {
   past_medical_history: "",
   family_history: "",
   social_history: "",
-  allergies: "", // Legacy field - will still save as summary
+  allergies: "Tidak ada alergi", // Legacy field - will still save as summary
   current_medications: "",
 };
 
@@ -148,7 +148,7 @@ export function AnamnesisForm({
         past_medical_history: d.past_medical_history || "",
         family_history: d.family_history || "",
         social_history: d.social_history || "",
-        allergies: d.allergies || "",
+        allergies: d.allergies || "Tidak ada alergi",
         current_medications: d.current_medications || "",
       });
       setLoading(false);
@@ -169,7 +169,7 @@ export function AnamnesisForm({
             past_medical_history: data.past_medical_history || "",
             family_history: data.family_history || "",
             social_history: data.social_history || "",
-            allergies: data.allergies || "",
+            allergies: data.allergies || "Tidak ada alergi",
             current_medications: data.current_medications || "",
           });
           setAnamnesisId(data.id);
@@ -182,6 +182,7 @@ export function AnamnesisForm({
         // Apply local draft if exists — overrides server data if user had unsaved changes
         const draft = loadFormDraft<typeof defaultFormData>(`mr-draft-anamnesis-${visitId}`);
         if (draft) {
+          if (!draft.allergies) draft.allergies = "Tidak ada alergi";
           setFormData(draft);
           emitMedicalRecordTabSaved("anamnesis", false);
         }

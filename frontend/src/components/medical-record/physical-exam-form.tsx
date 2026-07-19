@@ -236,14 +236,14 @@ const getVitalStatusInputClass = (status: VitalStatus) => {
 const defaultFormData = {
   general_condition: "",
   consciousness: "",
-  blood_pressure_systolic: 0,
-  blood_pressure_diastolic: 0,
-  heart_rate: 0,
-  respiratory_rate: 0,
-  temperature: 0,
-  oxygen_saturation: 0,
-  weight: 0,
-  height: 0,
+  blood_pressure_systolic: "",
+  blood_pressure_diastolic: "",
+  heart_rate: "",
+  respiratory_rate: "",
+  temperature: "",
+  oxygen_saturation: "",
+  weight: "",
+  height: "",
   bmi: 0,
   upper_arm_circum: "",
   head_circum: "",
@@ -275,7 +275,7 @@ const defaultFormData = {
   pelvic_notes: "",
   pain_method: "nrs",
   pain_scale: 0,
-  pain_location: "",
+  pain_location: "Tidak ada nyeri",
 };
 
 const parseBloodPressure = (
@@ -420,22 +420,24 @@ export function PhysicalExamForm({
       const loadedData = {
         general_condition: d.general_condition || "",
         consciousness: d.consciousness || "",
-        blood_pressure_systolic:
+        blood_pressure_systolic: String(
           (d as any).systolic ||
           (d as any).blood_pressure_systolic ||
           bp.systolic ||
-          0,
-        blood_pressure_diastolic:
+          ""
+        ),
+        blood_pressure_diastolic: String(
           (d as any).diastolic ||
           (d as any).blood_pressure_diastolic ||
           bp.diastolic ||
-          0,
-        heart_rate: Number(d.heart_rate) || 0,
-        respiratory_rate: Number(d.respiratory_rate) || 0,
-        temperature: Number(d.temperature) || 0,
-        oxygen_saturation: Number(d.oxygen_saturation) || 0,
-        weight: Number(d.weight) || 0,
-        height: Number(d.height) || 0,
+          ""
+        ),
+        heart_rate: Number(d.heart_rate) ? String(Number(d.heart_rate)) : "",
+        respiratory_rate: Number(d.respiratory_rate) ? String(Number(d.respiratory_rate)) : "",
+        temperature: Number(d.temperature) ? String(Number(d.temperature)) : "",
+        oxygen_saturation: Number(d.oxygen_saturation) ? String(Number(d.oxygen_saturation)) : "",
+        weight: Number(d.weight) ? String(Number(d.weight)) : "",
+        height: Number(d.height) ? String(Number(d.height)) : "",
         bmi: Number(d.bmi) || 0,
         upper_arm_circum: (d as any).upper_arm_circum || "",
         head_circum: d.head_circum || "",
@@ -467,7 +469,7 @@ export function PhysicalExamForm({
         pelvic_notes: (d as any).pelvic_notes || "",
         pain_method: (d as any).pain_method || "nrs",
         pain_scale: Number((d as any).pain_scale) || 0,
-        pain_location: (d as any).pain_location || "",
+        pain_location: (d as any).pain_location || "Tidak ada nyeri",
       };
       applyLoadedData(loadedData);
       setLoading(false);
@@ -504,15 +506,15 @@ export function PhysicalExamForm({
             general_condition: data.general_condition || "",
             consciousness: data.consciousness || "",
             blood_pressure_systolic:
-              data.systolic || data.blood_pressure_systolic || 0,
+              data.systolic !== undefined ? String(data.systolic) : (data.blood_pressure_systolic !== undefined ? String(data.blood_pressure_systolic) : ""),
             blood_pressure_diastolic:
-              data.diastolic || data.blood_pressure_diastolic || 0,
-            heart_rate: parseNum(data.heart_rate),
-            respiratory_rate: parseNum(data.respiratory_rate),
-            temperature: parseNum(data.temperature),
-            oxygen_saturation: parseNum(data.oxygen_saturation),
-            weight: parseNum(data.weight),
-            height: parseNum(data.height),
+              data.diastolic !== undefined ? String(data.diastolic) : (data.blood_pressure_diastolic !== undefined ? String(data.blood_pressure_diastolic) : ""),
+            heart_rate: parseNum(data.heart_rate) !== 0 ? String(parseNum(data.heart_rate)) : "",
+            respiratory_rate: parseNum(data.respiratory_rate) !== 0 ? String(parseNum(data.respiratory_rate)) : "",
+            temperature: parseNum(data.temperature) !== 0 ? String(parseNum(data.temperature)) : "",
+            oxygen_saturation: parseNum(data.oxygen_saturation) !== 0 ? String(parseNum(data.oxygen_saturation)) : "",
+            weight: parseNum(data.weight) !== 0 ? String(parseNum(data.weight)) : "",
+            height: parseNum(data.height) !== 0 ? String(parseNum(data.height)) : "",
             bmi: data.bmi || 0,
             upper_arm_circum: data.upper_arm_circum || "",
             head_circum: data.head_circum || "",
@@ -544,7 +546,7 @@ export function PhysicalExamForm({
             pelvic_notes: data.pelvic_notes || "",
             pain_method: data.pain_method || "nrs",
             pain_scale: data.pain_scale || 0,
-            pain_location: data.pain_location || "",
+            pain_location: data.pain_location || "Tidak ada nyeri",
           };
 
           applyLoadedData(loadedData);
@@ -561,6 +563,7 @@ export function PhysicalExamForm({
           checkedSections: Record<string, boolean>;
         }>(`mr-draft-physical-exam-${visitId}`);
         if (draft) {
+          if (!draft.formData.pain_location) draft.formData.pain_location = "Tidak ada nyeri";
           setFormData(draft.formData);
           setCheckedSections(draft.checkedSections);
           emitMedicalRecordTabSaved("physical-exam", false);
@@ -572,20 +575,18 @@ export function PhysicalExamForm({
           const newData = {
             general_condition: pendingCopy.general_condition || "",
             consciousness: pendingCopy.consciousness || "",
-            blood_pressure_systolic:
-              Number(
-                pendingCopy.systolic || pendingCopy.blood_pressure_systolic,
-              ) || 0,
-            blood_pressure_diastolic:
-              Number(
-                pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic,
-              ) || 0,
-            heart_rate: Number(pendingCopy.heart_rate) || 0,
-            respiratory_rate: Number(pendingCopy.respiratory_rate) || 0,
-            temperature: Number(pendingCopy.temperature) || 0,
-            oxygen_saturation: Number(pendingCopy.oxygen_saturation) || 0,
-            weight: Number(pendingCopy.weight) || 0,
-            height: Number(pendingCopy.height) || 0,
+            blood_pressure_systolic: String(
+              pendingCopy.systolic || pendingCopy.blood_pressure_systolic || ""
+            ),
+            blood_pressure_diastolic: String(
+              pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic || ""
+            ),
+            heart_rate: pendingCopy.heart_rate ? String(pendingCopy.heart_rate) : "",
+            respiratory_rate: pendingCopy.respiratory_rate ? String(pendingCopy.respiratory_rate) : "",
+            temperature: pendingCopy.temperature ? String(pendingCopy.temperature) : "",
+            oxygen_saturation: pendingCopy.oxygen_saturation ? String(pendingCopy.oxygen_saturation) : "",
+            weight: pendingCopy.weight ? String(pendingCopy.weight) : "",
+            height: pendingCopy.height ? String(pendingCopy.height) : "",
             bmi: Number(pendingCopy.bmi) || 0,
             upper_arm_circum: pendingCopy.upper_arm_circum || "",
             head_circum: pendingCopy.head_circum || "",
@@ -634,20 +635,29 @@ export function PhysicalExamForm({
                 ...prev,
                 consciousness: prev.consciousness || triage.consciousness || "",
                 blood_pressure_systolic:
-                  prev.blood_pressure_systolic || bp.systolic,
+                  prev.blood_pressure_systolic ||
+                  (bp.systolic ? String(bp.systolic) : ""),
                 blood_pressure_diastolic:
-                  prev.blood_pressure_diastolic || bp.diastolic,
-                heart_rate: prev.heart_rate || Number(triage.heart_rate) || 0,
+                  prev.blood_pressure_diastolic ||
+                  (bp.diastolic ? String(bp.diastolic) : ""),
+                heart_rate:
+                  prev.heart_rate ||
+                  (triage.heart_rate ? String(triage.heart_rate) : ""),
                 respiratory_rate:
                   prev.respiratory_rate ||
-                  Number(triage.breathing_rate || triage.respiratory_rate) ||
-                  0,
+                  (triage.breathing_rate
+                    ? String(triage.breathing_rate)
+                    : triage.respiratory_rate
+                    ? String(triage.respiratory_rate)
+                    : ""),
                 temperature:
-                  prev.temperature || Number(triage.temperature) || 0,
+                  prev.temperature ||
+                  (triage.temperature ? String(triage.temperature) : ""),
                 oxygen_saturation:
                   prev.oxygen_saturation ||
-                  Number(triage.oxygen_saturation) ||
-                  0,
+                  (triage.oxygen_saturation
+                    ? String(triage.oxygen_saturation)
+                    : ""),
                 pain_method: triage.pain_method || prev.pain_method || "nrs",
                 pain_scale: prev.pain_scale || Number(triage.pain_scale) || 0,
                 pain_location: prev.pain_location || triage.pain_location || "",
@@ -668,8 +678,8 @@ export function PhysicalExamForm({
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
       if (field === "weight" || field === "height") {
-        const weight = field === "weight" ? Number(value) : prev.weight;
-        const height = field === "height" ? Number(value) : prev.height;
+        const weight = field === "weight" ? Number(value) : Number(prev.weight);
+        const height = field === "height" ? Number(value) : Number(prev.height);
         updated.bmi = calculateBMI(weight, height);
       }
       return updated;
@@ -737,15 +747,24 @@ export function PhysicalExamForm({
       setFormData((prev) => ({
         ...prev,
         consciousness: triage.consciousness || prev.consciousness || "",
-        blood_pressure_systolic: bp.systolic || prev.blood_pressure_systolic,
-        blood_pressure_diastolic: bp.diastolic || prev.blood_pressure_diastolic,
-        heart_rate: Number(triage.heart_rate) || prev.heart_rate,
+        blood_pressure_systolic:
+          (bp.systolic ? String(bp.systolic) : "") || prev.blood_pressure_systolic,
+        blood_pressure_diastolic:
+          (bp.diastolic ? String(bp.diastolic) : "") || prev.blood_pressure_diastolic,
+        heart_rate:
+          (triage.heart_rate ? String(triage.heart_rate) : "") || prev.heart_rate,
         respiratory_rate:
-          Number(triage.breathing_rate || triage.respiratory_rate) ||
-          prev.respiratory_rate,
-        temperature: Number(triage.temperature) || prev.temperature,
+          (triage.breathing_rate
+            ? String(triage.breathing_rate)
+            : triage.respiratory_rate
+            ? String(triage.respiratory_rate)
+            : "") || prev.respiratory_rate,
+        temperature:
+          (triage.temperature ? String(triage.temperature) : "") || prev.temperature,
         oxygen_saturation:
-          Number(triage.oxygen_saturation) || prev.oxygen_saturation,
+          (triage.oxygen_saturation
+            ? String(triage.oxygen_saturation)
+            : "") || prev.oxygen_saturation,
         pain_method: triage.pain_method || prev.pain_method || "nrs",
         pain_scale: Number(triage.pain_scale) || prev.pain_scale,
         pain_location: triage.pain_location || prev.pain_location || "",
@@ -813,36 +832,36 @@ export function PhysicalExamForm({
     ];
   }, [formData.pain_location]);
   const systolicStatus = getVitalStatus(
-    formData.blood_pressure_systolic,
+    Number(formData.blood_pressure_systolic),
     90,
     120,
     80,
     129,
   );
   const diastolicStatus = getVitalStatus(
-    formData.blood_pressure_diastolic,
+    Number(formData.blood_pressure_diastolic),
     60,
     80,
     50,
     89,
   );
-  const heartRateStatus = getVitalStatus(formData.heart_rate, 60, 100, 50, 110);
+  const heartRateStatus = getVitalStatus(Number(formData.heart_rate), 60, 100, 50, 110);
   const respiratoryStatus = getVitalStatus(
-    formData.respiratory_rate,
+    Number(formData.respiratory_rate),
     12,
     20,
     10,
     24,
   );
   const temperatureStatus = getVitalStatus(
-    formData.temperature,
+    Number(formData.temperature),
     36.1,
     37.2,
     35.5,
     37.9,
   );
   const spo2Status = getVitalStatus(
-    formData.oxygen_saturation,
+    Number(formData.oxygen_saturation),
     95,
     100,
     90,
@@ -855,18 +874,18 @@ export function PhysicalExamForm({
   const filledVitalSigns = [
     formData.general_condition ? 1 : 0,
     formData.consciousness ? 1 : 0,
-    formData.blood_pressure_systolic > 0 ? 1 : 0,
-    formData.blood_pressure_diastolic > 0 ? 1 : 0,
-    formData.heart_rate > 0 ? 1 : 0,
-    formData.respiratory_rate > 0 ? 1 : 0,
-    formData.temperature > 0 ? 1 : 0,
-    formData.oxygen_saturation > 0 ? 1 : 0,
+    Number(formData.blood_pressure_systolic) > 0 ? 1 : 0,
+    Number(formData.blood_pressure_diastolic) > 0 ? 1 : 0,
+    Number(formData.heart_rate) > 0 ? 1 : 0,
+    Number(formData.respiratory_rate) > 0 ? 1 : 0,
+    Number(formData.temperature) > 0 ? 1 : 0,
+    Number(formData.oxygen_saturation) > 0 ? 1 : 0,
     formData.upper_arm_circum ? 1 : 0,
     formData.head_circum ? 1 : 0,
     formData.waist ? 1 : 0,
   ].reduce((a, b) => a + b, 0) + (isNoPain ? 3 : (
     (formData.pain_method ? 1 : 0) +
-    (formData.pain_scale > 0 ? 1 : 0) +
+    (Number(formData.pain_scale) > 0 ? 1 : 0) +
     (formData.pain_location ? 1 : 0)
   ));
   const filledPhysicalExam = filledBodySections + filledVitalSigns;
@@ -922,17 +941,15 @@ export function PhysicalExamForm({
       const newData = {
         general_condition: d.general_condition || "",
         consciousness: d.consciousness || "",
-        blood_pressure_systolic:
-          Number(d.systolic || d.blood_pressure_systolic) || 0,
-        blood_pressure_diastolic:
-          Number(d.diastolic || d.blood_pressure_diastolic) || 0,
-        heart_rate: Number(d.heart_rate) || 0,
-        respiratory_rate: Number(d.respiratory_rate) || 0,
-        temperature: Number(d.temperature) || 0,
-        oxygen_saturation: Number(d.oxygen_saturation) || 0,
-        weight: Number(d.weight) || 0,
-        height: Number(d.height) || 0,
-        bmi: Number(d.bmi) || 0,
+        blood_pressure_systolic: d.systolic || d.blood_pressure_systolic ? String(d.systolic || d.blood_pressure_systolic) : "",
+        blood_pressure_diastolic: d.diastolic || d.blood_pressure_diastolic ? String(d.diastolic || d.blood_pressure_diastolic) : "",
+        heart_rate: d.heart_rate ? String(d.heart_rate) : "",
+        respiratory_rate: d.respiratory_rate ? String(d.respiratory_rate) : "",
+        temperature: d.temperature ? String(d.temperature) : "",
+        oxygen_saturation: d.oxygen_saturation ? String(d.oxygen_saturation) : "",
+        weight: d.weight ? String(d.weight) : "",
+        height: d.height ? String(d.height) : "",
+        bmi: d.bmi ? Number(d.bmi) : 0,
         upper_arm_circum: d.upper_arm_circum || "",
         head_circum: d.head_circum || "",
         waist: d.waist || "",
@@ -962,7 +979,7 @@ export function PhysicalExamForm({
         pelvic_result: d.pelvic_result || "",
         pelvic_notes: d.pelvic_notes || "",
         pain_method: d.pain_method || "nrs",
-        pain_scale: Number(d.pain_scale) || 0,
+        pain_scale: d.pain_scale ? Number(d.pain_scale) : 0,
         pain_location: d.pain_location || "",
       };
       setFormData(newData);
@@ -1118,11 +1135,11 @@ export function PhysicalExamForm({
                           id="blood_pressure_systolic"
                           type="number"
                           placeholder="120"
-                          value={formData.blood_pressure_systolic || ""}
+                          value={formData.blood_pressure_systolic === "" ? "" : formData.blood_pressure_systolic}
                           onChange={(e) =>
                             handleChange(
                               "blood_pressure_systolic",
-                              parseInt(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1168,11 +1185,11 @@ export function PhysicalExamForm({
                           id="blood_pressure_diastolic"
                           type="number"
                           placeholder="80"
-                          value={formData.blood_pressure_diastolic || ""}
+                          value={formData.blood_pressure_diastolic === "" ? "" : formData.blood_pressure_diastolic}
                           onChange={(e) =>
                             handleChange(
                               "blood_pressure_diastolic",
-                              parseInt(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1218,11 +1235,11 @@ export function PhysicalExamForm({
                           id="heart_rate"
                           type="number"
                           placeholder="80"
-                          value={formData.heart_rate || ""}
+                          value={formData.heart_rate === "" ? "" : formData.heart_rate}
                           onChange={(e) =>
                             handleChange(
                               "heart_rate",
-                              parseInt(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1268,11 +1285,11 @@ export function PhysicalExamForm({
                           id="respiratory_rate"
                           type="number"
                           placeholder="20"
-                          value={formData.respiratory_rate || ""}
+                          value={formData.respiratory_rate === "" ? "" : formData.respiratory_rate}
                           onChange={(e) =>
                             handleChange(
                               "respiratory_rate",
-                              parseInt(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1319,11 +1336,11 @@ export function PhysicalExamForm({
                           type="number"
                           step="0.1"
                           placeholder="36.5"
-                          value={formData.temperature || ""}
+                          value={formData.temperature === "" ? "" : formData.temperature}
                           onChange={(e) =>
                             handleChange(
                               "temperature",
-                              parseFloat(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1369,11 +1386,11 @@ export function PhysicalExamForm({
                           id="oxygen_saturation"
                           type="number"
                           placeholder="98"
-                          value={formData.oxygen_saturation || ""}
+                          value={formData.oxygen_saturation === "" ? "" : formData.oxygen_saturation}
                           onChange={(e) =>
                             handleChange(
                               "oxygen_saturation",
-                              parseInt(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           required={isEmergency}
@@ -1626,11 +1643,11 @@ export function PhysicalExamForm({
                           type="number"
                           step="0.1"
                           placeholder="70"
-                          value={formData.weight || ""}
+                          value={formData.weight === "" ? "" : formData.weight}
                           onChange={(e) =>
                             handleChange(
                               "weight",
-                              parseFloat(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           className="pr-8"
@@ -1659,11 +1676,11 @@ export function PhysicalExamForm({
                           type="number"
                           step="0.1"
                           placeholder="170"
-                          value={formData.height || ""}
+                          value={formData.height === "" ? "" : formData.height}
                           onChange={(e) =>
                             handleChange(
                               "height",
-                              parseFloat(e.target.value) || 0,
+                              e.target.value === "" ? "" : Number(e.target.value),
                             )
                           }
                           className="pr-8"

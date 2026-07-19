@@ -37,7 +37,8 @@ dist/
 build/
 
 # Scripts
-scripts/
+scripts/*.*
+images/*.*
 
 # Misc
 *.xlsx

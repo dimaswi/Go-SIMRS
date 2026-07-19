@@ -5,7 +5,10 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -25,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Loader2, Printer, ShieldCheck, ShieldX, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Printer, ShieldCheck, ShieldX, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { unitTransferApi } from "@/lib/api/inpatient";
 import { vclaimApi, type SPRILocal, type SuratKontrolLocal } from "@/lib/api/vclaim";
@@ -98,6 +101,8 @@ export function MedicalRecordPrintSelect({
 
   // Accordion state for grouped MRs
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAvailableOnly, setShowAvailableOnly] = useState(true);
 
   const toggleGroup = (mrCode: string) => {
     setExpandedGroups((prev) => ({
@@ -566,7 +571,20 @@ export function MedicalRecordPrintSelect({
 
   const groupedOptions = useMemo(() => {
     const groups: Record<string, MRPrintEntry[]> = {};
-    printOptions.forEach((opt) => {
+    const lowerQuery = searchQuery.toLowerCase();
+    
+    const filteredOptions = printOptions.filter(opt => {
+      const matchSearch = !searchQuery || 
+        opt.mrCode.toLowerCase().includes(lowerQuery) || 
+        opt.title.toLowerCase().includes(lowerQuery) ||
+        (opt.description && opt.description.toLowerCase().includes(lowerQuery));
+        
+      const matchAvailable = !showAvailableOnly || opt.status === "ready";
+      
+      return matchSearch && matchAvailable;
+    });
+
+    filteredOptions.forEach((opt) => {
       if (!groups[opt.mrCode]) {
         groups[opt.mrCode] = [];
       }
@@ -575,14 +593,14 @@ export function MedicalRecordPrintSelect({
     // Return an array of grouped entries, maintaining original MR Code order
     const result: MRPrintEntry[][] = [];
     const seen = new Set<string>();
-    printOptions.forEach(opt => {
+    filteredOptions.forEach(opt => {
       if (!seen.has(opt.mrCode)) {
         seen.add(opt.mrCode);
         result.push(groups[opt.mrCode]);
       }
     });
     return result;
-  }, [printOptions]);
+  }, [printOptions, searchQuery]);
 
   const batchDocs = useMemo(
     () =>
@@ -758,11 +776,35 @@ export function MedicalRecordPrintSelect({
           <ScrollArea className="h-[calc(100vh-120px)] sm:h-[calc(100vh-90px)]">
             <div className="p-3 sm:p-4">
               <div className="overflow-hidden rounded-xl border bg-background">
-                <div className="border-b bg-muted/20 px-4 py-3">
-                  <p className="text-sm font-semibold">Daftar Master MR</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Setiap nomor MR dipetakan ke fungsi sendiri. Baris yang siap cetak tetap memanggil endpoint dan layout lama.
-                  </p>
+                <div className="border-b bg-muted/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Daftar Master MR</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Setiap nomor MR dipetakan ke fungsi sendiri. Baris yang siap cetak tetap memanggil endpoint dan layout lama.
+                    </p>
+                  </div>
+                  <div className="relative max-w-sm w-full sm:w-64 shrink-0 flex flex-col gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Cari MR.x atau Nama Form..."
+                        className="h-8 pl-8 text-xs bg-background"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="showAvailableOnly" 
+                        checked={showAvailableOnly} 
+                        onCheckedChange={(checked) => setShowAvailableOnly(checked as boolean)} 
+                      />
+                      <Label htmlFor="showAvailableOnly" className="text-xs font-normal cursor-pointer text-muted-foreground">
+                        Hanya tampilkan yang bisa dicetak
+                      </Label>
+                    </div>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <Table className="min-w-[980px]">
