@@ -5,7 +5,7 @@ import { medicalRecordsApi, type GeneralConsent } from "@/lib/api/medical-record
 import { DOCUMENT_TYPES } from "@/lib/api/signature";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { SequentialSignatureWizard } from "@/components/signature/sequential-signature-wizard";
 
 interface GeneralConsentFormProps {
@@ -27,7 +27,7 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
     },
   });
 
-  const signerRelation = form.watch("signer_relation");
+
 
   useEffect(() => {
     const fetchConsent = async () => {
