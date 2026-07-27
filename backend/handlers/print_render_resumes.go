@@ -63,6 +63,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 		ID                      uint
 		ChiefComplaint          string
 		HistoryOfPresentIllness string
+		PastMedicalHistory      string
 		Allergies               string
 	}
 	type PhysicalExamData struct {
@@ -114,6 +115,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 	}
 	type AssessmentPlanData struct {
 		ID               uint
+		TreatmentPlan    string
 		MedicationPlan   string
 		DietPlan         string
 		ActivityPlan     string
@@ -125,6 +127,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 	type DispositionData struct {
 		ID                   uint
 		DispositionType      string
+		DischargeCondition   string
 		DischargeStatus      string
 		AdmissionWard        string
 		AdmissionReason      string
@@ -159,6 +162,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 		ID:                      anamnesisModel.ID,
 		ChiefComplaint:          anamnesisModel.ChiefComplaint,
 		HistoryOfPresentIllness: anamnesisModel.HistoryOfPresentIllness,
+		PastMedicalHistory:      anamnesisModel.PastMedicalHistory,
 		Allergies:               anamnesisModel.Allergies,
 	}
 
@@ -221,6 +225,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 	clinicalVisitQuery(c, visitID).First(&assessmentPlanModel)
 	assessmentPlan = AssessmentPlanData{
 		ID:               assessmentPlanModel.ID,
+		TreatmentPlan:    assessmentPlanModel.TreatmentPlan,
 		MedicationPlan:   assessmentPlanModel.MedicationPlan,
 		DietPlan:         assessmentPlanModel.DietPlan,
 		ActivityPlan:     assessmentPlanModel.ActivityPlan,
@@ -235,6 +240,7 @@ func printOutpatientResumeImpl(c *gin.Context) {
 	disposition = DispositionData{
 		ID:                   dispositionModel.ID,
 		DispositionType:      dispositionModel.DispositionType,
+		DischargeCondition:   dispositionModel.DischargeCondition,
 		DischargeStatus:      dispositionModel.DischargeStatus,
 		AdmissionWard:        dispositionModel.AdmissionWard,
 		AdmissionReason:      dispositionModel.AdmissionReason,
@@ -451,50 +457,52 @@ func printOutpatientResumeImpl(c *gin.Context) {
 
 	// Anamnesis Section
 	addTableHeader(pdf, "ANAMNESIS")
-	if anamnesis.ID > 0 {
-		addTableRow(pdf, "Keluhan Utama", safeString(anamnesis.ChiefComplaint), 40)
-		addTableRow(pdf, "Riwayat Penyakit", safeString(anamnesis.HistoryOfPresentIllness), 40)
-		if anamnesis.Allergies != "" {
-			pdf.SetFont("Arial", "B", 9)
-			pdf.SetTextColor(220, 53, 69)
-			pdf.SetDrawColor(180, 180, 180)
-			pdf.CellFormat(40, rowHeight, " Alergi", "LB", 0, "L", false, 0, "")
-			pdf.CellFormat(contentWidth-40, rowHeight, anamnesis.Allergies, "RB", 1, "L", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
-		}
-	} else {
-		addTableFullRow(pdf, "Tidak ada data anamnesis", false)
+	addTableRow(pdf, "Keluhan Utama", safeString(anamnesis.ChiefComplaint), 40)
+	addTableRow(pdf, "Riwayat Penyakit Sekarang", safeString(anamnesis.HistoryOfPresentIllness), 40)
+	addTableRow(pdf, "Riwayat Penyakit Dahulu", safeString(anamnesis.PastMedicalHistory), 40)
+	
+	if anamnesis.Allergies != "" && anamnesis.Allergies != "Tidak Ada" && anamnesis.Allergies != "-" {
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetTextColor(220, 53, 69)
+		pdf.SetDrawColor(180, 180, 180)
+		pdf.CellFormat(40, rowHeight, " Alergi", "LB", 0, "L", false, 0, "")
+		pdf.CellFormat(contentWidth-40, rowHeight, anamnesis.Allergies, "RB", 1, "L", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
 	}
 	addTableEnd(pdf)
 
 	// Physical Examination Section
 	addTableHeader(pdf, "PEMERIKSAAN FISIK")
-	if physicalExam.ID > 0 {
-		addTableRow(pdf, "Keadaan Umum", safeString(physicalExam.GeneralCondition), 40)
-		addTableRow(pdf, "Kesadaran", safeString(physicalExam.Consciousness), 40)
+	addTableRow(pdf, "Keadaan Umum", safeString(physicalExam.GeneralCondition), 40)
+	addTableRow(pdf, "Kesadaran", safeString(physicalExam.Consciousness), 40)
 
-		// Vital Signs - each in separate row
-		if physicalExam.BloodPressure != "" {
-			addTableRow(pdf, "Tekanan Darah", physicalExam.BloodPressure+" mmHg", 40)
-		}
-		if physicalExam.HeartRate != "" {
-			addTableRow(pdf, "Nadi", physicalExam.HeartRate+" x/menit", 40)
-		}
-		if physicalExam.RespiratoryRate != "" {
-			addTableRow(pdf, "Frekuensi Napas", physicalExam.RespiratoryRate+" x/menit", 40)
-		}
-		if physicalExam.Temperature != "" {
-			addTableRow(pdf, "Suhu", physicalExam.Temperature+" C", 40)
-		}
-		if physicalExam.OxygenSaturation != "" {
-			addTableRow(pdf, "SpO2", physicalExam.OxygenSaturation+" %", 40)
-		}
-		if physicalExam.Weight != "" {
-			addTableRow(pdf, "Berat Badan", physicalExam.Weight+" kg", 40)
-		}
-		if physicalExam.Height != "" {
-			addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
-		}
+	// Vital Signs
+	bp := safeString(physicalExam.BloodPressure)
+	if bp != "-" { bp += " mmHg" }
+	addTableRow(pdf, "Tekanan Darah", bp, 40)
+
+	hr := safeString(physicalExam.HeartRate)
+	if hr != "-" { hr += " x/menit" }
+	addTableRow(pdf, "Nadi", hr, 40)
+
+	rr := safeString(physicalExam.RespiratoryRate)
+	if rr != "-" { rr += " x/menit" }
+	addTableRow(pdf, "Frekuensi Napas", rr, 40)
+
+	temp := safeString(physicalExam.Temperature)
+	if temp != "-" { temp += " °C" }
+	addTableRow(pdf, "Suhu", temp, 40)
+
+	spo2 := safeString(physicalExam.OxygenSaturation)
+	if spo2 != "-" { spo2 += " %" }
+	addTableRow(pdf, "SpO2", spo2, 40)
+
+	if physicalExam.Weight != "" {
+		addTableRow(pdf, "Berat Badan", physicalExam.Weight+" kg", 40)
+	}
+	if physicalExam.Height != "" {
+		addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
+	}
 		if physicalExam.UpperArmCircum != "" {
 			addTableRow(pdf, "Lingkar Lengan Atas", physicalExam.UpperArmCircum+" cm", 40)
 		}
@@ -586,9 +594,6 @@ func printOutpatientResumeImpl(c *gin.Context) {
 		if physicalExam.PainLocation != "" {
 			addTableRow(pdf, "Lokasi Nyeri", formatEnumDisplay(physicalExam.PainLocation), 40)
 		}
-	} else {
-		addTableFullRow(pdf, "Tidak ada data pemeriksaan fisik", false)
-	}
 	addTableEnd(pdf)
 
 	// Diagnosis Section
@@ -602,23 +607,24 @@ func printOutpatientResumeImpl(c *gin.Context) {
 			addTableFullRow(pdf, fmt.Sprintf("%s%s - %s", diagType, diag.ICD10Code, diag.ICD10Name), false)
 		}
 	} else {
-		addTableFullRow(pdf, "Tidak ada diagnosis", false)
+		addTableFullRow(pdf, "-", false)
 	}
 	addTableEnd(pdf)
 
 	// Medications Section
 	addTableHeader(pdf, "TERAPI / RESEP")
+	// Column widths: No(8) + Nama Obat(70) + Aturan Pakai(38) + Jumlah(25) + Instruksi(39) = 180
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(240, 240, 240)
+	pdf.SetDrawColor(180, 180, 180)
+	pdf.CellFormat(8, rowHeight, "No", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(70, rowHeight, "Nama Obat", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(38, rowHeight, "Aturan Pakai", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(25, rowHeight, "Jumlah", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(39, rowHeight, "Instruksi", "1", 1, "C", true, 0, "")
+	pdf.SetFont("Arial", "", 8)
+
 	if len(medicineItems) > 0 {
-		// Column widths: No(8) + Nama Obat(70) + Aturan Pakai(38) + Jumlah(25) + Instruksi(39) = 180
-		pdf.SetFont("Arial", "B", 8)
-		pdf.SetFillColor(240, 240, 240)
-		pdf.SetDrawColor(180, 180, 180)
-		pdf.CellFormat(8, rowHeight, "No", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(70, rowHeight, "Nama Obat", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(38, rowHeight, "Aturan Pakai", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(25, rowHeight, "Jumlah", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(39, rowHeight, "Instruksi", "1", 1, "C", true, 0, "")
-		pdf.SetFont("Arial", "", 8)
 		for i, item := range medicineItems {
 			aturan := item.Frequency
 			if item.Route != "" {
@@ -648,121 +654,111 @@ func printOutpatientResumeImpl(c *gin.Context) {
 			pdf.CellFormat(39, rowHeight, truncateText(instrText, 24), "1", 1, "L", false, 0, "")
 		}
 	} else {
-		addTableFullRow(pdf, "Tidak ada resep obat", false)
+		// Just print an empty row for medication
+		pdf.CellFormat(8, rowHeight, "-", "1", 0, "C", false, 0, "")
+		pdf.CellFormat(70, rowHeight, "-", "1", 0, "L", false, 0, "")
+		pdf.CellFormat(38, rowHeight, "-", "1", 0, "C", false, 0, "")
+		pdf.CellFormat(25, rowHeight, "-", "1", 0, "C", false, 0, "")
+		pdf.CellFormat(39, rowHeight, "-", "1", 1, "C", false, 0, "")
 	}
 	addTableEnd(pdf)
 
 	// Assessment Plan Section
 	addTableHeader(pdf, "RENCANA")
-	if assessmentPlan.ID > 0 {
-		hasRencana := false
-		if assessmentPlan.MedicationPlan != "" {
-			addTableMultiRow(pdf, "Rencana Obat", assessmentPlan.MedicationPlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.DietPlan != "" {
-			addTableMultiRow(pdf, "Rencana Diet", assessmentPlan.DietPlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.ActivityPlan != "" {
-			addTableMultiRow(pdf, "Rencana Aktivitas", assessmentPlan.ActivityPlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.EducationPlan != "" {
-			addTableMultiRow(pdf, "Rencana Edukasi", assessmentPlan.EducationPlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.ProcedurePlan != "" {
-			addTableMultiRow(pdf, "Rencana Tindakan", assessmentPlan.ProcedurePlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.ConsultationPlan != "" {
-			addTableMultiRow(pdf, "Rencana Konsultasi", assessmentPlan.ConsultationPlan, 40)
-			hasRencana = true
-		}
-		if assessmentPlan.Prognosis != "" {
-			addTableRow(pdf, "Prognosis", assessmentPlan.Prognosis, 40)
-			hasRencana = true
-		}
-		if !hasRencana {
-			addTableFullRow(pdf, "Tidak ada rencana", false)
-		}
-	} else {
-		addTableFullRow(pdf, "Tidak ada rencana", false)
+	
+	rencanaTindakan := safeString(assessmentPlan.TreatmentPlan)
+	if rencanaTindakan == "-" && assessmentPlan.ProcedurePlan != "" {
+		rencanaTindakan = assessmentPlan.ProcedurePlan
+	}
+	addTableMultiRow(pdf, "Rencana Tindakan", rencanaTindakan, 40)
+	addTableMultiRow(pdf, "Edukasi", safeString(assessmentPlan.EducationPlan), 40)
+
+	if assessmentPlan.MedicationPlan != "" {
+		addTableMultiRow(pdf, "Rencana Obat", assessmentPlan.MedicationPlan, 40)
+	}
+	if assessmentPlan.DietPlan != "" {
+		addTableMultiRow(pdf, "Rencana Diet", assessmentPlan.DietPlan, 40)
+	}
+	if assessmentPlan.ActivityPlan != "" {
+		addTableMultiRow(pdf, "Rencana Aktivitas", assessmentPlan.ActivityPlan, 40)
+	}
+	if assessmentPlan.ConsultationPlan != "" {
+		addTableMultiRow(pdf, "Rencana Konsultasi", assessmentPlan.ConsultationPlan, 40)
+	}
+	if assessmentPlan.Prognosis != "" {
+		addTableRow(pdf, "Prognosis", assessmentPlan.Prognosis, 40)
 	}
 	addTableEnd(pdf)
 
 	// Disposition Section
 	addTableHeader(pdf, "DISPOSISI")
-	if disposition.ID > 0 {
-		// Format disposition type to readable text
-		dispType := disposition.DispositionType
-		dispTypeDisplay := map[string]string{
-			"pulang":     "Pulang",
-			"rawat_inap": "Rawat Inap",
-			"rujuk":      "Rujuk",
-			"meninggal":  "Meninggal",
-			"aps":        "APS (Atas Permintaan Sendiri)",
-			"dod":        "DOA (Death on Arrival)",
-		}
-		if text, ok := dispTypeDisplay[dispType]; ok {
-			dispType = text
-		}
-		addTableRow(pdf, "Status", dispType, 40)
-
-		// Show discharge status if available
-		if disposition.DischargeStatus != "" {
-			statusDisplay := map[string]string{
-				"sembuh":       "Sembuh",
-				"membaik":      "Membaik",
-				"belum_sembuh": "Belum Sembuh",
-				"pulang_paksa": "Pulang Paksa",
-			}
-			status := disposition.DischargeStatus
-			if text, ok := statusDisplay[status]; ok {
-				status = text
-			}
-			addTableRow(pdf, "Kondisi Pulang", status, 40)
-		}
-
-		// Show admission info if rawat inap
-		if disposition.DispositionType == "rawat_inap" {
-			if disposition.AdmissionWard != "" {
-				addTableRow(pdf, "Ruang Rawat Inap", disposition.AdmissionWard, 40)
-			}
-			if disposition.AdmissionReason != "" {
-				addTableMultiRow(pdf, "Alasan Rawat Inap", disposition.AdmissionReason, 40)
-			}
-		}
-
-		// Show referral info if rujuk
-		if disposition.DispositionType == "rujuk" {
-			if disposition.ReferralFacility != "" {
-				addTableRow(pdf, "Tujuan Rujuk", disposition.ReferralFacility, 40)
-			}
-			if disposition.ReferralReason != "" {
-				addTableMultiRow(pdf, "Alasan Rujuk", disposition.ReferralReason, 40)
-			}
-		}
-
-		// Instructions
-		if disposition.DischargeInstruction != "" {
-			addTableMultiRow(pdf, "Instruksi Pulang", disposition.DischargeInstruction, 40)
-		}
-		if disposition.DischargeMedication != "" {
-			addTableMultiRow(pdf, "Obat Pulang", disposition.DischargeMedication, 40)
-		}
-
-		// Follow up
-		if disposition.FollowUpDate != nil {
-			addTableRow(pdf, "Jadwal Kontrol", formatDateIndonesian(*disposition.FollowUpDate), 40)
-		}
-		if disposition.FollowUpInstruction != "" {
-			addTableMultiRow(pdf, "Instruksi Kontrol", disposition.FollowUpInstruction, 40)
-		}
-	} else {
-		addTableFullRow(pdf, "-", false)
+	
+	// Format disposition type to readable text
+	dispType := safeString(disposition.DispositionType)
+	dispTypeDisplay := map[string]string{
+		"pulang":     "Pulang",
+		"rawat_inap": "Rawat Inap",
+		"rujuk":      "Rujuk",
+		"meninggal":  "Meninggal",
+		"aps":        "APS (Atas Permintaan Sendiri)",
+		"dod":        "DOA (Death on Arrival)",
 	}
+	if text, ok := dispTypeDisplay[dispType]; ok {
+		dispType = text
+	}
+	addTableRow(pdf, "Status Pulang", dispType, 40)
+
+	// Format discharge status
+	status := safeString(disposition.DischargeCondition)
+	if disposition.DischargeStatus != "" {
+		statusDisplay := map[string]string{
+			"sembuh":       "Sembuh",
+			"membaik":      "Membaik",
+			"belum_sembuh": "Belum Sembuh",
+			"pulang_paksa": "Pulang Paksa",
+		}
+		status = disposition.DischargeStatus
+		if text, ok := statusDisplay[status]; ok {
+			status = text
+		}
+	}
+	addTableRow(pdf, "Kondisi Pulang", status, 40)
+
+	// Show admission info if rawat inap
+	if disposition.DispositionType == "rawat_inap" {
+		if disposition.AdmissionWard != "" {
+			addTableRow(pdf, "Ruang Rawat Inap", disposition.AdmissionWard, 40)
+		}
+		if disposition.AdmissionReason != "" {
+			addTableMultiRow(pdf, "Alasan Rawat Inap", disposition.AdmissionReason, 40)
+		}
+	}
+
+	// Show referral info if rujuk
+	if disposition.DispositionType == "rujuk" {
+		if disposition.ReferralFacility != "" {
+			addTableRow(pdf, "Tujuan Rujuk", disposition.ReferralFacility, 40)
+		}
+		if disposition.ReferralReason != "" {
+			addTableMultiRow(pdf, "Alasan Rujuk", disposition.ReferralReason, 40)
+		}
+	}
+
+	// Instructions
+	addTableMultiRow(pdf, "Instruksi Pulang", safeString(disposition.DischargeInstruction), 40)
+	
+	if disposition.DischargeMedication != "" {
+		addTableMultiRow(pdf, "Obat Pulang", disposition.DischargeMedication, 40)
+	}
+
+	// Follow up
+	if disposition.FollowUpDate != nil {
+		addTableRow(pdf, "Jadwal Kontrol", formatDateIndonesian(*disposition.FollowUpDate), 40)
+	}
+	if disposition.FollowUpInstruction != "" {
+		addTableMultiRow(pdf, "Instruksi Kontrol", disposition.FollowUpInstruction, 40)
+	}
+	
 	addTableEnd(pdf)
 
 	// Signature
@@ -844,7 +840,7 @@ func printInpatientResumeImpl(c *gin.Context) {
 	patient := visit.Registration.Patient
 
 	// Data structures
-	var anamnesisChiefComplaint, anamnesisHistory, anamnesisAllergies string
+	var anamnesisChiefComplaint, anamnesisHistory, anamnesisPastHistory, anamnesisAllergies string
 	var physicalExam struct {
 		ID                                                                                                                                                                              uint
 		GeneralCondition, Consciousness, BloodPressure, HeartRate, RespiratoryRate, Temperature, OxygenSaturation, Weight, Height, UpperArmCircum, HeadCircum, Waist                    string
@@ -868,6 +864,7 @@ func printInpatientResumeImpl(c *gin.Context) {
 	clinicalVisitQuery(c, visitID).First(&anamnesisModel)
 	anamnesisChiefComplaint = anamnesisModel.ChiefComplaint
 	anamnesisHistory = anamnesisModel.HistoryOfPresentIllness
+	anamnesisPastHistory = anamnesisModel.PastMedicalHistory
 	anamnesisAllergies = anamnesisModel.Allergies
 
 	var physExamModel models.PhysicalExamination
@@ -1129,48 +1126,51 @@ func printInpatientResumeImpl(c *gin.Context) {
 
 	// Anamnesis Section
 	addTableHeader(pdf, "ANAMNESIS")
-	if anamnesisChiefComplaint != "" || anamnesisHistory != "" {
-		addTableRow(pdf, "Keluhan Utama", safeString(anamnesisChiefComplaint), 40)
-		addTableRow(pdf, "Riwayat Penyakit", safeString(anamnesisHistory), 40)
-		if anamnesisAllergies != "" {
-			pdf.SetFont("Arial", "B", 9)
-			pdf.SetTextColor(220, 53, 69)
-			pdf.SetDrawColor(100, 100, 100)
-			pdf.CellFormat(40, rowHeight, " Alergi", "LB", 0, "L", false, 0, "")
-			pdf.CellFormat(contentWidth-40, rowHeight, anamnesisAllergies, "RB", 1, "L", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
-		}
-	} else {
-		addTableFullRow(pdf, "Tidak ada data anamnesis", false)
+	addTableRow(pdf, "Keluhan Utama", safeString(anamnesisChiefComplaint), 40)
+	addTableRow(pdf, "Riwayat Penyakit Sekarang", safeString(anamnesisHistory), 40)
+	addTableRow(pdf, "Riwayat Penyakit Dahulu", safeString(anamnesisPastHistory), 40)
+	
+	if anamnesisAllergies != "" && anamnesisAllergies != "Tidak Ada" && anamnesisAllergies != "-" {
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetTextColor(220, 53, 69)
+		pdf.SetDrawColor(100, 100, 100)
+		pdf.CellFormat(40, rowHeight, " Alergi", "LB", 0, "L", false, 0, "")
+		pdf.CellFormat(contentWidth-40, rowHeight, anamnesisAllergies, "RB", 1, "L", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
 	}
 	addTableEnd(pdf)
 
 	// Physical Examination Section
 	addTableHeader(pdf, "PEMERIKSAAN FISIK")
-	if physicalExam.ID > 0 {
-		addTableRow(pdf, "Keadaan Umum", safeString(physicalExam.GeneralCondition), 40)
-		addTableRow(pdf, "Kesadaran", safeString(physicalExam.Consciousness), 40)
-		if physicalExam.BloodPressure != "" {
-			addTableRow(pdf, "Tekanan Darah", physicalExam.BloodPressure+" mmHg", 40)
-		}
-		if physicalExam.HeartRate != "" {
-			addTableRow(pdf, "Nadi", physicalExam.HeartRate+" x/menit", 40)
-		}
-		if physicalExam.RespiratoryRate != "" {
-			addTableRow(pdf, "Frekuensi Napas", physicalExam.RespiratoryRate+" x/menit", 40)
-		}
-		if physicalExam.Temperature != "" {
-			addTableRow(pdf, "Suhu", physicalExam.Temperature+" C", 40)
-		}
-		if physicalExam.OxygenSaturation != "" {
-			addTableRow(pdf, "SpO2", physicalExam.OxygenSaturation+" persen", 40)
-		}
-		if physicalExam.Weight != "" {
-			addTableRow(pdf, "Berat Badan", physicalExam.Weight+" kg", 40)
-		}
-		if physicalExam.Height != "" {
-			addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
-		}
+	addTableRow(pdf, "Keadaan Umum", safeString(physicalExam.GeneralCondition), 40)
+	addTableRow(pdf, "Kesadaran", safeString(physicalExam.Consciousness), 40)
+
+	bp := safeString(physicalExam.BloodPressure)
+	if bp != "-" { bp += " mmHg" }
+	addTableRow(pdf, "Tekanan Darah", bp, 40)
+
+	hr := safeString(physicalExam.HeartRate)
+	if hr != "-" { hr += " x/menit" }
+	addTableRow(pdf, "Nadi", hr, 40)
+
+	rr := safeString(physicalExam.RespiratoryRate)
+	if rr != "-" { rr += " x/menit" }
+	addTableRow(pdf, "Frekuensi Napas", rr, 40)
+
+	temp := safeString(physicalExam.Temperature)
+	if temp != "-" { temp += " °C" }
+	addTableRow(pdf, "Suhu", temp, 40)
+
+	spo2 := safeString(physicalExam.OxygenSaturation)
+	if spo2 != "-" { spo2 += " %" }
+	addTableRow(pdf, "SpO2", spo2, 40)
+
+	if physicalExam.Weight != "" {
+		addTableRow(pdf, "Berat Badan", physicalExam.Weight+" kg", 40)
+	}
+	if physicalExam.Height != "" {
+		addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
+	}
 		if physicalExam.UpperArmCircum != "" {
 			addTableRow(pdf, "Lingkar Lengan Atas", physicalExam.UpperArmCircum+" cm", 40)
 		}
@@ -1249,9 +1249,6 @@ func printInpatientResumeImpl(c *gin.Context) {
 		if physicalExam.PainLocation != "" {
 			addTableRow(pdf, "Lokasi Nyeri", formatEnumDisplay(physicalExam.PainLocation), 45)
 		}
-	} else {
-		addTableFullRow(pdf, "Tidak ada data pemeriksaan fisik", false)
-	}
 	addTableEnd(pdf)
 
 	// Final Diagnosis
@@ -1595,7 +1592,7 @@ func printEmergencySummaryImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Jaga UGD", models.DocTypeEmergencySummary, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeEmergencySummary, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupEmergency))
 
 	// Output PDF

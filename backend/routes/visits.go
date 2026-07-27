@@ -83,6 +83,20 @@ func SetupVisitRoutes(r *gin.Engine) {
 		visits.GET("/:id/consultation", middleware.RequirePermission("medical_records.view"), handlers.GetConsultation)
 		visits.POST("/:id/consultation", middleware.RequirePermission("medical_records.consultation_order"), handlers.SaveConsultation)
 
+		// Informed Consent
+		visits.GET("/:id/informed-consent", middleware.RequirePermission("medical_records.view"), handlers.GetInformedConsent)
+		visits.POST("/:id/informed-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
+		visits.PUT("/:id/informed-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
+
+		// General Consents
+		visits.GET("/:id/general-consent", middleware.RequirePermission("medical_records.view"), handlers.GetGeneralConsent)
+		visits.POST("/:id/general-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveGeneralConsent)
+		visits.PUT("/:id/general-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveGeneralConsent)
+
+		visits.GET("/:id/general-consent-inpatient", middleware.RequirePermission("medical_records.view"), handlers.GetGeneralConsentInpatient)
+		visits.POST("/:id/general-consent-inpatient", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveGeneralConsentInpatient)
+		visits.PUT("/:id/general-consent-inpatient", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveGeneralConsentInpatient)
+
 		// Sick Letter - Surat Keterangan Sakit
 		visits.GET("/:id/sick-letter", middleware.RequirePermission("medical_records.view"), handlers.GetSickLetter)
 		visits.GET("/:id/sick-letters", middleware.RequirePermission("medical_records.view"), handlers.GetSickLetters)

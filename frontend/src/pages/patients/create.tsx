@@ -181,6 +181,54 @@ export default function PatientCreate() {
       setBpjsError(null);
       setBpjsData(null);
       setBpjsApplied(false);
+
+      // Auto-extract info from NIK
+      try {
+        const regencyCode = nik.substring(0, 4);
+        const dateStr = nik.substring(6, 8);
+        const monthStr = nik.substring(8, 10);
+        const yearStr = nik.substring(10, 12);
+        
+        let dateNum = parseInt(dateStr, 10);
+        const gender = dateNum > 40 ? "P" : "L";
+        if (dateNum > 40) dateNum -= 40;
+        
+        let yearNum = parseInt(yearStr, 10);
+        const currentYear = new Date().getFullYear();
+        if (yearNum > (currentYear % 100)) {
+          yearNum += 1900;
+        } else {
+          yearNum += 2000;
+        }
+        
+        const dob = `${yearNum}-${monthStr.padStart(2, '0')}-${String(dateNum).padStart(2, '0')}`;
+
+        // Get Tempat Lahir from API
+        let tempatLahir = "";
+        try {
+          const regencyRes = await regionsApi.getRegency(regencyCode);
+          if (regencyRes.data?.data?.name) {
+            tempatLahir = regencyRes.data.data.name; // MUST match exact DB string
+          }
+        } catch (e) {
+          // Ignore regency fetch error
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          jenis_kelamin: prev.jenis_kelamin || (gender as any),
+          tanggal_lahir: prev.tanggal_lahir || dob,
+          tempat_lahir: prev.tempat_lahir || tempatLahir,
+        }));
+        
+        if (!formData.tanggal_lahir) {
+          calculateAgeFromDOB(dob);
+        }
+      } catch (e) {
+        console.error("Failed to parse NIK:", e);
+      }
+
+      // Fetch BPJS
       try {
         const today = new Date().toISOString().split("T")[0];
         const res = await vclaimApi.getPesertaByNIK(nik, today);

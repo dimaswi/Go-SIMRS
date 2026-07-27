@@ -465,8 +465,10 @@ function buildMR24(ctx: MRPrintContext): MRPrintEntry[] {
     return [makeEntry(mr24, "missing-data", "Kunjungan belum valid untuk cetak informed consent.")];
   }
   const entries: MRPrintEntry[] = [
-    makeEntry(mr24, "partial", "Cetak bukti informed consent per kunjungan. Form persetujuan tindakan penuh masih belum tersentralisasi.", {
+    makeEntry(mr24, "ready", "Cetak Persetujuan Tindakan Kedokteran (Informed Consent).", {
       handler: () => printApi.informedConsentReceipt(ctx.visitId),
+      documentType: DOCUMENT_TYPES.INFORMED_CONSENT,
+      documentId: ctx.visitId,
       key: "informed-consent-receipt",
     }),
   ];

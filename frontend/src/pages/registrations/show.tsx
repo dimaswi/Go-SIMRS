@@ -19,7 +19,6 @@ import {
   ShieldCheck,
   Search,
   FileText,
-  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -64,10 +63,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
-import { printApi } from "@/lib/api/print";
 import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
-import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
+import { RegistrationConsentManager } from "@/components/registration/registration-consent-manager";
 
 interface SEPLocal {
   id: number;
@@ -179,7 +177,7 @@ export default function RegistrationShow() {
   const [updatingSEP, setUpdatingSEP] = useState(false);
   const [deleteSPRIOpen, setDeleteSPRIOpen] = useState(false);
   const [deletingSPRI, setDeletingSPRI] = useState(false);
-  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [informedConsentOpen, setInformedConsentOpen] = useState(false);
 
   const [editPaymentOpen, setEditPaymentOpen] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
@@ -548,7 +546,7 @@ export default function RegistrationShow() {
                 <TooltipContent>Kembali</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -560,29 +558,19 @@ export default function RegistrationShow() {
               </Tooltip>
             </TooltipProvider>
 
-            {registration.registration_type === "inpatient" && registration.visit && (
-              <>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="default" size="icon" onClick={() => setSignatureDialogOpen(true)}>
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>TTD Persetujuan</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="secondary" size="icon" onClick={() => printApi.generalConsentInpatient(registration.visit!.id)}>
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Cetak Persetujuan</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </>
+
+
+            {registration.visit && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={() => setInformedConsentOpen(true)}>
+                      <FileText className="h-4 w-4 text-blue-600" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Informed Consent</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         }
@@ -1326,20 +1314,12 @@ export default function RegistrationShow() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <SignOnBehalfDialog
-        open={signatureDialogOpen}
-        onOpenChange={setSignatureDialogOpen}
-        documentType="general_consent_inpatient"
-        documentId={registration.visit?.id || 0}
-        visitId={registration.visit?.id || 0}
-        signerHint="Silakan lengkapi Tanda Tangan"
-        documentTitle="Persetujuan Umum Rawat Inap"
-        slotLabels={{ left: "Wali", right: "Pasien" }}
-        fixedRoles={{
-          left: "wali",
-          right: "pasien"
-        }}
-        requiredSignatures={2}
+
+
+      <RegistrationConsentManager
+        open={informedConsentOpen}
+        onOpenChange={setInformedConsentOpen}
+        registration={registration}
       />
     </PageShell>
   );

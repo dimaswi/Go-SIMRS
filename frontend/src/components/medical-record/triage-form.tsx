@@ -446,8 +446,22 @@ export function TriageForm({
   }, [visitId, useExternalData]);
 
   const doSave = async () => {
+    // Parse numeric fields to numbers to prevent JSON unmarshal errors when empty
+    const payload = {
+      ...formData,
+      pain_scale: formData.pain_scale ? Number(formData.pain_scale) : 0,
+      gcs_e: formData.gcs_e ? Number(formData.gcs_e) : 0,
+      gcs_v: formData.gcs_v ? Number(formData.gcs_v) : 0,
+      gcs_m: formData.gcs_m ? Number(formData.gcs_m) : 0,
+      breathing_rate: formData.respiratory_rate ? String(formData.respiratory_rate) : "0",
+      respiratory_rate: formData.respiratory_rate ? Number(formData.respiratory_rate) : 0,
+      heart_rate: formData.heart_rate ? Number(formData.heart_rate) : 0,
+      temperature: formData.temperature ? Number(formData.temperature) : 0,
+      oxygen_saturation: formData.oxygen_saturation ? Number(formData.oxygen_saturation) : 0,
+    };
+
     if (useExternalData) {
-      onSave?.(formData);
+      onSave?.(payload);
       return;
     }
 
@@ -465,7 +479,7 @@ export function TriageForm({
       }
     }
     
-    onSave?.(formData);
+    onSave?.(payload);
     resetEditMode();
   };
 

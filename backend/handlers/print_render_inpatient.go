@@ -249,7 +249,7 @@ func printCPPTImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		cpptDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, cpptDoctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, cpptDoctorName, "DPJP", models.DocTypeCPPT, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, cpptDoctorName, models.DocTypeCPPT, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupCPPT))
 
 	// Output PDF
@@ -1082,7 +1082,7 @@ func printVitalSignChartImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		vsDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, vsDoctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, vsDoctorName, "Perawat", models.DocTypeVitalSign, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, vsDoctorName, models.DocTypeVitalSign, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupVitalSign))
 
 	// Output PDF

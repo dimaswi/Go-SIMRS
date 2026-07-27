@@ -1,5 +1,88 @@
 import { api } from './client';
 
+export interface InformedConsent {
+  id?: number;
+  visit_id: number;
+  jenis_tindakan?: string;
+  dokter_pemberi_informasi_id?: number;
+  penerima_informasi_nama?: string;
+  penerima_informasi_umur?: number;
+  penerima_informasi_jk?: string;
+  penerima_informasi_alamat?: string;
+  penerima_informasi_hubungan?: string;
+  info_diagnosis_kerja?: boolean;
+  isi_diagnosis_kerja?: string;
+  info_indikasi_tindakan?: boolean;
+  isi_indikasi_tindakan?: string;
+  info_tata_cara?: boolean;
+  isi_tata_cara?: string;
+  info_tujuan?: boolean;
+  isi_tujuan?: string;
+  info_risiko?: boolean;
+  isi_risiko?: string;
+  info_komplikasi?: boolean;
+  isi_komplikasi?: string;
+  info_prognosis?: boolean;
+  isi_prognosis?: string;
+  info_alternatif?: boolean;
+  isi_alternatif?: string;
+  info_lain_lain?: boolean;
+  isi_lain_lain?: string;
+  pernyataan_dokter?: boolean;
+  stmt_menerima_penjelasan?: boolean;
+  stmt_memahami_penjelasan?: boolean;
+  stmt_kesempatan_bertanya?: boolean;
+  stmt_jawaban_baik?: boolean;
+  status_kompetensi_pasien?: string;
+  persetujuan_tindakan?: string;
+  alasan_penolakan?: string;
+  stmt_membaca_memahami_isi?: boolean;
+  stmt_data_benar?: boolean;
+  stmt_setuju_sadar?: boolean;
+  saksi_1_nama?: string;
+  saksi_2_nama?: string;
+  perawat_nama?: string;
+  tindakan_1?: string;
+  tindakan_2?: string;
+
+  // Signer names
+  signer_name_pasien?: string;
+  signer_name_dokter?: string;
+  signer_name_perawat?: string;
+  signer_name_saksi1?: string;
+  signer_name_saksi2?: string;
+
+  // Status
+  is_fully_signed?: boolean;
+}
+
+export interface GeneralConsentAuthorizedPerson {
+  id?: number;
+  general_consent_id?: number;
+  name: string;
+  relation: string;
+  phone: string;
+}
+
+export interface GeneralConsent {
+  id?: number;
+  visit_id: number;
+  signer_name?: string;
+  signer_relation?: string;
+  authorized_persons?: GeneralConsentAuthorizedPerson[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GeneralConsentInpatient {
+  id?: number;
+  visit_id: number;
+  signer_name?: string;
+  signer_relation?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // V2 - Separated table interfaces
 export interface Triage {
   id: number;
@@ -599,6 +682,30 @@ export const medicalRecordsApi = {
   },
   saveAssessmentPlan: async (visitId: number, data: Partial<AssessmentPlan>) => {
     return api.post<AssessmentPlan>(`/visits/${visitId}/assessment-plan`, data);
+  },
+
+  // Informed Consent endpoints
+  getInformedConsent: async (visitId: number) => {
+    return api.get<{data: InformedConsent}>(`/visits/${visitId}/informed-consent`);
+  },
+  saveInformedConsent: async (visitId: number, data: Partial<InformedConsent>) => {
+    return api.post<InformedConsent>(`/visits/${visitId}/informed-consent`, data);
+  },
+
+  // General Consent (RM 02)
+  getGeneralConsent: async (visitId: number) => {
+    return api.get<{ data: GeneralConsent | null }>(`/visits/${visitId}/general-consent`);
+  },
+  saveGeneralConsent: async (visitId: number, data: Partial<GeneralConsent>) => {
+    return api.post<{ message: string; data: GeneralConsent }>(`/visits/${visitId}/general-consent`, data);
+  },
+
+  // General Consent Inpatient (RM 03)
+  getGeneralConsentInpatient: async (visitId: number) => {
+    return api.get<{ data: GeneralConsentInpatient | null }>(`/visits/${visitId}/general-consent-inpatient`);
+  },
+  saveGeneralConsentInpatient: async (visitId: number, data: Partial<GeneralConsentInpatient>) => {
+    return api.post<{ message: string; data: GeneralConsentInpatient }>(`/visits/${visitId}/general-consent-inpatient`, data);
   },
 
   getBersalinRecord: async (visitId: number) => {

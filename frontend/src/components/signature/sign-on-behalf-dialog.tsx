@@ -78,6 +78,7 @@ export function SignOnBehalfDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
+  const [pinRequired, setPinRequired] = useState(true);
   const [slot, setSlot] = useState<"left" | "right">("left");
   const [step, setStep] = useState<"pick" | "form" | "pin" | "patient_mode" | "patient_qr" | "patient_direct">("pick");
   const [isFaceValidation, setIsFaceValidation] = useState(false);
@@ -110,6 +111,16 @@ export function SignOnBehalfDialog({
     setPatientToken("");
     setSignatureDate(new Date().toISOString().slice(0, 10));
     setSignedSlots({ left: false, right: false });
+
+    const checkPINRequired = async () => {
+      try {
+        const response = await signatureApi.checkPINRequired();
+        setPinRequired(response.data.signature_pin_required);
+      } catch (error) {
+        setPinRequired(true);
+      }
+    };
+    checkPINRequired();
 
     const loadStatus = async () => {
       setLoadingStatus(true);
@@ -341,7 +352,7 @@ export function SignOnBehalfDialog({
         return;
       }
       setIsFaceValidation(true);
-    } else if (role === "kosong") {
+    } else if (role === "kosong" || !pinRequired) {
       handleSign();
     } else {
       setStep("pin");
@@ -400,14 +411,14 @@ export function SignOnBehalfDialog({
     const pinValue = pin.join("");
 
     if (isRevoking) {
-      if (pinValue.length !== 6) {
+      if (pinRequired && pinValue.length !== 6) {
         toast({ variant: "destructive", title: "PIN harus 6 digit" });
         return;
       }
       setLoading(true);
       try {
         await signatureApi.revokeSignature({
-          pin: pinValue,
+          pin: pinValue || "000000",
           document_type: documentType,
           document_id: documentId,
           slot: slot,
@@ -432,7 +443,7 @@ export function SignOnBehalfDialog({
     }
 
     const needEmployee = role !== "pasien" && role !== "wali" && role !== "kosong";
-    const needPin = role !== "pasien" && role !== "wali" && role !== "kosong";
+    const needPin = role !== "pasien" && role !== "wali" && role !== "kosong" && pinRequired;
     if (needPin && pinValue.length !== 6) {
       toast({ variant: "destructive", title: "PIN harus 6 digit" });
       return;
@@ -704,34 +715,40 @@ export function SignOnBehalfDialog({
               <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 text-center">
                 <ShieldCheck className="mx-auto h-8 w-8 text-primary mb-2" />
                 <p className="text-sm font-medium">
-                  {isRevoking ? "Masukkan 6 digit PIN untuk membatalkan tanda tangan ini." : "Masukkan 6 digit PIN keamanan Anda untuk menandatangani dokumen ini."}
+                  {pinRequired ? (
+                    isRevoking ? "Masukkan 6 digit PIN untuk membatalkan tanda tangan ini." : "Masukkan 6 digit PIN keamanan Anda untuk menandatangani dokumen ini."
+                  ) : (
+                    isRevoking ? "Konfirmasi untuk membatalkan tanda tangan ini." : "Konfirmasi untuk menandatangani dokumen ini."
+                  )}
                 </p>
               </div>
-              <div className="space-y-3">
-                <div className="flex gap-2 justify-center">
-                  {pin.map((digit, idx) => (
-                    <Input
-                      key={idx}
-                      ref={(el) => { inputRefs.current[idx] = el; }}
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={digit}
-                      onChange={(e) => handlePinChange(idx, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(idx, e)}
-                      className="w-12 h-12 text-center text-xl font-mono p-0"
-                      disabled={loading}
-                    />
-                  ))}
+              {pinRequired && (
+                <div className="space-y-3">
+                  <div className="flex gap-2 justify-center">
+                    {pin.map((digit, idx) => (
+                      <Input
+                        key={idx}
+                        ref={(el) => { inputRefs.current[idx] = el; }}
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={digit}
+                        onChange={(e) => handlePinChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(idx, e)}
+                        className="w-12 h-12 text-center text-xl font-mono p-0"
+                        disabled={loading}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => { setStep("form"); setIsRevoking(false); }}>
                 Batal
               </Button>
-              <Button onClick={handleSign} disabled={loading || pin.join("").length !== 6} variant={isRevoking ? "destructive" : "default"}>
+              <Button onClick={handleSign} disabled={loading || (pinRequired && pin.join("").length !== 6)} variant={isRevoking ? "destructive" : "default"}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isRevoking ? "Hapus TTD" : "Tandatangani")}
               </Button>
             </div>

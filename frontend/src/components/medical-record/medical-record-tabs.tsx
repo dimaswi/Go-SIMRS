@@ -235,6 +235,7 @@ export function MedicalRecordTabs({
       permission: "medical_records.anamnesis",
       section: "assessment",
     },
+
     {
       id: "physical-exam",
       label: "Pemeriksaan Fisik",
@@ -409,6 +410,13 @@ export function MedicalRecordTabs({
       section: "administrative",
     },
     {
+      id: "document-preview",
+      label: "Preview Dokumen",
+      icon: <FileText />,
+      permission: "medical_records.cppt",
+      section: "administrative",
+    },
+    {
       id: "disposition",
       label: "Pasien Pulang",
       icon: <LogOut />,
@@ -528,6 +536,13 @@ export function MedicalRecordTabs({
       label: "Discharge Planning",
       icon: <ClipboardCheck />,
       permission: "medical_records.disposition",
+      section: "administrative",
+    },
+    {
+      id: "document-preview",
+      label: "Preview Dokumen",
+      icon: <FileText />,
+      permission: "medical_records.cppt",
       section: "administrative",
     },
   ];

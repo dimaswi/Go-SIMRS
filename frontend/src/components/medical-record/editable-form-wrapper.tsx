@@ -238,6 +238,7 @@ export function EditableFormWrapper({
     const labels: Record<string, string> = {
       triage: "Triage",
       anamnesis: "Anamnesis",
+      informed_consent: "Informed Consent",
       physical_exam: "Pemeriksaan Fisik",
       diagnosis: "Diagnosis",
       assessment_plan: "Assessment & Plan",

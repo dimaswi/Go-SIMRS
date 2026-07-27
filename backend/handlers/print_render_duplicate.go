@@ -854,7 +854,7 @@ func printRMDuplicateLabOrderImpl(c *gin.Context) {
 		if visit != nil && visit.Doctor != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
-		addSignature(pdf, info.City, doctorName, "Petugas Laboratorium", models.DocTypeRMDupLabResult, rmOrder.ID)
+		addDualSignature(pdf, info.City, doctorName, models.DocTypeRMDupLabResult, rmOrder.ID)
 
 		var buf bytes.Buffer
 		if err := pdf.Output(&buf); err != nil {
@@ -968,15 +968,7 @@ func printRMDuplicateLabResultImpl(c *gin.Context) {
 			if visit != nil && visit.Doctor != nil {
 				labSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, labSignerName)
 			}
-			labSigLog, labIsSigned := findSignatureLog(
-				signatureLookup{models.DocTypeRMDupLabResult, rmOrder.ID},
-			)
-			if labIsSigned {
-				labSignerName = resolveSignedUserName(labSigLog, labSignerName)
-			}
-
 			pdf.Ln(10)
-			signY := pdf.GetY()
 			pdf.SetFont("Arial", "", 9)
 			examDate := formatDateIndonesian(rmOrder.CreatedAt)
 			if rmOrder.FakeDate != nil {
@@ -985,16 +977,7 @@ func printRMDuplicateLabResultImpl(c *gin.Context) {
 			pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
 			pdf.Ln(2)
 
-			labSigX := marginLeft + 120.0
-			pdf.SetXY(labSigX, signY+5)
-			pdf.SetFont("Arial", "", 9)
-			pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-			if labIsSigned {
-				addSignatureQR(pdf, labSigLog, labSigX+30, signY+16, 16.0, fmt.Sprintf("lab_%d_%d", rmOrder.ID, idx))
-			}
-			pdf.SetXY(labSigX, signY+25)
-			pdf.SetFont("Arial", "BU", 9)
-			pdf.CellFormat(60, 5, labSignerName, "", 1, "C", false, 0, "")
+			addDualSignature(pdf, info.City, labSignerName, models.DocTypeRMDupLabResult, rmOrder.ID)
 
 			pdf.SetFont("Arial", "", 8)
 			pdf.SetXY(marginLeft, 280)
@@ -1087,15 +1070,7 @@ func printRMDuplicateRadiologyResultImpl(c *gin.Context) {
 			if visit != nil && visit.Doctor != nil {
 				radSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, radSignerName)
 			}
-			radSigLog, radIsSigned := findSignatureLog(
-				signatureLookup{models.DocTypeRMDupRadResult, rmOrder.ID},
-			)
-			if radIsSigned {
-				radSignerName = resolveSignedUserName(radSigLog, radSignerName)
-			}
-
 			pdf.Ln(10)
-			signY := pdf.GetY()
 			pdf.SetFont("Arial", "", 9)
 			examDate := formatDateIndonesian(rmOrder.CreatedAt)
 			if rmOrder.FakeDate != nil {
@@ -1104,16 +1079,7 @@ func printRMDuplicateRadiologyResultImpl(c *gin.Context) {
 			pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
 			pdf.Ln(2)
 
-			radSigX := marginLeft + 120.0
-			pdf.SetXY(radSigX, signY+5)
-			pdf.SetFont("Arial", "", 9)
-			pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-			if radIsSigned {
-				addSignatureQR(pdf, radSigLog, radSigX+30, signY+16, 16.0, fmt.Sprintf("rad_%d_%d", rmOrder.ID, idx))
-			}
-			pdf.SetXY(radSigX, signY+25)
-			pdf.SetFont("Arial", "BU", 9)
-			pdf.CellFormat(60, 5, radSignerName, "", 1, "C", false, 0, "")
+			addDualSignature(pdf, info.City, radSignerName, models.DocTypeRMDupRadResult, rmOrder.ID)
 
 			pdf.SetFont("Arial", "", 8)
 			pdf.SetXY(marginLeft, 280)
@@ -1250,16 +1216,13 @@ func printRMDuplicateProcedureResultImpl(c *gin.Context) {
 		}
 
 		doctorName := "-"
-		sigLabel := "Dokter Pemeriksa"
 		procSigDocType := models.DocTypeRMDupSurgeryReport
 		if rmOrder.OrderType == "consultation" {
-			sigLabel = "Dokter Konsultan"
 			procSigDocType = models.DocTypeRMDupConsultation
 			if rmOrder.ConsultantName != "" {
 				doctorName = rmOrder.ConsultantName
 			}
 		} else if rmOrder.OrderType == "surgery" {
-			sigLabel = "Dokter Operator"
 			if rmOrder.SurgeonName != "" {
 				doctorName = rmOrder.SurgeonName
 			}
@@ -1267,7 +1230,7 @@ func printRMDuplicateProcedureResultImpl(c *gin.Context) {
 		if doctorName == "-" && visit != nil && visit.Doctor != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
-		addSignature(pdf, info.City, doctorName, sigLabel, procSigDocType, rmOrder.ID)
+		addDualSignature(pdf, info.City, doctorName, procSigDocType, rmOrder.ID)
 
 		var buf bytes.Buffer
 		if err := pdf.Output(&buf); err != nil {
@@ -1392,7 +1355,7 @@ func printRMDuplicatePrescriptionImpl(c *gin.Context) {
 		if visit.Doctor != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
-		addSignature(pdf, info.City, doctorName, "DPJP / Apoteker", models.DocTypeRMDupPrescription, rmOrder.ID)
+		addDualSignature(pdf, info.City, doctorName, models.DocTypeRMDupPrescription, rmOrder.ID)
 
 		var buf bytes.Buffer
 		if err := pdf.Output(&buf); err != nil {
@@ -1596,7 +1559,7 @@ func printRMDuplicateBillingImpl(c *gin.Context) {
 		}
 
 		pdf.Ln(10)
-		addSignature(pdf, info.City, doctorName, "DPJP", models.DocTypeRMDupBilling, rmDup.ID)
+		addDualSignature(pdf, info.City, doctorName, models.DocTypeRMDupBilling, rmDup.ID)
 
 		pdf.Ln(5)
 		pdf.SetFont("Arial", "I", 8)

@@ -630,7 +630,7 @@ func printTriageFormImpl(c *gin.Context) {
 	if triagerName == "" {
 		triagerName = "-"
 	}
-	addSignature(pdf, hospitalInfo.City, triagerName, "Petugas Triage", models.DocTypeTriage, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, triagerName, models.DocTypeTriage, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupTriage))
 
 	// Output PDF
@@ -823,7 +823,7 @@ func printBedTransferImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		btDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, btDoctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, btDoctorName, "Perawat", models.DocTypeBedTransfer, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, btDoctorName, models.DocTypeBedTransfer, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupBedTransfer))
 
 	// Output PDF
@@ -956,7 +956,7 @@ func printUnitTransferImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Penanggung Jawab", "", 0)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, "", 0)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -1142,7 +1142,7 @@ func printReferralLetterImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter yang merujuk", models.DocTypeReferralLetter, visit.ID,
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeReferralLetter, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupReferral))
 
 	// Output PDF
@@ -1347,7 +1347,11 @@ func printInpatientCertificateImpl(c *gin.Context) {
 	pdf.MultiCell(contentWidth, 6, "Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.", "", "L", false)
 
 	// Signature
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter yang merawat", models.DocTypeInpatientCert, visit.ID,
+	doctorName = "-"
+	if visit.Doctor != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
+	}
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeInpatientCert, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupInpatientCert))
 
 	// Output PDF

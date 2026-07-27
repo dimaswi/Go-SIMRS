@@ -1703,14 +1703,12 @@ func PrintProcedureOrderResult(c *gin.Context) {
 	}
 
 	docType := models.DocTypeOperativeReport
-	sigLabel := "Dokter Operator"
 	doctorName := "-"
 	if order.SurgeonDoctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(order.SurgeonDoctor, doctorName)
 	}
 	if order.OrderType == models.ProcedureOrderTypeConsultation {
 		docType = models.DocTypeConsultationResult
-		sigLabel = "Dokter Konsultan"
 		if order.Consultation != nil && order.Consultation.Consultant != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(order.Consultation.Consultant, doctorName)
 		}
@@ -1729,10 +1727,10 @@ func PrintProcedureOrderResult(c *gin.Context) {
 	}
 	if order.OrderType == models.ProcedureOrderTypeConsultation {
 		// Keep backward compatibility with older signatures that might have used operative_report.
-		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID,
+		addDualSignature(pdf, hospitalInfo.City, doctorName, docType, order.ID,
 			signatureLookup{DocType: models.DocTypeOperativeReport, DocID: order.ID})
 	} else {
-		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID)
+		addDualSignature(pdf, hospitalInfo.City, doctorName, docType, order.ID)
 	}
 
 	var buf bytes.Buffer

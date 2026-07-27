@@ -784,8 +784,24 @@ export function PhysicalExamForm({
   };
 
   const doSave = async () => {
+    // Parse numeric fields to numbers to prevent JSON unmarshal errors when empty
+    const payload = {
+      ...formData,
+      blood_pressure_systolic: formData.blood_pressure_systolic ? Number(formData.blood_pressure_systolic) : 0,
+      blood_pressure_diastolic: formData.blood_pressure_diastolic ? Number(formData.blood_pressure_diastolic) : 0,
+      systolic: formData.blood_pressure_systolic ? Number(formData.blood_pressure_systolic) : 0,
+      diastolic: formData.blood_pressure_diastolic ? Number(formData.blood_pressure_diastolic) : 0,
+      heart_rate: formData.heart_rate ? Number(formData.heart_rate) : 0,
+      respiratory_rate: formData.respiratory_rate ? Number(formData.respiratory_rate) : 0,
+      temperature: formData.temperature ? Number(formData.temperature) : 0,
+      oxygen_saturation: formData.oxygen_saturation ? Number(formData.oxygen_saturation) : 0,
+      weight: formData.weight ? Number(formData.weight) : 0,
+      height: formData.height ? Number(formData.height) : 0,
+      bmi: formData.bmi ? Number(formData.bmi) : 0,
+    };
+
     if (useExternalData) {
-      onSave?.(formData);
+      onSave?.(payload);
       return;
     }
 
@@ -803,7 +819,7 @@ export function PhysicalExamForm({
       }
     }
 
-    onSave?.(formData);
+    onSave?.(payload);
     resetEditMode();
   };
 

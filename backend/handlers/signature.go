@@ -546,6 +546,15 @@ func VerifySignaturePIN(c *gin.Context) {
 		return
 	}
 
+	// Bypass PIN validation if user hasn't set one yet
+	if !user.HasSignaturePin {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "PIN valid (bypassed, not set)",
+			"valid":   true,
+		})
+		return
+	}
+
 	if !user.CheckSignaturePin(req.PIN) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah", "valid": false})
 		return

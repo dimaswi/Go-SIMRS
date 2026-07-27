@@ -102,7 +102,7 @@ func printPrescriptionImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypePrescription, order.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypePrescription, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -207,7 +207,7 @@ func printLabOrderImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypeLabResult, order.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeLabResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -494,7 +494,7 @@ func printLaboratoryResultImpl(c *gin.Context) {
 		if item.PerformedBy != nil {
 			performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
 		}
-		addSignature(pdf, info.City, performedByName, "Petugas Laboratorium", models.DocTypeLabResult, order.ID)
+		addDualSignature(pdf, info.City, performedByName, models.DocTypeLabResult, order.ID)
 
 		// Page number
 		pdf.SetFont("Arial", "", 8)
@@ -643,7 +643,7 @@ func printLaboratoryResultItemImpl(c *gin.Context) {
 	if item.PerformedBy != nil {
 		performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
 	}
-	addSignature(pdf, info.City, performedByName, "Petugas Laboratorium", models.DocTypeLabResult, order.ID)
+	addDualSignature(pdf, info.City, performedByName, models.DocTypeLabResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -765,7 +765,7 @@ func printRadiologyResultImpl(c *gin.Context) {
 		} else if order.PerformedBy != nil {
 			performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
 		}
-		addSignature(pdf, info.City, performedByName, "Petugas Radiologi", models.DocTypeRadiologyResult, order.ID)
+		addDualSignature(pdf, info.City, performedByName, models.DocTypeRadiologyResult, order.ID)
 
 		// Page number
 		pdf.SetFont("Arial", "", 8)
@@ -876,7 +876,7 @@ func printRadiologyResultItemImpl(c *gin.Context) {
 	} else if order.PerformedBy != nil {
 		performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
 	}
-	addSignature(pdf, info.City, performedByName, "Petugas Radiologi", models.DocTypeRadiologyResult, order.ID)
+	addDualSignature(pdf, info.City, performedByName, models.DocTypeRadiologyResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -1127,14 +1127,12 @@ func printProcedureOrderResultImpl(c *gin.Context) {
 	}
 
 	docType := models.DocTypeOperativeReport
-	sigLabel := "Dokter Operator"
 	doctorName := "-"
 	if order.SurgeonDoctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(order.SurgeonDoctor, doctorName)
 	}
 	if order.OrderType == models.ProcedureOrderTypeConsultation {
 		docType = models.DocTypeConsultationResult
-		sigLabel = "Dokter Konsultan"
 		if order.Consultation != nil && order.Consultation.Consultant != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(order.Consultation.Consultant, doctorName)
 		}
@@ -1153,10 +1151,10 @@ func printProcedureOrderResultImpl(c *gin.Context) {
 	}
 	if order.OrderType == models.ProcedureOrderTypeConsultation {
 		// Keep backward compatibility with older signatures that might have used operative_report.
-		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID,
+		addDualSignature(pdf, hospitalInfo.City, doctorName, docType, order.ID,
 			signatureLookup{DocType: models.DocTypeOperativeReport, DocID: order.ID})
 	} else {
-		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID)
+		addDualSignature(pdf, hospitalInfo.City, doctorName, docType, order.ID)
 	}
 
 	var buf bytes.Buffer

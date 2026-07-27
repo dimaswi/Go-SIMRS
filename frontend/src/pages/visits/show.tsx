@@ -54,6 +54,7 @@ import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form
 import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
 import { ProcedureEditOrder } from "@/components/medical-record/procedure-edit-order";
 import { SuratForm } from "@/components/medical-record/surat-form";
+import { DocumentPreviewTab } from "@/components/medical-record/document-preview-tab";
 import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
 import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
 import { VisitMedicineSummary } from "@/components/medical-record/visit-medicine-summary";
@@ -1278,6 +1279,7 @@ export default function VisitShow() {
           );
         }
         return <AnamnesisForm visitId={visit.id} patientId={patientId || undefined} onSave={handleSaveAnamnesis} isPatientDischarged={isPatientDischarged} />;
+
       case "bersalin":
       case "bersalin-asesmen":
       case "bersalin-skrining":
@@ -1746,6 +1748,18 @@ export default function VisitShow() {
           );
         }
         return <SuratForm key={`surat-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+
+      case "document-preview":
+        if (!hasPermission("medical_records.cppt")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Preview Dokumen
+              </p>
+            </Card>
+          );
+        }
+        return <DocumentPreviewTab key={`doc-preview-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
 
       case "disposition":
         // Disposition only for clinical visits (not support visits)

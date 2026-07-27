@@ -158,7 +158,7 @@ func printSickLetterImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeSickLetter, letterID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeSickLetter, letterID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -374,7 +374,7 @@ func printDeathCertificateImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeDeathCertificate, certificate.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeDeathCertificate, certificate.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -512,7 +512,7 @@ func printHealthCertificateImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeHealthCertificate, certificate.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeHealthCertificate, certificate.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -682,7 +682,7 @@ func printBirthCertificateImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Penolong", models.DocTypeBirthCertificate, certificate.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeBirthCertificate, certificate.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -836,7 +836,7 @@ func printLeaveCertificateImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeLeaveCertificate, certificate.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeLeaveCertificate, certificate.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -1000,7 +1000,7 @@ func printMCUCertificateImpl(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeMCUCertificate, certificate.ID)
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeMCUCertificate, certificate.ID)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
