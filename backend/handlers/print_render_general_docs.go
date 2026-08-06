@@ -3,9 +3,6 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jung-kurt/gofpdf"
-	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
+	"gorm.io/gorm"
 )
 
 func printInformedConsentImpl(c *gin.Context) {
@@ -147,12 +148,85 @@ func printInformedConsentImpl(c *gin.Context) {
 	pdf.SetY(pdf.GetY() + 4)
 	_ = labelW // suppress unused warning
 
+	// Fetch General Consent if visit_id is provided
+	var gc models.GeneralConsent
+	if visitIDStr := c.Query("visit_id"); visitIDStr != "" {
+		if visitUint, parseErr := strconv.ParseUint(visitIDStr, 10, 32); parseErr == nil {
+			database.DB.Where("visit_id = ?", visitUint).First(&gc)
+		}
+	}
+
+	// Data Penanggung Jawab Box
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(100, 100, 100)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PENANGGUNG JAWAB (YANG MENYATAKAN)", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: Nama | Umur
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	valPjNama := gc.PjNama
+	if valPjNama == "" {
+		valPjNama = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(valPjNama, 25), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Umur", "1", 0, "L", true, 0, "")
+	valPjUmur := "-"
+	if gc.PjUmur > 0 {
+		valPjUmur = fmt.Sprintf("%d Tahun", gc.PjUmur)
+	}
+	pdf.CellFormat(col4, rowHeight, " "+valPjUmur, "1", 1, "L", false, 0, "")
+
+	// Row 2: No Identitas | JK
+	pdf.CellFormat(col1, rowHeight, " No. Identitas (KTP)", "1", 0, "L", true, 0, "")
+	valPjId := gc.PjNoIdentitas
+	if valPjId == "" {
+		valPjId = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+valPjId, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	valPjJk := gc.PjJenisKelamin
+	if valPjJk == "" {
+		valPjJk = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+valPjJk, "1", 1, "L", false, 0, "")
+
+	// Row 3: Alamat
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	valPjAlamat := gc.PjAlamat
+	if valPjAlamat == "" {
+		valPjAlamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(valPjAlamat, 68), "1", 1, "L", false, 0, "")
+
+	// Row 4: No Telepon | Hubungan
+	pdf.CellFormat(col1, rowHeight, " No. Telepon", "1", 0, "L", true, 0, "")
+	valPjTelp := gc.PjNoTelp
+	if valPjTelp == "" {
+		valPjTelp = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+valPjTelp, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Hubungan", "1", 0, "L", true, 0, "")
+	valPjHub := gc.PjHubungan
+	if valPjHub == "" {
+		valPjHub = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(valPjHub, 28), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 4)
+
 	// Consent Body
 	pdf.SetFont("Arial", "", 9)
 	lineH := 4.5
 
 	// Introduction
-	introText := "Yang bertanda tangan di bawah ini, saya selaku pasien/wali dari pasien tersebut di atas, dengan ini menyatakan PERSETUJUAN terhadap hal-hal sebagai berikut:"
+	introText := "Dengan ini menyatakan PERSETUJUAN UMUM terhadap hal-hal sebagai berikut:"
 	pdf.MultiCell(contentWidth, lineH, introText, "", "J", false)
 	pdf.SetY(pdf.GetY() + 2)
 
@@ -1855,327 +1929,366 @@ func printInformedConsentReceiptImpl(c *gin.Context) {
 	pdf.SetAutoPageBreak(true, marginBottom)
 	pdf.AddPage()
 
-	addHeader(pdf, hospitalInfo, "BUKTI PEMBERIAN INFORMASI", "DAN PERSETUJUAN TINDAKAN MEDIS (INFORMED CONSENT)")
+	_ = visitTypeLabel
+	_ = roomName
 
-	// DATA PASIEN
-	col1 := 40.0
-	col2 := 50.0
-	col3 := 35.0
-	col4 := 55.0
+	// Fetch Informed Consent
+	var ic models.InformedConsent
+	icID := c.Query("ic_id")
+	if icID != "" {
+		database.DB.Preload("Procedures.Procedure").Preload("DokterPemberiInformasi").Where("id = ?", icID).First(&ic)
+	} else {
+		database.DB.Preload("Procedures.Procedure").Preload("DokterPemberiInformasi").Where("visit_id = ?", visit.ID).First(&ic)
+	}
+
+	title := ic.JudulTindakan
+	if title == "" {
+		title = "INFORMED CONSENT"
+	}
+	addHeader(pdf, hospitalInfo, title, "")
+
+	pdf.SetFont("Arial", "B", 10)
+
+	// JENIS TINDAKAN
+	jenisTindakan := title // Diambil dari judul sesuai permintaan
+	if jenisTindakan == "" {
+		jenisTindakan = "......................................................................"
+	}
+
+	pdf.SetY(pdf.GetY() + 2)
+
+	// PEMBERIAN INFORMASI TABLE
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(100, 100, 100)
+	pdf.SetLineWidth(0.3)
+
+	pdf.CellFormat(contentWidth, 6, " PEMBERIAN INFORMASI", "1", 1, "L", true, 0, "")
+
+	pdf.SetLineWidth(0.2)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Dokter & Pemberi Informasi
+	col1W := 65.0
+	col2W := contentWidth - col1W
+
+	dokterPemberi := dpjpName
+	if ic.DokterPemberiInformasi != nil {
+		dokterPemberi = resolveAssignedUserNameFromEmployee(ic.DokterPemberiInformasi, dokterPemberi)
+	}
+
+	rowHeightPI := 6.0
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col1W, rowHeightPI, " Dokter", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2W, rowHeightPI, " "+truncateText(dpjpName, 60), "1", 1, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col1W, rowHeightPI, " Pemberi Informasi", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2W, rowHeightPI, " "+truncateText(dokterPemberi, 60), "1", 1, "L", false, 0, "")
+
+	penerimaHub := ic.PenerimaInformasiHubungan
+	if penerimaHub == "" {
+		penerimaHub = "Diri Sendiri"
+	}
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col1W, rowHeightPI, " Penerima Informasi / Pemberi Persetujuan", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2W, rowHeightPI, " "+truncateText(ic.PenerimaInformasiNama, 60), "1", 1, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col1W, rowHeightPI, " Hubungan dengan Pasien", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2W, rowHeightPI, " "+truncateText(penerimaHub, 60), "1", 1, "L", false, 0, "")
+
+	// Detail Table
+	noW := 10.0
+	jenisW := 40.0
+	isiW := contentWidth - noW - jenisW - 20.0
+	checkW := 20.0
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(noW, 6, "No.", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(jenisW, 6, "JENIS INFORMASI", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(isiW, 6, "ISI INFORMASI", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(checkW, 6, "CHECK", "1", 1, "C", false, 0, "")
+
+	pdf.SetFont("Arial", "", 9)
+
+	infoItems := []struct {
+		Jenis string
+		Isi   string
+		Check bool
+	}{
+		{"Diagnosa Kerja", ic.IsiDiagnosisKerja, ic.InfoDiagnosisKerja},
+		{"Indikasi Tindakan", ic.IsiIndikasiTindakan, ic.InfoIndikasiTindakan},
+		{"Tata Cara", ic.IsiTataCara, ic.InfoTataCara},
+		{"Tujuan", ic.IsiTujuan, ic.InfoTujuan},
+		{"Resiko Tindakan", ic.IsiRisiko, ic.InfoRisiko},
+		{"Komplikasi", ic.IsiKomplikasi, ic.InfoKomplikasi},
+		{"Prognosis", ic.IsiPrognosis, ic.InfoPrognosis},
+		{"Alternatif & Resiko", ic.IsiAlternatif, ic.InfoAlternatif},
+		{"Hal - hal lain", ic.IsiLainLain, true},
+	}
+
+	for i, item := range infoItems {
+		lines := pdf.SplitLines([]byte(item.Isi), isiW-2)
+		lineCount := len(lines)
+		if lineCount == 0 {
+			lineCount = 1
+		}
+		h := float64(lineCount) * 5.0
+		if h < 6 {
+			h = 6
+		} // Min height
+
+		if pdf.GetY()+h > 275 {
+			pdf.AddPage()
+		}
+
+		x := pdf.GetX()
+		y := pdf.GetY()
+
+		pdf.Rect(x, y, noW, h, "D")
+		pdf.SetXY(x, y)
+		pdf.CellFormat(noW, h, fmt.Sprintf("%d", i+1), "", 0, "C", false, 0, "")
+
+		pdf.Rect(x+noW, y, jenisW, h, "D")
+		pdf.SetXY(x+noW, y)
+		pdf.CellFormat(jenisW, h, " "+item.Jenis, "", 0, "L", false, 0, "")
+
+		pdf.Rect(x+noW+jenisW, y, isiW, h, "D")
+		pdf.SetXY(x+noW+jenisW, y)
+		pdf.MultiCell(isiW, 5.0, " "+item.Isi, "", "L", false)
+
+		pdf.Rect(x+noW+jenisW+isiW, y, checkW, h, "D")
+		pdf.SetXY(x+noW+jenisW+isiW, y)
+		if item.Check {
+			pdf.SetFont("ZapfDingbats", "", 12)
+			pdf.SetTextColor(0, 150, 0)
+			pdf.CellFormat(checkW, h, "4", "", 1, "C", false, 0, "")
+			pdf.SetFont("Arial", "", 9)
+			pdf.SetTextColor(0, 0, 0)
+		} else {
+			pdf.CellFormat(checkW, h, "", "", 1, "C", false, 0, "")
+		}
+	}
+
+	// Signatures Pemberian Info
+	ttW := 40.0
+	stmtW := contentWidth - ttW
+	hStmt := 15.0
+
+	if pdf.GetY()+hStmt*2+10 > 275 {
+		pdf.AddPage()
+	}
+
+	x := pdf.GetX()
+	y := pdf.GetY()
+	pdf.Rect(x, y, stmtW, hStmt, "D")
+	pdf.SetXY(x, y+2) // Center text vertically roughly
+	pdf.MultiCell(stmtW, 4.5, " Dengan ini menyatakan bahwa saya (Dokter) telah menerangkan hal-hal diatas secara benar, jelas dan memberikan kesempatan untuk bertanya", "", "L", false)
+	
+	pdf.Rect(x+stmtW, y, ttW, hStmt, "D")
+	pdf.SetXY(x+stmtW, y)
+	pdf.SetFont("ZapfDingbats", "", 10)
+	pdf.SetTextColor(0, 150, 0)
+	pdf.CellFormat(12, hStmt, "4", "", 0, "R", false, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.CellFormat(ttW-12, hStmt, "", "", 1, "L", false, 0, "")
+
+	x = pdf.GetX()
+	y = pdf.GetY()
+	pdf.Rect(x, y, stmtW, hStmt, "D")
+	pdf.SetXY(x, y+2) // Center text vertically roughly
+	pdf.MultiCell(stmtW, 4.5, " Dengan ini menyatakan bahwa saya (Pasien/Keluarga) telah ", "", "L", false)
+	pdf.MultiCell(stmtW, 4.5, " menerima informasi sebagaimana di atas yang saya beri tanda/tulisan dan telah memahaminya", "", "L", false)
+
+	pdf.Rect(x+stmtW, y, ttW, hStmt, "D")
+	pdf.SetXY(x+stmtW, y)
+	pdf.SetFont("ZapfDingbats", "", 10)
+	pdf.SetTextColor(0, 150, 0)
+	pdf.CellFormat(12, hStmt, "4", "", 0, "R", false, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.CellFormat(ttW-12, hStmt, "", "", 1, "L", false, 0, "")
+
+	pdf.CellFormat(contentWidth, 6, " Bila Pasien tidak kompeten atau tidak menerima informasi, ", "L,T,R", 1, "L", false, 0, "")
+	pdf.CellFormat(contentWidth, 6, " maka penerima informasi adalah wali atau keluarga terdekat", "L,B,R", 1, "L", false, 0, "")
+
+	// PERSETUJUAN TINDAKAN
+	if pdf.GetY()+60 > 275 {
+		pdf.AddPage()
+	} else {
+		pdf.SetY(pdf.GetY() + 4)
+	}
 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.SetFillColor(220, 220, 220)
 	pdf.SetDrawColor(100, 100, 100)
 	pdf.SetLineWidth(0.3)
-	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.CellFormat(contentWidth, 6, " PERNYATAAN PERSETUJUAN / PENOLAKAN TINDAKAN KEDOKTERAN", "1", 1, "C", true, 0, "")
+
 	pdf.SetLineWidth(0.2)
-	pdf.SetFont("Arial", "", 9)
+
+	// Yang Bertanda Tangan (Penerima Informasi)
+	pdf.CellFormat(contentWidth, 6, " YANG BERTANDA TANGAN DI BAWAH INI", "1", 1, "L", true, 0, "")
+
 	pdf.SetFillColor(245, 245, 245)
 
-	// Row 1: No RM | JK
-	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
-	pdf.SetFont("Arial", "B", 9)
-	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	col1 := 40.0
+	col2 := 50.0
+	col3 := 35.0
+	col4 := 55.0
+	rowHeight := 6.0
+
+	// Row 1: Nama | Umur
 	pdf.SetFont("Arial", "", 9)
-	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(ic.PenerimaInformasiNama, 25), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Umur", "1", 0, "L", true, 0, "")
+	valPjJk := ic.PenerimaInformasiJk
+	if valPjJk == "L" {
+		valPjJk = "Laki-laki"
+	} else if valPjJk == "P" {
+		valPjJk = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, fmt.Sprintf(" %d Tahun, %s", ic.PenerimaInformasiUmur, valPjJk), "1", 1, "L", false, 0, "")
+
+	// Row 2: Alamat
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(ic.PenerimaInformasiAlamat, 80), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 2)
+
+	persetujuan := strings.ToUpper(ic.PersetujuanTindakan)
+	if persetujuan == "" {
+		persetujuan = "PERSETUJUAN/PENOLAKAN"
+	}
+	pdf.CellFormat(contentWidth, 5, "Dengan ini menyatakan "+persetujuan+" untuk dilakukan tindakan :", "", 1, "L", false, 0, "")
+
+	pdf.SetX(marginLeft + 2)
+	if len(ic.Procedures) > 0 {
+		for i, p := range ic.Procedures {
+			if p.Procedure != nil {
+				pdf.CellFormat(contentWidth-4, 5, fmt.Sprintf("%d. %s", i+1, p.Procedure.Name), "", 1, "L", false, 0, "")
+				pdf.SetX(marginLeft + 2)
+			}
+		}
+	} else if ic.Tindakan1 != "" || ic.Tindakan2 != "" {
+		if ic.Tindakan1 != "" {
+			pdf.CellFormat(contentWidth-4, 5, "1. "+ic.Tindakan1, "", 1, "L", false, 0, "")
+			pdf.SetX(marginLeft + 2)
+		}
+		if ic.Tindakan2 != "" {
+			pdf.CellFormat(contentWidth-4, 5, "2. "+ic.Tindakan2, "", 1, "L", false, 0, "")
+			pdf.SetX(marginLeft + 2)
+		}
+	} else {
+		pdf.CellFormat(contentWidth-4, 5, "1. .....................................................................................................", "", 1, "L", false, 0, "")
+		pdf.SetX(marginLeft + 2)
+		pdf.CellFormat(contentWidth-4, 5, "2. .....................................................................................................", "", 1, "L", false, 0, "")
+		pdf.SetX(marginLeft + 2)
+	}
+
+	pdf.SetY(pdf.GetY() + 4)
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(100, 100, 100)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " TERHADAP PASIEN", "1", 1, "L", true, 0, "")
+
+	pdf.SetLineWidth(0.2)
+	pdf.SetFillColor(245, 245, 245)
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 25), "1", 0, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Umur", "1", 0, "L", true, 0, "")
 	gender := string(patient.JenisKelamin)
 	if gender == "L" {
 		gender = "Laki-laki"
 	} else if gender == "P" {
 		gender = "Perempuan"
 	}
-	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+	age := fmt.Sprintf("%d", calculateAgeYears(patient.TanggalLahir.Time))
+	pdf.CellFormat(col4, rowHeight, " "+age+" Tahun, "+gender, "1", 1, "L", false, 0, "")
 
-	// Row 2: Nama | TTL
-	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
-	pdf.SetFont("Arial", "B", 9)
-	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 28), "1", 0, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 9)
-	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
-	birthDate := "-"
-	age := ""
-	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
-		birthDate = patient.TanggalLahir.Format("02-01-2006")
-		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
-	}
-	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
-
-	// Row 3: Alamat
 	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
 	alamat := patient.AlamatKTP
-	if alamat == "" {
-		alamat = "-"
-	}
-	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 72), "1", 1, "L", false, 0, "")
-
-	// Row 4: No HP | Penanggung Jawab
-	phone := patient.NoHP
-	if phone == "" {
-		phone = "-"
-	}
-	pdf.CellFormat(col1, rowHeight, " No. HP", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col2, rowHeight, " "+phone, "1", 0, "L", false, 0, "")
-	pj := patient.NamaPenanggungJawab
-	if pj == "" {
-		pj = "-"
-	}
-	hubPj := patient.HubunganPenanggungJawab
-	if hubPj != "" {
-		pj = pj + " (" + hubPj + ")"
-	}
-	pdf.CellFormat(col3, rowHeight, " Penanggung Jawab", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col4, rowHeight, " "+truncateText(pj, 28), "1", 1, "L", false, 0, "")
-
-	pdf.SetY(pdf.GetY() + 3)
-
-	// DATA PELAYANAN
-	pdf.SetFont("Arial", "B", 9)
-	pdf.SetFillColor(220, 220, 220)
-	pdf.SetLineWidth(0.3)
-	pdf.CellFormat(contentWidth, 6, " DATA PELAYANAN", "1", 1, "L", true, 0, "")
-	pdf.SetLineWidth(0.2)
 	pdf.SetFont("Arial", "", 9)
-	pdf.SetFillColor(245, 245, 245)
-
-	pdf.CellFormat(col1, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col2, rowHeight, " "+visit.VisitNumber, "1", 0, "L", false, 0, "")
-	pdf.CellFormat(col3, rowHeight, " Jenis Pelayanan", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col4, rowHeight, " "+visitTypeLabel, "1", 1, "L", false, 0, "")
-
-	pdf.CellFormat(col1, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col2, rowHeight, " "+truncateText(roomName, 28), "1", 0, "L", false, 0, "")
-	pdf.CellFormat(col3, rowHeight, " DPJP", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(col4, rowHeight, " "+truncateText(dpjpName, 28), "1", 1, "L", false, 0, "")
-
-	pdf.SetY(pdf.GetY() + 3)
-
-	// INFORMASI JAMINAN / PEMBAYARAN
-	pdf.SetFont("Arial", "B", 9)
-	pdf.SetFillColor(60, 60, 60)
-	pdf.SetTextColor(255, 255, 255)
-	pdf.SetDrawColor(60, 60, 60)
-	pdf.SetLineWidth(0.3)
-	pdf.CellFormat(contentWidth, 6, " INFORMASI JAMINAN / PEMBAYARAN", "1", 1, "L", true, 0, "")
-	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(100, 100, 100)
-	pdf.SetLineWidth(0.2)
-	pdf.SetFont("Arial", "", 8)
-
-	// Payment rules per type
-	switch strings.ToLower(registration.PaymentMethod) {
-	case "bpjs":
-		bpjsRules := []string{
-			"1. Pelayanan kesehatan dijamin sesuai dengan ketentuan program JKN-KIS yang berlaku.",
-			"2. Pasien wajib membawa kartu BPJS Kesehatan dan identitas (KTP) yang masih berlaku.",
-			"3. Pelayanan mengikuti prosedur rujukan berjenjang sesuai ketentuan BPJS Kesehatan.",
-			"4. Obat yang diberikan sesuai Formularium Nasional (FORNAS) yang berlaku.",
-			"5. Tindakan medis di luar ketentuan BPJS menjadi tanggung jawab pasien/keluarga.",
-			"6. Kenaikan kelas perawatan di atas hak kelas menjadi tanggung jawab pasien.",
-			"7. Pasien berhak mendapatkan informasi tentang cakupan manfaat JKN-KIS.",
-		}
-		for _, rule := range bpjsRules {
-			checkPageBreak(pdf, 5)
-			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
-		}
-	case "insurance":
-		insuranceRules := []string{
-			"1. Pelayanan kesehatan dijamin sesuai dengan polis asuransi yang dimiliki pasien.",
-			"2. Pasien wajib membawa kartu asuransi dan identitas yang masih berlaku.",
-			"3. Klaim asuransi akan diproses sesuai prosedur perusahaan asuransi terkait.",
-			"4. Selisih biaya di luar cakupan polis menjadi tanggung jawab pasien/keluarga.",
-			"5. Pasien bertanggung jawab atas kelebihan biaya yang tidak ditanggung asuransi.",
-			"6. Pasien berhak mendapatkan informasi tentang cakupan manfaat asuransi.",
-		}
-		for _, rule := range insuranceRules {
-			checkPageBreak(pdf, 5)
-			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
-		}
-	default: // umum / cash
-		cashRules := []string{
-			"1. Seluruh biaya pelayanan kesehatan menjadi tanggung jawab pasien/keluarga.",
-			"2. Pembayaran dilakukan sesuai tarif rumah sakit yang berlaku.",
-			"3. Pasien berhak mendapatkan rincian biaya pelayanan sebelum dan sesudah tindakan.",
-			"4. Pembayaran dapat dilakukan secara tunai, kartu debit, atau kartu kredit.",
-			"5. Pasien berhak mendapatkan kuitansi/bukti pembayaran yang sah.",
-			"6. Estimasi biaya dapat berubah sesuai kondisi klinis dan tindakan yang diperlukan.",
-		}
-		for _, rule := range cashRules {
-			checkPageBreak(pdf, 5)
-			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
-		}
-	}
-
-	pdf.SetFont("Arial", "", 9)
-	pdf.SetY(pdf.GetY() + 3)
-
-	// ISI INFORMASI YANG DIBERIKAN
-	pdf.SetFont("Arial", "B", 9)
-	pdf.SetFillColor(60, 60, 60)
-	pdf.SetTextColor(255, 255, 255)
-	pdf.SetDrawColor(60, 60, 60)
-	pdf.SetLineWidth(0.3)
-	pdf.CellFormat(contentWidth, 6, " INFORMASI YANG TELAH DIBERIKAN", "1", 1, "L", true, 0, "")
-	pdf.SetTextColor(0, 0, 0)
-	pdf.SetDrawColor(100, 100, 100)
-	pdf.SetLineWidth(0.2)
-
-	pdf.SetFont("Arial", "", 9)
-	infoItems := []struct {
-		No   string
-		Item string
-	}{
-		{"1", "Diagnosis dan kondisi pasien"},
-		{"2", "Rencana tindakan / terapi yang akan dilakukan"},
-		{"3", "Tujuan tindakan / terapi"},
-		{"4", "Alternatif tindakan lain dan risikonya"},
-		{"5", "Risiko dan komplikasi yang mungkin terjadi"},
-		{"6", "Prognosis / perkiraan hasil pengobatan"},
-		{"7", "Perkiraan biaya yang diperlukan"},
-	}
-
-	noW := 10.0
-	itemW := contentWidth - noW - 30
-	checkW := 30.0
-
-	pdf.SetFont("Arial", "B", 8)
-	pdf.SetFillColor(235, 235, 235)
-	pdf.CellFormat(noW, rowHeight, " No", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(itemW, rowHeight, " Jenis Informasi", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(checkW, rowHeight, " Diberikan", "1", 1, "C", true, 0, "")
-	pdf.SetFont("Arial", "", 9)
-
-	for _, item := range infoItems {
-		pdf.CellFormat(noW, rowHeight, " "+item.No, "1", 0, "C", false, 0, "")
-		pdf.CellFormat(itemW, rowHeight, " "+item.Item, "1", 0, "L", false, 0, "")
-		// Checkbox checked
-		pdf.CellFormat(checkW, rowHeight, " [v]", "1", 1, "C", false, 0, "")
-	}
-
-	pdf.SetY(pdf.GetY() + 3)
-
-	// PERNYATAAN
-	pdf.SetFont("Arial", "B", 9)
-	pdf.SetFillColor(220, 220, 220)
-	pdf.SetLineWidth(0.3)
-	pdf.CellFormat(contentWidth, 6, " PERNYATAAN PASIEN / KELUARGA", "1", 1, "L", true, 0, "")
-	pdf.SetLineWidth(0.2)
-	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 80), "1", 1, "L", false, 0, "")
 
 	pdf.SetY(pdf.GetY() + 2)
-	pdf.MultiCell(contentWidth, 5, "Dengan ini saya menyatakan bahwa saya telah menerima dan memahami penjelasan informasi mengenai kondisi, rencana tindakan medis, risiko, komplikasi, alternatif dan biaya yang diperlukan sebagaimana tercantum di atas.", "", "L", false)
+	pdf.MultiCell(contentWidth, 4.5, "Saya memahami perlunya dan manfaat tindakan tersebut sebagaimana telah dijelaskan seperti diatas kepada saya, termasuk resiko dan komplikasi yang mungkin timbul apabila tindakan tersebut dilakukan", "", "J", false)
+
+	pdf.SetY(pdf.GetY() + 4)
+
+	dateStr := hospitalInfo.City + ", Tanggal " + formatDateIndonesian(time.Now()) + " Pukul " + time.Now().Format("15:04")
+	pdf.CellFormat(contentWidth, 5, dateStr, "", 1, "R", false, 0, "")
 
 	pdf.SetY(pdf.GetY() + 2)
-	pdf.MultiCell(contentWidth, 5, "Berdasarkan informasi tersebut, dengan penuh kesadaran dan tanpa paksaan, saya:", "", "L", false)
 
-	pdf.SetY(pdf.GetY() + 2)
-	pdf.SetFont("Arial", "", 9)
-	cbSize := 4.0
+	// Bottom 5 Signatures
+	if pdf.GetY()+35 > 275 {
+		pdf.AddPage()
+	}
 
-	// Option 1: Menyetujui
-	cbX := marginLeft + 5
-	cbY := pdf.GetY()
-	pdf.Rect(cbX, cbY+0.5, cbSize, cbSize, "D")
-	pdf.SetXY(cbX+cbSize+3, cbY)
-	pdf.CellFormat(contentWidth-cbSize-8, 5, "MENYETUJUI untuk dilakukan tindakan medis sebagaimana telah dijelaskan di atas", "", 1, "L", false, 0, "")
-
-	// Option 2: Menolak
-	cbY2 := pdf.GetY() + 1
-	pdf.Rect(cbX, cbY2+0.5, cbSize, cbSize, "D")
-	pdf.SetXY(cbX+cbSize+3, cbY2)
-	pdf.CellFormat(contentWidth-cbSize-8, 5, "MENOLAK untuk dilakukan tindakan medis sebagaimana telah dijelaskan di atas", "", 1, "L", false, 0, "")
-
-	pdf.SetY(pdf.GetY() + 8)
-
-	// Tanda Tangan - 3 kolom
+	signColWidth := contentWidth / 5.0
 	signY := pdf.GetY()
-	signColWidth := contentWidth / 3
-	columnSlots := []string{"patient", "nurse"} // configurable first 2 columns
-	for _, rule := range loadDocumentSignatureRules() {
-		if rule.DocumentType != models.DocTypeInformedConsent || len(rule.Slots) == 0 {
-			continue
+
+	labels := []string{"Yang menyatakan", "Dokter", "Perawat", "Saksi I", "Saksi II"}
+	names := []string{
+		truncateText(ic.SignerNamePasien, 60),
+		truncateText(ic.SignerNameDokter, 60),
+		truncateText(ic.SignerNamePerawat, 60),
+		truncateText(ic.SignerNameSaksi1, 60),
+		truncateText(ic.SignerNameSaksi2, 60),
+	}
+	slots := []string{"pasien", "dokter", "perawat", "saksi1", "saksi2"}
+
+	for i := 0; i < 5; i++ {
+		pdf.SetXY(marginLeft+float64(i)*signColWidth, signY)
+		pdf.SetFont("Arial", "", 9)
+		pdf.CellFormat(signColWidth, 5, labels[i], "", 1, "C", false, 0, "")
+
+		sigLog, isSigned := findSignatureLogBySlot(slots[i], signatureLookup{"INFORMED_CONSENT", ic.ID})
+		if isSigned {
+			meta := parseSignatureMeta(sigLog.Notes)
+			if meta.image != "" {
+				imgPath := strings.TrimPrefix(meta.image, "/")
+				if _, err := os.Stat(imgPath); err == nil {
+					imgW, imgH := 26.0, 13.0
+					pdf.Image(imgPath, marginLeft+float64(i)*signColWidth+(signColWidth-imgW)/2, signY+6.5, imgW, imgH, false, "PNG", 0, "")
+				}
+			} else {
+				addSignatureQR(pdf, sigLog, marginLeft+float64(i)*signColWidth+signColWidth/2, signY+13, 15, fmt.Sprintf("ic_%s_%d", slots[i], ic.ID))
+			}
 		}
-		columnSlots = append([]string{}, rule.Slots...)
-		break
+
+		pdf.SetXY(marginLeft+float64(i)*signColWidth, signY+22)
+		pdf.SetFont("Arial", "B", 8)
+		pdf.MultiCell(signColWidth, 3.5, names[i], "", "C", false)
 	}
-	if len(columnSlots) < 2 {
-		columnSlots = append(columnSlots, "none")
-	}
 
-	pdf.SetFont("Arial", "", 9)
-	dateStr := hospitalInfo.City + ", " + formatDateIndonesian(time.Now())
-	pdf.CellFormat(contentWidth, 5, dateStr, "", 1, "C", false, 0, "")
-
-	pdf.SetY(pdf.GetY() + 2)
-	signY = pdf.GetY()
-
-	type staticSlotRender struct {
-		label string
-		name  string
-	}
-	resolveStaticSlot := func(slot string) staticSlotRender {
-		switch strings.TrimSpace(strings.ToLower(slot)) {
-		case "patient":
-			return staticSlotRender{
-				label: "Pasien / Keluarga Pasien",
-				name:  "( " + truncateText(patient.NamaLengkap, 22) + " )",
-			}
-		case "doctor_dpjp":
-			return staticSlotRender{
-				label: "DPJP / Dokter",
-				name:  "( " + truncateText(dpjpName, 22) + " )",
-			}
-		case "nurse":
-			return staticSlotRender{
-				label: "Saksi / Petugas",
-				name:  "( ................................ )",
-			}
-		default:
-			return staticSlotRender{}
-		}
-	}
-	left := resolveStaticSlot(columnSlots[0])
-	mid := resolveStaticSlot(columnSlots[1])
-
-	// Col 1: dynamic
-	pdf.SetXY(marginLeft, signY)
-	pdf.CellFormat(signColWidth, 5, "Slot 1 (Kiri)", "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft, signY+5)
-	pdf.CellFormat(signColWidth, 5, left.label, "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft, signY+28)
-	pdf.CellFormat(signColWidth, 5, left.name, "", 1, "C", false, 0, "")
-
-	// Col 2: dynamic
-	pdf.SetXY(marginLeft+signColWidth, signY)
-	pdf.CellFormat(signColWidth, 5, "Slot 2 (Kanan)", "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft+signColWidth, signY+5)
-	pdf.CellFormat(signColWidth, 5, mid.label, "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft+signColWidth, signY+28)
-	pdf.CellFormat(signColWidth, 5, mid.name, "", 1, "C", false, 0, "")
-
-	// Col 3: DPJP
-	pdf.SetXY(marginLeft+signColWidth*2, signY)
-	pdf.CellFormat(signColWidth, 5, "DPJP / Dokter", "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft+signColWidth*2, signY+28)
-	pdf.CellFormat(signColWidth, 5, "( "+truncateText(dpjpName, 22)+" )", "", 1, "C", false, 0, "")
-
-	// Dashed lines
-	pdf.SetDrawColor(150, 150, 150)
-	pdf.SetDashPattern([]float64{1, 1}, 0)
-	for i := 0; i < 3; i++ {
-		lx := marginLeft + float64(i)*signColWidth + 10
-		rx := marginLeft + float64(i)*signColWidth + signColWidth - 10
-		pdf.Line(lx, signY+27, rx, signY+27)
-	}
-	pdf.SetDashPattern([]float64{}, 0)
-	pdf.SetDrawColor(100, 100, 100)
-
-	// Footer
-	pdf.SetY(signY + 36)
-	pdf.SetFont("Arial", "I", 7)
-	pdf.SetTextColor(120, 120, 120)
-	pdf.CellFormat(contentWidth, 4, "* Formulir ini merupakan bukti pemberian informasi dan persetujuan tindakan medis yang sah.", "", 1, "C", false, 0, "")
-	pdf.CellFormat(contentWidth, 4, "* Dicetak secara otomatis oleh sistem SIMRS.", "", 1, "C", false, 0, "")
+	pdf.SetY(signY + 34)
+	pdf.SetFont("ZapfDingbats", "", 9)
+	pdf.SetTextColor(0, 150, 0)
+	pdf.CellFormat(5, 5, "4", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "I", 8)
 	pdf.SetTextColor(0, 0, 0)
+	pdf.CellFormat(contentWidth-5, 5, " Tanda Tangan dan Nama Jelas", "", 1, "L", false, 0, "")
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {

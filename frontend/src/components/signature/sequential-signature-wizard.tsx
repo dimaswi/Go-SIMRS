@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api/client";
 import { signatureApi } from "@/lib/api/signature";
 import { EmployeeSelect } from "@/components/employee/employee-select";
-import { Loader2, CheckCircle2, ShieldCheck, PenTool, ArrowRight } from "lucide-react";
+import { Loader2, CheckCircle2, ShieldCheck, PenTool } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SignatureCanvas from "react-signature-canvas";
 
-export type SignerRole = "pasien" | "dokter" | "perawat" | "saksi1" | "saksi2" | "petugas";
+export type SignerRole = "pasien" | "dokter" | "perawat" | "saksi1" | "saksi2" | "petugas" | "left" | "right";
 
 export interface StepConfig {
   role: SignerRole;
@@ -26,6 +26,7 @@ interface SequentialSignatureWizardProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   onStepSuccess?: (role: string, name: string) => void;
+  renderCustomPatientModal?: (props: { open: boolean; onClose: (name?: string) => void }) => React.ReactNode;
 }
 
 export function SequentialSignatureWizard({
@@ -36,6 +37,7 @@ export function SequentialSignatureWizard({
   onSuccess,
   onCancel,
   onStepSuccess,
+  renderCustomPatientModal,
 }: SequentialSignatureWizardProps) {
   const { toast } = useToast();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -45,11 +47,31 @@ export function SequentialSignatureWizard({
   const [isVerifying, setIsVerifying] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Phase 1: Input Name -> Phase 2: Sign/PIN
-  const [phase, setPhase] = useState<"input_name" | "signing">("input_name");
+  const [showNameModal, setShowNameModal] = useState(false);
 
   const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const sigPad = useRef<SignatureCanvas>(null);
+
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (wrapperRef.current) {
+        setCanvasSize({
+          width: wrapperRef.current.clientWidth,
+          height: wrapperRef.current.clientHeight,
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    const timer = setTimeout(updateSize, 100);
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      clearTimeout(timer);
+    };
+  }, [currentStepIndex]);
 
   useEffect(() => {
     setCurrentStepIndex(0);
@@ -60,7 +82,7 @@ export function SequentialSignatureWizard({
     setSignerName("");
     setEmployeeId("");
     setPin(["", "", "", "", "", ""]);
-    setPhase("input_name");
+    setShowNameModal(false);
     if (sigPad.current) {
       sigPad.current.clear();
     }
@@ -69,18 +91,6 @@ export function SequentialSignatureWizard({
   const currentStep = steps[currentStepIndex];
 
   if (!currentStep) return null;
-
-  const handleNextPhase = () => {
-    if (currentStep.type === "employee" && !employeeId) {
-      toast({ variant: "destructive", title: "Pilih pegawai terlebih dahulu" });
-      return;
-    }
-    if (currentStep.type === "patient_or_family" && !signerName.trim()) {
-      toast({ variant: "destructive", title: "Masukkan nama penandatangan" });
-      return;
-    }
-    setPhase("signing");
-  };
 
   const handlePINChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -177,6 +187,15 @@ export function SequentialSignatureWizard({
   };
 
   const handleSign = () => {
+    if (currentStep.type === "employee" && !employeeId) {
+      setShowNameModal(true);
+      return;
+    }
+    if (currentStep.type === "patient_or_family" && !signerName.trim()) {
+      setShowNameModal(true);
+      return;
+    }
+
     if (currentStep.type === "employee") {
       saveSignatureData();
     } else {
@@ -188,98 +207,104 @@ export function SequentialSignatureWizard({
     }
   };
 
+  const handleSkip = () => {
+    if (currentStepIndex < steps.length - 1) {
+      setCurrentStepIndex(prev => prev + 1);
+      resetStepState();
+    } else {
+      if (onSuccess) onSuccess();
+    }
+  };
+
   return (
     <div className="w-full flex flex-col h-full relative bg-white border rounded-xl shadow-sm overflow-hidden">
-      <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 border-b">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <PenTool className="w-5 h-5 text-primary" />
-            Tanda Tangan Dokumen
-          </h2>
-        </div>
-        <div className="text-sm text-primary/80 font-medium">
-          Langkah {currentStepIndex + 1} dari {steps.length}: <span className="text-foreground">{currentStep.title}</span>
-        </div>
-      </div>
-
-      <div className="flex-1 p-6 sm:p-10 flex flex-col">
-        <div className="space-y-6 flex-1 flex flex-col justify-center">
-          {phase === "input_name" ? (
-            <div className="space-y-4 max-w-md mx-auto">
-              <Label>Nama Penandatangan</Label>
-              {currentStep.type === "employee" ? (
-                <EmployeeSelect
-                  value={employeeId}
-                  onChange={(val) => {
-                    setEmployeeId(val.toString());
-                    // We only have employeeId here. The backend resolves the name.
-                    setSignerName("Pegawai #" + val);
-                  }}
-                  role={currentStep.role === "dokter" ? "dokter" : "perawat"}
-                />
-              ) : (
-                <Input
-                  placeholder="Ketik nama lengkap..."
-                  value={signerName}
-                  onChange={(e) => setSignerName(e.target.value)}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6 max-w-md mx-auto">
-              {currentStep.type === "employee" ? (
-                <div className="space-y-4 bg-slate-50 p-6 rounded-lg border">
-                  <div className="flex flex-col items-center gap-2 mb-6">
-                    <ShieldCheck className="h-8 w-8 text-primary" />
-                    <span className="font-semibold text-lg">Verifikasi PIN</span>
+      <div className="flex-1 p-4 sm:p-6 flex flex-col min-h-0">
+        <div className="space-y-6 flex-1 flex flex-col min-h-0 justify-center">
+          <div className="space-y-6 w-full flex flex-col flex-1 min-h-0 mx-auto">
+            {currentStep.type === "employee" ? (
+              <div className="space-y-4 bg-slate-50 p-6 rounded-lg border relative">
+                {!employeeId && (
+                  <div
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px] cursor-pointer rounded-lg"
+                    onClick={() => setShowNameModal(true)}
+                  >
+                    <div className="bg-white px-4 py-2 rounded-full shadow-md text-primary font-medium flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" />
+                      Pilih Pegawai terlebih dahulu
+                    </div>
                   </div>
-                  <div className="flex justify-center gap-2">
-                    {pin.map((digit, index) => (
-                      <Input
-                        key={index}
-                        ref={(el) => { pinInputRefs.current[index] = el; }}
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handlePINChange(index, e.target.value)}
-                        onKeyDown={(e) => handlePINKeyDown(index, e)}
-                        className="w-12 h-12 text-center text-xl font-mono shadow-sm"
-                        disabled={isVerifying || loading}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-sm text-center text-muted-foreground mt-4">
-                    Masukkan PIN jika ada. Jika Anda belum mengatur PIN, Anda dapat langsung menekan Simpan.
-                  </p>
+                )}
+                <div className="flex flex-col items-center gap-2 mb-6">
+                  <ShieldCheck className="h-8 w-8 text-primary" />
+                  <span className="font-semibold text-lg">Verifikasi PIN</span>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-primary">
-                    <PenTool className="h-4 w-4" />
-                    <span className="font-medium">Tanda Tangan di Kotak</span>
+                <div className="flex justify-center gap-2">
+                  {pin.map((digit, index) => (
+                    <Input
+                      key={index}
+                      ref={(el) => { pinInputRefs.current[index] = el; }}
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handlePINChange(index, e.target.value)}
+                      onKeyDown={(e) => handlePINKeyDown(index, e)}
+                      className="w-12 h-12 text-center text-xl font-mono shadow-sm"
+                      disabled={isVerifying || loading}
+                    />
+                  ))}
+                </div>
+                <p className="text-sm text-center text-muted-foreground mt-4">
+                  Masukkan PIN jika ada. Jika Anda belum mengatur PIN, Anda dapat langsung menekan Simpan.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between text-primary shrink-0">
+                  <div className="flex items-center gap-2">
+
                   </div>
-                  <div className="border-2 border-dashed border-primary/30 rounded-lg bg-slate-50 relative shadow-inner">
+                  {signerName && (
+                    <span className="text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1 rounded-full cursor-pointer hover:bg-gray-200" onClick={() => setShowNameModal(true)}>
+                      {signerName} ✎
+                    </span>
+                  )}
+                </div>
+                <div ref={wrapperRef} className="border-2 border-dashed border-primary/30 rounded-lg bg-slate-50 relative shadow-inner flex-1 min-h-0 w-full">
+                  {!signerName && (
+                    <div
+                      className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px] cursor-pointer rounded-lg"
+                      onClick={() => setShowNameModal(true)}
+                    >
+                      <div className="bg-white px-4 py-2 rounded-full shadow-md text-primary font-medium flex items-center gap-2">
+                        <PenTool className="w-4 h-4" />
+                        Sentuh untuk mengisi nama
+                      </div>
+                    </div>
+                  )}
+                  {canvasSize.width > 0 && canvasSize.height > 0 && (
                     <SignatureCanvas
                       ref={sigPad}
                       canvasProps={{
-                        className: "w-full h-48 rounded-lg",
+                        width: canvasSize.width,
+                        height: canvasSize.height,
+                        className: "absolute inset-0 rounded-lg",
                       }}
                       backgroundColor="transparent"
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="absolute bottom-3 right-3 h-8 text-xs bg-white"
-                      onClick={() => sigPad.current?.clear()}
-                    >
-                      Ulangi
-                    </Button>
-                  </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute bottom-3 right-3 h-8 text-xs bg-white"
+                    onClick={() => sigPad.current?.clear()}
+                  >
+                    Ulangi
+                  </Button>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -287,22 +312,17 @@ export function SequentialSignatureWizard({
         <Button
           variant="outline"
           onClick={() => {
-            if (phase === "input_name") {
-              if (onCancel) onCancel();
-            } else {
-              setPhase("input_name");
-            }
+            if (onCancel) onCancel();
           }}
           disabled={loading}
         >
           Kembali
         </Button>
 
-        {phase === "input_name" ? (
-          <Button onClick={handleNextPhase} className="min-w-[140px]">
-            Lanjut <ArrowRight className="w-4 h-4 ml-2" />
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={handleSkip} disabled={loading}>
+            Lewati
           </Button>
-        ) : (
           <Button onClick={handleSign} disabled={loading} size="lg" className="min-w-[140px]">
             {loading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Menyimpan...</>
@@ -312,8 +332,62 @@ export function SequentialSignatureWizard({
               "Simpan & Lanjut"
             )}
           </Button>
-        )}
+        </div>
       </div>
+
+      {currentStep.type === "patient_or_family" && renderCustomPatientModal ? (
+        renderCustomPatientModal({
+          open: showNameModal,
+          onClose: (name?: string) => {
+            if (name) {
+              setSignerName(name);
+            }
+            setShowNameModal(false);
+          },
+        })
+      ) : (
+        <Dialog open={showNameModal} onOpenChange={setShowNameModal}>
+          <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>{currentStep.type === "employee" ? "Pilih Pegawai" : "Nama Penandatangan"}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {currentStep.type === "employee" ? (
+              <EmployeeSelect
+                value={employeeId}
+                onChange={(val, name) => {
+                  setEmployeeId(val.toString());
+                  setSignerName(name || ("Pegawai #" + val));
+                }}
+                role={currentStep.role === "dokter" ? "dokter" : "perawat"}
+              />
+            ) : (
+              <Input
+                placeholder="Ketik nama lengkap..."
+                value={signerName}
+                onChange={(e) => setSignerName(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowNameModal(false)}>Batal</Button>
+            <Button onClick={() => {
+              if (currentStep.type === "employee" && !employeeId) {
+                toast({ variant: "destructive", title: "Pilih pegawai" });
+                return;
+              }
+              if (currentStep.type === "patient_or_family" && !signerName.trim()) {
+                toast({ variant: "destructive", title: "Masukkan nama" });
+                return;
+              }
+              setShowNameModal(false);
+            }}>
+              Simpan
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      )}
     </div>
   );
 }

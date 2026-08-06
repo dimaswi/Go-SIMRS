@@ -90,6 +90,13 @@ func parseSignatureMeta(notes string) signatureMetaInfo {
 
 func signatureLabelFromMeta(sig models.SignatureLog) string {
 	meta := parseSignatureMeta(sig.Notes)
+	
+	if meta.role == "pasien" {
+		if sig.DocumentType == "general_consent_inpatient" || sig.DocumentType == "general_consent" || sig.DocumentType == "informed_consent" || strings.HasPrefix(sig.DocumentType, "rm_dup_general_consent") {
+			return "Penanggung Jawab"
+		}
+	}
+
 	switch meta.role {
 	case "pasien":
 		return "Pasien"
@@ -105,7 +112,7 @@ func signatureLabelFromMeta(sig models.SignatureLog) string {
 		return "Dokter"
 	case "petugas":
 		return "Petugas"
-	case "kosong":
+	case "kosong", "left", "right":
 		return ""
 	default:
 		// Fallback to title-casing the role if it exists, rather than returning empty
@@ -257,6 +264,11 @@ func drawUniversalTwoSignatureSlots(pdf *gofpdf.Fpdf, city, dateStr, docType str
 
 	leftTitle := "Pasien"
 	rightTitle := "Dokter DPJP"
+	if docType == "general_consent_inpatient" || docType == "general_consent" || strings.HasPrefix(docType, "rm_dup_general_consent") {
+		leftTitle = "Petugas"
+		rightTitle = "Penanggung Jawab Pasien"
+	}
+
 	leftName := "(............................)"
 	rightName := "(............................)"
 	if leftSigned {
@@ -516,9 +528,9 @@ func findSignatureLogBySlot(slot string, lookups ...signatureLookup) (models.Sig
 
 func canonicalSignatureSlot(slot string) string {
 	switch strings.ToLower(strings.TrimSpace(slot)) {
-	case "left", "1", "nurse", "perawat", "patient", "pasien":
+	case "1", "left", "kiri":
 		return "left"
-	case "right", "2", "doctor_dpjp", "dokter", "dpjp":
+	case "2", "right", "kanan":
 		return "right"
 	default:
 		return strings.ToLower(strings.TrimSpace(slot))

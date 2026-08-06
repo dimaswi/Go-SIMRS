@@ -30,7 +30,7 @@ func GetEmployees(c *gin.Context) {
 	}
 
 	if tipeKaryawan != "" {
-		query = query.Where("tipe_karyawan = ?", tipeKaryawan)
+		query = query.Where("tipe_karyawan ILIKE ?", tipeKaryawan)
 	}
 
 	if statusKepegawaian != "" {
@@ -43,6 +43,46 @@ func GetEmployees(c *gin.Context) {
 	}
 
 	if err := query.Preload("User").Order("nama_lengkap ASC").Find(&employees).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": employees})
+}
+
+// GetEmployeesLookup returns basic employee details for dropdowns without strict permissions
+func GetEmployeesLookup(c *gin.Context) {
+	var employees []models.Employee
+
+	// Get query parameters for filtering
+	search := c.Query("search")
+	tipeKaryawan := c.Query("tipe_karyawan")
+	statusKepegawaian := c.Query("status_kepegawaian")
+	isActive := c.Query("is_active")
+
+	query := database.DB.Model(&models.Employee{})
+
+	// Apply filters
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("nama_lengkap ILIKE ? OR nik ILIKE ? OR email ILIKE ?",
+			searchPattern, searchPattern, searchPattern)
+	}
+
+	if tipeKaryawan != "" {
+		query = query.Where("tipe_karyawan ILIKE ?", tipeKaryawan)
+	}
+
+	if statusKepegawaian != "" {
+		query = query.Where("status_kepegawaian = ?", statusKepegawaian)
+	}
+
+	if isActive != "" {
+		active, _ := strconv.ParseBool(isActive)
+		query = query.Where("is_active = ?", active)
+	}
+
+	if err := query.Order("nama_lengkap ASC").Find(&employees).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

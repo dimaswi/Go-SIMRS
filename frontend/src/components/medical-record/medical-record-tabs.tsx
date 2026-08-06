@@ -288,6 +288,14 @@ export function MedicalRecordTabs({
       permission: "medical_records.medicine_order",
       section: "care",
     },
+    // Informed Consent tab
+    ...(showProcedureTab ? [{
+      id: "informed-consent",
+      label: "Persetujuan Tindakan",
+      icon: <ClipboardCheck />,
+      permission: "medical_records.procedure",
+      section: "care",
+    }] : []),
     // Procedure tab - show for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
     ...(showProcedureTab ? [{
       id: "procedure",

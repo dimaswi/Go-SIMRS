@@ -58,6 +58,7 @@ export interface DocumentSignatureStatus {
   };
   signed_slots?: Record<string, boolean>;
   slot_details?: Record<string, any>;
+  is_fully_signed?: boolean;
 }
 
 export interface DocumentSignatureRule {
@@ -270,6 +271,11 @@ export const signatureApi = {
   revokeSignature: (data: { document_type: string; document_id: number; pin: string; reason?: string; slot?: string }) =>
     api.post<{ message: string; revoked_at: string; revoked_by: string }>('/signature/revoke', data),
 
+  resetDocumentSignatures: (documentType: string, documentId: number) =>
+    api.delete<{ message: string }>('/signature/reset', {
+      params: { document_type: documentType, document_id: documentId }
+    }),
+
   getDocumentSignature: (documentType: string, documentId: number) =>
     api.get<DocumentSignatureStatus>('/signature/status', {
       params: { document_type: documentType, document_id: documentId }
@@ -283,6 +289,11 @@ export const signatureApi = {
   getPatientLink: (documentType: string, documentId: number, patientName: string, slot: string) =>
     api.get<{ token: string }>('/signature/patient-link', {
       params: { document_type: documentType, document_id: documentId, patient_name: patientName, slot }
+    }),
+
+  revokePatientSignature: (documentType: string, documentId: number, slot: string) =>
+    api.delete<{ message: string }>('/signature/patient/revoke', {
+      params: { document_type: documentType, document_id: documentId, slot }
     }),
 
   checkPINRequired: () =>

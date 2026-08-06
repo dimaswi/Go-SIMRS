@@ -20,6 +20,7 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 		// Document Signing
 		signature.POST("/sign", handlers.SignDocument)                       // Sign a document
 		signature.POST("/revoke", handlers.RevokeDocumentSignature)          // Revoke/cancel a signature
+		signature.DELETE("/reset", handlers.ResetDocumentSignatures)         // Reset all signatures
 		signature.GET("/status", handlers.GetDocumentSignature)              // Get signature status of a document
 		signature.GET("/can-sign", handlers.CanSignDocument)                 // Check if current user can sign a document
 		signature.POST("/batch-status", handlers.BatchSignatureStatus)       // Batch check signature status
@@ -32,6 +33,7 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 		signature.GET("/logs", handlers.GetSignatureLogs)                             // Signature activity logs
 		signature.GET("/medical-record-logs", handlers.GetMedicalRecordEditLogsAudit) // Medical record edit logs
 		signature.GET("/patient-link", handlers.GeneratePatientSignatureLink) // Generate JWT link for patient signature
+		signature.DELETE("/patient/revoke", handlers.RevokePatientSignature)  // Delete specific patient signature
 	}
 }
 

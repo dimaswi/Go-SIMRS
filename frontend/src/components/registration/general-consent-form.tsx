@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { medicalRecordsApi, type GeneralConsent } from "@/lib/api/medical-records";
 import { DOCUMENT_TYPES } from "@/lib/api/signature";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { SequentialSignatureWizard } from "@/components/signature/sequential-signature-wizard";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
 interface GeneralConsentFormProps {
   visitId: number;
@@ -23,6 +28,13 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
       visit_id: visitId,
       signer_relation: "pasien",
       signer_name: "",
+      pj_nama: "",
+      pj_umur: undefined,
+      pj_jenis_kelamin: "",
+      pj_alamat: "",
+      pj_no_identitas: "",
+      pj_no_telp: "",
+      pj_hubungan: "",
       authorized_persons: [],
     },
   });
@@ -88,14 +100,14 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
           documentType={DOCUMENT_TYPES.GENERAL_CONSENT}
           documentTitle="Persetujuan Umum (RM-02)"
           steps={[
-            { role: "pasien", title: "Tanda Tangan Pasien/Wali", type: "patient_or_family" },
-            { role: "petugas", title: "Tanda Tangan Petugas", type: "employee" },
+            { role: "right", title: "Tanda Tangan Penanggung Jawab", type: "patient_or_family" },
+            { role: "left", title: "Tanda Tangan Petugas", type: "employee" },
           ]}
           onStepSuccess={async (role, name) => {
             const currentData = form.getValues();
             const updatedFields: Partial<GeneralConsent> = {};
-            if (role === "pasien") updatedFields.signer_name = name;
-            
+            if (role === "right" || role === "pasien") updatedFields.signer_name = name;
+
             try {
               await medicalRecordsApi.saveGeneralConsent(visitId, { ...currentData, ...updatedFields });
               form.reset({ ...currentData, ...updatedFields });
@@ -111,6 +123,87 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
               console.error(e);
             }
           }}
+          renderCustomPatientModal={({ open, onClose }) => (
+            <Dialog open={open} onOpenChange={(val) => { if (!val) onClose(); }}>
+              <DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[90vh]">
+                <DialogHeader>
+                  <DialogTitle>Data Penanggung Jawab (Yang Menyatakan)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nama Penanggung Jawab</Label>
+                      <Input {...form.register("pj_nama")} placeholder="Nama lengkap..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Umur (Tahun)</Label>
+                        <Controller
+                          control={form.control}
+                          name="pj_umur"
+                          render={({ field }) => (
+                            <Input
+                              type="number"
+                              placeholder="Umur..."
+                              value={field.value || ""}
+                              onChange={(e) => {
+                                const parsed = parseInt(e.target.value, 10);
+                                field.onChange(isNaN(parsed) ? undefined : parsed);
+                              }}
+                            />
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Jenis Kelamin</Label>
+                        <Select
+                          value={form.watch("pj_jenis_kelamin")}
+                          onValueChange={(v) => form.setValue("pj_jenis_kelamin", v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Laki-laki">Laki-laki</SelectItem>
+                            <SelectItem value="Perempuan">Perempuan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>No. Identitas (KTP/SIM)</Label>
+                      <Input {...form.register("pj_no_identitas")} placeholder="Nomor identitas..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>No. Telepon</Label>
+                      <Input {...form.register("pj_no_telp")} placeholder="Nomor telepon..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hubungan dengan Pasien</Label>
+                      <Input {...form.register("pj_hubungan")} placeholder="Contoh: Suami/Istri/Anak/dll..." />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Alamat Lengkap</Label>
+                      <Textarea {...form.register("pj_alamat")} placeholder="Alamat lengkap..." className="min-h-[80px]" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => onClose()}>Batal</Button>
+                  <Button onClick={() => {
+                    const name = form.getValues("pj_nama");
+                    if (!name || name.trim() === "") {
+                      toast({ variant: "destructive", title: "Nama Penanggung Jawab wajib diisi" });
+                      return;
+                    }
+                    onClose(name);
+                  }}>
+                    Simpan & Lanjutkan
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           onCancel={() => setSignDialogOpen(false)}
         />
       </div>

@@ -9,6 +9,7 @@ import (
 
 func setupEmployeeRoutes(rg *gin.RouterGroup) {
 	rg.GET("/employees", middleware.RequirePermission("employees.view"), handlers.GetEmployees)
+	rg.GET("/employees/lookup", handlers.GetEmployeesLookup)
 	rg.GET("/employees/types", middleware.RequirePermission("employees.view"), handlers.GetEmployeeTypes)
 	rg.GET("/employees/statuses", middleware.RequirePermission("employees.view"), handlers.GetEmploymentStatuses)
 	rg.GET("/employees/without-user", middleware.RequirePermission("employees.view"), handlers.GetEmployeesWithoutUser)

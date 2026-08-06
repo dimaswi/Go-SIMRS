@@ -211,7 +211,7 @@ func SubmitPatientSignature(c *gin.Context) {
 	// Ensure DocumentSignature exists so frontend polling (GetDocumentSignature) detects it
 	sigDB := getSignatureDB(claims.DocumentType)
 	var docSignature models.DocumentSignature
-	if err := sigDB.Where("document_type = ? AND document_id = ?", claims.DocumentType, claims.DocumentID).First(&docSignature).Error; err != nil {
+	if err := sigDB.Unscoped().Where("document_type = ? AND document_id = ?", claims.DocumentType, claims.DocumentID).First(&docSignature).Error; err != nil {
 		// Does not exist, create it
 		requiredSignatures := resolveRequiredSignatureCount(claims.DocumentType, nil)
 		docSignature = models.DocumentSignature{
@@ -224,6 +224,9 @@ func SubmitPatientSignature(c *gin.Context) {
 			IsLocked:           false,
 		}
 		sigDB.Create(&docSignature)
+	} else if docSignature.DeletedAt.Valid {
+		// Exists but soft deleted, revive it
+		sigDB.Unscoped().Model(&docSignature).Update("deleted_at", nil)
 	}
 
 	// Update the slot for the patient so getSignedSlots() detects it!
@@ -238,4 +241,43 @@ func SubmitPatientSignature(c *gin.Context) {
 		"message": "Tanda tangan berhasil disimpan",
 		"data":    log,
 	})
+}
+
+// RevokePatientSignature handles deletion of a specific patient signature slot
+func RevokePatientSignature(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	docType := c.Query("document_type")
+	docIDStr := c.Query("document_id")
+	slot := c.Query("slot")
+
+	if docType == "" || docIDStr == "" || slot == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "document_type, document_id, and slot are required"})
+		return
+	}
+
+	sigDB := getSignatureDB(docType)
+
+	sigDB.Unscoped().Where("document_type = ? AND document_id = ? AND (signer_key = ? OR signer_key LIKE ?)", docType, docIDStr, slot, slot+":%").Delete(&models.DocumentSignatureSigner{})
+
+	var docID uint
+	fmt.Sscanf(docIDStr, "%d", &docID)
+
+	refreshDocumentSignatureState(sigDB, docType, docID)
+	go invalidateAllPDFCachesForSignature(docType, docID)
+
+	// Create revoke log
+	revokeLog := models.SignatureLog{
+		UserID:        userID,
+		DocumentType:  docType,
+		DocumentID:    docID,
+		SignedAt:      time.Now(),
+		Action:        models.SignActionRevoke,
+		Notes:         fmt.Sprintf("Revoked slot: %s", slot),
+		IPAddress:     c.ClientIP(),
+		UserAgent:     c.Request.UserAgent(),
+	}
+	database.DB.Create(&revokeLog)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tanda tangan berhasil dihapus"})
 }

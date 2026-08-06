@@ -106,6 +106,18 @@ export const employeesApi = {
     return api.get<{ data: Employee[] }>(`/employees${queryString ? `?${queryString}` : ''}`);
   },
   
+  getLookup: (params?: { search?: string; tipe_karyawan?: string; status_kepegawaian?: string; is_active?: string; limit?: number; page?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.tipe_karyawan) searchParams.append('tipe_karyawan', params.tipe_karyawan);
+    if (params?.status_kepegawaian) searchParams.append('status_kepegawaian', params.status_kepegawaian);
+    if (params?.is_active) searchParams.append('is_active', params.is_active);
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.page) searchParams.append('page', params.page.toString());
+    const queryString = searchParams.toString();
+    return api.get<{ data: Employee[] }>(`/employees/lookup${queryString ? `?${queryString}` : ''}`);
+  },
+  
   getById: (id: number) => 
     api.get<{ data: Employee }>(`/employees/${id}`),
   

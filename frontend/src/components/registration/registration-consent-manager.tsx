@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { X, FileText, ClipboardList } from "lucide-react";
+import { X, ClipboardList } from "lucide-react";
 import type { Registration } from "@/lib/api/queue";
 import { cn } from "@/lib/utils";
 import { GeneralConsentForm } from "./general-consent-form";
 import { GeneralConsentInpatientForm } from "./general-consent-inpatient-form";
-import { InformedConsentForm } from "./informed-consent-form";
+
 
 interface RegistrationConsentManagerProps {
   open: boolean;
@@ -27,19 +27,16 @@ export function RegistrationConsentManager({
     if (isActuallyInpatient) {
       return [
         { id: "general_inpatient", label: "Persetujuan Rawat Inap", icon: <ClipboardList className="w-4 h-4" /> },
-        { id: "informed_consent", label: "Persetujuan Tindakan", icon: <FileText className="w-4 h-4" /> },
       ];
     }
     if (type === "emergency" || registration.destination_room?.service_type === "gawat_darurat") {
       return [
         { id: "general_emergency", label: "General Consent", icon: <ClipboardList className="w-4 h-4" /> },
-        { id: "informed_consent", label: "Persetujuan Tindakan", icon: <FileText className="w-4 h-4" /> },
       ];
     }
     // Default / Outpatient (Rawat Jalan)
     return [
       { id: "general_outpatient", label: "General Consent", icon: <ClipboardList className="w-4 h-4" /> },
-      { id: "informed_consent", label: "Persetujuan Tindakan", icon: <FileText className="w-4 h-4" /> },
     ];
   };
 
@@ -116,8 +113,6 @@ export function RegistrationConsentManager({
                 <GeneralConsentForm visitId={registration.visit!.id} />
               ) : activeTab === "general_inpatient" ? (
                 <GeneralConsentInpatientForm visitId={registration.visit!.id} />
-              ) : activeTab === "informed_consent" ? (
-                <InformedConsentForm visitId={registration.visit!.id} />
               ) : null}
             </div>
 

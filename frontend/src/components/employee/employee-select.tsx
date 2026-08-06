@@ -19,7 +19,7 @@ import { employeesApi, type Employee } from "@/lib/api/employees";
 
 interface EmployeeSelectProps {
   value?: string | number | null;
-  onChange: (value: string | number) => void;
+  onChange: (value: string | number, name?: string) => void;
   disabled?: boolean;
   role?: string;
 }
@@ -39,8 +39,8 @@ export function EmployeeSelect({
     const fetchEmployees = async () => {
       setLoading(true);
       try {
-        const res = await employeesApi.getAll({ 
-          tipe_karyawan: role === "dokter" ? "Dokter" : undefined,
+        const res = await employeesApi.getLookup({ 
+          tipe_karyawan: role === "dokter" ? "dokter" : "perawat",
           limit: 1000 
         });
         if (mounted) {
@@ -89,7 +89,7 @@ export function EmployeeSelect({
                   key={employee.id}
                   value={employee.nama_lengkap}
                   onSelect={() => {
-                    onChange(employee.id);
+                    onChange(employee.id, employee.nama_lengkap);
                     setOpen(false);
                   }}
                 >

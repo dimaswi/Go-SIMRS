@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { medicalRecordsApi, type GeneralConsentInpatient } from "@/lib/api/medical-records";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ArrowRight } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { SequentialSignatureWizard } from "@/components/signature/sequential-signature-wizard";
-import { DOCUMENT_TYPES } from "@/lib/api/signature";
+import { DOCUMENT_TYPES, signatureApi, type DocumentSignatureStatus } from "@/lib/api/signature";
+import { Printer, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
 interface GeneralConsentInpatientFormProps {
   visitId: number;
@@ -17,12 +23,21 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signDialogOpen, setSignDialogOpen] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<DocumentSignatureStatus | null>(null);
+  const [consentId, setConsentId] = useState<number | null>(null);
 
   const form = useForm<GeneralConsentInpatient>({
     defaultValues: {
       visit_id: visitId,
       signer_relation: "pasien",
       signer_name: "",
+      pj_nama: "",
+      pj_umur: undefined,
+      pj_jenis_kelamin: "",
+      pj_alamat: "",
+      pj_no_identitas: "",
+      pj_no_telp: "",
+      pj_hubungan: "",
     },
   });
 
@@ -38,6 +53,16 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
             ...res.data.data,
             visit_id: visitId,
           });
+
+          try {
+            if (res.data.data.id) {
+              setConsentId(res.data.data.id);
+              const sigRes = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT, Number(visitId));
+              setSignatureStatus(sigRes.data);
+            }
+          } catch (e) {
+            console.error("No signature found");
+          }
         }
       } catch (err) {
         console.error("Failed to load general consent inpatient", err);
@@ -51,7 +76,16 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
   const onSubmit = async (data: GeneralConsentInpatient) => {
     try {
       setSaving(true);
-      await medicalRecordsApi.saveGeneralConsentInpatient(visitId, data);
+      const saveRes = await medicalRecordsApi.saveGeneralConsentInpatient(visitId, data);
+
+      // Use the returned data from the save operation directly
+      if (saveRes.data?.data?.id) {
+        form.setValue("id", saveRes.data.data.id);
+        setConsentId(saveRes.data.data.id);
+      } else {
+        console.warn("Save API did not return an ID", saveRes.data);
+      }
+
       toast({
         title: "Tersimpan",
         description: "Persetujuan Rawat Inap berhasil disimpan",
@@ -69,6 +103,23 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
     }
   };
 
+  const handleSignSuccess = () => {
+    setSignDialogOpen(false);
+    if (consentId) {
+      signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT, Number(visitId))
+        .then(res => setSignatureStatus(res.data))
+        .catch(err => console.error("Failed to fetch signature status:", err));
+    }
+  };
+
+  const handlePrint = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080/api` : 'http://localhost:8080/api');
+    const token = localStorage.getItem('token');
+    window.open(`${apiUrl}/print/general-consent-inpatient/${visitId}?token=${token}`, "_blank");
+  };
+
+  const isFullySigned = signatureStatus?.is_fully_signed || false;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -77,24 +128,23 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
     );
   }
 
-  if (signDialogOpen) {
+  if (signDialogOpen && consentId) {
     return (
       <div className="w-full flex flex-col h-full min-h-[500px]">
         <SequentialSignatureWizard
           visitId={visitId}
-          documentId={visitId}
+          documentId={Number(visitId)}
           documentType={DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT}
           documentTitle="Persetujuan Rawat Inap (RM-03)"
           steps={[
-            { role: "pasien", title: "Tanda Tangan Pasien/Wali", type: "patient_or_family" },
-            { role: "petugas", title: "Tanda Tangan Petugas", type: "employee" },
+            { role: "right", title: "Tanda Tangan Penanggung Jawab", type: "patient_or_family" },
+            { role: "left", title: "Tanda Tangan Petugas", type: "employee" },
           ]}
           onStepSuccess={async (role, name) => {
             const currentData = form.getValues();
             const updatedFields: Partial<GeneralConsentInpatient> = {};
-            if (role === "pasien") updatedFields.signer_name = name;
-            // Petugas might not have a specific signer_name field in GeneralConsentInpatient, but just in case:
-            if (role === "petugas" && 'signer_name_petugas' in updatedFields) {
+            if (role === "right" || role === "pasien") updatedFields.signer_name = name;
+            if ((role === "left" || role === "petugas") && 'signer_name_petugas' in updatedFields) {
               (updatedFields as any).signer_name_petugas = name;
             }
             try {
@@ -107,11 +157,99 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
           onSuccess={async () => {
             try {
               await medicalRecordsApi.saveGeneralConsentInpatient(visitId, { ...form.getValues() });
-              setSignDialogOpen(false);
+
+              if (consentId) {
+                // Fetch the new signature status using the correct ID
+                const sigRes = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT, Number(visitId));
+                setSignatureStatus(sigRes.data);
+              }
             } catch (e) {
-              console.error(e);
+              console.error("Failed to update signature status after save:", e);
+            } finally {
+              setSignDialogOpen(false);
             }
           }}
+          renderCustomPatientModal={({ open, onClose }) => (
+            <Dialog open={open} onOpenChange={(val) => { if (!val) onClose(); }}>
+              <DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[90vh]">
+                <DialogHeader>
+                  <DialogTitle>Data Penanggung Jawab (Yang Menyatakan)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nama Penanggung Jawab</Label>
+                      <Input {...form.register("pj_nama")} placeholder="Nama lengkap..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Umur (Tahun)</Label>
+                        <Controller
+                          control={form.control}
+                          name="pj_umur"
+                          render={({ field }) => (
+                            <Input
+                              type="number"
+                              placeholder="Umur..."
+                              value={field.value || ""}
+                              onChange={(e) => {
+                                const parsed = parseInt(e.target.value, 10);
+                                field.onChange(isNaN(parsed) ? undefined : parsed);
+                              }}
+                            />
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Jenis Kelamin</Label>
+                        <Select
+                          value={form.watch("pj_jenis_kelamin")}
+                          onValueChange={(v) => form.setValue("pj_jenis_kelamin", v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Laki-laki">Laki-laki</SelectItem>
+                            <SelectItem value="Perempuan">Perempuan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>No. Identitas (KTP/SIM)</Label>
+                      <Input {...form.register("pj_no_identitas")} placeholder="Nomor identitas..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>No. Telepon</Label>
+                      <Input {...form.register("pj_no_telp")} placeholder="Nomor telepon..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hubungan dengan Pasien</Label>
+                      <Input {...form.register("pj_hubungan")} placeholder="Contoh: Suami/Istri/Anak/dll..." />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Alamat Lengkap</Label>
+                      <Textarea {...form.register("pj_alamat")} placeholder="Alamat lengkap..." className="min-h-[80px]" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => onClose()}>Batal</Button>
+                  <Button onClick={() => {
+                    const name = form.getValues("pj_nama");
+                    if (!name || name.trim() === "") {
+                      toast({ variant: "destructive", title: "Nama Penanggung Jawab wajib diisi" });
+                      return;
+                    }
+                    onClose(name);
+                  }}>
+                    Simpan & Lanjutkan
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           onCancel={() => setSignDialogOpen(false)}
         />
       </div>
@@ -119,13 +257,13 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto flex flex-col h-full">
-
-      <form id="general-consent-inpatient-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex-1 flex flex-col">
-        {/* Naskah Persetujuan (Scrollable) */}
-        <Card className="shadow-sm">
-          <CardContent className="pt-0 px-0">
-            <div className="w-full px-6 py-4 text-sm leading-relaxed">
+    <div className="space-y-6 w-full pb-10">
+      <form id="general-consent-inpatient-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex flex-col">
+        {/* Naskah Persetujuan (Scrollable Box) */}
+        <Card className="shadow-sm overflow-hidden flex flex-col">
+          {/* Scrollable Text Area */}
+          <CardContent className="pt-0 px-0 overflow-y-auto max-h-[65vh] border-b">
+            <div className="w-full px-6 py-6 text-sm leading-relaxed">
               <h3 className="font-bold mb-4 text-center uppercase">KEWAJIBAN PASIEN, HAK PASIEN DAN KELUARGA, DAN HAK KLINIK RAWAT INAP UTAMA MUHAMMADIYAH KEDUNGADEM</h3>
 
               <div className="space-y-4">
@@ -196,16 +334,68 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
               </div>
             </div>
           </CardContent>
-        </Card>
 
-        {/* Action Buttons */}
-        <div className="sticky bottom-0 -mx-3 sm:-mx-4 -mb-3 sm:-mb-4 mt-auto p-4 bg-white border-t flex justify-end gap-3 z-10">
-          <Button type="submit" disabled={saving} size="lg" className="w-full sm:w-auto font-bold px-8">
-            {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : "Lanjut Tanda Tangan"}
-            {!saving && <ArrowRight className="w-5 h-5 ml-2" />}
-          </Button>
-        </div>
+          {/* Action Buttons (Static Footer of the Card) */}
+          <div className="p-4 bg-gray-50/80 backdrop-blur-sm flex justify-end gap-3 rounded-b-lg">
+            {isFullySigned ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!confirm("Apakah Anda yakin ingin menghapus semua tanda tangan untuk dokumen ini?")) return;
+                    setSaving(true);
+                    try {
+                      await signatureApi.resetDocumentSignatures(DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT, Number(visitId));
+                      toast({ variant: "success", title: "Tanda tangan berhasil dihapus" });
+                      setSignatureStatus(null);
+                      setSignDialogOpen(true);
+                    } catch (error: any) {
+                      toast({ variant: "destructive", title: "Gagal menghapus tanda tangan" });
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  size="lg"
+                  className="font-bold text-red-600 hover:text-red-700 hover:bg-red-50"
+                  disabled={saving}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Hapus TTD
+                </Button>
+                <Button type="button" onClick={handlePrint} size="lg" className="font-bold px-8">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak
+                </Button>
+              </>
+            ) : (
+              <Button type="submit" disabled={saving} size="lg" className="w-full sm:w-auto font-bold px-8">
+                {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : "Lanjut Tanda Tangan"}
+                {!saving && <ArrowRight className="w-5 h-5 ml-2" />}
+              </Button>
+            )}
+          </div>
+        </Card>
       </form>
+
+      {signDialogOpen && consentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <SequentialSignatureWizard
+              documentId={Number(visitId)}
+              documentType={DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT}
+              visitId={visitId}
+              steps={[
+                { role: "right", title: "Tanda Tangan Pasien/Wali", type: "patient_or_family" },
+                { role: "left", title: "Tanda Tangan Petugas", type: "employee" },
+              ]}
+              onSuccess={handleSignSuccess}
+              onCancel={() => setSignDialogOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

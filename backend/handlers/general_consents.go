@@ -86,10 +86,9 @@ func SaveGeneralConsent(c *gin.Context) {
 // GetGeneralConsentInpatient retrieves the general consent inpatient for a given visit
 func GetGeneralConsentInpatient(c *gin.Context) {
 	visitID := c.Param("id")
-	query := scopedRMQuery(c, visitID)
 
 	var consent models.GeneralConsentInpatient
-	if err := query.First(&consent).Error; err != nil {
+	if err := database.DB.Where("visit_id = ?", visitID).First(&consent).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"data": nil})
 		return
 	}

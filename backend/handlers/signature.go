@@ -331,10 +331,10 @@ func SignDocument(c *gin.Context) {
 		}
 	}
 
-	// Check if document already has a signature record (will be updated if re-signing)
-	var existingSignature models.DocumentSignature
 	sigDB := getSignatureDB(req.DocumentType)
-	sigDB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature)
+	var existingSignature models.DocumentSignature
+	// Use Unscoped to find soft-deleted signatures as well so they can be revived
+	sigDB.Unscoped().Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature)
 
 	// Generate signature hash
 	signedAt := time.Now()
@@ -373,17 +373,8 @@ func SignDocument(c *gin.Context) {
 		signerRole = designatedEmployee.Jabatan
 		signerEmployeeID = &designatedEmployee.ID
 
-		// Auto-append audit note
-		authorizedBy := user.FullName
-		if user.Employee != nil {
-			authorizedBy = user.Employee.NamaLengkap
-		}
-		auditNote := fmt.Sprintf("Ditandatangani atas nama %s oleh %s", signerName, authorizedBy)
-		if req.Notes != "" {
-			req.Notes = req.Notes + " | " + auditNote
-		} else {
-			req.Notes = auditNote
-		}
+		signerEmployeeID = &designatedEmployee.ID
+
 	} else if user.Employee != nil {
 		// Default signer name follows account identity to avoid mismatch between account label
 		// and linked employee profile (e.g. System Admin account linked to specific employee).
@@ -461,7 +452,12 @@ func SignDocument(c *gin.Context) {
 		if existingSignature.RequiredSignatures > 0 && req.RequiredSignatures == nil {
 			docSignature.RequiredSignatures = existingSignature.RequiredSignatures
 		}
-		sigDB.Save(&docSignature)
+		if existingSignature.DeletedAt.Valid {
+			docSignature.DeletedAt = gorm.DeletedAt{} // revive
+			sigDB.Unscoped().Save(&docSignature)
+		} else {
+			sigDB.Save(&docSignature)
+		}
 	} else {
 		sigDB.Create(&docSignature)
 	}
@@ -566,6 +562,36 @@ func VerifySignaturePIN(c *gin.Context) {
 	})
 }
 
+// ResetDocumentSignatures forcibly resets all signatures for a document
+func ResetDocumentSignatures(c *gin.Context) {
+	docType := c.Query("document_type")
+	docIDStr := c.Query("document_id")
+
+	docID := uint(0)
+	fmt.Sscanf(docIDStr, "%d", &docID)
+
+	if docType == "" || docID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters"})
+		return
+	}
+
+	sigDB := getSignatureDB(docType)
+
+	// Delete signature logs
+	database.DB.Where("document_type = ? AND document_id = ?", docType, docID).Delete(&models.SignatureLog{})
+
+	// Delete signers
+	sigDB.Where("document_type = ? AND document_id = ?", docType, docID).Delete(&models.DocumentSignatureSigner{})
+
+	// Delete signature record
+	sigDB.Where("document_type = ? AND document_id = ?", docType, docID).Delete(&models.DocumentSignature{})
+
+	// Invalidate cache
+	go invalidateAllPDFCachesForSignature(docType, docID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Signatures reset successfully"})
+}
+
 // GetDocumentSignature gets the signature status of a document
 func GetDocumentSignature(c *gin.Context) {
 	docType := c.Query("document_type")
@@ -585,23 +611,23 @@ func GetDocumentSignature(c *gin.Context) {
 	sigDB := getSignatureDB(docType)
 	var signature models.DocumentSignature
 	reqSigs := resolveRequiredSignatureCount(docType, nil)
-	
+
 	if err := sigDB.Preload("SignedBy").
 		Where("document_type = ? AND document_id = ?", docType, docID).
 		First(&signature).Error; err != nil {
-		
+
 		signedSlots := getSignedSlots(sigDB, docType, uint(docID))
 		slotDetails := getSignedSlotDetails(sigDB, docType, uint(docID))
 		signedSlotsCount := len(signedSlots)
-		
+
 		c.JSON(http.StatusOK, gin.H{
-			"is_signed": false,
-			"is_locked": false,
+			"is_signed":           false,
+			"is_locked":           false,
 			"required_signatures": reqSigs,
-			"signed_signatures": signedSlotsCount,
-			"is_fully_signed": false,
-			"signed_slots": signedSlots,
-			"slot_details": slotDetails,
+			"signed_signatures":   signedSlotsCount,
+			"is_fully_signed":     false,
+			"signed_slots":        signedSlots,
+			"slot_details":        slotDetails,
 		})
 		return
 	}
@@ -609,12 +635,12 @@ func GetDocumentSignature(c *gin.Context) {
 	signedSlots := getSignedSlots(sigDB, signature.DocumentType, signature.DocumentID)
 	slotDetails := getSignedSlotDetails(sigDB, signature.DocumentType, signature.DocumentID)
 	signedSlotsCount := len(signedSlots)
-	
+
 	currentSigned := signature.SignedSignatures
 	if signedSlotsCount > currentSigned {
 		currentSigned = signedSlotsCount
 	}
-	
+
 	if signature.SignedAt != nil && currentSigned == 0 {
 		currentSigned = 1
 	}
@@ -725,7 +751,7 @@ func GetSignatureLogs(c *gin.Context) {
 		if logs[i].VisitID == nil || logs[i].Visit == nil {
 			var visitID uint
 			db := getSignatureDB(logs[i].DocumentType)
-			
+
 			if logs[i].DocumentType == models.DocTypeSPRI {
 				db.Table("spri").Select("visit_id").Where("id = ?", logs[i].DocumentID).Scan(&visitID)
 			} else if logs[i].DocumentType == models.DocTypeSuratKontrol {
@@ -751,7 +777,7 @@ func GetSignatureLogs(c *gin.Context) {
 				// Fallback to medical_records (CPP, Triage, Resume, dll)
 				db.Table("medical_records").Select("visit_id").Where("id = ?", logs[i].DocumentID).Scan(&visitID)
 			}
-			
+
 			if visitID > 0 {
 				var visit models.Visit
 				if err := database.DB.Preload("Registration.Patient").First(&visit, visitID).Error; err == nil {
@@ -938,11 +964,11 @@ func humanDocTypeName(dt string) string {
 		models.DocTypeInpatientCert:      "Surat Keterangan Rawat Inap",
 		models.DocTypePharmacyHandover:   "Serah Terima Obat",
 		models.DocTypeRegistration:       "Bukti Registrasi",
-		
-		"outpatient_resume":              "Resume Medis Rawat Jalan",
-		"inpatient_resume":               "Resume Medis Rawat Inap",
-		"lab_order":                      "Permintaan Laboratorium",
-		"admission_discharge_reg":        "Ringkasan Masuk & Keluar Pasien",
+
+		"outpatient_resume":       "Resume Medis Rawat Jalan",
+		"inpatient_resume":        "Resume Medis Rawat Inap",
+		"lab_order":               "Permintaan Laboratorium",
+		"admission_discharge_reg": "Ringkasan Masuk & Keluar Pasien",
 
 		// RM Duplicate — map to the same human-readable name as the original
 		models.DocTypeRMDupLabResult:       "Hasil Laboratorium",
@@ -1028,7 +1054,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 	sigDB := getSignatureDB(req.DocumentType)
 	var docSignature models.DocumentSignature
 	errSig := sigDB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&docSignature).Error
-	
+
 	var signers []models.DocumentSignatureSigner
 	sigDB.Where("document_type = ? AND document_id = ? AND is_active = ?", req.DocumentType, req.DocumentID, true).Find(&signers)
 
@@ -1105,7 +1131,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 
 	if req.Slot != "" {
 		// Only deactivate the specified slot
-		sigDB.Where("document_type = ? AND document_id = ? AND signer_key = ?", req.DocumentType, req.DocumentID, req.Slot).
+		sigDB.Unscoped().Where("document_type = ? AND document_id = ? AND signer_key = ?", req.DocumentType, req.DocumentID, req.Slot).
 			Delete(&models.DocumentSignatureSigner{})
 		refreshDocumentSignatureState(sigDB, req.DocumentType, req.DocumentID)
 	} else {
@@ -1119,8 +1145,19 @@ func RevokeDocumentSignature(c *gin.Context) {
 			docSignature.IsFullySigned = false
 			sigDB.Save(&docSignature)
 		}
-		sigDB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
+		sigDB.Unscoped().Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
 			Delete(&models.DocumentSignatureSigner{})
+	}
+
+	// Also hard delete DocumentSignature if no signers left
+	if req.Slot == "" {
+		sigDB.Unscoped().Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).Delete(&models.DocumentSignature{})
+	} else {
+		var activeSigners int64
+		sigDB.Model(&models.DocumentSignatureSigner{}).Where("document_type = ? AND document_id = ? AND is_active = ?", req.DocumentType, req.DocumentID, true).Count(&activeSigners)
+		if activeSigners == 0 {
+			sigDB.Unscoped().Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).Delete(&models.DocumentSignature{})
+		}
 	}
 
 	// Delete cached PDF blob — signature revoked, so cached signed PDF is stale
@@ -1161,7 +1198,7 @@ func ensureNotOrdererRevokingOrderDoc(documentType string, documentID uint, empl
 }
 
 func ensureAllowedSuratDocumentSigner(documentType string, documentID uint, employeeID *uint, actionLabel string) error {
-	// Bypass strict DPJP check because user wants any nurse/doctor to be able to sign 
+	// Bypass strict DPJP check because user wants any nurse/doctor to be able to sign
 	// (they will select their role and enter their PIN to validate).
 	return nil
 }
@@ -1235,12 +1272,12 @@ func BatchSignatureStatus(c *gin.Context) {
 
 	for _, doc := range req.Documents {
 		key := fmt.Sprintf("%s:%d", doc.DocumentType, doc.DocumentID)
-		
+
 		reqSigs := resolveRequiredSignatureCount(doc.DocumentType, nil)
 
 		signedSlots := getSignedSlots(getSignatureDB(doc.DocumentType), doc.DocumentType, doc.DocumentID)
 		signedSlotsCount := len(signedSlots)
-		
+
 		if ds, ok := signedMap[key]; ok {
 			signerName := ""
 			if ds.SignedAt != nil {
@@ -1252,16 +1289,16 @@ func BatchSignatureStatus(c *gin.Context) {
 					signerName = ds.SignedBy.FullName
 				}
 			}
-			
+
 			// Use the maximum between ds.SignedSignatures and len(signedSlots) to be accurate
 			currentSigned := ds.SignedSignatures
 			if signedSlotsCount > currentSigned {
 				currentSigned = signedSlotsCount
 			}
-			
+
 			// If Doctor signed, ensure it's at least 1
 			if ds.SignedAt != nil && currentSigned == 0 {
-			    currentSigned = 1
+				currentSigned = 1
 			}
 
 			isFullySigned := ds.IsFullySigned
@@ -1329,19 +1366,20 @@ func signatureSignerKey(signerEmployeeID *uint, userID uint, slot string) string
 }
 
 func normalizeSignatureSlot(slot string) string {
-	switch strings.ToLower(strings.TrimSpace(slot)) {
-	case "2", "right":
-		return "right"
-	default:
+	s := strings.ToLower(strings.TrimSpace(slot))
+	switch s {
+	case "1", "left", "kiri":
 		return "left"
+	case "2", "right", "kanan":
+		return "right"
 	}
+	return s
 }
-
 func buildSignatureMetaNote(slot, role, location, date, name string) string {
 	slot = normalizeSignatureSlot(slot)
 	role = strings.ToLower(strings.TrimSpace(role))
 	switch role {
-	case "dpjp", "perawat", "pasien", "kosong":
+	case "dpjp", "perawat", "pasien", "petugas", "kosong", "left", "right", "dokter", "saksi1", "saksi2":
 	default:
 		role = "kosong"
 	}
@@ -1362,6 +1400,14 @@ func getSignedSlots(sigDB *gorm.DB, docType string, docID uint) map[string]bool 
 	}
 	for _, s := range signers {
 		key := strings.ToLower(strings.TrimSpace(s.SignerKey))
+		out[key] = true
+		
+		// Map suffixed keys (e.g. dokter:employee:1) to base slot
+		parts := strings.Split(key, ":")
+		if len(parts) > 0 {
+			out[parts[0]] = true
+		}
+
 		if strings.HasPrefix(key, "left:") || key == "left" || strings.HasPrefix(key, "nurse:") || key == "nurse" || strings.HasPrefix(key, "patient:") || key == "patient" || key == "pasien" {
 			out["left"] = true
 		}
@@ -1378,7 +1424,7 @@ func getSignedSlotDetails(sigDB *gorm.DB, docType string, docID uint) map[string
 	if err := sigDB.Where("document_type = ? AND document_id = ? AND signed_at IS NOT NULL AND is_active = ?", docType, docID, true).Find(&signers).Error; err != nil {
 		return out
 	}
-	
+
 	for _, s := range signers {
 		key := strings.ToLower(strings.TrimSpace(s.SignerKey))
 		slotName := ""
@@ -1392,7 +1438,7 @@ func getSignedSlotDetails(sigDB *gorm.DB, docType string, docID uint) map[string
 
 		detail := map[string]interface{}{
 			"signature_hash": s.SignatureHash,
-			"signed_at": s.SignedAt,
+			"signed_at":      s.SignedAt,
 		}
 
 		if s.SignatureHash != "" {

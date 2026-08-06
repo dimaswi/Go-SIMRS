@@ -13,8 +13,16 @@ type InformedConsent struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"uniqueIndex;not null" json:"visit_id"`
+	VisitID uint   `gorm:"index;not null" json:"visit_id"`
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	IsCasemix       bool   `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint  `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
+	Procedures []InformedConsentProcedure `gorm:"foreignKey:InformedConsentID" json:"procedures,omitempty"`
+
+	// A. JUDUL
+	JudulTindakan string `gorm:"size:255" json:"judul_tindakan"`
 
 	// B. JENIS TINDAKAN
 	JenisTindakan string `gorm:"size:255" json:"jenis_tindakan"`
@@ -24,11 +32,14 @@ type InformedConsent struct {
 	DokterPemberiInformasi   *Employee `gorm:"foreignKey:DokterPemberiInformasiID" json:"dokter_pemberi_informasi,omitempty"`
 
 	// D. PENERIMA INFORMASI / PENANGGUNG JAWAB PASIEN
-	PenerimaInformasiNama     string `gorm:"size:255" json:"penerima_informasi_nama"`
-	PenerimaInformasiUmur     int    `json:"penerima_informasi_umur"`
-	PenerimaInformasiJk       string `gorm:"size:50" json:"penerima_informasi_jk"`
-	PenerimaInformasiAlamat   string `gorm:"type:text" json:"penerima_informasi_alamat"`
-	PenerimaInformasiHubungan string `gorm:"size:100" json:"penerima_informasi_hubungan"`
+	PenerimaInformasiSource      string `gorm:"size:50" json:"penerima_informasi_source"` // penanggung_jawab, manual
+	PenerimaInformasiNama        string `gorm:"size:255" json:"penerima_informasi_nama"`
+	PenerimaInformasiUmur        int    `json:"penerima_informasi_umur"`
+	PenerimaInformasiJk          string `gorm:"size:50" json:"penerima_informasi_jk"`
+	PenerimaInformasiAlamat      string `gorm:"type:text" json:"penerima_informasi_alamat"`
+	PenerimaInformasiNoIdentitas string `gorm:"size:50" json:"penerima_informasi_no_identitas"`
+	PenerimaInformasiNoTelp      string `gorm:"size:20" json:"penerima_informasi_no_telp"`
+	PenerimaInformasiHubungan    string `gorm:"size:100" json:"penerima_informasi_hubungan"`
 
 	// E. INFORMASI YANG DIJELASKAN OLEH DOKTER
 	InfoDiagnosisKerja   bool   `json:"info_diagnosis_kerja"`
@@ -88,4 +99,19 @@ type InformedConsent struct {
 
 func (InformedConsent) TableName() string {
 	return "informed_consents"
+}
+
+// InformedConsentProcedure represents the multiple procedures selected in an informed consent
+type InformedConsentProcedure struct {
+	ID                uint             `gorm:"primarykey" json:"id"`
+	InformedConsentID uint             `gorm:"index;not null" json:"informed_consent_id"`
+	ProcedureID       uint             `gorm:"index;not null" json:"procedure_id"`
+	Procedure         *Procedure       `gorm:"foreignKey:ProcedureID" json:"procedure,omitempty"`
+	Notes             string           `gorm:"type:text" json:"notes"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
+}
+
+func (InformedConsentProcedure) TableName() string {
+	return "informed_consent_procedures"
 }

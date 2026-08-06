@@ -164,9 +164,13 @@ export const printApi = {
   /**
    * Print Bukti Pemberian Informed Consent per Kunjungan
    * @param visitId - Visit ID
+   * @param icId - Optional Informed Consent ID
    */
-  informedConsentReceipt: async (visitId: number) => {
-    return fetchPdf(`${BASE_URL}/informed-consent-receipt/${visitId}`);
+  informedConsentReceipt: async (visitId: number, icId?: number) => {
+    const url = icId 
+      ? `${BASE_URL}/informed-consent-receipt/${visitId}?ic_id=${icId}`
+      : `${BASE_URL}/informed-consent-receipt/${visitId}`;
+    return fetchPdf(url);
   },
 
   // =========================================================================

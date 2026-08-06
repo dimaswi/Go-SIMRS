@@ -84,9 +84,11 @@ func SetupVisitRoutes(r *gin.Engine) {
 		visits.POST("/:id/consultation", middleware.RequirePermission("medical_records.consultation_order"), handlers.SaveConsultation)
 
 		// Informed Consent
-		visits.GET("/:id/informed-consent", middleware.RequirePermission("medical_records.view"), handlers.GetInformedConsent)
-		visits.POST("/:id/informed-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
-		visits.PUT("/:id/informed-consent", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
+		visits.GET("/:id/informed-consents", middleware.RequirePermission("medical_records.view"), handlers.GetInformedConsents)
+		visits.GET("/:id/informed-consents/:ic_id", middleware.RequirePermission("medical_records.view"), handlers.GetInformedConsent)
+		visits.POST("/:id/informed-consents", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
+		visits.PUT("/:id/informed-consents/:ic_id", middleware.RequirePermission("medical_records.assessment_plan"), handlers.SaveInformedConsent)
+		visits.DELETE("/:id/informed-consents/:ic_id", middleware.RequirePermission("medical_records.assessment_plan"), handlers.DeleteInformedConsent)
 
 		// General Consents
 		visits.GET("/:id/general-consent", middleware.RequirePermission("medical_records.view"), handlers.GetGeneralConsent)

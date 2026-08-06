@@ -3,13 +3,24 @@ import { api } from './client';
 export interface InformedConsent {
   id?: number;
   visit_id: number;
+  judul_tindakan?: string;
   jenis_tindakan?: string;
+  penerima_informasi_source?: string;
   dokter_pemberi_informasi_id?: number;
   penerima_informasi_nama?: string;
   penerima_informasi_umur?: number;
   penerima_informasi_jk?: string;
   penerima_informasi_alamat?: string;
+  penerima_informasi_no_identitas?: string;
+  penerima_informasi_no_telp?: string;
   penerima_informasi_hubungan?: string;
+  pj_nama?: string;
+  pj_umur?: number;
+  pj_jenis_kelamin?: string;
+  pj_alamat?: string;
+  pj_no_identitas?: string;
+  pj_no_telp?: string;
+  pj_hubungan?: string;
   info_diagnosis_kerja?: boolean;
   isi_diagnosis_kerja?: string;
   info_indikasi_tindakan?: boolean;
@@ -26,7 +37,7 @@ export interface InformedConsent {
   isi_prognosis?: string;
   info_alternatif?: boolean;
   isi_alternatif?: string;
-  info_lain_lain?: boolean;
+  info_lain_lain?: boolean | string;
   isi_lain_lain?: string;
   pernyataan_dokter?: boolean;
   stmt_menerima_penjelasan?: boolean;
@@ -54,6 +65,19 @@ export interface InformedConsent {
 
   // Status
   is_fully_signed?: boolean;
+  procedures?: InformedConsentProcedure[];
+}
+
+export interface InformedConsentProcedure {
+  id?: number;
+  informed_consent_id?: number;
+  procedure_id: number;
+  procedure?: {
+    id: number;
+    code: string;
+    name: string;
+  };
+  notes?: string;
 }
 
 export interface GeneralConsentAuthorizedPerson {
@@ -69,6 +93,13 @@ export interface GeneralConsent {
   visit_id: number;
   signer_name?: string;
   signer_relation?: string;
+  pj_nama?: string;
+  pj_umur?: number;
+  pj_jenis_kelamin?: string;
+  pj_alamat?: string;
+  pj_no_identitas?: string;
+  pj_no_telp?: string;
+  pj_hubungan?: string;
   authorized_persons?: GeneralConsentAuthorizedPerson[];
   created_at?: string;
   updated_at?: string;
@@ -79,6 +110,13 @@ export interface GeneralConsentInpatient {
   visit_id: number;
   signer_name?: string;
   signer_relation?: string;
+  pj_nama?: string;
+  pj_umur?: number;
+  pj_jenis_kelamin?: string;
+  pj_alamat?: string;
+  pj_no_identitas?: string;
+  pj_no_telp?: string;
+  pj_hubungan?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -685,11 +723,17 @@ export const medicalRecordsApi = {
   },
 
   // Informed Consent endpoints
-  getInformedConsent: async (visitId: number) => {
-    return api.get<{data: InformedConsent}>(`/visits/${visitId}/informed-consent`);
+  getInformedConsents: async (visitId: number) => {
+    return api.get<{data: InformedConsent[]}>(`/visits/${visitId}/informed-consents`);
+  },
+  getInformedConsentById: async (visitId: number, id: number) => {
+    return api.get<{data: InformedConsent}>(`/visits/${visitId}/informed-consents/${id}`);
   },
   saveInformedConsent: async (visitId: number, data: Partial<InformedConsent>) => {
-    return api.post<InformedConsent>(`/visits/${visitId}/informed-consent`, data);
+    if (data.id) {
+      return api.put<InformedConsent>(`/visits/${visitId}/informed-consents/${data.id}`, data);
+    }
+    return api.post<InformedConsent>(`/visits/${visitId}/informed-consents`, data);
   },
 
   // General Consent (RM 02)

@@ -291,7 +291,7 @@ func Migrate() error {
 		&models.Building{}, &models.Room{},
 		&models.RoomUnit{}, &models.Bed{}, &models.RoomStaff{},
 		&models.Patient{}, &models.PatientAllergy{},
-		&models.Registration{}, &models.Visit{}, &models.Queue{}, &models.InformedConsent{}, &models.GeneralConsent{}, &models.GeneralConsentAuthorizedPerson{}, &models.GeneralConsentInpatient{},
+		&models.Registration{}, &models.Visit{}, &models.Queue{}, &models.InformedConsent{}, &models.InformedConsentProcedure{}, &models.GeneralConsent{}, &models.GeneralConsentAuthorizedPerson{}, &models.GeneralConsentInpatient{},
 		&models.RegistrationTariff{}, &models.Billing{}, &models.BillingItem{}, &models.BillingPayment{},
 		&models.CashierShift{},
 		&models.RoomQueue{}, &models.Schedule{},

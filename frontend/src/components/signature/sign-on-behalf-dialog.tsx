@@ -95,6 +95,29 @@ export function SignOnBehalfDialog({
   const webcamRef = useRef<Webcam>(null);
   const [patientToken, setPatientToken] = useState("");
   const [isRevoking, setIsRevoking] = useState(false);
+  
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (step === "patient_direct") {
+      const updateSize = () => {
+        if (wrapperRef.current) {
+          setCanvasSize({
+            width: wrapperRef.current.clientWidth,
+            height: wrapperRef.current.clientHeight,
+          });
+        }
+      };
+      updateSize();
+      window.addEventListener('resize', updateSize);
+      const timer = setTimeout(updateSize, 100);
+      return () => {
+        window.removeEventListener('resize', updateSize);
+        clearTimeout(timer);
+      };
+    }
+  }, [step]);
 
   useEffect(() => {
     if (!open) return;
@@ -144,7 +167,7 @@ export function SignOnBehalfDialog({
     const loadEmployees = async () => {
       setLoadingEmployees(true);
       try {
-        const res = await employeesApi.getAll({ limit: 1000 });
+        const res = await employeesApi.getLookup({ limit: 1000 });
         const allEmployees: Employee[] = res.data.data || [];
         allEmployees.sort((a, b) => {
           const aIsDoc = a.tipe_karyawan === "Dokter" ? 0 : 1;
@@ -805,12 +828,18 @@ export function SignOnBehalfDialog({
                 <PenTool className="h-5 w-5 text-primary" />
                 <Label className="text-sm font-medium">Silakan gambar tanda tangan di bawah:</Label>
               </div>
-              <div className="border border-gray-300 rounded-xl overflow-hidden bg-white w-full h-[220px] shadow-inner relative mb-4">
-                <SignatureCanvas
-                  ref={sigPad}
-                  penColor="black"
-                  canvasProps={{ className: "w-full h-full cursor-crosshair touch-none absolute inset-0 bg-white" }}
-                />
+              <div ref={wrapperRef} className="border border-gray-300 rounded-xl overflow-hidden bg-white w-full h-[350px] shadow-inner relative mb-4">
+                {canvasSize.width > 0 && canvasSize.height > 0 && (
+                  <SignatureCanvas
+                    ref={sigPad}
+                    penColor="black"
+                    canvasProps={{ 
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                      className: "cursor-crosshair touch-none absolute inset-0 bg-white block" 
+                    }}
+                  />
+                )}
                 <div className="absolute inset-x-0 top-1/2 border-b border-dashed border-gray-200 pointer-events-none opacity-50" />
               </div>
               

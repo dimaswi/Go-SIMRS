@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle, Printer } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, bhpUsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
@@ -27,6 +27,7 @@ import { AssessmentPlanForm } from "@/components/medical-record/assessment-plan-
 import { DispositionForm } from "@/components/medical-record/disposition-form";
 import { MedicineOrderForm } from "@/components/medical-record/medicine-order-form";
 import { MedicineTimesheetForm } from "@/components/medical-record/medicine-timesheet-form";
+import { InformedConsentContainer } from "@/components/medical-record/informed-consent-container";
 import { RadiologyOrderForm } from "@/components/medical-record/radiology-order-form";
 import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-order-form";
 import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
@@ -984,6 +985,23 @@ export default function VisitShow() {
   };
 
   const handleCancelActiveTabFromFooter = () => {
+    const footerActionEvent = new CustomEvent<{
+      tabId: string;
+      action: "save" | "final" | "cancel";
+      handled: boolean;
+    }>(FOOTER_ACTION_EVENT, {
+      detail: {
+        tabId: activeTab,
+        action: "cancel",
+        handled: false,
+      },
+    });
+    window.dispatchEvent(footerActionEvent);
+
+    if (footerActionEvent.detail.handled) {
+      return;
+    }
+
     window.location.reload();
   };
 
@@ -1580,6 +1598,26 @@ export default function VisitShow() {
             readOnly={isPatientDischarged}
           />
         );
+      case "informed-consent":
+        // Informed Consent only for clinical visits
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.procedure")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Persetujuan Tindakan
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <InformedConsentContainer
+            key={`informed-consent-${visit.id}`}
+            visitId={visit.id}
+          />
+        );
       case "radiology-order":
         // Radiology order only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -2119,6 +2157,30 @@ export default function VisitShow() {
                   >
                     <Save className="mr-1.5 h-3.5 w-3.5" />
                     {isFinalTab ? "Final" : isOrderTab ? "Kirim" : "Simpan"}
+                  </Button>
+                )}
+                {activeTab === "informed-consent" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-none"
+                    onClick={() => {
+                      const footerActionEvent = new CustomEvent<{
+                        tabId: string;
+                        action: "print";
+                        handled: boolean;
+                      }>(FOOTER_ACTION_EVENT, {
+                        detail: {
+                          tabId: activeTab,
+                          action: "print",
+                          handled: false,
+                        },
+                      });
+                      window.dispatchEvent(footerActionEvent);
+                    }}
+                  >
+                    <Printer className="mr-1.5 h-3.5 w-3.5" />
+                    Cetak
                   </Button>
                 )}
               </div>

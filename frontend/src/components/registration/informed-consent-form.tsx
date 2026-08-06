@@ -35,10 +35,10 @@ export function InformedConsentForm({ visitId }: InformedConsentFormProps) {
     const fetchConsent = async () => {
       try {
         setLoading(true);
-        const res = await medicalRecordsApi.getInformedConsent(visitId);
-        if (res.data?.data) {
+        const res = await medicalRecordsApi.getInformedConsents(visitId);
+        if (res.data?.data && res.data.data.length > 0) {
           form.reset({
-            ...res.data.data,
+            ...res.data.data[0],
             visit_id: visitId,
           });
         }
