@@ -266,3 +266,26 @@ Response :
               }
            }
         }
+
+2. FASKES [GET]
+URL : {Base URL}/{Service Name}/referensi/faskes/{Parameter 1}/{Parameter 2}Parameter 1 : nama atau kode faskes
+Parameter 2 : Jenis Faskes (1. Faskes 1, 2. Faskes 2/RS)
+Response : 
+{
+  "metaData": {
+    "code": "200",
+    "message": "Sukses"
+  },
+  "response": {
+    "faskes": [
+      {
+        "kode": "00161001",
+        "nama": "PUSKESMAS SANGIRAN - KAB. SIMEULUE"
+      },
+      {
+        "kode": "00161002",
+        "nama": "PUSKESMAS SIMEULUE - KAB. SIMEULUE"
+      }
+    ]
+  }
+}

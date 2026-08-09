@@ -50,7 +50,7 @@ export function BPJSSectionPanel({
   return (
     <section className={cn("border border-border/70 bg-background", className)}>
       {(title || description || actions) && (
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[9px] items-center font-semibold uppercase tracking-[0.18em] text-muted-foreground">          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             {title && (
               <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">

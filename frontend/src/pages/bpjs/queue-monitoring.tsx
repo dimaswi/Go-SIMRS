@@ -1,15 +1,10 @@
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 
 import {
   Dialog,
@@ -54,17 +49,12 @@ import {
   Eye,
   Activity,
   Send,
-  SlidersHorizontal,
   Search,
   X,
   ClipboardList,
   ListOrdered,
 } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+
 import { bpjsApi, type BPJSQueue, type BPJSPendaftaranAntreanItem, type BPJSListTaskItem } from "@/lib/api/bpjs";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -88,7 +78,6 @@ export default function BPJSQueueMonitoringPage() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [queues, setQueues] = useState<QueueWithTaskLogs[]>([]);
 
   // Per-task send modal state
@@ -378,18 +367,7 @@ export default function BPJSQueueMonitoringPage() {
     );
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { color: string; label: string }> = {
-      booking: { color: "bg-yellow-100 text-yellow-800", label: "Booking" },
-      checkin: { color: "bg-blue-100 text-blue-800", label: "Check-in" },
-      dipanggil: { color: "bg-purple-100 text-purple-800", label: "Dipanggil" },
-      dilayani: { color: "bg-indigo-100 text-indigo-800", label: "Dilayani" },
-      selesai: { color: "bg-green-100 text-green-800", label: "Selesai" },
-      batal: { color: "bg-red-100 text-red-800", label: "Batal" },
-    };
-    const config = statusConfig[status] || { color: "bg-gray-100 text-gray-800", label: status };
-    return <Badge className={config.color}>{config.label}</Badge>;
-  };
+
 
   const filteredQueues = queues.filter((queue) => {
     if (!searchTerm) return true;
@@ -402,77 +380,304 @@ export default function BPJSQueueMonitoringPage() {
     );
   });
 
+  const lokalColumns = useMemo<ColumnDef<QueueWithTaskLogs>[]>(() => [
+    {
+      header: "No. Reg / Antrean",
+      accessorKey: "kode_booking",
+      cell: ({ row }) => {
+        const queue = row.original;
+        return (
+          <div className="font-mono text-sm font-semibold flex items-center gap-2">
+            {queue.kode_booking}
+            <span className="text-muted-foreground font-normal text-xs">{queue.nomor_antrean}</span>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Nama Pasien",
+      accessorKey: "nama_pasien",
+      cell: ({ row }) => {
+        const queue = row.original;
+        return (
+          <div className="font-medium text-sm truncate max-w-[300px]" title={queue.nama_pasien}>
+            {queue.nama_pasien}
+          </div>
+        );
+      },
+    },
+    {
+      header: "Task Timeline",
+      id: "task_timeline",
+      cell: ({ row }) => {
+        const queue = row.original;
+        return (
+          <div className="flex items-center gap-1">
+            {[
+              { num: 3, name: "Tunggu Poli" },
+              { num: 4, name: "Dipanggil" },
+              { num: 5, name: "Selesai Periksa" },
+              { num: 6, name: "Tunggu Farmasi" },
+              { num: 7, name: "Serah Obat" },
+            ].map(t => (
+              <TaskBadge
+                key={t.num}
+                queue={queue}
+                taskNum={t.num}
+                taskName={t.name}
+                onClick={() => {
+                  const taskTime = queue[`task${t.num}_at` as keyof BPJSQueue] as string | undefined;
+                  setSendTaskModal({ queue, taskNum: t.num, taskName: t.name });
+                  setSendTaskWaktu(taskTime
+                    ? format(new Date(taskTime), "yyyy-MM-dd'T'HH:mm:ss")
+                    : format(new Date(), "yyyy-MM-dd'T'HH:mm:ss")
+                  );
+                  setLastSendResult(null);
+                }}
+              />
+            ))}
+            {(queue.farmasi_ready_at && !queue.task6_at) || (queue.farmasi_selesai_at && !queue.task7_at) ? (
+              <div className="flex gap-1 ml-1">
+                {queue.farmasi_ready_at && !queue.task6_at && (
+                  <div className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200 flex items-center h-[22px]" title="Resep dibuat, mnunggu T5">
+                    <Clock className="h-2.5 w-2.5 mr-0.5" /> T5
+                  </div>
+                )}
+                {queue.farmasi_selesai_at && !queue.task7_at && (
+                  <div className="text-[9px] text-orange-600 bg-orange-50 px-1 rounded border border-orange-200 flex items-center h-[22px]" title="Obat diserahkan, mnunggu T6">
+                    <Clock className="h-2.5 w-2.5 mr-0.5" /> T6
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      header: "Sync Info",
+      accessorKey: "last_sync_at",
+      cell: ({ row }) => {
+        const queue = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            {queue.last_sync_at && (
+              <div className="text-[12px] text-muted-foreground whitespace-nowrap" title={format(new Date(queue.last_sync_at), "dd/MM HH:mm")}>
+                {format(new Date(queue.last_sync_at), "HH:mm")}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: () => <div className="text-center"></div>,
+      id: "actions",
+      cell: ({ row }) => {
+        const queue = row.original;
+        return (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedQueueDetail(queue)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ], []);
+
+  const antreanOnlineColumns = useMemo<ColumnDef<BPJSPendaftaranAntreanItem>[]>(() => [
+    {
+      header: "No. Reg / Antrean",
+      accessorKey: "kodebooking",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="font-mono text-sm font-semibold flex items-center gap-2">
+            {item.kodebooking}
+            <span className="text-muted-foreground font-normal text-xs">{item.noantrean}</span>
+          </div>
+        );
+      }
+    },
+    {
+      header: "RM / BPJS",
+      accessorKey: "norekammedis",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="text-[12px] whitespace-nowrap">
+            <span className="font-medium mr-2">RM: {item.norekammedis}</span>
+            <span className="text-muted-foreground">BPJS: {item.nokapst}</span>
+          </div>
+        );
+      }
+    },
+    {
+      header: "Poli & Dokter",
+      accessorKey: "kodepoli",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="text-[12px] whitespace-nowrap truncate max-w-[250px]" title={`${item.kodepoli} / ${item.kodedokter} (${item.jampraktek})`}>
+            <span className="font-medium mr-2">
+              {item.kodepoli} / {item.kodedokter}
+            </span>
+            <span className="text-muted-foreground">{item.jampraktek}</span>
+          </div>
+        );
+      }
+    },
+    {
+      header: () => <div className="text-center">Status</div>,
+      accessorKey: "status",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex justify-center scale-90">
+            <Badge variant="outline" className={cn("text-[10px]",
+              item.status === "Belum" || item.status === "Belum dilayani" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                item.status === "Hadir" ? "bg-green-50 text-green-700 border-green-200" :
+                  item.status === "Selesai dilayani" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                    "bg-muted text-muted-foreground"
+            )}>
+              {item.status}
+            </Badge>
+          </div>
+        );
+      }
+    },
+    {
+      header: () => <div className="text-center"></div>,
+      id: "actions",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex items-center gap-1 justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              disabled={antreanTasksLoading === item.kodebooking}
+              onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}
+              title="List Task"
+            >
+              {antreanTasksLoading === item.kodebooking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ClipboardList className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}
+              title="Detail Pendaftaran"
+            >
+              {antreanDetailLoading === item.kodebooking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+              disabled={antreanCancelling === item.kodebooking}
+              onClick={() => setAntreanCancelConfirm(item)}
+              title="Batalkan Antrean"
+            >
+              {antreanCancelling === item.kodebooking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <X className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        );
+      }
+    }
+  ], [
+    antreanTasksLoading,
+    handleToggleAntreanDetail,
+    antreanDetailLoading,
+    antreanCancelling,
+    setAntreanCancelConfirm
+  ]);
+
   return (
     <BPJSPageFrame
       title="Monitoring Antrian BPJS"
       description=""
     >
-      <BPJSSectionPanel title="Workspace Monitoring">
-        <Tabs value={mainTab} onValueChange={setMainTab} variant="inline" className="w-full">
-          <TabsList>
-            <TabsTrigger value="lokal">
-              <Activity className="mr-2 h-4 w-4" />
-              Monitoring Lokal
-            </TabsTrigger>
-            <TabsTrigger value="antrian-online">
-              <ListOrdered className="mr-2 h-4 w-4" />
-              Antrian Online BPJS
-            </TabsTrigger>
-          </TabsList>
+      <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+        <BPJSSectionPanel
+          title="Workspace Monitoring"
+          actions={
+            <TabsList className="h-auto bg-transparent p-0 gap-1.5">
+              <TabsTrigger 
+                value="lokal" 
+                className="h-7 text-[11px] px-3.5 rounded-full border border-transparent data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground hover:bg-muted/50 transition-all"
+              >
+                <Activity className="mr-1.5 h-3.5 w-3.5" />
+                Monitoring Lokal
+              </TabsTrigger>
+              <TabsTrigger 
+                value="antrian-online" 
+                className="h-7 text-[11px] px-3.5 rounded-full border border-transparent data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground hover:bg-muted/50 transition-all"
+              >
+                <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
+                Antrian Online BPJS
+              </TabsTrigger>
+            </TabsList>
+          }
+        >
 
           {/* ===== MONITORING LOKAL ===== */}
-          <TabsContent value="lokal" className="mt-6 space-y-4">
-            <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold">Data Antrian Lokal</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {dateFilter
-                      ? format(new Date(dateFilter), "EEEE, dd MMMM yyyy", { locale: idLocale })
-                      : "Semua Tanggal"}
-                  </p>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
-                    <SlidersHorizontal className="h-3.5 w-3.5 mr-2" />
-                    Filter
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent>
-                <div className="flex items-center gap-2 flex-wrap pt-3">
-                  <Input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="h-9 w-40"
-                  />
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-9 w-32">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua Status</SelectItem>
-                      <SelectItem value="booking">Booking</SelectItem>
-                      <SelectItem value="checkin">Check-in</SelectItem>
-                      <SelectItem value="dipanggil">Dipanggil</SelectItem>
-                      <SelectItem value="dilayani">Dilayani</SelectItem>
-                      <SelectItem value="selesai">Selesai</SelectItem>
-                      <SelectItem value="batal">Batal</SelectItem>
-                    </SelectContent>
-                  </Select>
+          <TabsContent value="lokal" className="mt-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
+              <div className="flex items-center gap-1.5 flex-1">
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="h-7 w-[120px] !text-[11px]"
+                />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-7 w-[120px] !text-[11px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="booking">Booking</SelectItem>
+                    <SelectItem value="checkin">Check-in</SelectItem>
+                    <SelectItem value="dipanggil">Dipanggil</SelectItem>
+                    <SelectItem value="dilayani">Dilayani</SelectItem>
+                    <SelectItem value="selesai">Selesai</SelectItem>
+                    <SelectItem value="batal">Batal</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1 max-w-[200px]">
+                  <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
                     placeholder="Cari pasien..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-9 w-48"
+                    className="h-7 pl-7 !text-[11px] w-full"
                   />
-                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadQueues} disabled={loading}>
-                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  </Button>
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
+                <Button variant="outline" size="icon" className="h-7 w-7" onClick={loadQueues} disabled={loading}>
+                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </div>
 
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -482,127 +687,35 @@ export default function BPJSQueueMonitoringPage() {
               <p className="text-xs text-muted-foreground py-8 text-center">Tidak ada data antrian</p>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{filteredQueues.length} antrean ditemukan</p>
-                <div className="border rounded-lg overflow-x-auto bg-background">
-                  <Table containerClassName="!border-none">
-                    <TableHeader>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableHead className="w-[280px] h-7 py-0">No. Reg / Antrean</TableHead>
-                        <TableHead className="w-[180px] h-7 py-0">Nama Pasien</TableHead>
-                        <TableHead className="w-[50px] h-7 py-0">Task Timeline</TableHead>
-                        <TableHead className="w-[160px] h-7 py-0">Sync Info</TableHead>
-                        <TableHead className="w-[40px] h-7 py-0"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredQueues.map((queue) => (
-                        <TableRow key={queue.id} className="group">
-                          <TableCell className="align-middle py-1 whitespace-nowrap">
-                            <div className="font-mono text-[16px] font-semibold flex items-center gap-1.5">
-                              {queue.kode_booking}
-                              <div className="scale-90 origin-left flex gap-1">
-                                {getStatusBadge(queue.nomor_antrean)}
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="align-middle py-1 whitespace-nowrap">
-                            <div className="font-medium text-[16px] truncate max-w-[300px]" title={queue.nama_pasien}>{queue.nama_pasien}</div>
-                          </TableCell>
-
-                          <TableCell className="align-middle py-1 whitespace-nowrap">
-                            <div className="flex items-center gap-1">
-                              {[
-                                { num: 3, name: "Tunggu Poli" },
-                                { num: 4, name: "Dipanggil" },
-                                { num: 5, name: "Selesai Periksa" },
-                                { num: 6, name: "Tunggu Farmasi" },
-                                { num: 7, name: "Serah Obat" },
-                              ].map(t => (
-                                <TaskBadge
-                                  key={t.num}
-                                  queue={queue}
-                                  taskNum={t.num}
-                                  taskName={t.name}
-                                  onClick={() => {
-                                    const taskTime = queue[`task${t.num}_at` as keyof BPJSQueue] as string | undefined;
-                                    setSendTaskModal({ queue, taskNum: t.num, taskName: t.name });
-                                    setSendTaskWaktu(taskTime
-                                      ? format(new Date(taskTime), "yyyy-MM-dd'T'HH:mm:ss")
-                                      : format(new Date(), "yyyy-MM-dd'T'HH:mm:ss")
-                                    );
-                                    setLastSendResult(null);
-                                  }}
-                                />
-                              ))}
-
-                              {/* Farmasi buffer warnings - inline icons if needed */}
-                              {(queue.farmasi_ready_at && !queue.task6_at) || (queue.farmasi_selesai_at && !queue.task7_at) ? (
-                                <div className="flex gap-1 ml-1">
-                                  {queue.farmasi_ready_at && !queue.task6_at && (
-                                    <div className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200 flex items-center h-[22px]" title="Resep dibuat, mnunggu T5">
-                                      <Clock className="h-2.5 w-2.5 mr-0.5" /> T5
-                                    </div>
-                                  )}
-                                  {queue.farmasi_selesai_at && !queue.task7_at && (
-                                    <div className="text-[9px] text-orange-600 bg-orange-50 px-1 rounded border border-orange-200 flex items-center h-[22px]" title="Obat diserahkan, mnunggu T6">
-                                      <Clock className="h-2.5 w-2.5 mr-0.5" /> T6
-                                    </div>
-                                  )}
-                                </div>
-                              ) : null}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="align-middle py-1 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              {queue.last_sync_at && (
-                                <div className="text-[12px] text-muted-foreground whitespace-nowrap" title={format(new Date(queue.last_sync_at), "dd/MM HH:mm")}>
-                                  {format(new Date(queue.last_sync_at), "HH:mm")}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="align-middle py-1 whitespace-nowrap text-right pr-4">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={() => setSelectedQueueDetail(queue)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <p className="text-[11px] text-muted-foreground">{filteredQueues.length} antrean ditemukan</p>
+                <div className="bg-background rounded-lg">
+                  <DataTable
+                    columns={lokalColumns}
+                    data={filteredQueues}
+                    showSearch={false}
+                    showPagination={true}
+                    pageSize={50}
+                  />
                 </div>
               </div>
             )}
           </TabsContent>
 
           {/* ===== ANTRIAN ONLINE BPJS ===== */}
-          <TabsContent value="antrian-online" className="mt-6 space-y-5">
-            <div>
-              <h2 className="text-sm font-semibold">Pendaftaran Antrean Online</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Lihat daftar antrean yang terdaftar di BPJS Antrian Online per tanggal</p>
-            </div>
-
-            <div className="flex gap-2 items-end max-w-lg">
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground mb-1 block">Tanggal</label>
+          <TabsContent value="antrian-online" className="mt-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
+              <div className="flex gap-1.5 items-center">
                 <Input
                   type="date"
                   value={antreanTanggal}
                   onChange={(e) => setAntreanTanggal(e.target.value)}
+                  className="h-7 w-[120px] !text-[11px]"
                 />
+                <Button onClick={handleSearchAntrean} variant="outline" disabled={antreanLoading} className="h-7 !text-[11px] px-3">
+                  {antreanLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Search className="h-3 w-3 mr-1.5" />}
+                  Cari
+                </Button>
               </div>
-              <Button onClick={handleSearchAntrean} variant="outline" disabled={antreanLoading}>
-                {antreanLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
-                Cari
-              </Button>
             </div>
 
             {/* Results */}
@@ -612,111 +725,21 @@ export default function BPJSQueueMonitoringPage() {
 
             {antreanData.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{antreanData.length} antrean ditemukan</p>
-                <div className="border rounded-lg overflow-x-auto bg-background">
-                  <Table containerClassName="!border-none">
-                    <TableHeader>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableHead className="w-[280px] h-7 py-0">No. Reg / Antrean</TableHead>
-                        <TableHead className="w-[180px] h-7 py-0">RM / BPJS</TableHead>
-                        <TableHead className="w-[250px] h-7 py-0">Poli & Dokter</TableHead>
-                        <TableHead className="w-[160px] h-7 py-0">Status</TableHead>
-                        <TableHead className="w-[120px] h-7 py-0"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {antreanData.map((item) => (
-                        <Fragment key={item.kodebooking}>
-                          <TableRow className="group">
-                            <TableCell className="align-middle py-1 whitespace-nowrap">
-                              <div className="font-mono text-[16px] font-semibold flex items-center gap-1.5">
-                                {item.kodebooking}
-                                <div className="scale-90 origin-left flex gap-1">
-                                  <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{item.noantrean}</Badge>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle py-1 whitespace-nowrap">
-                              <div className="flex flex-col text-[12px]">
-                                <span className="font-medium">RM: {item.norekammedis}</span>
-                                <span className="text-muted-foreground">BPJS: {item.nokapst}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle py-1 whitespace-nowrap">
-                              <div className="flex flex-col text-[12px]">
-                                <span className="font-medium truncate max-w-[200px]" title={String(item.kodedokter)}>{item.kodepoli} / {item.kodedokter}</span>
-                                <span className="text-muted-foreground">{item.jampraktek}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle py-1 whitespace-nowrap">
-                              <div className="scale-90 origin-left">
-                                <Badge variant="outline" className={cn("text-[10px]",
-                                  item.status === "Belum" || item.status === "Belum dilayani" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                    item.status === "Hadir" ? "bg-green-50 text-green-700 border-green-200" :
-                                      item.status === "Selesai dilayani" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                        "bg-muted text-muted-foreground"
-                                )}>
-                                  {item.status}
-                                </Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle py-1 whitespace-nowrap text-right pr-4">
-                              <div className="flex items-center gap-1 justify-end">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                  onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}
-                                  title="List Task"
-                                >
-                                  {antreanTasksLoading === item.kodebooking ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <ClipboardList className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                  onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}
-                                  title="Detail Pendaftaran"
-                                >
-                                  {antreanDetailLoading === item.kodebooking ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Eye className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  disabled={antreanCancelling === item.kodebooking}
-                                  onClick={() => setAntreanCancelConfirm(item)}
-                                  title="Batalkan Antrean"
-                                >
-                                  {antreanCancelling === item.kodebooking ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <X className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-
-
-                        </Fragment>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <p className="text-[11px] text-muted-foreground">{antreanData.length} antrean ditemukan</p>
+                <div className="bg-background rounded-lg">
+                  <DataTable
+                    columns={antreanOnlineColumns}
+                    data={antreanData}
+                    showSearch={false}
+                    showPagination={true}
+                    pageSize={50}
+                  />
                 </div>
               </div>
             )}
           </TabsContent>
-        </Tabs>
-      </BPJSSectionPanel>
+        </BPJSSectionPanel>
+      </Tabs>
 
       {/* Batal Antrean Confirmation */}
       <AlertDialog open={!!antreanCancelConfirm} onOpenChange={(open) => { if (!open) { setAntreanCancelConfirm(null); setAntreanCancelKeterangan(""); } }}>

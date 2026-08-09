@@ -284,7 +284,7 @@ export default function SPRIMonitoringPage() {
   return (
     <BPJSPageFrame
       title="Monitoring SPRI"
-      description="Pantau surat perintah rawat inap BPJS berdasarkan periode terbit, rencana masuk, dan status sinkronisasinya."
+      description=""
       actions={
         <>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
@@ -299,192 +299,192 @@ export default function SPRIMonitoringPage() {
       }
     >
       <BPJSSectionPanel title="Daftar SPRI">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <CollapsibleContent>
-          <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Terbit (Dari)</Label>
-              <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
+        <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+          <CollapsibleContent>
+            <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Terbit (Dari)</Label>
+                <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal Terbit (Sampai)</Label>
+                <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal SPRI/Masuk (Dari)</Label>
+                <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal SPRI/Masuk (Sampai)</Label>
+                <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="active">Aktif</SelectItem>
+                    <SelectItem value="draft">Draft Lokal</SelectItem>
+                    <SelectItem value="terdaftar">Terdaftar</SelectItem>
+                    <SelectItem value="sep_created">SEP Dibuat</SelectItem>
+                    <SelectItem value="used">Digunakan</SelectItem>
+                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cari (No. Kartu / Nama)</Label>
+                <Input
+                  placeholder="Cari..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  className="h-9 w-48"
+                />
+              </div>
+              <Button onClick={handleSearch} disabled={loading} size="sm" className="h-9">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                Cari
+              </Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={handleReset}>
+                <X className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal Terbit (Sampai)</Label>
-              <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal SPRI/Masuk (Dari)</Label>
-              <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tanggal SPRI/Masuk (Sampai)</Label>
-              <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="active">Aktif</SelectItem>
-                  <SelectItem value="draft">Draft Lokal</SelectItem>
-                  <SelectItem value="terdaftar">Terdaftar</SelectItem>
-                  <SelectItem value="sep_created">SEP Dibuat</SelectItem>
-                  <SelectItem value="used">Digunakan</SelectItem>
-                  <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Cari (No. Kartu / Nama)</Label>
-              <Input
-                placeholder="Cari..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                className="h-9 w-48"
-              />
-            </div>
-            <Button onClick={handleSearch} disabled={loading} size="sm" className="h-9">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Cari
-            </Button>
-            <Button variant="outline" size="sm" className="h-9" onClick={handleReset}>
-              <X className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {loading ? "Memuat..." : `${spriList.length} SPRI ditemukan`}
-        </p>
-      </div>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {loading ? "Memuat..." : `${spriList.length} SPRI ditemukan`}
+          </p>
+        </div>
 
-      {loading ? (
-        <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
-          <div className="text-center">
-            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+        {loading ? (
+          <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
+            <div className="text-center">
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+            </div>
           </div>
-        </div>
-      ) : spriList.length === 0 ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
-          <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm font-medium text-muted-foreground">Tidak ada data SPRI</p>
-          <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
-        </div>
-      ) : (
-      <div className="overflow-hidden border-y border-border/70 bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead className="w-12 text-center">#</TableHead>
-              <TableHead>No. SPRI</TableHead>
-              <TableHead>Nama / No. Kartu</TableHead>
-              <TableHead>Tgl Terbit</TableHead>
-              <TableHead>Tgl Rencana Masuk</TableHead>
-              <TableHead>Poli</TableHead>
-              <TableHead>Dokter DPJP</TableHead>
-              <TableHead>Diagnosa</TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-center">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {spriList.map((spri, idx) => (
-                <TableRow key={spri.id} className="hover:bg-muted/30">
-                  <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
-                  <TableCell>
-                    {spri.is_bpjs ? (
-                      <span className="font-mono text-sm font-semibold text-green-700">{spri.no_spri}</span>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <CloudOff className="h-3.5 w-3.5 text-amber-500" />
-                        <span className="text-sm font-medium text-amber-600 italic">Draft Lokal</span>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-medium text-sm">{spri.nama || "-"}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{spri.no_kartu}</p>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {spri.created_at
-                      ? format(new Date(spri.created_at), "dd/MM/yyyy", { locale: idLocale })
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {spri.tgl_rencana_kontrol
-                      ? format(new Date(spri.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[120px]">
-                    <p className="truncate">{spri.nama_poli || spri.kode_poli || "-"}</p>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[120px]">
-                    <p className="truncate">{spri.nama_dokter || spri.kode_dokter || "-"}</p>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[140px]">
-                    <p className="truncate text-xs text-muted-foreground">{spri.nama_diagnosa || "-"}</p>
-                  </TableCell>
-                  <TableCell className="text-center">{getStatusBadge(spri)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(spri)}>
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Detail SPRI</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {spri.status === "active" && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className={cn("h-7 w-7", spri.is_bpjs ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50")} onClick={() => handleOpenEdit(spri)}>
-                                {spri.is_bpjs ? <Pencil className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{spri.is_bpjs ? "Edit SPRI" : "Edit & Kirim ke BPJS"}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(spri)}>
-                              <Printer className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Cetak SPRI</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {spri.status === "active" && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(spri)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{spri.is_bpjs ? "Hapus SPRI dari BPJS" : "Hapus SPRI Lokal"}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </div>
-                  </TableCell>
+        ) : spriList.length === 0 ? (
+          <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
+            <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">Tidak ada data SPRI</p>
+            <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden border-y border-border/70 bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>No. SPRI</TableHead>
+                  <TableHead>Nama / No. Kartu</TableHead>
+                  <TableHead>Tgl Terbit</TableHead>
+                  <TableHead>Tgl Rencana Masuk</TableHead>
+                  <TableHead>Poli</TableHead>
+                  <TableHead>Dokter DPJP</TableHead>
+                  <TableHead>Diagnosa</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-center">Aksi</TableHead>
                 </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
-      )}
+              </TableHeader>
+              <TableBody>
+                {spriList.map((spri, idx) => (
+                  <TableRow key={spri.id} className="hover:bg-muted/30">
+                    <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
+                    <TableCell>
+                      {spri.is_bpjs ? (
+                        <span className="font-mono text-sm font-semibold text-green-700">{spri.no_spri}</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <CloudOff className="h-3.5 w-3.5 text-amber-500" />
+                          <span className="text-sm font-medium text-amber-600 italic">Draft Lokal</span>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-sm">{spri.nama || "-"}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{spri.no_kartu}</p>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {spri.created_at
+                        ? format(new Date(spri.created_at), "dd/MM/yyyy", { locale: idLocale })
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium">
+                      {spri.tgl_rencana_kontrol
+                        ? format(new Date(spri.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm max-w-[120px]">
+                      <p className="truncate">{spri.nama_poli || spri.kode_poli || "-"}</p>
+                    </TableCell>
+                    <TableCell className="text-sm max-w-[120px]">
+                      <p className="truncate">{spri.nama_dokter || spri.kode_dokter || "-"}</p>
+                    </TableCell>
+                    <TableCell className="text-sm max-w-[140px]">
+                      <p className="truncate text-xs text-muted-foreground">{spri.nama_diagnosa || "-"}</p>
+                    </TableCell>
+                    <TableCell className="text-center">{getStatusBadge(spri)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(spri)}>
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Detail SPRI</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {spri.status === "active" && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className={cn("h-7 w-7", spri.is_bpjs ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50")} onClick={() => handleOpenEdit(spri)}>
+                                  {spri.is_bpjs ? <Pencil className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{spri.is_bpjs ? "Edit SPRI" : "Edit & Kirim ke BPJS"}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(spri)}>
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Cetak SPRI</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {spri.status === "active" && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(spri)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{spri.is_bpjs ? "Hapus SPRI dari BPJS" : "Hapus SPRI Lokal"}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </BPJSSectionPanel>
 
       {/* Detail Dialog */}

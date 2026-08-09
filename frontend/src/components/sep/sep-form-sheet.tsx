@@ -112,6 +112,7 @@ export function SEPFormSheet({
   const [dokterModalOpen, setDokterModalOpen] = useState(false);
   const [diagnosaModalOpen, setDiagnosaModalOpen] = useState(false);
   const [skdpModalOpen, setSkdpModalOpen] = useState(false);
+  const [ppkModalOpen, setPpkModalOpen] = useState(false);
 
   // SKDP state
   const [noSuratKontrol, setNoSuratKontrol] = useState("");
@@ -398,6 +399,16 @@ export function SEPFormSheet({
   const handleSearchDiagnosa = async (keyword: string) => {
     try {
       const res = await vclaimApi.searchDiagnosa(keyword);
+      return res.data.data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSearchFaskes = async (keyword: string) => {
+    if (!keyword || keyword.length < 3) return [];
+    try {
+      const res = await vclaimApi.searchFaskes(keyword, asalRujukan);
       return res.data.data || [];
     } catch {
       return [];
@@ -822,23 +833,21 @@ export function SEPFormSheet({
                         <Label className="text-sm font-medium">
                           {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")}
                         </Label>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <Input
                             value={noRujukan}
                             onChange={(e) => setNoRujukan(e.target.value)}
                             disabled={isIGD || jnsPelayanan === "1"}
                             placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
-                            className="h-9"
+                            className={cn("h-9 pr-9 cursor-pointer", (!noKartu || isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
+                            onClick={() => {
+                              if (!(!noKartu || isIGD || jnsPelayanan === "1")) {
+                                setRujukanModalOpen(true);
+                              }
+                            }}
+                            readOnly
                           />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setRujukanModalOpen(true)}
-                            disabled={!noKartu || isIGD || jnsPelayanan === "1"}
-                            className="h-9 w-9 px-0"
-                          >
-                            <Search className="h-4 w-4" />
-                          </Button>
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
                       <div className="space-y-1.5 lg:col-span-1">
@@ -853,22 +862,17 @@ export function SEPFormSheet({
                       </div>
                       <div className="space-y-1.5 lg:col-span-2">
                         <Label className="text-sm font-medium">Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <Input
                             value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
                             placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
                             readOnly
-                            className={cn("h-9", "bg-muted/20")}
+                            className={cn("h-9 pr-9 cursor-pointer", !kodePoli ? "bg-muted" : "bg-muted/20")}
+                            onClick={() => {
+                              if (kodePoli) setDokterModalOpen(true);
+                            }}
                           />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setDokterModalOpen(true)}
-                            disabled={!kodePoli}
-                            className="h-9 w-9 px-0"
-                          >
-                            <Search className="h-4 w-4" />
-                          </Button>
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
                     </div>
@@ -876,31 +880,32 @@ export function SEPFormSheet({
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
                       <div className="space-y-1.5 lg:col-span-2">
                         <Label className="text-sm font-medium">PPK Perujuk</Label>
-                        <Input
-                          value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : namaRujukan}
-                          onChange={(e) => setNamaRujukan(e.target.value)}
-                          placeholder="Nama faskes perujuk"
-                          className="h-9"
-                          disabled={isIGD || jnsPelayanan === "1"}
-                        />
+                        <div className="relative">
+                          <Input
+                            value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : (namaRujukan ? `${ppkRujukan} - ${namaRujukan}` : "")}
+                            readOnly
+                            placeholder="Pilih PPK perujuk"
+                            className={cn("h-9 pr-9 cursor-pointer", (isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
+                            onClick={() => {
+                              if (!(isIGD || jnsPelayanan === "1")) {
+                                setPpkModalOpen(true);
+                              }
+                            }}
+                          />
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        </div>
                       </div>
                       <div className="space-y-1.5 lg:col-span-2">
                         <Label className="text-sm font-medium">Diagnosa Awal (ICD-10) *</Label>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <Input
                             value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
                             placeholder="Pilih diagnosa"
                             readOnly
-                            className={cn("h-9", "bg-muted/20")}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
+                            className={cn("h-9 pr-9 cursor-pointer", "bg-muted/20")}
                             onClick={() => setDiagnosaModalOpen(true)}
-                            className="h-9 w-9 px-0"
-                          >
-                            <Search className="h-4 w-4" />
-                          </Button>
+                          />
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
                     </div>
@@ -911,21 +916,15 @@ export function SEPFormSheet({
                         <>
                           <div className="space-y-1.5 lg:col-span-2">
                             <Label className="text-sm font-medium">Poli Tujuan *</Label>
-                            <div className="flex gap-2">
+                            <div className="relative">
                               <Input
                                 value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
                                 placeholder="Pilih poli"
                                 readOnly
-                                className={cn("h-9", "bg-muted/20")}
-                              />
-                              <Button
-                                size="sm"
-                                variant="outline"
+                                className={cn("h-9 pr-9 cursor-pointer", "bg-muted/20")}
                                 onClick={() => setPoliModalOpen(true)}
-                                className="h-9 w-9 px-0"
-                              >
-                                <Search className="h-4 w-4" />
-                              </Button>
+                              />
+                              <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             </div>
                           </div>
                           <div className="space-y-1.5 lg:col-span-1">
@@ -942,22 +941,18 @@ export function SEPFormSheet({
                       )}
                       <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "lg:col-span-1" : "lg:col-span-2")}>
                         <Label className="text-sm font-medium">Nomor Surat Kontrol / SPRI</Label>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <Input
                             value={noSuratKontrol}
                             onChange={(e) => setNoSuratKontrol(e.target.value)}
                             placeholder="Nomor surat kontrol"
-                            className="h-9"
+                            className={cn("h-9 pr-9 cursor-pointer", !noKartu ? "bg-muted" : "bg-muted/20")}
+                            onClick={() => {
+                              if (noKartu) setSkdpModalOpen(true);
+                            }}
+                            readOnly
                           />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSkdpModalOpen(true)}
-                            disabled={!noKartu}
-                            className="h-9 w-9 px-0"
-                          >
-                            <Calendar className="h-4 w-4" />
-                          </Button>
+                          <Calendar className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
                     </div>
@@ -1183,6 +1178,22 @@ export function SEPFormSheet({
         onSelect={(item) => {
           setKodeDPJP(item.kode);
           setNamaDPJP(item.nama);
+        }}
+      />
+
+      <SearchModal
+        open={ppkModalOpen}
+        onOpenChange={setPpkModalOpen}
+        title={`Cari Faskes Perujuk BPJS (Faskes ${asalRujukan})`}
+        placeholder="Ketik minimal 3 karakter nama faskes..."
+        columns={[
+          { key: "kode", label: "Kode", width: "120px" },
+          { key: "nama", label: "Nama Faskes" },
+        ]}
+        onSearch={handleSearchFaskes}
+        onSelect={(item) => {
+          setPpkRujukan(item.kode || "");
+          setNamaRujukan(item.nama || "");
         }}
       />
 

@@ -396,7 +396,7 @@ export default function SuratKontrolMonitoringPage() {
   return (
     <BPJSPageFrame
       title="Monitoring Surat Kontrol"
-      description="Pantau surat kontrol BPJS dan kontrol SIMRS dalam tata letak yang lebih padat agar tabel dan aksi tetap mudah terlihat."
+      description=""
       actions={
         <>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
@@ -757,102 +757,102 @@ export default function SuratKontrolMonitoringPage() {
             </SheetTitle>
           </SheetHeader>
 
-      {editingItem && (
-        <div className="space-y-6 py-4">
-          {/* Info peserta (read-only) */}
-          <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
-            <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <div>
-                <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
-                <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">Nama</span>
-                <p className="font-medium">{editingItem.nama || "-"}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">No. Kartu</span>
-                <p className="font-mono text-xs">{editingItem.no_kartu}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">No. SEP</span>
-                <p className="font-mono text-xs">{editingItem.no_sep}</p>
-              </div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground text-xs">Diagnosa</span>
-                <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
-              </div>
-              {editingItem.is_prb && (
-                <div className="col-span-2">
-                  <span className="text-muted-foreground text-xs">Program PRB</span>
-                  <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Editable fields */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
-              <Input
-                type="date"
-                value={editForm.tgl_rencana_kontrol}
-                onChange={(e) => {
-                  setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
-                  if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
-                }}
-                className="h-9"
-              />
-            </div>
-
-            {!isEditingSIMRS && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Poli Tujuan *</Label>
-                  <Combobox
-                    options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
-                    value={editForm.kode_poli}
-                    onValueChange={handlePoliChange}
-                    onSearchChange={handlePoliSearchChange}
-                    placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
-                    className="h-9"
-                  />
-                  {editForm.nama_poli && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+          {editingItem && (
+            <div className="space-y-6 py-4">
+              {/* Info peserta (read-only) */}
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
+                <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
+                    <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Nama</span>
+                    <p className="font-medium">{editingItem.nama || "-"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. Kartu</span>
+                    <p className="font-mono text-xs">{editingItem.no_kartu}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. SEP</span>
+                    <p className="font-mono text-xs">{editingItem.no_sep}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground text-xs">Diagnosa</span>
+                    <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
+                  </div>
+                  {editingItem.is_prb && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs">Program PRB</span>
+                      <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
+                    </div>
                   )}
                 </div>
+              </div>
 
+              {/* Editable fields */}
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Dokter DPJP *</Label>
-                  <Combobox
-                    options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
-                    value={editForm.kode_dokter}
-                    onValueChange={handleDokterChange}
-                    placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                  <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
+                  <Input
+                    type="date"
+                    value={editForm.tgl_rencana_kontrol}
+                    onChange={(e) => {
+                      setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
+                      if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
+                    }}
                     className="h-9"
                   />
-                  {editForm.nama_dokter && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
-                  )}
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
-      <SheetFooter className="pt-4 flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
-          Batal
-        </Button>
-        <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
-        </Button>
-      </SheetFooter>
-    </SheetContent>
+                {!isEditingSIMRS && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                      <Combobox
+                        options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
+                        value={editForm.kode_poli}
+                        onValueChange={handlePoliChange}
+                        onSearchChange={handlePoliSearchChange}
+                        placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
+                        className="h-9"
+                      />
+                      {editForm.nama_poli && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Dokter DPJP *</Label>
+                      <Combobox
+                        options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
+                        value={editForm.kode_dokter}
+                        onValueChange={handleDokterChange}
+                        placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                        className="h-9"
+                      />
+                      {editForm.nama_dokter && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <SheetFooter className="pt-4 flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
+              Batal
+            </Button>
+            <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
       </Sheet >
     </BPJSPageFrame >
   );

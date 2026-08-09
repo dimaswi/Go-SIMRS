@@ -31,9 +31,9 @@ import {
   FileText,
   ExternalLink,
   Send,
-  Plus,
   Search,
   type LucideIcon,
+  Plus,
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { SearchModal } from "@/components/sep/search-modal";
@@ -91,6 +91,7 @@ export interface DispositionFormData {
   referral_no_sep?: string;
   referral_tgl_rujukan?: string;
   referral_tgl_rencana_kunjungan?: string;
+  referral_faskes?: string;
   referral_ppk_code?: string;
   referral_jns_pelayanan?: string;
   referral_tipe_rujukan?: string;
@@ -924,10 +925,10 @@ export function AdmissionDrawer({
               </div>
               <div className="flex gap-2">
                 {formData.suggested_bed_id && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       onFormChange("suggested_bed_id", undefined);
                       onFormChange("suggested_bed_name", "");
@@ -937,10 +938,10 @@ export function AdmissionDrawer({
                     Hapus
                   </Button>
                 )}
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  size="sm" 
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setBedModalOpen(true)}
                   disabled={isDisabled}
                 >
@@ -950,7 +951,7 @@ export function AdmissionDrawer({
               </div>
             </div>
           </div>
-          
+
           <BedSelectionModal
             open={bedModalOpen}
             onOpenChange={setBedModalOpen}
@@ -1074,10 +1075,10 @@ export function AdmissionDrawer({
                 </div>
                 <div className="flex gap-2">
                   {formData.suggested_bed_id && (
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => {
                         onFormChange("suggested_bed_id", undefined);
                         onFormChange("suggested_bed_name", "");
@@ -1087,10 +1088,10 @@ export function AdmissionDrawer({
                       Hapus
                     </Button>
                   )}
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => setBedModalOpen(true)}
                     disabled={isDisabled}
                   >
@@ -1216,13 +1217,13 @@ export function ReferralDrawer({
   const { toast } = useToast();
   const referralMode = formData.referral_mode || "manual";
   const [ppkOptions, setPpkOptions] = useState<Array<{ value: string; label: string }>>([]);
-  const [loadingPPK, setLoadingPPK] = useState(false);
   const [bpjsSubmitting, setBpjsSubmitting] = useState(false);
   const [bpjsReferral, setBpjsReferral] = useState<VClaimReferralLocal | null>(null);
   const [ppkDialogOpen, setPpkDialogOpen] = useState(false);
   const [ppkSaving, setPpkSaving] = useState(false);
   const [diagnosaModalOpen, setDiagnosaModalOpen] = useState(false);
   const [poliModalOpen, setPoliModalOpen] = useState(false);
+  const [ppkSearchModalOpen, setPpkSearchModalOpen] = useState(false);
   const [selectedDiagnosaNama, setSelectedDiagnosaNama] = useState("");
   const [selectedPoliNama, setSelectedPoliNama] = useState("");
   const [ppkForm, setPpkForm] = useState({ kode_bpjs: "", nama: "", alamat: "", telepon: "" });
@@ -1232,15 +1233,12 @@ export function ReferralDrawer({
   }, [ppkOptions, formData.referral_ppk_code]);
 
   const loadPPK = async () => {
-    setLoadingPPK(true);
     try {
       const res = await ppkApi.getAll({ active: true, limit: 1000 });
       const items = res.data.data || [];
       setPpkOptions(items.map((item) => ({ value: item.kode_bpjs, label: `${item.kode_bpjs} - ${item.nama}` })));
     } catch {
       toast({ variant: "destructive", title: "Gagal", description: "Gagal memuat master PPK." });
-    } finally {
-      setLoadingPPK(false);
     }
   };
 
@@ -1284,6 +1282,9 @@ export function ReferralDrawer({
     }
     if (!formData.referral_tgl_rujukan) {
       onFormChange("referral_tgl_rujukan", new Date().toISOString().split("T")[0]);
+    }
+    if (!formData.referral_faskes) {
+      onFormChange("referral_faskes", "2");
     }
     loadPPK();
     loadExistingReferral();
@@ -1761,28 +1762,56 @@ export function ReferralDrawer({
                   />
                 </div>
               )}
-
-              <div className="space-y-2 md:col-span-2 lg:col-span-4">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm">PPK Dirujuk</Label>
-                  <Button type="button" variant="outline" size="sm" className="rounded-none border-border/70" onClick={() => setPpkDialogOpen(true)} disabled={isDisabled}>
-                    <Plus className="h-4 w-4 mr-1" /> Tambah PPK
-                  </Button>
-                </div>
+              <div className="space-y-2 lg:col-span-2">
+                <Label className="text-sm">Tingkat Faskes Tujuan</Label>
                 <Combobox
-                  options={ppkOptions}
-                  value={formData.referral_ppk_code || ""}
+                  options={[
+                    { value: "1", label: "Faskes Tingkat 1 (Puskesmas/Klinik)" },
+                    { value: "2", label: "Faskes Tingkat 2 (Rumah Sakit)" },
+                  ]}
+                  value={formData.referral_faskes || "2"}
                   onValueChange={(value) => {
-                    onFormChange("referral_ppk_code", value);
-                    const label = ppkOptions.find((p) => p.value === value)?.label || "";
-                    onFormChange("referral_facility", label);
+                    onFormChange("referral_faskes", value);
+                    // Reset selected PPK when faskes level changes
+                    onFormChange("referral_ppk_code", "");
+                    onFormChange("referral_facility", "");
                   }}
-                  placeholder={loadingPPK ? "Memuat PPK..." : "Pilih PPK tujuan..."}
-                  searchPlaceholder="Cari PPK..."
-                  emptyText="PPK tidak ditemukan"
+                  placeholder="Pilih tingkat faskes"
                   disabled={isDisabled}
                   className={BPJS_FIELD_CLASS}
                 />
+              </div>
+              <div className="space-y-2 lg:col-span-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">PPK Dirujuk</Label>
+                  {!isDisabled && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setPpkDialogOpen(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      PPK Baru
+                    </Button>
+                  )}
+                </div>
+                <div className="relative w-full">
+                  <Input
+                    value={formData.referral_facility 
+                      ? `${formData.referral_ppk_code || ""} - ${formData.referral_facility}` 
+                      : (formData.referral_ppk_code || "")}
+                    readOnly
+                    disabled={isDisabled}
+                    placeholder={`Pilih dari master BPJS (Faskes ${formData.referral_faskes || "2"})`}
+                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", isDisabled ? "bg-muted" : "bg-muted/20")}
+                    onClick={() => {
+                      if (!isDisabled) setPpkSearchModalOpen(true);
+                    }}
+                  />
+                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                </div>
               </div>
 
               <div className="space-y-2 lg:col-span-2">
@@ -1814,7 +1843,7 @@ export function ReferralDrawer({
 
               <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Kode Diagnosa Rujukan</Label>
-                <div className="flex gap-2">
+                <div className="relative w-full">
                   <Input
                     value={selectedDiagnosaNama
                       ? `${formData.referral_diag_code || ""} - ${selectedDiagnosaNama}`
@@ -1822,21 +1851,17 @@ export function ReferralDrawer({
                     readOnly
                     disabled={isDisabled}
                     placeholder="Pilih kode diagnosa dari master SIMRS"
+                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", isDisabled ? "bg-muted" : "bg-muted/20")}
+                    onClick={() => {
+                      if (!isDisabled) setDiagnosaModalOpen(true);
+                    }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-10 rounded-none border-border/70 px-0"
-                    onClick={() => setDiagnosaModalOpen(true)}
-                    disabled={isDisabled}
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
+                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
               <div className="space-y-2 lg:col-span-2">
                 <Label className="text-sm">Kode Poli Rujukan</Label>
-                <div className="flex gap-2">
+                <div className="relative w-full">
                   <Input
                     value={selectedPoliNama
                       ? `${formData.referral_poli_code || ""} - ${selectedPoliNama}`
@@ -1844,16 +1869,12 @@ export function ReferralDrawer({
                     readOnly
                     disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
                     placeholder={formData.referral_tipe_rujukan === "2" ? "Kosong untuk tipe 2" : "Pilih dari list spesialistik BPJS"}
+                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", (isDisabled || formData.referral_tipe_rujukan === "2") ? "bg-muted" : "bg-muted/20")}
+                    onClick={() => {
+                      if (!(isDisabled || formData.referral_tipe_rujukan === "2")) setPoliModalOpen(true);
+                    }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-10 rounded-none border-border/70 px-0"
-                    onClick={() => setPoliModalOpen(true)}
-                    disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
+                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             </div>
@@ -2019,6 +2040,29 @@ export function ReferralDrawer({
           setSelectedPoliNama(item.nama || "");
           onFormChange("referral_poli_code", item.kode || "");
           onFormChange("referral_specialist", item.nama || "");
+        }}
+      />
+
+      <SearchModal
+        open={ppkSearchModalOpen}
+        onOpenChange={setPpkSearchModalOpen}
+        title="Cari Fasilitas Kesehatan (PPK BPJS)"
+        placeholder="Ketik kode atau nama faskes..."
+        columns={[
+          { key: "kode", label: "Kode", width: "120px" },
+          { key: "nama", label: "Nama Faskes" },
+        ]}
+        onSearch={async (keyword) => {
+          try {
+            const res = await vclaimApi.searchFaskes(keyword, formData.referral_faskes || "2");
+            return res.data.data || [];
+          } catch (e) {
+            return [];
+          }
+        }}
+        onSelect={(item) => {
+          onFormChange("referral_ppk_code", item.kode || "");
+          onFormChange("referral_facility", item.nama || "");
         }}
       />
 

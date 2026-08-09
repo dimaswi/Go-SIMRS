@@ -466,18 +466,16 @@ function buildMR24(ctx: MRPrintContext): MRPrintEntry[] {
   }
   const entries: MRPrintEntry[] = [
     makeEntry(mr24, "ready", "Cetak Persetujuan Tindakan Kedokteran (Informed Consent).", {
+      title: "Persetujuan Tindakan Kedokteran",
       handler: () => printApi.informedConsentReceipt(ctx.visitId),
-      documentType: DOCUMENT_TYPES.INFORMED_CONSENT,
-      documentId: ctx.visitId,
       key: "informed-consent-receipt",
     }),
   ];
   if (ctx.isInpatientVisit) {
     entries.push(
       makeEntry(mr24, "ready", "Cetak Persetujuan Umum Rawat Inap (General Consent).", {
+        title: "Persetujuan Umum (General Consent)",
         handler: () => printApi.generalConsentInpatient(ctx.visitId),
-        documentType: DOCUMENT_TYPES.GENERAL_CONSENT_INPATIENT,
-        documentId: ctx.visitId,
         key: "general-consent-inpatient",
       })
     );
