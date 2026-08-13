@@ -26,17 +26,18 @@ export function RegistrationConsentManager({
 
     if (isActuallyInpatient) {
       return [
+        { id: "general_outpatient", label: "Persetujuan Umum", icon: <ClipboardList className="w-4 h-4" /> },
         { id: "general_inpatient", label: "Persetujuan Rawat Inap", icon: <ClipboardList className="w-4 h-4" /> },
       ];
     }
     if (type === "emergency" || registration.destination_room?.service_type === "gawat_darurat") {
       return [
-        { id: "general_emergency", label: "General Consent", icon: <ClipboardList className="w-4 h-4" /> },
+        { id: "general_emergency", label: "Persetujuan Umum", icon: <ClipboardList className="w-4 h-4" /> },
       ];
     }
     // Default / Outpatient (Rawat Jalan)
     return [
-      { id: "general_outpatient", label: "General Consent", icon: <ClipboardList className="w-4 h-4" /> },
+      { id: "general_outpatient", label: "Persetujuan Umum", icon: <ClipboardList className="w-4 h-4" /> },
     ];
   };
 

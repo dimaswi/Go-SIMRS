@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { Loader2, Send, CheckCircle, XCircle, AlertCircle, Activity, FileJson } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface Patient {
@@ -72,10 +73,10 @@ interface EncountersTabProps {
   onViewStatus: (visitId: number) => void;
 }
 
-export function EncountersTab({ 
-  visits, 
-  sending, 
-  onSendEncounter, 
+export function EncountersTab({
+  visits,
+  sending,
+  onSendEncounter,
   onPreviewEncounter,
   onViewStatus,
 }: EncountersTabProps) {
@@ -125,7 +126,6 @@ export function EncountersTab({
         const hasPrimaryDiagnosis = visit.diagnosisInfo?.has_primary ?? false;
         const diagnosisCount = visit.diagnosisInfo?.total ?? 0;
         const alreadySent = !!visit.satusehat_encounter_id;
-        const fulfilledCount = [patientHasIHS, doctorHasIHS, roomHasSatuSehat, hasPrimaryDiagnosis].filter(Boolean).length;
 
         if (alreadySent) {
           return (
@@ -137,49 +137,51 @@ export function EncountersTab({
         }
 
         return (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="flex gap-0.5">
-                {[patientHasIHS, doctorHasIHS, roomHasSatuSehat, hasPrimaryDiagnosis].map((fulfilled, i) => (
-                  <div
-                    key={i}
-                    className={`h-1.5 w-4 rounded-full ${fulfilled ? 'bg-green-500' : 'bg-red-300'}`}
-                  />
-                ))}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-2 hover:bg-muted/50 flex items-center gap-1.5">
+                <div className={`h-3.5 w-3.5 rounded-sm ${patientHasIHS ? 'bg-green-500' : 'bg-red-200 dark:bg-red-900/50 border border-red-300 dark:border-red-800'}`} title="Pasien" />
+                <div className={`h-3.5 w-3.5 rounded-sm ${doctorHasIHS ? 'bg-green-500' : 'bg-red-200 dark:bg-red-900/50 border border-red-300 dark:border-red-800'}`} title="Dokter" />
+                <div className={`h-3.5 w-3.5 rounded-sm ${roomHasSatuSehat ? 'bg-green-500' : 'bg-red-200 dark:bg-red-900/50 border border-red-300 dark:border-red-800'}`} title="Ruangan" />
+                <div className={`h-3.5 w-3.5 rounded-sm ${hasPrimaryDiagnosis ? 'bg-green-500' : 'bg-red-200 dark:bg-red-900/50 border border-red-300 dark:border-red-800'}`} title="Diagnosis" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3" align="start">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold mb-2 border-b pb-1.5">Detail Syarat Kirim</p>
+                <div className="grid grid-cols-2 gap-y-2 gap-x-1 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-2 w-2 rounded-full ${patientHasIHS ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={patientHasIHS ? 'text-foreground' : 'text-muted-foreground'}>Pasien</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-2 w-2 rounded-full ${doctorHasIHS ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={doctorHasIHS ? 'text-foreground' : 'text-muted-foreground'}>Dokter</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-2 w-2 rounded-full ${roomHasSatuSehat ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={roomHasSatuSehat ? 'text-foreground' : 'text-muted-foreground'}>Ruangan</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-2 w-2 rounded-full ${hasPrimaryDiagnosis ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={hasPrimaryDiagnosis ? 'text-foreground' : 'text-muted-foreground'}>
+                      Dx {diagnosisCount > 0 && `(${diagnosisCount})`}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground">{fulfilledCount}/4</span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className={`h-1.5 w-1.5 rounded-full ${patientHasIHS ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={patientHasIHS ? 'text-foreground' : 'text-muted-foreground'}>Pasien</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className={`h-1.5 w-1.5 rounded-full ${doctorHasIHS ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={doctorHasIHS ? 'text-foreground' : 'text-muted-foreground'}>Dokter</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className={`h-1.5 w-1.5 rounded-full ${roomHasSatuSehat ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={roomHasSatuSehat ? 'text-foreground' : 'text-muted-foreground'}>Ruangan</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className={`h-1.5 w-1.5 rounded-full ${hasPrimaryDiagnosis ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={hasPrimaryDiagnosis ? 'text-foreground' : 'text-muted-foreground'}>
-                  Dx {diagnosisCount > 0 && `(${diagnosisCount})`}
-                </span>
-              </div>
-            </div>
-          </div>
+            </PopoverContent>
+          </Popover>
         );
       },
     },
     {
       accessorKey: "satusehat_sync_status",
-      header: "Status SatuSehat",
+      header: "Status",
       cell: ({ row }) => {
         const visit = row.original;
         const alreadySent = !!visit.satusehat_encounter_id;
-        
+
         if (alreadySent) {
           return (
             <Badge className="bg-green-100 text-green-800 gap-1">
@@ -188,7 +190,7 @@ export function EncountersTab({
             </Badge>
           );
         }
-        
+
         if (visit.satusehat_sync_status === 'failed') {
           return (
             <Badge variant="destructive" className="gap-1">
@@ -197,7 +199,7 @@ export function EncountersTab({
             </Badge>
           );
         }
-        
+
         return (
           <Badge variant="secondary" className="gap-1">
             <AlertCircle className="h-3 w-3" />
@@ -237,8 +239,7 @@ export function EncountersTab({
               onClick={() => onViewStatus(visit.id)}
               title="Lihat detail status pengiriman"
             >
-              <Activity className="h-4 w-4 mr-2" />
-              Status
+              <Activity className="h-4 w-4" />
             </Button>
             {canSend && (
               <Button
@@ -247,8 +248,8 @@ export function EncountersTab({
                 onClick={() => onPreviewEncounter(visit.id)}
                 title="Preview data FHIR yang akan dikirim"
               >
-                <FileJson className="h-4 w-4 mr-2" />
-                Preview
+                <FileJson className="h-4 w-4" />
+
               </Button>
             )}
             <Button
@@ -261,9 +262,8 @@ export function EncountersTab({
               {sending === `visit-${visit.id}` ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4 mr-2" />
+                <Send className="h-4 w-4" />
               )}
-              Kirim
             </Button>
           </div>
         );
@@ -284,7 +284,7 @@ export function EncountersTab({
   React.useEffect(() => {
     try {
       localStorage.removeItem('dt_page_satusehat-encounters');
-    } catch {}
+    } catch { }
   }, []);
 
   return (

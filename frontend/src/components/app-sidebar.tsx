@@ -211,23 +211,22 @@ const menuItems: MenuItem[] = [
     icon: Building2,
     permission: 'integrations.view',
     submenu: [
-        { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
-        { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
-        { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
-        { path: '/bpjs/spri-monitoring', label: 'Monitoring SPRI', icon: FileText, permission: 'integrations.view' },
-      { path: '/bpjs/surat-kontrol-monitoring', label: 'Monitoring Surat Kontrol', icon: CalendarCheck, permission: 'integrations.view' },
+      { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
+      { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
+      { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
+      { path: '/bpjs/spri-monitoring', label: 'SPRI', icon: FileText, permission: 'integrations.view' },
+      { path: '/bpjs/surat-kontrol-monitoring', label: 'SKDP', icon: CalendarCheck, permission: 'integrations.view' },
       { path: '/bpjs/logs', label: 'Log API', icon: FileSearch, permission: 'integrations.view' },
       { path: '/bpjs/api-tester', label: 'API Tester', icon: Send, permission: 'integrations.view' },
     ]
   },
   {
     path: '/integrations',
-    label: 'Integrasi',
+    label: 'Satu Sehat',
     icon: Stethoscope,
     permission: 'integrations.view',
     submenu: [
-      { path: '/integrations/satusehat', label: 'Monitoring SatuSehat', icon: Activity, permission: 'integrations.view' },
-      { path: '/integrations/satusehat/send', label: 'Kirim Data SatuSehat', icon: Send, permission: 'integrations.manage' },
+      { path: '/integrations/satusehat', label: 'Kirim', icon: Activity, permission: 'integrations.view', exact: true },
       { path: '/integrations/satusehat/logs', label: 'Log SatuSehat', icon: FileSearch, permission: 'integrations.view' },
     ]
   },
@@ -635,7 +634,7 @@ export function AppSidebar() {
       ? userHasPermission(account.user, 'dashboard.view')
       : location.pathname === '/logistics'
         ? hasAnySavedUserPermission(account.user, LOGISTICS_ACCESS_PERMISSIONS)
-      : !requiredPermission || userHasPermission(account.user, requiredPermission);
+        : !requiredPermission || userHasPermission(account.user, requiredPermission);
 
     login(account.token, account.user);
     touchSavedAccount(account.key);

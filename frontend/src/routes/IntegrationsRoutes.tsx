@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom';
+import { Route, Navigate } from 'react-router-dom';
 import { lazy } from 'react';
 import { ProtectedRoute as PermissionGuard } from '@/components/protected-route';
 
@@ -34,11 +34,7 @@ export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ childre
         </ProtectedRoute>
       } />
       <Route path="/integrations/satusehat/send" element={
-        <ProtectedRoute>
-          <PermissionGuard permission="integrations.manage">
-            <SatuSehatSender />
-          </PermissionGuard>
-        </ProtectedRoute>
+        <Navigate to="/integrations/satusehat" replace />
       } />
       <Route path="/integrations/satusehat/logs" element={
         <ProtectedRoute>

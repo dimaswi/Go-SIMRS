@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft,
   Loader2,
   RefreshCw,
   Building2,
@@ -40,7 +40,6 @@ import {
 import { satuSehatApi, type SatuSehatReadinessResponse } from "@/lib/api/integrations";
 import { api } from "@/lib/api";
 import {
-  OverviewTab,
   PatientsTab,
   PractitionersTab,
   LocationsTab,
@@ -243,7 +242,7 @@ export default function SatuSehatSenderPage() {
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("encounters");
 
   // Response dialog
   const [responseDialogOpen, setResponseDialogOpen] = useState(false);
@@ -258,9 +257,10 @@ export default function SatuSehatSenderPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [activeStatusResource, setActiveStatusResource] = useState<string>("Overview");
 
   // Data states
-  const [readiness, setReadiness] = useState<SatuSehatReadinessResponse | null>(null);
+  const [_readiness, setReadiness] = useState<SatuSehatReadinessResponse | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -551,6 +551,7 @@ export default function SatuSehatSenderPage() {
   const handleViewStatus = async (visitId: number) => {
     setLoadingStatus(true);
     setStatusDialogOpen(true);
+    setActiveStatusResource("Overview");
     try {
       const response = await satuSehatApi.getEncounterStatus(visitId);
       setStatusData(response.data);
@@ -969,44 +970,32 @@ export default function SatuSehatSenderPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <PageContent className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </PageContent>
+      </PageShell>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="rounded-lg border">
-        <div className="flex items-center p-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-lg font-semibold flex items-center gap-2">
-                <Send className="h-5 w-5" />
-                Kirim Data ke SatuSehat
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Kelola pengiriman data FHIR R4 ke platform SatuSehat Kemenkes
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-        </div>
+    <PageShell>
+      <PageHeader
+        title="Kirim Data ke SatuSehat"
+        icon={Send}
+        onBack={() => navigate(-1)}
+        actions={
+          <Button variant="outline" size="sm" onClick={loadData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        }
+      />
+      <PageContent>
+        <div className="rounded-lg border bg-card">
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
+          <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
             <TabsList className="px-4">
-              <TabsTrigger value="overview">
-                Overview
-              </TabsTrigger>
               <TabsTrigger value="patients">
                 <Users className="h-4 w-4 mr-2" />
                 Pasien
@@ -1033,65 +1022,61 @@ export default function SatuSehatSenderPage() {
               </TabsTrigger>
             </TabsList>
 
-          <div className="rounded-lg border p-6 mx-4 mb-4">
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="mt-0">
-              <OverviewTab readiness={readiness} onChangeTab={setActiveTab} />
-            </TabsContent>
+            <div className="p-4 border-t">
+              {/* Patients Tab */}
+              <TabsContent value="patients" className="mt-0">
+                <PatientsTab
+                  patients={patients}
+                  sending={sending}
+                  onLookupPatient={handleLookupPatient}
+                  onShowResponse={handleShowResponse}
+                />
+              </TabsContent>
 
-            {/* Patients Tab */}
-            <TabsContent value="patients" className="mt-0">
-              <PatientsTab
-                patients={patients}
-                sending={sending}
-                onLookupPatient={handleLookupPatient}
-                onShowResponse={handleShowResponse}
-              />
-            </TabsContent>
+              {/* Practitioners Tab */}
+              <TabsContent value="practitioners" className="mt-0">
+                <PractitionersTab
+                  employees={employees}
+                  sending={sending}
+                  onLookupPractitioner={handleLookupPractitioner}
+                  onShowResponse={handleShowResponse}
+                />
+              </TabsContent>
 
-            {/* Practitioners Tab */}
-            <TabsContent value="practitioners" className="mt-0">
-              <PractitionersTab
-                employees={employees}
-                sending={sending}
-                onLookupPractitioner={handleLookupPractitioner}
-                onShowResponse={handleShowResponse}
-              />
-            </TabsContent>
+              {/* Locations Tab */}
+              <TabsContent value="locations" className="mt-0">
+                <LocationsTab
+                  rooms={rooms}
+                  sending={sending}
+                  onSendLocation={handleSendLocation}
+                  onShowResponse={handleShowResponse}
+                />
+              </TabsContent>
 
-            {/* Locations Tab */}
-            <TabsContent value="locations" className="mt-0">
-              <LocationsTab
-                rooms={rooms}
-                sending={sending}
-                onSendLocation={handleSendLocation}
-                onShowResponse={handleShowResponse}
-              />
-            </TabsContent>
+              {/* KFA Tab */}
+              <TabsContent value="kfa" className="mt-0">
+                <KfaMappingTab />
+              </TabsContent>
 
-            {/* KFA Tab */}
-            <TabsContent value="kfa" className="mt-0">
-              <KfaMappingTab />
-            </TabsContent>
+              {/* LOINC Tab */}
+              <TabsContent value="loinc" className="mt-0">
+                <LoincMappingTab />
+              </TabsContent>
 
-            {/* LOINC Tab */}
-            <TabsContent value="loinc" className="mt-0">
-              <LoincMappingTab />
-            </TabsContent>
-
-            {/* Encounters Tab */}
-            <TabsContent value="encounters" className="mt-0">
-              <EncountersTab
-                visits={visits}
-                sending={sending}
-                onSendEncounter={handleSendEncounter}
-                onPreviewEncounter={handlePreviewEncounter}
-                onViewStatus={handleViewStatus}
-              />
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
+              {/* Encounters Tab */}
+              <TabsContent value="encounters" className="mt-0">
+                <EncountersTab
+                  visits={visits}
+                  sending={sending}
+                  onSendEncounter={handleSendEncounter}
+                  onPreviewEncounter={handlePreviewEncounter}
+                  onViewStatus={handleViewStatus}
+                />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </PageContent>
 
       {/* Response Detail Dialog */}
       <Dialog open={responseDialogOpen} onOpenChange={setResponseDialogOpen}>
@@ -1313,630 +1298,680 @@ export default function SatuSehatSenderPage() {
 
       {/* Status Monitoring Dialog */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0 pb-4 border-b">
-            <DialogTitle className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                <Activity className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-base font-medium">Status Pengiriman FHIR</p>
-                <p className="text-sm font-normal text-muted-foreground">Monitoring resource encounter</p>
+        <DialogContent className="max-w-none w-screen h-[100dvh] m-0 p-0 !rounded-none overflow-hidden flex flex-col gap-0 !border-0 sm:!rounded-none">
+          <DialogHeader className="flex-shrink-0 p-3 border-b bg-muted/20">
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                  <Activity className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Status Pengiriman FHIR</p>
+                  <p className="text-xs font-normal text-muted-foreground">Monitoring resource encounter untuk {statusData?.summary.visit_number}</p>
+                </div>
               </div>
             </DialogTitle>
           </DialogHeader>
 
           {loadingStatus ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : statusData ? (
-            <ScrollArea className="flex-1 overflow-auto">
-              <div className="space-y-5 py-4 pr-4">
-                {/* Summary */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Visit Number</p>
-                    <p className="font-mono text-sm">{statusData.summary.visit_number}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Pasien</p>
-                    <p className="text-sm">{statusData.summary.patient_name}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Status SatuSehat</p>
-                    <Badge
-                      variant={
-                        statusData.summary.status === 'Lengkap' ? 'default' :
-                        statusData.summary.status === 'Sebagian' ? 'secondary' :
-                        'outline'
-                      }
-                      className={
-                        statusData.summary.status === 'Lengkap' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        statusData.summary.status === 'Sebagian' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                        'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                      }
+            <div className="flex-1 overflow-hidden flex bg-background">
+              {/* Sidebar Master */}
+              <div className="w-[260px] border-r flex flex-col bg-muted/10 flex-shrink-0">
+                <ScrollArea className="flex-1">
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => setActiveStatusResource("Overview")}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors ${activeStatusResource === "Overview" ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted text-muted-foreground'}`}
                     >
-                      {statusData.summary.status}
-                    </Badge>
-                  </div>
-                </div>
+                      <Activity className="h-4 w-4" />
+                      <span className="font-medium">Ringkasan & Syarat</span>
+                    </button>
 
-                {/* Progress */}
-                <div className="space-y-2 border-t pt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progress Pengiriman</span>
-                    <span className={`font-medium ${statusData.summary.completion_percentage === 100 ? 'text-green-600 dark:text-green-400' : ''}`}>
-                      {statusData.summary.completion_percentage}%
-                    </span>
-                  </div>
-                  <Progress value={statusData.summary.completion_percentage} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {statusData.summary.sent_required} dari {statusData.summary.required_resources} resource wajib terkirim
-                  </p>
-                </div>
-
-                {/* Prerequisites */}
-                <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Syarat Awal</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      {statusData.prerequisites.patient_ihs ? (
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                      <span className={statusData.prerequisites.patient_ihs ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>Patient IHS</span>
+                    <div className="pt-4 pb-1.5 px-3">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Resources FHIR</p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      {statusData.prerequisites.practitioner_ihs ? (
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                      <span className={statusData.prerequisites.practitioner_ihs ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>Practitioner IHS</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      {statusData.prerequisites.location_id ? (
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                      <span className={statusData.prerequisites.location_id ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>Location ID</span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* FHIR Resources */}
-                <div className="border-t pt-4 space-y-3">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">FHIR Resources</p>
-
-                  {statusData.resources?.map((resource: Resource, idx: number) => {
-                    const isSent = resource.sent === true || resource.all_sent === true;
-                    const isPartial = resource.all_sent === false && (resource.sent_count || 0) > 0;
-
-                    return (
-                      <div key={idx} className={`rounded-md border p-3 space-y-2 ${isSent ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{resource.resource}</span>
-                              {resource.required && (
-                                <Badge variant="outline" className="text-[10px] h-4 px-1">Wajib</Badge>
-                              )}
-                              {resource.category && (
-                                <span className="text-xs text-muted-foreground">- {resource.category}</span>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">{resource.description}</p>
-                          </div>
+                    {statusData.resources?.map((r: Resource, i: number) => {
+                      const isActive = activeStatusResource === r.resource;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setActiveStatusResource(r.resource)}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted text-muted-foreground'}`}
+                        >
                           <div className="flex items-center gap-2">
-                            {/* Vital Signs Send Button */}
-                            {resource.resource === 'Observation' && resource.category === 'vital-signs' && (
-                              resource.available && !resource.sent && statusData.summary.visit_id ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleSendVitalSigns(statusData.summary.visit_id!)}
-                                  disabled={sending === `vitalsigns-${statusData.summary.visit_id}`}
-                                >
-                                  {sending === `vitalsigns-${statusData.summary.visit_id}` ? (
-                                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                  ) : (
-                                    <Send className="h-3 w-3 mr-1" />
-                                  )}
-                                  Kirim ({resource.items?.length || 0})
-                                </Button>
-                              ) : !resource.available ? (
-                                <Badge variant="secondary" className="text-xs text-red-600 dark:text-red-400">Belum diisi</Badge>
-                              ) : null
-                            )}
+                            <span className="font-medium">{r.resource}</span>
+                            {r.required && !isActive && <Badge variant="outline" className="text-[9px] h-4 px-1 py-0">Wajib</Badge>}
+                          </div>
+                          {r.sent || r.all_sent ? (
+                            <CheckCircle className={`h-4 w-4 ${isActive ? 'text-primary-foreground/90' : 'text-green-500'}`} />
+                          ) : r.available === false ? (
+                            <AlertCircle className={`h-4 w-4 ${isActive ? 'text-primary-foreground/90' : 'text-red-400'}`} />
+                          ) : (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isActive ? 'bg-primary-foreground/20' : 'bg-muted-foreground/20'}`}>
+                              {r.sent_count || 0}/{r.total || 0}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </div>
 
-                            {/* AllergyIntolerance Send All Button */}
-                            {resource.resource === 'AllergyIntolerance' && (
-                              (resource.total || 0) > 0 && !resource.all_sent && statusData.summary.visit_id ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleSendAllAllergies(statusData.summary.visit_id!)}
-                                  disabled={sending === `all-allergies-${statusData.summary.visit_id}`}
-                                >
-                                  {sending === `all-allergies-${statusData.summary.visit_id}` ? (
-                                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                  ) : (
-                                    <Send className="h-3 w-3 mr-1" />
-                                  )}
-                                  Kirim Semua ({(resource.total || 0) - (resource.sent_count || 0)})
-                                </Button>
-                              ) : (resource.total || 0) === 0 ? (
-                                <Badge variant="secondary" className="text-xs text-muted-foreground">Tidak ada alergi</Badge>
-                              ) : null
-                            )}
-
-                            {/* Status Indicator */}
-                            {resource.sent !== undefined ? (
-                              resource.sent ? (
-                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  Terkirim
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="gap-1 text-red-600 dark:text-red-400">
-                                  <XCircle className="h-3 w-3" />
-                                  Belum
-                                </Badge>
-                              )
-                            ) : resource.all_sent !== undefined ? (
-                              resource.all_sent ? (
-                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  Semua Terkirim
-                                </Badge>
-                              ) : (
-                                <Badge variant={isPartial ? 'default' : 'secondary'} className={isPartial ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}>
-                                  {resource.sent_count || 0} / {resource.total || 0}
-                                </Badge>
-                              )
-                            ) : resource.available !== undefined ? (
-                              resource.available ? (
-                                <Badge variant="outline">Tersedia ({resource.count})</Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-red-600 dark:text-red-400">Belum Diisi</Badge>
-                              )
-                            ) : null}
+              {/* Detail Content */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <ScrollArea className="flex-1">
+                  <div className="p-5 md:p-6">
+                    {activeStatusResource === "Overview" ? (
+                      <div className="space-y-6">
+                        {/* Summary */}
+                        <div className="grid grid-cols-3 gap-4 p-4 border rounded-md bg-card">
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Visit Number</p>
+                            <p className="font-mono text-sm font-medium">{statusData.summary.visit_number}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Pasien</p>
+                            <p className="text-sm font-medium">{statusData.summary.patient_name}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Status SatuSehat</p>
+                            <Badge
+                              variant={
+                                statusData.summary.status === 'Lengkap' ? 'default' :
+                                  statusData.summary.status === 'Sebagian' ? 'secondary' :
+                                    'outline'
+                              }
+                              className={`text-xs px-2 py-0.5 ${statusData.summary.status === 'Lengkap' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                statusData.summary.status === 'Sebagian' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                  'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                                }`}
+                            >
+                              {statusData.summary.status}
+                            </Badge>
                           </div>
                         </div>
 
-                        {/* Prerequisites */}
-                        {resource.prerequisites && resource.prerequisites.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Syarat: {resource.prerequisites.join(', ')}
-                          </p>
-                        )}
-
-                        {/* Warning */}
-                        {!resource.sent && !resource.all_sent && resource.available === false && (
-                          <div className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 rounded">
-                            <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                            <span>Lengkapi data {resource.resource} di Rekam Medis terlebih dahulu.</span>
+                        {/* Progress */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Progress Pengiriman</h3>
+                            <span className={`text-sm font-bold ${statusData.summary.completion_percentage === 100 ? 'text-green-600 dark:text-green-400' : ''}`}>
+                              {statusData.summary.completion_percentage}%
+                            </span>
                           </div>
-                        )}
+                          <Progress value={statusData.summary.completion_percentage} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {statusData.summary.sent_required} dari {statusData.summary.required_resources} resource wajib terkirim
+                          </p>
+                        </div>
 
-                        {/* Items Detail */}
-                        {resource.items && Array.isArray(resource.items) && resource.items.length > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <p className="text-xs text-muted-foreground">Detail:</p>
-                            <div className="space-y-1 max-h-28 overflow-y-auto">
-                              {typeof resource.items[0] === 'string' ? (
-                                (resource.items as string[]).map((item: string, i: number) => (
-                                  <div key={i} className="text-xs flex items-center gap-2 px-2 py-1 bg-muted/50 rounded">
-                                    <span className="text-muted-foreground">{i + 1}.</span>
-                                    {item}
-                                  </div>
-                                ))
+                        {/* Prerequisites */}
+                        <div className="space-y-3">
+                          <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Syarat Awal</h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className={`flex items-center gap-2.5 p-3 border rounded-md ${statusData.prerequisites.patient_ihs ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
+                              {statusData.prerequisites.patient_ihs ? (
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                               ) : (
-                                (resource.items as ResourceItem[]).map((item: ResourceItem, i: number) => (
-                                  <div key={i} className={`text-xs flex items-center justify-between px-2 py-1.5 rounded ${item.sent || item.diagnosticreport_sent ? 'bg-green-50 dark:bg-green-900/20' : 'bg-muted/50'}`}>
-                                    <span className={item.sent || item.diagnosticreport_sent ? 'text-green-700 dark:text-green-400' : ''}>
-                                      {item.icd10_code && `${item.icd10_code} - ${item.icd10_name}`}
-                                      {item.code && !item.procedure_type && `${item.code} - ${item.name}`}
-                                      {/* Lab/Radiology Item Display */}
-                                      {resource.resource === 'Lab/Radiology' && item.code && (
-                                        <span className="flex items-center gap-2">
-                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${item.procedure_type === 'laboratory' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
-                                            {item.procedure_type === 'laboratory' ? <TestTube className="h-2.5 w-2.5" /> : <FileText className="h-2.5 w-2.5" />}
-                                            {item.procedure_type === 'laboratory' ? 'Lab' : 'Rad'}
-                                          </span>
-                                          {`${item.code} - ${item.name}`}
-                                          {item.has_loinc_mapping && item.loinc_code && (
-                                            <span className="text-muted-foreground">({item.loinc_code})</span>
-                                          )}
-                                        </span>
-                                      )}
-                                      {resource.resource === 'MedicationRequest' && item.medicine_name && `${item.medicine_name} - ${item.quantity} ${item.unit} (${item.dosage})`}
-                                      {resource.resource === 'MedicationDispense' && item.medicine_name && (
-                                        <>
-                                          {`${item.medicine_name} - ${item.dispensed_qty} ${item.unit} (${item.dosage})`}
-                                          {item.dispensed_by && <span className="text-muted-foreground ml-1">oleh {item.dispensed_by}</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'QuestionnaireResponse' && item.order_number && (
-                                        <>
-                                          {`Order #${item.order_number || item.id}`}
-                                          {item.reviewed_by && <span className="text-muted-foreground ml-1">oleh {item.reviewed_by}</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'MedicationAdministration' && item.medicine_name && (
-                                        <>
-                                          {`${item.medicine_name} - ${item.quantity} ${item.unit}`}
-                                          {item.dosage && <span className="text-muted-foreground ml-1">({item.dosage})</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'ClinicalImpression' && item.type_display && (
-                                        <>
-                                          {item.type_display}
-                                          {!item.data_exists && <span className="text-muted-foreground ml-1">(data belum diisi)</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'AllergyIntolerance' && item.snomed_code && (
-                                        <>
-                                          {`${item.snomed_code} - ${item.snomed_display}`}
-                                          {item.category && <span className="text-muted-foreground ml-1">({item.category})</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'MedicationStatement' && item.description && (
-                                        <>
-                                          <span className="truncate max-w-[200px]">{item.description}</span>
-                                          {item.source_display && <span className="text-muted-foreground ml-1">({item.source_display})</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'CarePlan' && (item.plan || item.instruction) && (
-                                        <>
-                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                            item.source === 'cppt' 
-                                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' 
-                                              : item.source === 'assessment'
-                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                                                : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                                          }`}>
-                                            {item.source === 'cppt' ? 'CPPT' : item.source === 'assessment' ? 'Plan' : 'RTL'}
-                                          </span>
-                                          <span className="truncate max-w-[180px]">{item.plan || item.instruction}</span>
-                                          {item.profession && <span className="text-muted-foreground ml-1">({item.profession})</span>}
-                                        </>
-                                      )}
-                                      {resource.resource === 'Composition' && item.name && `${item.name}`}
-                                      {item.name && item.value !== undefined && `${item.name}: ${item.value} ${item.unit || ''}`}
-                                      {item.status && !item.code && !item.medicine_name && !item.name && `Order #${item.id}`}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      {/* Lab/Radiology - handle separately since it uses diagnosticreport_sent instead of sent */}
-                                      {resource.resource === 'Lab/Radiology' && item.id && (
-                                        <div className="flex items-center gap-1">
-                                          {/* Status badges */}
-                                          {item.diagnosticreport_sent ? (
-                                            <Badge className="text-[9px] h-5 px-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                              <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
-                                              Lengkap
-                                            </Badge>
-                                          ) : (
-                                            <>
-                                              {/* Individual resource status */}
-                                              <div className="flex items-center gap-0.5">
-                                                <Badge 
-                                                  variant="outline" 
-                                                  className={`text-[8px] h-4 px-1 ${item.servicerequest_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
-                                                  title={item.servicerequest_sent ? `ServiceRequest: ${item.servicerequest_id}` : 'ServiceRequest belum dikirim'}
-                                                >
-                                                  SR {item.servicerequest_sent ? '✓' : '○'}
-                                                </Badge>
-                                                {item.procedure_type === 'laboratory' && (
-                                                  <Badge 
-                                                    variant="outline" 
-                                                    className={`text-[8px] h-4 px-1 ${item.specimen_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
-                                                    title={item.specimen_sent ? `Specimen: ${item.specimen_id}` : 'Specimen belum dikirim'}
-                                                  >
-                                                    SP {item.specimen_sent ? '✓' : '○'}
-                                                  </Badge>
-                                                )}
-                                                <Badge 
-                                                  variant="outline" 
-                                                  className={`text-[8px] h-4 px-1 ${item.diagnosticreport_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
-                                                  title={item.diagnosticreport_sent ? `DiagnosticReport: ${item.diagnosticreport_id}` : 'DiagnosticReport belum dikirim'}
-                                                >
-                                                  DR {item.diagnosticreport_sent ? '✓' : '○'}
-                                                </Badge>
-                                              </div>
-                                              {/* Send All Button */}
-                                              {item.can_send_all ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-5 px-1.5 text-[10px]"
-                                                  onClick={() => statusData.summary.visit_id && handleSendAllLabResources(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `lab-all-${item.id}`}
-                                                >
-                                                  {sending === `lab-all-${item.id}` ? (
-                                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                                  ) : (
-                                                    <>
-                                                      <Send className="h-2.5 w-2.5 mr-0.5" />
-                                                      Kirim Semua
-                                                    </>
-                                                  )}
-                                                </Button>
-                                              ) : !item.has_loinc_mapping ? (
-                                                <Badge variant="outline" className="text-[8px] h-4 px-1 text-orange-600 dark:text-orange-400">
-                                                  Perlu LOINC Mapping
-                                                </Badge>
-                                              ) : item.status !== 'completed' ? (
-                                                <Badge variant="outline" className="text-[8px] h-4 px-1 text-orange-600 dark:text-orange-400">
-                                                  Status: {item.status}
-                                                </Badge>
-                                              ) : null}
-                                            </>
-                                          )}
-                                        </div>
-                                      )}
-                                      {/* Other resources using item.sent */}
-                                      {resource.resource !== 'Lab/Radiology' && item.sent !== undefined && (
-                                        item.sent ? (
-                                          <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
-                                        ) : (
-                                          <>
-                                            {resource.resource === 'Procedure' && item.id && (
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 px-2 text-xs"
-                                                onClick={() => statusData.summary.visit_id && handleSendProcedure(item.id!, statusData.summary.visit_id)}
-                                                disabled={sending === `procedure-${item.id}`}
-                                              >
-                                                {sending === `procedure-${item.id}` ? (
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                ) : (
-                                                  'Kirim'
-                                                )}
-                                              </Button>
-                                            )}
-                                            {resource.resource === 'MedicationRequest' && item.id && (
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 px-2 text-xs"
-                                                onClick={() => statusData.summary.visit_id && handleSendMedicationRequest(item.id!, statusData.summary.visit_id)}
-                                                disabled={sending === `medication-${item.id}`}
-                                              >
-                                                {sending === `medication-${item.id}` ? (
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                ) : (
-                                                  'Kirim'
-                                                )}
-                                              </Button>
-                                            )}
-                                            {resource.resource === 'MedicationDispense' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendMedicationDispense(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `dispense-${item.id}`}
-                                                >
-                                                  {sending === `dispense-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Resep belum dikirim
-                                                </Badge>
-                                              )
-                                            )}
-                                            {resource.resource === 'QuestionnaireResponse' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendQuestionnaireResponse(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `questionnaire-${item.id}`}
-                                                >
-                                                  {sending === `questionnaire-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Resep belum dikirim
-                                                </Badge>
-                                              )
-                                            )}
-                                            {resource.resource === 'MedicationAdministration' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendMedicationAdministration(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `administration-${item.id}`}
-                                                >
-                                                  {sending === `administration-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Dispense belum dikirim
-                                                </Badge>
-                                              )
-                                            )}
-                                            {resource.resource === 'Composition' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendComposition(statusData.summary.visit_id)}
-                                                  disabled={sending === `composition-${statusData.summary.visit_id}`}
-                                                >
-                                                  {sending === `composition-${statusData.summary.visit_id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : !item.sent ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Encounter & Condition belum dikirim
-                                                </Badge>
-                                              ) : null
-                                            )}
-                                            {resource.resource === 'ClinicalImpression' && item.type && (
-                                              item.can_send && item.data_exists ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendClinicalImpression(statusData.summary.visit_id, item.type as 'history' | 'rationale' | 'prognosis' | 'triage')}
-                                                  disabled={sending === `clinical-impression-${item.type}-${statusData.summary.visit_id}`}
-                                                >
-                                                  {sending === `clinical-impression-${item.type}-${statusData.summary.visit_id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : !item.sent && !item.data_exists ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Data belum diisi
-                                                </Badge>
-                                              ) : !item.sent && item.data_exists ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Encounter belum dikirim
-                                                </Badge>
-                                              ) : null
-                                            )}
-                                            {resource.resource === 'AllergyIntolerance' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendAllergy(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `allergy-${item.id}`}
-                                                >
-                                                  {sending === `allergy-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : !item.sent ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Encounter belum dikirim
-                                                </Badge>
-                                              ) : null
-                                            )}
-                                            {resource.resource === 'MedicationStatement' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendMedicationStatement(item.id!, statusData.summary.visit_id)}
-                                                  disabled={sending === `medicationstatement-${item.id}`}
-                                                >
-                                                  {sending === `medicationstatement-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : !item.sent ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Encounter belum dikirim
-                                                </Badge>
-                                              ) : null
-                                            )}
-                                            {resource.resource === 'CarePlan' && item.id && (
-                                              item.can_send ? (
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  className="h-6 px-2 text-xs"
-                                                  onClick={() => statusData.summary.visit_id && handleSendCarePlan(item.id!, item.source as 'cppt' | 'disposition' | 'assessment', statusData.summary.visit_id)}
-                                                  disabled={sending === `careplan-${item.source}-${item.id}`}
-                                                >
-                                                  {sending === `careplan-${item.source}-${item.id}` ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    'Kirim'
-                                                  )}
-                                                </Button>
-                                              ) : !item.sent ? (
-                                                <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
-                                                  Encounter belum dikirim
-                                                </Badge>
-                                              ) : null
-                                            )}
-                                            {resource.resource !== 'Procedure' && resource.resource !== 'MedicationRequest' && resource.resource !== 'MedicationDispense' && resource.resource !== 'QuestionnaireResponse' && resource.resource !== 'MedicationAdministration' && resource.resource !== 'Composition' && resource.resource !== 'ClinicalImpression' && resource.resource !== 'AllergyIntolerance' && resource.resource !== 'MedicationStatement' && resource.resource !== 'CarePlan' && (
-                                              <XCircle className="h-3 w-3 text-red-400" />
-                                            )}
-                                          </>
-                                        )
-                                      )}
-                                    </div>
-                                  </div>
-                                ))
+                                <XCircle className="h-4 w-4 text-red-500" />
                               )}
+                              <span className={`text-sm font-medium ${statusData.prerequisites.patient_ihs ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>Patient IHS</span>
+                            </div>
+                            <div className={`flex items-center gap-2.5 p-3 border rounded-md ${statusData.prerequisites.practitioner_ihs ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
+                              {statusData.prerequisites.practitioner_ihs ? (
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className={`text-sm font-medium ${statusData.prerequisites.practitioner_ihs ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>Practitioner IHS</span>
+                            </div>
+                            <div className={`flex items-center gap-2.5 p-3 border rounded-md ${statusData.prerequisites.location_id ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
+                              {statusData.prerequisites.location_id ? (
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className={`text-sm font-medium ${statusData.prerequisites.location_id ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>Location ID</span>
                             </div>
                           </div>
-                        )}
+                        </div>
 
-                        {/* Note */}
-                        {resource.note && (
-                          <p className="text-xs text-muted-foreground flex items-start gap-1 pt-1">
-                            <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                            {resource.note}
-                          </p>
+                        {/* Next Steps */}
+                        {statusData.next_steps && statusData.next_steps.length > 0 && (
+                          <div className="space-y-3 pt-3 border-t">
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Langkah Selanjutnya</h3>
+                            <ul className="space-y-2">
+                              {statusData.next_steps?.map((step: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-2.5 p-2.5 bg-muted/20 rounded-md">
+                                  {step.startsWith('✅') ? (
+                                    <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <div className="h-4 w-4 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                                    </div>
+                                  )}
+                                  <span className={`text-sm ${step.startsWith('✅') ? 'text-green-700 dark:text-green-400 font-medium' : ''}`}>{step.replace('✅ ', '')}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {statusData.resources?.filter((r: Resource) => r.resource === activeStatusResource).map((resource: Resource, idx: number) => {
+                          const isSent = resource.sent === true || resource.all_sent === true;
+                          const isPartial = resource.all_sent === false && (resource.sent_count || 0) > 0;
 
-                {/* Next Steps */}
-                {statusData.next_steps && statusData.next_steps.length > 0 && (
-                  <div className="border-t pt-4 space-y-2">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Langkah Selanjutnya</p>
-                    <ul className="space-y-1.5">
-                      {statusData.next_steps?.map((step: string, idx: number) => (
-                        <li key={idx} className="text-sm flex items-start gap-2">
-                          {step.startsWith('✅') ? (
-                            <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400" />
-                          ) : (
-                            <div className="h-4 w-4 flex items-center justify-center flex-shrink-0">
-                              <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                          return (
+                            <div key={idx} className={`rounded-lg border p-4 space-y-3 shadow-sm ${isSent ? 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-900/5' : 'bg-card'}`}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">{resource.resource}</span>
+                                    {resource.required && (
+                                      <Badge variant="outline" className="text-[10px] h-4 px-1">Wajib</Badge>
+                                    )}
+                                    {resource.category && (
+                                      <span className="text-xs text-muted-foreground">- {resource.category}</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{resource.description}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {/* Vital Signs Send Button */}
+                                  {resource.resource === 'Observation' && resource.category === 'vital-signs' && (
+                                    resource.available && !resource.sent && statusData.summary.visit_id ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleSendVitalSigns(statusData.summary.visit_id!)}
+                                        disabled={sending === `vitalsigns-${statusData.summary.visit_id}`}
+                                      >
+                                        {sending === `vitalsigns-${statusData.summary.visit_id}` ? (
+                                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                        ) : (
+                                          <Send className="h-3 w-3 mr-1" />
+                                        )}
+                                        Kirim ({resource.items?.length || 0})
+                                      </Button>
+                                    ) : !resource.available ? (
+                                      <Badge variant="secondary" className="text-xs text-red-600 dark:text-red-400">Belum diisi</Badge>
+                                    ) : null
+                                  )}
+
+                                  {/* AllergyIntolerance Send All Button */}
+                                  {resource.resource === 'AllergyIntolerance' && (
+                                    (resource.total || 0) > 0 && !resource.all_sent && statusData.summary.visit_id ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleSendAllAllergies(statusData.summary.visit_id!)}
+                                        disabled={sending === `all-allergies-${statusData.summary.visit_id}`}
+                                      >
+                                        {sending === `all-allergies-${statusData.summary.visit_id}` ? (
+                                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                        ) : (
+                                          <Send className="h-3 w-3 mr-1" />
+                                        )}
+                                        Kirim Semua ({(resource.total || 0) - (resource.sent_count || 0)})
+                                      </Button>
+                                    ) : (resource.total || 0) === 0 ? (
+                                      <Badge variant="secondary" className="text-xs text-muted-foreground">Tidak ada alergi</Badge>
+                                    ) : null
+                                  )}
+
+                                  {/* Status Indicator */}
+                                  {resource.sent !== undefined ? (
+                                    resource.sent ? (
+                                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Terkirim
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="gap-1 text-red-600 dark:text-red-400">
+                                        <XCircle className="h-3 w-3" />
+                                        Belum
+                                      </Badge>
+                                    )
+                                  ) : resource.all_sent !== undefined ? (
+                                    resource.all_sent ? (
+                                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Semua Terkirim
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant={isPartial ? 'default' : 'secondary'} className={isPartial ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}>
+                                        {resource.sent_count || 0} / {resource.total || 0}
+                                      </Badge>
+                                    )
+                                  ) : resource.available !== undefined ? (
+                                    resource.available ? (
+                                      <Badge variant="outline">Tersedia ({resource.count})</Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-red-600 dark:text-red-400">Belum Diisi</Badge>
+                                    )
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {/* Prerequisites */}
+                              {resource.prerequisites && resource.prerequisites.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Syarat: {resource.prerequisites.join(', ')}
+                                </p>
+                              )}
+
+                              {/* Warning */}
+                              {!resource.sent && !resource.all_sent && resource.available === false && (
+                                <div className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 rounded">
+                                  <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                  <span>Lengkapi data {resource.resource} di Rekam Medis terlebih dahulu.</span>
+                                </div>
+                              )}
+
+                              {/* Items Detail */}
+                              {resource.items && Array.isArray(resource.items) && resource.items.length > 0 && (
+                                <div className="space-y-1 pt-1">
+                                  <p className="text-xs text-muted-foreground">Detail:</p>
+                                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                                    {typeof resource.items[0] === 'string' ? (
+                                      (resource.items as string[]).map((item: string, i: number) => (
+                                        <div key={i} className="text-xs flex items-center gap-2 px-2 py-1 bg-muted/50 rounded">
+                                          <span className="text-muted-foreground">{i + 1}.</span>
+                                          {item}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      (resource.items as ResourceItem[]).map((item: ResourceItem, i: number) => (
+                                        <div key={i} className={`text-xs flex items-center justify-between px-2 py-1.5 rounded ${item.sent || item.diagnosticreport_sent ? 'bg-green-50 dark:bg-green-900/20' : 'bg-muted/50'}`}>
+                                          <span className={item.sent || item.diagnosticreport_sent ? 'text-green-700 dark:text-green-400' : ''}>
+                                            {item.icd10_code && `${item.icd10_code} - ${item.icd10_name}`}
+                                            {item.code && !item.procedure_type && `${item.code} - ${item.name}`}
+                                            {/* Lab/Radiology Item Display */}
+                                            {resource.resource === 'Lab/Radiology' && item.code && (
+                                              <span className="flex items-center gap-2">
+                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${item.procedure_type === 'laboratory' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                                  {item.procedure_type === 'laboratory' ? <TestTube className="h-2.5 w-2.5" /> : <FileText className="h-2.5 w-2.5" />}
+                                                  {item.procedure_type === 'laboratory' ? 'Lab' : 'Rad'}
+                                                </span>
+                                                {`${item.code} - ${item.name}`}
+                                                {item.has_loinc_mapping && item.loinc_code && (
+                                                  <span className="text-muted-foreground">({item.loinc_code})</span>
+                                                )}
+                                              </span>
+                                            )}
+                                            {resource.resource === 'MedicationRequest' && item.medicine_name && `${item.medicine_name} - ${item.quantity} ${item.unit} (${item.dosage})`}
+                                            {resource.resource === 'MedicationDispense' && item.medicine_name && (
+                                              <>
+                                                {`${item.medicine_name} - ${item.dispensed_qty} ${item.unit} (${item.dosage})`}
+                                                {item.dispensed_by && <span className="text-muted-foreground ml-1">oleh {item.dispensed_by}</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'QuestionnaireResponse' && item.order_number && (
+                                              <>
+                                                {`Order #${item.order_number || item.id}`}
+                                                {item.reviewed_by && <span className="text-muted-foreground ml-1">oleh {item.reviewed_by}</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'MedicationAdministration' && item.medicine_name && (
+                                              <>
+                                                {`${item.medicine_name} - ${item.quantity} ${item.unit}`}
+                                                {item.dosage && <span className="text-muted-foreground ml-1">({item.dosage})</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'ClinicalImpression' && item.type_display && (
+                                              <>
+                                                {item.type_display}
+                                                {!item.data_exists && <span className="text-muted-foreground ml-1">(data belum diisi)</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'AllergyIntolerance' && item.snomed_code && (
+                                              <>
+                                                {`${item.snomed_code} - ${item.snomed_display}`}
+                                                {item.category && <span className="text-muted-foreground ml-1">({item.category})</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'MedicationStatement' && item.description && (
+                                              <>
+                                                <span className="truncate max-w-[200px]">{item.description}</span>
+                                                {item.source_display && <span className="text-muted-foreground ml-1">({item.source_display})</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'CarePlan' && (item.plan || item.instruction) && (
+                                              <>
+                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${item.source === 'cppt'
+                                                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                                  : item.source === 'assessment'
+                                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                                    : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+                                                  }`}>
+                                                  {item.source === 'cppt' ? 'CPPT' : item.source === 'assessment' ? 'Plan' : 'RTL'}
+                                                </span>
+                                                <span className="truncate max-w-[180px]">{item.plan || item.instruction}</span>
+                                                {item.profession && <span className="text-muted-foreground ml-1">({item.profession})</span>}
+                                              </>
+                                            )}
+                                            {resource.resource === 'Composition' && item.name && `${item.name}`}
+                                            {item.name && item.value !== undefined && `${item.name}: ${item.value} ${item.unit || ''}`}
+                                            {item.status && !item.code && !item.medicine_name && !item.name && `Order #${item.id}`}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            {/* Lab/Radiology - handle separately since it uses diagnosticreport_sent instead of sent */}
+                                            {resource.resource === 'Lab/Radiology' && item.id && (
+                                              <div className="flex items-center gap-1">
+                                                {/* Status badges */}
+                                                {item.diagnosticreport_sent ? (
+                                                  <Badge className="text-[9px] h-5 px-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                                    <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
+                                                    Lengkap
+                                                  </Badge>
+                                                ) : (
+                                                  <>
+                                                    {/* Individual resource status */}
+                                                    <div className="flex items-center gap-0.5">
+                                                      <Badge
+                                                        variant="outline"
+                                                        className={`text-[8px] h-4 px-1 ${item.servicerequest_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
+                                                        title={item.servicerequest_sent ? `ServiceRequest: ${item.servicerequest_id}` : 'ServiceRequest belum dikirim'}
+                                                      >
+                                                        SR {item.servicerequest_sent ? '✓' : '○'}
+                                                      </Badge>
+                                                      {item.procedure_type === 'laboratory' && (
+                                                        <Badge
+                                                          variant="outline"
+                                                          className={`text-[8px] h-4 px-1 ${item.specimen_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
+                                                          title={item.specimen_sent ? `Specimen: ${item.specimen_id}` : 'Specimen belum dikirim'}
+                                                        >
+                                                          SP {item.specimen_sent ? '✓' : '○'}
+                                                        </Badge>
+                                                      )}
+                                                      <Badge
+                                                        variant="outline"
+                                                        className={`text-[8px] h-4 px-1 ${item.diagnosticreport_sent ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}
+                                                        title={item.diagnosticreport_sent ? `DiagnosticReport: ${item.diagnosticreport_id}` : 'DiagnosticReport belum dikirim'}
+                                                      >
+                                                        DR {item.diagnosticreport_sent ? '✓' : '○'}
+                                                      </Badge>
+                                                    </div>
+                                                    {/* Send All Button */}
+                                                    {item.can_send_all ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-5 px-1.5 text-[10px]"
+                                                        onClick={() => statusData.summary.visit_id && handleSendAllLabResources(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `lab-all-${item.id}`}
+                                                      >
+                                                        {sending === `lab-all-${item.id}` ? (
+                                                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                                        ) : (
+                                                          <>
+                                                            <Send className="h-2.5 w-2.5 mr-0.5" />
+                                                            Kirim Semua
+                                                          </>
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.has_loinc_mapping ? (
+                                                      <Badge variant="outline" className="text-[8px] h-4 px-1 text-orange-600 dark:text-orange-400">
+                                                        Perlu LOINC Mapping
+                                                      </Badge>
+                                                    ) : item.status !== 'completed' ? (
+                                                      <Badge variant="outline" className="text-[8px] h-4 px-1 text-orange-600 dark:text-orange-400">
+                                                        Status: {item.status}
+                                                      </Badge>
+                                                    ) : null}
+                                                  </>
+                                                )}
+                                              </div>
+                                            )}
+                                            {/* Other resources using item.sent */}
+                                            {resource.resource !== 'Lab/Radiology' && item.sent !== undefined && (
+                                              item.sent ? (
+                                                <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                              ) : (
+                                                <>
+                                                  {resource.resource === 'Procedure' && item.id && (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-6 px-2 text-xs"
+                                                      onClick={() => statusData.summary.visit_id && handleSendProcedure(item.id!, statusData.summary.visit_id)}
+                                                      disabled={sending === `procedure-${item.id}`}
+                                                    >
+                                                      {sending === `procedure-${item.id}` ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                      ) : (
+                                                        'Kirim'
+                                                      )}
+                                                    </Button>
+                                                  )}
+                                                  {resource.resource === 'MedicationRequest' && item.id && (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-6 px-2 text-xs"
+                                                      onClick={() => statusData.summary.visit_id && handleSendMedicationRequest(item.id!, statusData.summary.visit_id)}
+                                                      disabled={sending === `medication-${item.id}`}
+                                                    >
+                                                      {sending === `medication-${item.id}` ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                      ) : (
+                                                        'Kirim'
+                                                      )}
+                                                    </Button>
+                                                  )}
+                                                  {resource.resource === 'MedicationDispense' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendMedicationDispense(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `dispense-${item.id}`}
+                                                      >
+                                                        {sending === `dispense-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Resep belum dikirim
+                                                      </Badge>
+                                                    )
+                                                  )}
+                                                  {resource.resource === 'QuestionnaireResponse' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendQuestionnaireResponse(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `questionnaire-${item.id}`}
+                                                      >
+                                                        {sending === `questionnaire-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Resep belum dikirim
+                                                      </Badge>
+                                                    )
+                                                  )}
+                                                  {resource.resource === 'MedicationAdministration' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendMedicationAdministration(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `administration-${item.id}`}
+                                                      >
+                                                        {sending === `administration-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Dispense belum dikirim
+                                                      </Badge>
+                                                    )
+                                                  )}
+                                                  {resource.resource === 'Composition' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendComposition(statusData.summary.visit_id)}
+                                                        disabled={sending === `composition-${statusData.summary.visit_id}`}
+                                                      >
+                                                        {sending === `composition-${statusData.summary.visit_id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.sent ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Encounter & Condition belum dikirim
+                                                      </Badge>
+                                                    ) : null
+                                                  )}
+                                                  {resource.resource === 'ClinicalImpression' && item.type && (
+                                                    item.can_send && item.data_exists ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendClinicalImpression(statusData.summary.visit_id, item.type as 'history' | 'rationale' | 'prognosis' | 'triage')}
+                                                        disabled={sending === `clinical-impression-${item.type}-${statusData.summary.visit_id}`}
+                                                      >
+                                                        {sending === `clinical-impression-${item.type}-${statusData.summary.visit_id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.sent && !item.data_exists ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Data belum diisi
+                                                      </Badge>
+                                                    ) : !item.sent && item.data_exists ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Encounter belum dikirim
+                                                      </Badge>
+                                                    ) : null
+                                                  )}
+                                                  {resource.resource === 'AllergyIntolerance' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendAllergy(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `allergy-${item.id}`}
+                                                      >
+                                                        {sending === `allergy-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.sent ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Encounter belum dikirim
+                                                      </Badge>
+                                                    ) : null
+                                                  )}
+                                                  {resource.resource === 'MedicationStatement' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendMedicationStatement(item.id!, statusData.summary.visit_id)}
+                                                        disabled={sending === `medicationstatement-${item.id}`}
+                                                      >
+                                                        {sending === `medicationstatement-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.sent ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Encounter belum dikirim
+                                                      </Badge>
+                                                    ) : null
+                                                  )}
+                                                  {resource.resource === 'CarePlan' && item.id && (
+                                                    item.can_send ? (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => statusData.summary.visit_id && handleSendCarePlan(item.id!, item.source as 'cppt' | 'disposition' | 'assessment', statusData.summary.visit_id)}
+                                                        disabled={sending === `careplan-${item.source}-${item.id}`}
+                                                      >
+                                                        {sending === `careplan-${item.source}-${item.id}` ? (
+                                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                          'Kirim'
+                                                        )}
+                                                      </Button>
+                                                    ) : !item.sent ? (
+                                                      <Badge variant="outline" className="text-[9px] h-5 px-1 text-orange-600 dark:text-orange-400">
+                                                        Encounter belum dikirim
+                                                      </Badge>
+                                                    ) : null
+                                                  )}
+                                                  {resource.resource !== 'Procedure' && resource.resource !== 'MedicationRequest' && resource.resource !== 'MedicationDispense' && resource.resource !== 'QuestionnaireResponse' && resource.resource !== 'MedicationAdministration' && resource.resource !== 'Composition' && resource.resource !== 'ClinicalImpression' && resource.resource !== 'AllergyIntolerance' && resource.resource !== 'MedicationStatement' && resource.resource !== 'CarePlan' && (
+                                                    <XCircle className="h-3 w-3 text-red-400" />
+                                                  )}
+                                                </>
+                                              )
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Note */}
+                              {resource.note && (
+                                <p className="text-xs text-muted-foreground flex items-start gap-1 pt-1">
+                                  <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                  {resource.note}
+                                </p>
+                              )}
                             </div>
-                          )}
-                          <span className={step.startsWith('✅') ? 'text-green-700 dark:text-green-400' : ''}>{step.replace('✅ ', '')}</span>
-                        </li>
-                      ))}
-                    </ul>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
+                </ScrollArea>
               </div>
-            </ScrollArea>
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -50,7 +50,7 @@ export function LocationsTab({ rooms, sending, onSendLocation, onShowResponse }:
         if (room.satusehat_id) {
           return (
             <div className="flex flex-col gap-1">
-              <Badge className="bg-green-100 text-green-800 gap-1 w-fit">
+              <Badge className="bg-green-100 text-green-800 gap-1 hover:bg-green-200 w-fit">
                 <CheckCircle className="h-3 w-3" />
                 Terkirim
               </Badge>
@@ -61,7 +61,7 @@ export function LocationsTab({ rooms, sending, onSendLocation, onShowResponse }:
           );
         }
         return (
-          <Badge variant="secondary" className="gap-1">
+          <Badge variant="secondary" className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-normal gap-1">
             <AlertCircle className="h-3 w-3" />
             Belum Dikirim
           </Badge>

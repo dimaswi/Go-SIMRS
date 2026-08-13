@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { medicalRecordsApi, type GeneralConsent } from "@/lib/api/medical-records";
-import { DOCUMENT_TYPES } from "@/lib/api/signature";
+import { DOCUMENT_TYPES, signatureApi, type DocumentSignatureStatus } from "@/lib/api/signature";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowRight, Printer, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +22,8 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signDialogOpen, setSignDialogOpen] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<DocumentSignatureStatus | null>(null);
+  const [consentId, setConsentId] = useState<number | null>(null);
 
   const form = useForm<GeneralConsent>({
     defaultValues: {
@@ -39,8 +41,6 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
     },
   });
 
-
-
   useEffect(() => {
     const fetchConsent = async () => {
       try {
@@ -52,6 +52,16 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
             visit_id: visitId,
             authorized_persons: res.data.data.authorized_persons || [],
           });
+
+          try {
+            if (res.data.data.id) {
+              setConsentId(res.data.data.id);
+              const sigRes = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT, Number(visitId));
+              setSignatureStatus(sigRes.data);
+            }
+          } catch (e) {
+            console.error("No signature found");
+          }
         }
       } catch (err) {
         console.error("Failed to load general consent", err);
@@ -65,7 +75,13 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
   const onSubmit = async (data: GeneralConsent) => {
     try {
       setSaving(true);
-      await medicalRecordsApi.saveGeneralConsent(visitId, data);
+      const saveRes = await medicalRecordsApi.saveGeneralConsent(visitId, data);
+
+      if (saveRes.data?.data?.id) {
+        form.setValue("id", saveRes.data.data.id);
+        setConsentId(saveRes.data.data.id);
+      }
+
       toast({
         title: "Tersimpan",
         description: "General Consent berhasil disimpan",
@@ -83,6 +99,23 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
     }
   };
 
+  // const handleSignSuccess = () => {
+  //   setSignDialogOpen(false);
+  //   if (consentId) {
+  //     signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT, Number(visitId))
+  //       .then(res => setSignatureStatus(res.data))
+  //       .catch(err => console.error("Failed to fetch signature status:", err));
+  //   }
+  // };
+
+  const handlePrint = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080/api` : 'http://localhost:8080/api');
+    const token = localStorage.getItem('token');
+    window.open(`${apiUrl}/print/general-consent/${visitId}?token=${token}`, "_blank");
+  };
+
+  const isFullySigned = signatureStatus?.is_fully_signed || false;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -91,12 +124,12 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
     );
   }
 
-  if (signDialogOpen) {
+  if (signDialogOpen && consentId) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto pb-10 bg-white">
+      <div className="w-full flex flex-col h-full min-h-[500px]">
         <SequentialSignatureWizard
           visitId={visitId}
-          documentId={visitId}
+          documentId={Number(visitId)}
           documentType={DOCUMENT_TYPES.GENERAL_CONSENT}
           documentTitle="Persetujuan Umum (RM-02)"
           steps={[
@@ -118,9 +151,15 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
           onSuccess={async () => {
             try {
               await medicalRecordsApi.saveGeneralConsent(visitId, { ...form.getValues() });
-              setSignDialogOpen(false);
+
+              if (consentId) {
+                const sigRes = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.GENERAL_CONSENT, Number(visitId));
+                setSignatureStatus(sigRes.data);
+              }
             } catch (e) {
-              console.error(e);
+              console.error("Failed to update signature status after save:", e);
+            } finally {
+              setSignDialogOpen(false);
             }
           }}
           renderCustomPatientModal={({ open, onClose }) => (
@@ -211,13 +250,12 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-10">
-      <form id="general-consent-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-
-        {/* Naskah Persetujuan Terbuka Penuh */}
-        <Card className="shadow-sm">
-          <CardContent className="pt-6">
-            <div className="text-sm text-justify leading-relaxed text-muted-foreground space-y-4">
+    <div className="space-y-6 w-full pb-10">
+      <form id="general-consent-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex flex-col">
+        {/* Naskah Persetujuan */}
+        <Card className="shadow-sm overflow-hidden flex flex-col">
+          <CardContent className="pt-0 px-0 overflow-y-auto max-h-[65vh] border-b">
+            <div className="w-full px-6 py-6 text-sm leading-relaxed text-justify text-muted-foreground space-y-4">
               <h3 className="font-bold uppercase text-center mb-6 text-black underline underline-offset-4">PERSETUJUAN UMUM</h3>
               <ol className="list-decimal pl-5 space-y-3">
                 <li><span className="font-bold text-black">HAK DAN KEWAJIBAN PASIEN,</span> Saya mengakui bahwa pada saat proses pendaftaran untuk mendapatkan perawatan di Klinik Rawat Inap Utama Muhammadiyah Kedungadem dan penandatanganan dokumen ini, saya telah mendapat informasi tentang hak-hak dan kewajiban saya sebagai pasien.</li>
@@ -236,8 +274,8 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
                 <li>
                   <span className="font-bold text-black">KEWAJIBAN PEMBAYARAN,</span> Saya menyatakan sebagai wali/pasien bersedia membayar seluruh biaya pelayanan sesuai pelayanan yang diberikan. Saya juga memahami bahwa :
                   <ol className="list-[lower-alpha] pl-5 mt-1 space-y-1">
-                    <li>Apabila saya tidak memberikan atau mencabut persetujuan pembukaan rahasia kedokteran kepada pihak asuransi/penjamin, maka seluruh biaya pelayanan menjadi tanggung jawab saya pribadi..</li>
-                    <li>Apabila diperlukan proses hukum untuk penagihan biaya pelayanan, maka seluruh biaya yang timbul akibat proses tersebut menjadi tanggung jawab saya..</li>
+                    <li>Apabila saya tidak memberikan atau mencabut persetujuan pembukaan rahasia kedokteran kepada pihak asuransi/penjamin, maka seluruh biaya pelayanan menjadi tanggung jawab saya pribadi.</li>
+                    <li>Apabila diperlukan proses hukum untuk penagihan biaya pelayanan, maka seluruh biaya yang timbul akibat proses tersebut menjadi tanggung jawab saya.</li>
                   </ol>
                 </li>
               </ol>
@@ -246,14 +284,48 @@ export function GeneralConsentForm({ visitId }: GeneralConsentFormProps) {
               </p>
             </div>
           </CardContent>
-        </Card>
 
-        {/* Action Buttons */}
-        <div className="sticky bottom-0 left-0 right-0 bg-white border-t p-4 flex justify-end gap-3 mt-8 z-10">
-          <Button type="submit" disabled={saving} size="lg" className="w-full sm:w-auto font-bold px-8">
-            {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : "Lanjut Tanda Tangan"}
-          </Button>
-        </div>
+          {/* Action Buttons (Static Footer of the Card) */}
+          <div className="p-4 bg-gray-50/80 backdrop-blur-sm flex justify-end gap-3 rounded-b-lg">
+            {isFullySigned ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!confirm("Apakah Anda yakin ingin menghapus semua tanda tangan untuk dokumen ini?")) return;
+                    setSaving(true);
+                    try {
+                      await signatureApi.resetDocumentSignatures(DOCUMENT_TYPES.GENERAL_CONSENT, Number(visitId));
+                      toast({ variant: "success", title: "Tanda tangan berhasil dihapus" });
+                      setSignatureStatus(null);
+                      setSignDialogOpen(true);
+                    } catch (error: any) {
+                      toast({ variant: "destructive", title: "Gagal menghapus tanda tangan" });
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  size="lg"
+                  className="font-bold text-red-600 hover:text-red-700 hover:bg-red-50"
+                  disabled={saving}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Hapus TTD
+                </Button>
+                <Button type="button" onClick={handlePrint} size="lg" className="font-bold px-8">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak
+                </Button>
+              </>
+            ) : (
+              <Button type="submit" disabled={saving} size="lg" className="w-full sm:w-auto font-bold px-8">
+                {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : "Lanjut Tanda Tangan"}
+                {!saving && <ArrowRight className="w-5 h-5 ml-2" />}
+              </Button>
+            )}
+          </div>
+        </Card>
       </form>
     </div>
   );

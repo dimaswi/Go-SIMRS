@@ -346,7 +346,7 @@ export default function BPJSToolsPage() {
   const [approvalSubmitting, setApprovalSubmitting] = useState<string | null>(null);
   const [approvalDialog, setApprovalDialog] = useState<VClaimPersetujuanSEPItem | null>(null);
   const [approvalKeterangan, setApprovalKeterangan] = useState("");
-  
+
   // Manual Approval SEP input state
   const [manualNoKartu, setManualNoKartu] = useState("");
   const [manualTglSep, setManualTglSep] = useState(() => new Date().toISOString().slice(0, 10));
@@ -901,1054 +901,1054 @@ export default function BPJSToolsPage() {
   return (
     <BPJSPageFrame
       title="Tools BPJS"
-      description="Seluruh utilitas BPJS dihimpun dalam workspace yang konsisten agar navigasi modul lebih mudah dibaca dan dipakai."
+      description=" "
       className="pb-6"
     >
       <BPJSSectionPanel bodyClassName="p-0">
-      <div className="border-b border-border/70 bg-muted/10 px-4 sm:px-5">
-        <div className="flex flex-wrap gap-6">
-          {moduleMenus.map((module) => (
-            <button
-              key={module.key}
-              type="button"
-              className={cn(
-                "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm transition-colors",
-                activeModule.key === module.key
-                  ? "border-primary font-semibold text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setActiveTab(module.items[0].key)}
-            >
-              <module.icon className="h-4 w-4" />
-              {module.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-6 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:p-5">
-        <aside className="self-start">
-          <div className="space-y-1">
-            {activeModule.items.map((item) => (
+        <div className="border-b border-border/70 bg-muted/10 px-4 sm:px-5">
+          <div className="flex flex-wrap gap-6">
+            {moduleMenus.map((module) => (
               <button
-                key={item.key}
+                key={module.key}
                 type="button"
-                onClick={() => setActiveTab(item.key)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg border-l-2 px-3 py-2 text-left text-sm transition-colors",
-                  activeTab === item.key
-                    ? "border-primary bg-muted/30 font-semibold text-foreground"
-                    : "border-transparent text-muted-foreground hover:bg-muted/20 hover:text-foreground",
+                  "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm transition-colors",
+                  activeModule.key === module.key
+                    ? "border-primary font-semibold text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
+                onClick={() => setActiveTab(module.items[0].key)}
               >
-                <item.icon className="h-4 w-4" />
-                {item.label}
+                <module.icon className="h-4 w-4" />
+                {module.label}
               </button>
             ))}
           </div>
-        </aside>
-
-        <div className="space-y-6">
-        {activeTab === "get-sep" && (
-          <ToolWorkspace
-            eyebrow="VClaim"
-            title="Get SEP"
-            description="Ambil detail SEP dari BPJS lalu simpan ke database bila diperlukan."
-            formTitle="Parameter pencarian"
-            formDescription="Masukkan nomor SEP yang ingin dicek di layanan VClaim."
-            form={
-              <form onSubmit={form.handleSubmit(handleGetSEP)} className="space-y-3">
-                <div>
-                  <Input id="sep-search" placeholder="Masukkan nomor SEP" {...form.register("noSEP")} />
-                  {form.formState.errors.noSEP && (
-                    <p className="mt-1 text-xs text-destructive">{form.formState.errors.noSEP.message}</p>
-                  )}
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari SEP
-                </Button>
-              </form>
-            }
-            resultTitle="Hasil data SEP"
-            resultDescription="Data peserta dan detail SEP akan tampil dalam bentuk kartu informasi."
-            resultMeta={
-              sepData ? (
-                <Button onClick={handleSaveSEP} size="sm" variant="outline" disabled={saving}>
-                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Simpan ke Database
-                </Button>
-              ) : null
-            }
-            result={
-              sepData ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Peserta</p>
-                    <ResultCards
-                      entries={[
-                        ["Nama Peserta", sepData.peserta?.nama],
-                        ["Nomor Kartu", sepData.peserta?.noKartu],
-                        ["Nomor Rekam Medis", sepData.peserta?.noMr],
-                        ["Tanggal Lahir", sepData.peserta?.tglLahir],
-                        ["Jenis Kelamin", sepData.peserta?.kelamin === "L" ? "Laki-laki" : sepData.peserta?.kelamin === "P" ? "Perempuan" : "-"],
-                        ["Hak Kelas", sepData.peserta?.hakKelas || sepData.klsRawat?.klsRawatHak],
-                      ]}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Detail SEP</p>
-                    <ResultCards
-                      entries={[
-                        ["Nomor SEP", sepData.noSep],
-                        ["Tanggal SEP", sepData.tglSep],
-                        ["Jenis Pelayanan", sepData.jnsPelayanan],
-                        ["Kelas Rawat", sepData.kelasRawat],
-                        ["Poli", sepData.poli],
-                        ["Tujuan Kunjungan", sepData.tujuanKunj?.nama],
-                        ["Status Kecelakaan", sepData.nmstatusKecelakaan],
-                        ["Nomor Rujukan", sepData.noRujukan],
-                      ]}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Diagnosa dan DPJP</p>
-                    <ResultCards
-                      entries={[
-                        ["Diagnosa", sepData.diagnosa],
-                        ["DPJP", sepData.dpjp?.nmDPJP ? `${sepData.dpjp.nmDPJP}${sepData.dpjp.kdDPJP ? ` (${sepData.dpjp.kdDPJP})` : ""}` : "-"],
-                        ["Catatan", sepData.catatan],
-                      ]}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <EmptyResult title="Belum ada data SEP" message="Masukkan nomor SEP lalu jalankan pencarian." />
-              )
-            }
-          />
-        )}
-
-        {activeTab === "surat-kontrol" && (
-          <ToolWorkspace
-            eyebrow="VClaim"
-            title="Surat Kontrol"
-            description="Cari surat kontrol peserta dan lakukan pembatalan bila diperlukan."
-            formTitle="Filter pencarian"
-            formDescription="Isi nomor kartu dan periode pencarian surat kontrol."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="sk-no-kartu">No. Kartu BPJS</Label>
-                  <Input
-                    id="sk-no-kartu"
-                    placeholder="Nomor kartu BPJS"
-                    value={skNoKartu}
-                    onChange={(e) => setSkNoKartu(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearchSuratKontrol()}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Bulan</Label>
-                    <Select value={skBulan} onValueChange={setSkBulan}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((n, i) => (
-                          <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Tahun</Label>
-                    <Select value={skTahun} onValueChange={setSkTahun}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
-                          <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label>Jenis Filter</Label>
-                  <div className="mt-1 grid grid-cols-2 gap-2">
-                    <Button type="button" variant={skFilter === "1" ? "default" : "outline"} onClick={() => setSkFilter("1")}>Terbit</Button>
-                    <Button type="button" variant={skFilter === "2" ? "default" : "outline"} onClick={() => setSkFilter("2")}>Kontrol</Button>
-                  </div>
-                </div>
-                <Button onClick={handleSearchSuratKontrol} className="w-full" disabled={skLoading}>
-                  {skLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Surat Kontrol
-                </Button>
-              </div>
-            }
-            resultTitle="Daftar surat kontrol"
-            resultDescription="Semua data surat kontrol ditampilkan dalam bentuk tabel agar mudah dibaca dan ditindaklanjuti."
-            resultMeta={skData.length > 0 ? <Badge variant="secondary">{skData.length} data</Badge> : null}
-            result={
-              skSearched ? (
-                skData.length > 0 ? (
-                  <div className="rounded-2xl border overflow-hidden bg-background">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
-                            <th className="px-4 py-3 font-medium">No. Surat Kontrol</th>
-                            <th className="px-4 py-3 font-medium">Peserta</th>
-                            <th className="px-4 py-3 font-medium">Tgl Kontrol</th>
-                            <th className="px-4 py-3 font-medium">Terbit</th>
-                            <th className="px-4 py-3 font-medium">Poli</th>
-                            <th className="px-4 py-3 font-medium">Dokter</th>
-                            <th className="px-4 py-3 text-center font-medium">SEP</th>
-                            <th className="px-4 py-3 text-right font-medium">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {skData.map((item) => (
-                            <tr key={item.noSuratKontrol} className="border-t align-top">
-                              <td className="px-4 py-3 font-mono text-xs">{item.noSuratKontrol}</td>
-                              <td className="px-4 py-3">{item.nama}</td>
-                              <td className="px-4 py-3">{item.tglRencanaKontrol}</td>
-                              <td className="px-4 py-3">{item.tglTerbitKontrol}</td>
-                              <td className="px-4 py-3">{item.namaPoliTujuan}</td>
-                              <td className="px-4 py-3">{item.namaDokter}</td>
-                              <td className="px-4 py-3 text-center">
-                                {item.terbitSEP === "Sudah" ? <Check className="mx-auto h-4 w-4 text-emerald-600" /> : <Minus className="mx-auto h-4 w-4 text-muted-foreground" />}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setSkDeleteConfirm(item)}
-                                  disabled={skDeleting === item.noSuratKontrol || item.terbitSEP === "Sudah"}
-                                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                  {skDeleting === item.noSuratKontrol ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <EmptyResult title="Tidak ada surat kontrol" message="Data surat kontrol tidak ditemukan untuk parameter yang dipilih." />
-                )
-              ) : (
-                <EmptyResult title="Belum ada pencarian" message="Isi filter lalu tekan tombol cari untuk melihat daftar surat kontrol." />
-              )
-            }
-          />
-        )}
-
-        {activeTab === "pengajuan-approval" && (
-          <ToolWorkspace
-            eyebrow="VClaim"
-            title="Pengajuan dan Approval SEP"
-            description="Gunakan area kiri untuk mengajukan SEP atau approval manual, lalu cek daftar approval di area hasil."
-            formTitle="Form pengajuan"
-            formDescription="Semua input pengajuan dan approval manual dikelompokkan dalam satu panel kerja."
-            form={
-              <div className="space-y-4">
-                <div className="space-y-3 border-b pb-5">
-                  <div>
-                    <p className="text-sm font-semibold">Pengajuan SEP</p>
-                    <p className="text-xs text-muted-foreground">Ajukan kebutuhan SEP baru ke BPJS.</p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <Label>No. Kartu BPJS</Label>
-                      <Input value={pengajuanNoKartu} onChange={(e) => setPengajuanNoKartu(e.target.value)} placeholder="0001234567890" />
-                    </div>
-                    <div>
-                      <Label>Tgl SEP</Label>
-                      <Input type="date" value={pengajuanTglSep} onChange={(e) => setPengajuanTglSep(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Jenis Pelayanan</Label>
-                      <Select value={pengajuanJnsPelayanan} onValueChange={setPengajuanJnsPelayanan}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2">Rawat Jalan</SelectItem>
-                          <SelectItem value="1">Rawat Inap</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Jenis Pengajuan</Label>
-                      <Select value={pengajuanJnsPengajuan} onValueChange={setPengajuanJnsPengajuan}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Backdate</SelectItem>
-                          <SelectItem value="2">Finger Print</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Keterangan</Label>
-                    <Input value={pengajuanKeterangan} onChange={(e) => setPengajuanKeterangan(e.target.value)} placeholder="Tuliskan alasan pengajuan" />
-                  </div>
-                  <Button onClick={handlePengajuanSEP} className="w-full" disabled={pengajuanSubmitting}>
-                    {pengajuanSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                    Ajukan SEP
-                  </Button>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <p className="text-sm font-semibold">Approval Manual</p>
-                    <p className="text-xs text-muted-foreground">Gunakan bila approval perlu diajukan tanpa memilih dari daftar.</p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <Label>No. Kartu BPJS</Label>
-                      <Input value={manualNoKartu} onChange={(e) => setManualNoKartu(e.target.value)} placeholder="0001234567890" />
-                    </div>
-                    <div>
-                      <Label>Tgl SEP</Label>
-                      <Input type="date" value={manualTglSep} onChange={(e) => setManualTglSep(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Jenis Pelayanan</Label>
-                      <Select value={manualJnsPelayanan} onValueChange={setManualJnsPelayanan}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2">Rawat Jalan</SelectItem>
-                          <SelectItem value="1">Rawat Inap</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Jenis Pengajuan</Label>
-                      <Select value={manualJnsPengajuan} onValueChange={setManualJnsPengajuan}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Backdate</SelectItem>
-                          <SelectItem value="2">Finger Print</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Keterangan</Label>
-                    <Input value={manualKeterangan} onChange={(e) => setManualKeterangan(e.target.value)} placeholder="Tuliskan alasan approval manual" />
-                  </div>
-                  <Button onClick={handleManualApprovalSEP} className="w-full" disabled={manualApprovalSubmitting}>
-                    {manualApprovalSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                    Ajukan Approval Manual
-                  </Button>
-                </div>
-              </div>
-            }
-            resultTitle="Daftar SEP yang menunggu approval"
-            resultDescription="Gunakan filter periode untuk melihat daftar approval yang perlu ditindaklanjuti."
-            resultMeta={approvalData.length > 0 ? <Badge variant="secondary">{approvalData.length} data</Badge> : null}
-            result={
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-end gap-3 border-b pb-4">
-                  <div className="w-40">
-                    <Label>Bulan</Label>
-                    <Select value={approvalBulan} onValueChange={setApprovalBulan}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((n, i) => (
-                          <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-32">
-                    <Label>Tahun</Label>
-                    <Select value={approvalTahun} onValueChange={setApprovalTahun}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
-                          <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleSearchApprovalSEP} disabled={approvalLoading}>
-                    {approvalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                    Cari Daftar Approval
-                  </Button>
-                </div>
-
-                {approvalSearched ? (
-                  approvalData.length > 0 ? (
-                    <div className="rounded-2xl border overflow-hidden bg-background">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
-                              <th className="px-4 py-3 font-medium">No. Kartu</th>
-                              <th className="px-4 py-3 font-medium">Nama</th>
-                              <th className="px-4 py-3 font-medium">Tgl SEP</th>
-                              <th className="px-4 py-3 font-medium">Pelayanan</th>
-                              <th className="px-4 py-3 font-medium">Status</th>
-                              <th className="px-4 py-3 text-right font-medium">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {approvalData.map((item) => (
-                              <tr key={`${item.noKartu}-${item.tglsep}`} className="border-t align-top">
-                                <td className="px-4 py-3 font-mono text-xs">{item.noKartu}</td>
-                                <td className="px-4 py-3">{item.nama}</td>
-                                <td className="px-4 py-3">{item.tglsep}</td>
-                                <td className="px-4 py-3">{item.jnspelayanan === "RI" ? "Rawat Inap" : "Rawat Jalan"}</td>
-                                <td className="px-4 py-3">
-                                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
-                                    {item.status}
-                                  </Badge>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setApprovalDialog(item);
-                                      setApprovalKeterangan("");
-                                    }}
-                                    disabled={approvalSubmitting === item.noKartu}
-                                  >
-                                    {approvalSubmitting === item.noKartu ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                                    Approval
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <EmptyResult title="Tidak ada SEP menunggu approval" message="Tidak ditemukan data approval untuk periode yang dipilih." />
-                  )
-                ) : (
-                  <EmptyResult title="Belum ada pencarian" message="Pilih bulan dan tahun lalu tekan tombol cari untuk menampilkan daftar approval." />
-                )}
-              </div>
-            }
-          />
-        )}
-
-        {activeTab === "icare" && (
-          <ToolWorkspace
-            eyebrow="I-Care"
-            title="Validasi I-Care"
-            description="Validasi nomor kartu dan kode dokter untuk membuka sesi BPJS I-Care."
-            formTitle="Parameter validasi"
-            formDescription="Isi nomor kartu dan kode dokter BPJS untuk membuka I-Care."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>No. Kartu BPJS</Label>
-                  <Input value={icareNoKartu} onChange={(e) => setIcareNoKartu(e.target.value)} placeholder="0001234567890" onKeyDown={(e) => e.key === "Enter" && handleICareValidate()} />
-                </div>
-                <div>
-                  <Label>Kode Dokter BPJS</Label>
-                  <Input value={icareKodeDokter} onChange={(e) => setIcareKodeDokter(e.target.value)} placeholder="12345" onKeyDown={(e) => e.key === "Enter" && handleICareValidate()} />
-                </div>
-                <Button onClick={handleICareValidate} className="w-full" disabled={icareLoading}>
-                  {icareLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
-                  Buka I-Care
-                </Button>
-              </div>
-            }
-            resultTitle="Status validasi"
-            resultDescription="Status sesi I-Care aktif akan tampil di area ini."
-            resultMeta={
-              icareUrl ? (
-                <Button size="sm" variant="outline" onClick={() => setIcareOpen(true)}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Buka Lagi
-                </Button>
-              ) : null
-            }
-            result={
-              icareUrl ? (
-                <ResultCards
-                  entries={[
-                    ["Status", "Sesi I-Care siap digunakan"],
-                    ["Nomor Kartu", icareNoKartu],
-                    ["Kode Dokter", icareKodeDokter],
-                  ]}
-                />
-              ) : (
-                <EmptyResult title="Belum ada sesi I-Care" message="Setelah validasi berhasil, status sesi akan ditampilkan di sini." />
-              )
-            }
-          />
-        )}
-
-        {activeTab === "fingerprint-launch" && (
-          <ToolWorkspace
-            eyebrow="Sidik Jari"
-            title="Aplikasi Sidik Jari BPJS"
-            description="Buka After.exe dari server Windows lokal lalu isi field username dan password secara otomatis. Fitur ini hanya bekerja bila backend berjalan di desktop Windows yang sama dengan aplikasi BPJS."
-            formTitle="Parameter login"
-            formDescription="Path executable bisa diubah bila aplikasi BPJS dipasang di lokasi lain."
-            form={
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="fingerprint-executable">Path After.exe</Label>
-                  <Input
-                    id="fingerprint-executable"
-                    value={fingerprintExecutablePath}
-                    onChange={(event) => setFingerprintExecutablePath(event.target.value)}
-                    placeholder={DEFAULT_BPJS_FINGERPRINT_EXECUTABLE}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="fingerprint-username">Username</Label>
-                  <Input
-                    id="fingerprint-username"
-                    value={fingerprintUsername}
-                    onChange={(event) => setFingerprintUsername(event.target.value)}
-                    placeholder="Masukkan username aplikasi BPJS"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="fingerprint-password">Password</Label>
-                  <Input
-                    id="fingerprint-password"
-                    type="password"
-                    value={fingerprintPassword}
-                    onChange={(event) => setFingerprintPassword(event.target.value)}
-                    placeholder="Masukkan password aplikasi BPJS"
-                  />
-                </div>
-                <div className="flex items-start gap-3 rounded-xl border bg-muted/10 px-4 py-3">
-                  <Checkbox
-                    id="fingerprint-auto-submit"
-                    checked={fingerprintAutoSubmit}
-                    onCheckedChange={(checked) => setFingerprintAutoSubmit(checked === true)}
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="fingerprint-auto-submit" className="text-sm font-medium">
-                      Login otomatis setelah field terisi
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Jika tidak dicentang, sistem hanya membuka aplikasi dan mengisi username serta password.
-                    </p>
-                  </div>
-                </div>
-                <Button type="button" className="w-full" disabled={fingerprintLoading} onClick={handleLaunchFingerprintApp}>
-                  {fingerprintLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Fingerprint className="mr-2 h-4 w-4" />
-                  )}
-                  Buka Aplikasi Sidik Jari
-                </Button>
-              </div>
-            }
-            resultTitle="Status eksekusi"
-            resultDescription="Status launch dan automasi input dari backend Windows lokal."
-            result={
-              fingerprintResult ? (
-                <FriendlyResult data={fingerprintResult} />
-              ) : (
-                <EmptyResult
-                  title="Belum dijalankan"
-                  message="Isi kredensial lalu jalankan tool untuk membuka aplikasi sidik jari BPJS."
-                />
-              )
-            }
-          />
-        )}
-
-        {activeTab === "antrian-online" && (
-          <ToolWorkspace
-            eyebrow="Antrol"
-            title="Pendaftaran Antrean Online"
-            description="Pantau daftar antrean BPJS per tanggal, lalu buka task atau detail pendaftaran dari hasil tabel."
-            formTitle="Filter tanggal"
-            formDescription="Pilih tanggal layanan untuk melihat antrean yang sudah terdaftar di BPJS."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Tanggal</Label>
-                  <Input type="date" value={antreanTanggal} onChange={(e) => setAntreanTanggal(e.target.value)} />
-                </div>
-                <Button onClick={handleSearchAntrean} className="w-full" disabled={antreanLoading}>
-                  {antreanLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Antrean
-                </Button>
-              </div>
-            }
-            resultTitle="Daftar antrean"
-            resultDescription="Seluruh hasil antrean ditampilkan dalam tabel. Detail dan task dibuka dari baris yang dipilih."
-            resultMeta={antreanData.length > 0 ? <Badge variant="secondary">{antreanData.length} antrean</Badge> : null}
-            result={
-              antreanSearched ? (
-                <div className="space-y-4">
-                  {antreanData.length > 0 ? (
-                    <div className="rounded-2xl border overflow-hidden bg-background">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
-                              <th className="px-4 py-3 font-medium">Kode Booking</th>
-                              <th className="px-4 py-3 font-medium">Peserta</th>
-                              <th className="px-4 py-3 font-medium">Poli dan Dokter</th>
-                              <th className="px-4 py-3 font-medium">Jadwal</th>
-                              <th className="px-4 py-3 font-medium">Status</th>
-                              <th className="px-4 py-3 text-right font-medium">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {antreanData.map((item) => (
-                              <tr key={item.kodebooking} className="border-t align-top">
-                                <td className="px-4 py-3">
-                                  <div className="font-mono text-xs font-medium">{item.kodebooking}</div>
-                                  <div className="mt-1 text-xs text-muted-foreground">No. Antrean: {item.noantrean}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="text-sm">BPJS: {item.nokapst}</div>
-                                  <div className="text-xs text-muted-foreground">NIK: {item.nik}</div>
-                                  <div className="text-xs text-muted-foreground">RM: {item.norekammedis}</div>
-                                  <div className="text-xs text-muted-foreground">HP: {item.nohp}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div>{item.kodepoli}</div>
-                                  <div className="text-xs text-muted-foreground">Dokter: {item.kodedokter}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div>{item.jampraktek}</div>
-                                  <div className="text-xs text-muted-foreground">Referensi: {item.nomorreferensi || "-"}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <Badge variant="outline" className={cn(
-                                    item.status === "Belum" && "bg-amber-50 text-amber-700 border-amber-200",
-                                    item.status === "Hadir" && "bg-green-50 text-green-700 border-green-200",
-                                    item.status === "Selesai dilayani" && "bg-blue-50 text-blue-700 border-blue-200",
-                                  )}>
-                                    {item.status}
-                                  </Badge>
-                                  <div className="mt-2 text-xs text-muted-foreground">{item.sumberdata}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex justify-end gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}>
-                                      {antreanTasksLoading === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
-                                      Task
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}>
-                                      {antreanDetailLoading === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                                      Detail
-                                    </Button>
-                                    <Button variant="destructive" size="sm" disabled={antreanCancelling === item.kodebooking} onClick={() => setAntreanCancelConfirm(item)}>
-                                      {antreanCancelling === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
-                                      Batal
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <EmptyResult title="Tidak ada antrean" message="Tidak ditemukan antrean BPJS pada tanggal yang dipilih." />
-                  )}
-
-                  {antreanExpandedItem && (
-                    <div className="border-t pt-4">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Button type="button" variant={antreanDetailTab === "tasks" ? "default" : "outline"} size="sm" onClick={() => handleToggleAntreanDetail(antreanExpandedItem, "tasks")}>List Task</Button>
-                        <Button type="button" variant={antreanDetailTab === "detail" ? "default" : "outline"} size="sm" onClick={() => handleToggleAntreanDetail(antreanExpandedItem, "detail")}>Detail Pendaftaran</Button>
-                        <div className="flex-1" />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => setAntreanExpandedItem(null)}>
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {antreanDetailTab === "tasks" && (
-                        antreanTasksLoading === antreanExpandedItem ? (
-                          <EmptyResult title="Memuat task" message="Daftar task sedang diambil dari BPJS." />
-                        ) : antreanTasks[antreanExpandedItem]?.length ? (
-                          <div className="rounded-2xl border overflow-hidden bg-background">
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full text-sm">
-                                <thead>
-                                  <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
-                                    <th className="px-4 py-3 font-medium">Task ID</th>
-                                    <th className="px-4 py-3 font-medium">Nama Task</th>
-                                    <th className="px-4 py-3 font-medium">Waktu</th>
-                                    <th className="px-4 py-3 font-medium">Waktu RS</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {antreanTasks[antreanExpandedItem].map((task) => (
-                                    <tr key={task.taskid} className="border-t">
-                                      <td className="px-4 py-3">{task.taskid}</td>
-                                      <td className="px-4 py-3">{task.taskname}</td>
-                                      <td className="px-4 py-3">{task.waktu || "-"}</td>
-                                      <td className="px-4 py-3">{task.wakturs || "-"}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        ) : (
-                          <EmptyResult title="Tidak ada task" message="BPJS tidak mengirimkan daftar task untuk booking ini." />
-                        )
-                      )}
-
-                      {antreanDetailTab === "detail" && (
-                        antreanDetailLoading === antreanExpandedItem ? (
-                          <EmptyResult title="Memuat detail" message="Detail pendaftaran sedang diambil dari BPJS." />
-                        ) : antreanBookingDetail[antreanExpandedItem]?.length ? (
-                          <div className="space-y-4">
-                            {antreanBookingDetail[antreanExpandedItem].map((detail, index) => (
-                              <div key={`${detail.kodebooking}-${index}`} className="space-y-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Detail pendaftaran {index + 1}</p>
-                                <ResultCards
-                                  entries={[
-                                    ["Kode Booking", detail.kodebooking],
-                                    ["Tanggal", detail.tanggal],
-                                    ["Kode Poli", detail.kodepoli],
-                                    ["Kode Dokter", detail.kodedokter],
-                                    ["Jam Praktek", detail.jampraktek],
-                                    ["NIK", detail.nik],
-                                    ["No. Kartu BPJS", detail.nokapst],
-                                    ["No. HP", detail.nohp],
-                                    ["No. Rekam Medis", detail.norekammedis],
-                                    ["No. Antrean", detail.noantrean],
-                                    ["Jenis Kunjungan", detail.jeniskunjungan === 1 ? "Rujukan FKTP" : detail.jeniskunjungan === 2 ? "Rujukan Internal" : detail.jeniskunjungan === 3 ? "Kontrol" : detail.jeniskunjungan === 4 ? "Rujukan Antar RS" : detail.jeniskunjungan],
-                                    ["No. Referensi", detail.nomorreferensi],
-                                    ["Sumber Data", detail.sumberdata],
-                                    ["Status", detail.status],
-                                    ["Estimasi Dilayani", detail.estimasidilayani ? new Date(detail.estimasidilayani).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"],
-                                    ["Created", detail.createdtime ? new Date(detail.createdtime).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"],
-                                  ]}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyResult title="Tidak ada detail" message="BPJS tidak mengirimkan detail pendaftaran untuk booking ini." />
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <EmptyResult title="Belum ada pencarian" message="Pilih tanggal layanan lalu jalankan pencarian antrean." />
-              )
-            }
-          />
-        )}
-
-        {activeTab === "apotek-dpho" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi DPHO"
-            description="Ambil daftar referensi DPHO dari BPJS Apotek Online."
-            formTitle="Aksi"
-            formDescription="Gunakan tombol di bawah ini untuk memuat seluruh referensi DPHO."
-            form={
-              <Button onClick={handleApotekReferensiDPHO} className="w-full" disabled={apotekLoading === "apotek-dpho"}>
-                {apotekLoading === "apotek-dpho" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                Ambil Referensi DPHO
-              </Button>
-            }
-            resultTitle="Hasil referensi DPHO"
-            resultDescription="Jika hasil berupa daftar, sistem akan menampilkannya sebagai tabel."
-            result={<FriendlyResult data={apotekDPHOResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-setting" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi Apotek"
-            description="Cari referensi apotek berdasarkan kode apotek BPJS."
-            formTitle="Parameter pencarian"
-            formDescription="Masukkan kode apotek yang ingin dicek."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Kode Apotek</Label>
-                  <Input value={apotekKodeApotek} onChange={(e) => setApotekKodeApotek(e.target.value)} placeholder="Contoh: 0112A017" />
-                </div>
-                <Button onClick={handleApotekReferensiSetting} className="w-full" disabled={apotekLoading === "apotek-setting"}>
-                  {apotekLoading === "apotek-setting" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Referensi Apotek
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil referensi apotek"
-            resultDescription="Deskripsi apotek akan muncul sebagai kartu informasi atau tabel bila berupa daftar."
-            result={<FriendlyResult data={apotekSettingResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-ppk" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi PPK"
-            description="Cari fasilitas kesehatan berdasarkan jenis faskes dan nama faskes."
-            formTitle="Parameter pencarian"
-            formDescription="Tentukan jenis faskes dan masukkan nama faskes yang ingin dicari."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Jenis Faskes</Label>
-                  <Select value={apotekJenisFaskes} onValueChange={setApotekJenisFaskes}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Faskes 1</SelectItem>
-                      <SelectItem value="2">Faskes 2 / RS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Nama Faskes</Label>
-                  <Input value={apotekNamaFaskes} onChange={(e) => setApotekNamaFaskes(e.target.value)} placeholder="Nama faskes" />
-                </div>
-                <Button onClick={handleApotekReferensiPPK} className="w-full" disabled={apotekLoading === "apotek-ppk"}>
-                  {apotekLoading === "apotek-ppk" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Referensi PPK
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil referensi PPK"
-            resultDescription="Daftar fasilitas kesehatan akan ditampilkan dalam tabel."
-            result={<FriendlyResult data={apotekPPKResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-obat" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi Obat"
-            description="Cari referensi obat berdasarkan jenis obat, tanggal resep, dan kata kunci pencarian."
-            formTitle="Parameter pencarian"
-            formDescription="Lengkapi semua parameter sebelum menjalankan pencarian referensi obat."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Kode Jenis Obat</Label>
-                  <Input value={apotekKodeJenisObat} onChange={(e) => setApotekKodeJenisObat(e.target.value)} placeholder="Kosongkan jika tidak ingin difilter" />
-                </div>
-                <div>
-                  <Label>Tanggal Resep</Label>
-                  <Input type="date" value={apotekTglResep} onChange={(e) => setApotekTglResep(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Filter Obat</Label>
-                  <Input value={apotekFilterObat} onChange={(e) => setApotekFilterObat(e.target.value)} placeholder="Boleh dikosongkan" />
-                </div>
-                <Button onClick={handleApotekReferensiObat} className="w-full" disabled={apotekLoading === "apotek-obat"}>
-                  {apotekLoading === "apotek-obat" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Referensi Obat
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil referensi obat"
-            resultDescription="Hasil pencarian obat akan ditampilkan dalam format tabel atau kartu deskripsi."
-            result={<FriendlyResult data={apotekObatResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-poli" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi Poli"
-            description="Cari referensi poli berdasarkan kode atau nama poli."
-            formTitle="Parameter pencarian"
-            formDescription="Masukkan kode poli atau nama poli yang ingin dicari."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Kode atau Nama Poli</Label>
-                  <Input value={apotekCariPoli} onChange={(e) => setApotekCariPoli(e.target.value)} placeholder="Contoh: INT" />
-                </div>
-                <Button onClick={handleApotekReferensiPoli} className="w-full" disabled={apotekLoading === "apotek-poli"}>
-                  {apotekLoading === "apotek-poli" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari Referensi Poli
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil referensi poli"
-            resultDescription="Hasil ditampilkan dalam bentuk tabel untuk memudahkan pembacaan daftar poli."
-            result={<FriendlyResult data={apotekPoliResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-sep" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="No Kunjungan / SEP"
-            description="Cari data kunjungan berdasarkan nomor SEP atau nomor kunjungan yang dimiliki pasien."
-            formTitle="Parameter pencarian"
-            formDescription="Masukkan nomor SEP atau nomor kunjungan BPJS."
-            form={
-              <div className="space-y-3">
-                <div>
-                  <Label>Nomor Kunjungan / SEP</Label>
-                  <Input value={apotekNoSEP} onChange={(e) => setApotekNoSEP(e.target.value)} placeholder="Contoh: 1202R0010318V000092" />
-                </div>
-                <Button onClick={handleApotekCariSEP} className="w-full" disabled={apotekLoading === "apotek-sep"}>
-                  {apotekLoading === "apotek-sep" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Cari No Kunjungan / SEP
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil pencarian kunjungan"
-            resultDescription="Detail kunjungan akan disajikan sebagai kartu, dan daftar akan ditampilkan dalam tabel."
-            result={<FriendlyResult data={apotekSEPResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-spesialistik" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Referensi Spesialis"
-            description="Ambil daftar referensi spesialis atau spesialistik yang tersedia di BPJS Apotek Online."
-            formTitle="Aksi"
-            formDescription="Klik tombol di bawah untuk memuat daftar spesialis."
-            form={
-              <Button onClick={handleApotekSpesialistik} className="w-full" disabled={apotekLoading === "apotek-spesialistik"}>
-                {apotekLoading === "apotek-spesialistik" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                Ambil Referensi Spesialis
-              </Button>
-            }
-            resultTitle="Hasil referensi spesialis"
-            resultDescription="Daftar spesialis akan ditampilkan dalam tabel yang seragam dengan modul lain."
-            result={<FriendlyResult data={apotekSpesialistikResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-klaim" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Data Klaim"
-            description="Laporan rekap data klaim apotek online BPJS."
-            formTitle="Parameter Laporan"
-            formDescription="Pilih bulan, tahun, jenis obat, dan status verifikasi."
-            form={
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Bulan</Label>
-                    <Select value={apotekKlaimBulan} onValueChange={setApotekKlaimBulan}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }).map((_, i) => (
-                          <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Tahun</Label>
-                    <Select value={apotekKlaimTahun} onValueChange={setApotekKlaimTahun}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 5 }).map((_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label>Jenis Obat</Label>
-                  <Select value={apotekKlaimJenisObat} onValueChange={setApotekKlaimJenisObat}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Semua</SelectItem>
-                      <SelectItem value="1">Obat PRB</SelectItem>
-                      <SelectItem value="2">Obat Kronis Blm Stabil</SelectItem>
-                      <SelectItem value="3">Obat Kemoterapi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={apotekKlaimStatus} onValueChange={setApotekKlaimStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Belum diverifikasi</SelectItem>
-                      <SelectItem value="2">Sudah Verifikasi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleApotekKlaim} className="w-full" disabled={apotekLoading === "apotek-klaim"}>
-                  {apotekLoading === "apotek-klaim" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Tampilkan Data Klaim
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil Laporan Klaim"
-            resultDescription="Menampilkan rekap jumlah data klaim dan daftar SEP beserta biayanya."
-            result={<FriendlyResult data={apotekKlaimResult} />}
-          />
-        )}
-
-        {activeTab === "apotek-rekap-prb" && (
-          <ToolWorkspace
-            eyebrow="Apotek Online"
-            title="Rekap Peserta PRB"
-            description="Daftar peserta PRB yang telah dilayani oleh Apotek pada bulan dan tahun tertentu."
-            formTitle="Parameter Laporan"
-            formDescription="Pilih tahun dan bulan laporan."
-            form={
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Bulan</Label>
-                    <Select value={apotekPrbBulan} onValueChange={setApotekPrbBulan}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }).map((_, i) => (
-                          <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Tahun</Label>
-                    <Select value={apotekPrbTahun} onValueChange={setApotekPrbTahun}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 5 }).map((_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Button onClick={handleApotekRekapPrb} className="w-full" disabled={apotekLoading === "apotek-rekap-prb"}>
-                  {apotekLoading === "apotek-rekap-prb" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                  Tampilkan Rekap PRB
-                </Button>
-              </div>
-            }
-            resultTitle="Hasil Rekap Peserta PRB"
-            resultDescription="Daftar peserta PRB beserta informasi obat dan diagnosa."
-            result={<FriendlyResult data={apotekPrbResult} />}
-          />
-        )}
         </div>
-      </div>
+
+        <div className="grid gap-6 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:p-5">
+          <aside className="self-start">
+            <div className="space-y-1">
+              {activeModule.items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveTab(item.key)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg border-l-2 px-3 py-2 text-left text-sm transition-colors",
+                    activeTab === item.key
+                      ? "border-primary bg-muted/30 font-semibold text-foreground"
+                      : "border-transparent text-muted-foreground hover:bg-muted/20 hover:text-foreground",
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <div className="space-y-6">
+            {activeTab === "get-sep" && (
+              <ToolWorkspace
+                eyebrow="VClaim"
+                title="Get SEP"
+                description="Ambil detail SEP dari BPJS lalu simpan ke database bila diperlukan."
+                formTitle="Parameter pencarian"
+                formDescription="Masukkan nomor SEP yang ingin dicek di layanan VClaim."
+                form={
+                  <form onSubmit={form.handleSubmit(handleGetSEP)} className="space-y-3">
+                    <div>
+                      <Input id="sep-search" placeholder="Masukkan nomor SEP" {...form.register("noSEP")} />
+                      {form.formState.errors.noSEP && (
+                        <p className="mt-1 text-xs text-destructive">{form.formState.errors.noSEP.message}</p>
+                      )}
+                    </div>
+                    <Button type="submit" className="w-full" disabled={loading}>
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari SEP
+                    </Button>
+                  </form>
+                }
+                resultTitle="Hasil data SEP"
+                resultDescription="Data peserta dan detail SEP akan tampil dalam bentuk kartu informasi."
+                resultMeta={
+                  sepData ? (
+                    <Button onClick={handleSaveSEP} size="sm" variant="outline" disabled={saving}>
+                      {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Simpan ke Database
+                    </Button>
+                  ) : null
+                }
+                result={
+                  sepData ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Peserta</p>
+                        <ResultCards
+                          entries={[
+                            ["Nama Peserta", sepData.peserta?.nama],
+                            ["Nomor Kartu", sepData.peserta?.noKartu],
+                            ["Nomor Rekam Medis", sepData.peserta?.noMr],
+                            ["Tanggal Lahir", sepData.peserta?.tglLahir],
+                            ["Jenis Kelamin", sepData.peserta?.kelamin === "L" ? "Laki-laki" : sepData.peserta?.kelamin === "P" ? "Perempuan" : "-"],
+                            ["Hak Kelas", sepData.peserta?.hakKelas || sepData.klsRawat?.klsRawatHak],
+                          ]}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Detail SEP</p>
+                        <ResultCards
+                          entries={[
+                            ["Nomor SEP", sepData.noSep],
+                            ["Tanggal SEP", sepData.tglSep],
+                            ["Jenis Pelayanan", sepData.jnsPelayanan],
+                            ["Kelas Rawat", sepData.kelasRawat],
+                            ["Poli", sepData.poli],
+                            ["Tujuan Kunjungan", sepData.tujuanKunj?.nama],
+                            ["Status Kecelakaan", sepData.nmstatusKecelakaan],
+                            ["Nomor Rujukan", sepData.noRujukan],
+                          ]}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Diagnosa dan DPJP</p>
+                        <ResultCards
+                          entries={[
+                            ["Diagnosa", sepData.diagnosa],
+                            ["DPJP", sepData.dpjp?.nmDPJP ? `${sepData.dpjp.nmDPJP}${sepData.dpjp.kdDPJP ? ` (${sepData.dpjp.kdDPJP})` : ""}` : "-"],
+                            ["Catatan", sepData.catatan],
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyResult title="Belum ada data SEP" message="Masukkan nomor SEP lalu jalankan pencarian." />
+                  )
+                }
+              />
+            )}
+
+            {activeTab === "surat-kontrol" && (
+              <ToolWorkspace
+                eyebrow="VClaim"
+                title="Surat Kontrol"
+                description="Cari surat kontrol peserta dan lakukan pembatalan bila diperlukan."
+                formTitle="Filter pencarian"
+                formDescription="Isi nomor kartu dan periode pencarian surat kontrol."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="sk-no-kartu">No. Kartu BPJS</Label>
+                      <Input
+                        id="sk-no-kartu"
+                        placeholder="Nomor kartu BPJS"
+                        value={skNoKartu}
+                        onChange={(e) => setSkNoKartu(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearchSuratKontrol()}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Bulan</Label>
+                        <Select value={skBulan} onValueChange={setSkBulan}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((n, i) => (
+                              <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Tahun</Label>
+                        <Select value={skTahun} onValueChange={setSkTahun}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                              <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Jenis Filter</Label>
+                      <div className="mt-1 grid grid-cols-2 gap-2">
+                        <Button type="button" variant={skFilter === "1" ? "default" : "outline"} onClick={() => setSkFilter("1")}>Terbit</Button>
+                        <Button type="button" variant={skFilter === "2" ? "default" : "outline"} onClick={() => setSkFilter("2")}>Kontrol</Button>
+                      </div>
+                    </div>
+                    <Button onClick={handleSearchSuratKontrol} className="w-full" disabled={skLoading}>
+                      {skLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Surat Kontrol
+                    </Button>
+                  </div>
+                }
+                resultTitle="Daftar surat kontrol"
+                resultDescription="Semua data surat kontrol ditampilkan dalam bentuk tabel agar mudah dibaca dan ditindaklanjuti."
+                resultMeta={skData.length > 0 ? <Badge variant="secondary">{skData.length} data</Badge> : null}
+                result={
+                  skSearched ? (
+                    skData.length > 0 ? (
+                      <div className="rounded-2xl border overflow-hidden bg-background">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
+                                <th className="px-4 py-3 font-medium">No. Surat Kontrol</th>
+                                <th className="px-4 py-3 font-medium">Peserta</th>
+                                <th className="px-4 py-3 font-medium">Tgl Kontrol</th>
+                                <th className="px-4 py-3 font-medium">Terbit</th>
+                                <th className="px-4 py-3 font-medium">Poli</th>
+                                <th className="px-4 py-3 font-medium">Dokter</th>
+                                <th className="px-4 py-3 text-center font-medium">SEP</th>
+                                <th className="px-4 py-3 text-right font-medium">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {skData.map((item) => (
+                                <tr key={item.noSuratKontrol} className="border-t align-top">
+                                  <td className="px-4 py-3 font-mono text-xs">{item.noSuratKontrol}</td>
+                                  <td className="px-4 py-3">{item.nama}</td>
+                                  <td className="px-4 py-3">{item.tglRencanaKontrol}</td>
+                                  <td className="px-4 py-3">{item.tglTerbitKontrol}</td>
+                                  <td className="px-4 py-3">{item.namaPoliTujuan}</td>
+                                  <td className="px-4 py-3">{item.namaDokter}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    {item.terbitSEP === "Sudah" ? <Check className="mx-auto h-4 w-4 text-emerald-600" /> : <Minus className="mx-auto h-4 w-4 text-muted-foreground" />}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setSkDeleteConfirm(item)}
+                                      disabled={skDeleting === item.noSuratKontrol || item.terbitSEP === "Sudah"}
+                                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                      {skDeleting === item.noSuratKontrol ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyResult title="Tidak ada surat kontrol" message="Data surat kontrol tidak ditemukan untuk parameter yang dipilih." />
+                    )
+                  ) : (
+                    <EmptyResult title="Belum ada pencarian" message="Isi filter lalu tekan tombol cari untuk melihat daftar surat kontrol." />
+                  )
+                }
+              />
+            )}
+
+            {activeTab === "pengajuan-approval" && (
+              <ToolWorkspace
+                eyebrow="VClaim"
+                title="Pengajuan dan Approval SEP"
+                description="Gunakan area kiri untuk mengajukan SEP atau approval manual, lalu cek daftar approval di area hasil."
+                formTitle="Form pengajuan"
+                formDescription="Semua input pengajuan dan approval manual dikelompokkan dalam satu panel kerja."
+                form={
+                  <div className="space-y-4">
+                    <div className="space-y-3 border-b pb-5">
+                      <div>
+                        <p className="text-sm font-semibold">Pengajuan SEP</p>
+                        <p className="text-xs text-muted-foreground">Ajukan kebutuhan SEP baru ke BPJS.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label>No. Kartu BPJS</Label>
+                          <Input value={pengajuanNoKartu} onChange={(e) => setPengajuanNoKartu(e.target.value)} placeholder="0001234567890" />
+                        </div>
+                        <div>
+                          <Label>Tgl SEP</Label>
+                          <Input type="date" value={pengajuanTglSep} onChange={(e) => setPengajuanTglSep(e.target.value)} />
+                        </div>
+                        <div>
+                          <Label>Jenis Pelayanan</Label>
+                          <Select value={pengajuanJnsPelayanan} onValueChange={setPengajuanJnsPelayanan}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">Rawat Jalan</SelectItem>
+                              <SelectItem value="1">Rawat Inap</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Jenis Pengajuan</Label>
+                          <Select value={pengajuanJnsPengajuan} onValueChange={setPengajuanJnsPengajuan}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Backdate</SelectItem>
+                              <SelectItem value="2">Finger Print</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Keterangan</Label>
+                        <Input value={pengajuanKeterangan} onChange={(e) => setPengajuanKeterangan(e.target.value)} placeholder="Tuliskan alasan pengajuan" />
+                      </div>
+                      <Button onClick={handlePengajuanSEP} className="w-full" disabled={pengajuanSubmitting}>
+                        {pengajuanSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        Ajukan SEP
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      <div>
+                        <p className="text-sm font-semibold">Approval Manual</p>
+                        <p className="text-xs text-muted-foreground">Gunakan bila approval perlu diajukan tanpa memilih dari daftar.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label>No. Kartu BPJS</Label>
+                          <Input value={manualNoKartu} onChange={(e) => setManualNoKartu(e.target.value)} placeholder="0001234567890" />
+                        </div>
+                        <div>
+                          <Label>Tgl SEP</Label>
+                          <Input type="date" value={manualTglSep} onChange={(e) => setManualTglSep(e.target.value)} />
+                        </div>
+                        <div>
+                          <Label>Jenis Pelayanan</Label>
+                          <Select value={manualJnsPelayanan} onValueChange={setManualJnsPelayanan}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">Rawat Jalan</SelectItem>
+                              <SelectItem value="1">Rawat Inap</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Jenis Pengajuan</Label>
+                          <Select value={manualJnsPengajuan} onValueChange={setManualJnsPengajuan}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Backdate</SelectItem>
+                              <SelectItem value="2">Finger Print</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Keterangan</Label>
+                        <Input value={manualKeterangan} onChange={(e) => setManualKeterangan(e.target.value)} placeholder="Tuliskan alasan approval manual" />
+                      </div>
+                      <Button onClick={handleManualApprovalSEP} className="w-full" disabled={manualApprovalSubmitting}>
+                        {manualApprovalSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                        Ajukan Approval Manual
+                      </Button>
+                    </div>
+                  </div>
+                }
+                resultTitle="Daftar SEP yang menunggu approval"
+                resultDescription="Gunakan filter periode untuk melihat daftar approval yang perlu ditindaklanjuti."
+                resultMeta={approvalData.length > 0 ? <Badge variant="secondary">{approvalData.length} data</Badge> : null}
+                result={
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-end gap-3 border-b pb-4">
+                      <div className="w-40">
+                        <Label>Bulan</Label>
+                        <Select value={approvalBulan} onValueChange={setApprovalBulan}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((n, i) => (
+                              <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-32">
+                        <Label>Tahun</Label>
+                        <Select value={approvalTahun} onValueChange={setApprovalTahun}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                              <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleSearchApprovalSEP} disabled={approvalLoading}>
+                        {approvalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Cari Daftar Approval
+                      </Button>
+                    </div>
+
+                    {approvalSearched ? (
+                      approvalData.length > 0 ? (
+                        <div className="rounded-2xl border overflow-hidden bg-background">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                              <thead>
+                                <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
+                                  <th className="px-4 py-3 font-medium">No. Kartu</th>
+                                  <th className="px-4 py-3 font-medium">Nama</th>
+                                  <th className="px-4 py-3 font-medium">Tgl SEP</th>
+                                  <th className="px-4 py-3 font-medium">Pelayanan</th>
+                                  <th className="px-4 py-3 font-medium">Status</th>
+                                  <th className="px-4 py-3 text-right font-medium">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {approvalData.map((item) => (
+                                  <tr key={`${item.noKartu}-${item.tglsep}`} className="border-t align-top">
+                                    <td className="px-4 py-3 font-mono text-xs">{item.noKartu}</td>
+                                    <td className="px-4 py-3">{item.nama}</td>
+                                    <td className="px-4 py-3">{item.tglsep}</td>
+                                    <td className="px-4 py-3">{item.jnspelayanan === "RI" ? "Rawat Inap" : "Rawat Jalan"}</td>
+                                    <td className="px-4 py-3">
+                                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                                        {item.status}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setApprovalDialog(item);
+                                          setApprovalKeterangan("");
+                                        }}
+                                        disabled={approvalSubmitting === item.noKartu}
+                                      >
+                                        {approvalSubmitting === item.noKartu ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                                        Approval
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <EmptyResult title="Tidak ada SEP menunggu approval" message="Tidak ditemukan data approval untuk periode yang dipilih." />
+                      )
+                    ) : (
+                      <EmptyResult title="Belum ada pencarian" message="Pilih bulan dan tahun lalu tekan tombol cari untuk menampilkan daftar approval." />
+                    )}
+                  </div>
+                }
+              />
+            )}
+
+            {activeTab === "icare" && (
+              <ToolWorkspace
+                eyebrow="I-Care"
+                title="Validasi I-Care"
+                description="Validasi nomor kartu dan kode dokter untuk membuka sesi BPJS I-Care."
+                formTitle="Parameter validasi"
+                formDescription="Isi nomor kartu dan kode dokter BPJS untuk membuka I-Care."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>No. Kartu BPJS</Label>
+                      <Input value={icareNoKartu} onChange={(e) => setIcareNoKartu(e.target.value)} placeholder="0001234567890" onKeyDown={(e) => e.key === "Enter" && handleICareValidate()} />
+                    </div>
+                    <div>
+                      <Label>Kode Dokter BPJS</Label>
+                      <Input value={icareKodeDokter} onChange={(e) => setIcareKodeDokter(e.target.value)} placeholder="12345" onKeyDown={(e) => e.key === "Enter" && handleICareValidate()} />
+                    </div>
+                    <Button onClick={handleICareValidate} className="w-full" disabled={icareLoading}>
+                      {icareLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                      Buka I-Care
+                    </Button>
+                  </div>
+                }
+                resultTitle="Status validasi"
+                resultDescription="Status sesi I-Care aktif akan tampil di area ini."
+                resultMeta={
+                  icareUrl ? (
+                    <Button size="sm" variant="outline" onClick={() => setIcareOpen(true)}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Buka Lagi
+                    </Button>
+                  ) : null
+                }
+                result={
+                  icareUrl ? (
+                    <ResultCards
+                      entries={[
+                        ["Status", "Sesi I-Care siap digunakan"],
+                        ["Nomor Kartu", icareNoKartu],
+                        ["Kode Dokter", icareKodeDokter],
+                      ]}
+                    />
+                  ) : (
+                    <EmptyResult title="Belum ada sesi I-Care" message="Setelah validasi berhasil, status sesi akan ditampilkan di sini." />
+                  )
+                }
+              />
+            )}
+
+            {activeTab === "fingerprint-launch" && (
+              <ToolWorkspace
+                eyebrow="Sidik Jari"
+                title="Aplikasi Sidik Jari BPJS"
+                description="Buka After.exe dari server Windows lokal lalu isi field username dan password secara otomatis. Fitur ini hanya bekerja bila backend berjalan di desktop Windows yang sama dengan aplikasi BPJS."
+                formTitle="Parameter login"
+                formDescription="Path executable bisa diubah bila aplikasi BPJS dipasang di lokasi lain."
+                form={
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="fingerprint-executable">Path After.exe</Label>
+                      <Input
+                        id="fingerprint-executable"
+                        value={fingerprintExecutablePath}
+                        onChange={(event) => setFingerprintExecutablePath(event.target.value)}
+                        placeholder={DEFAULT_BPJS_FINGERPRINT_EXECUTABLE}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="fingerprint-username">Username</Label>
+                      <Input
+                        id="fingerprint-username"
+                        value={fingerprintUsername}
+                        onChange={(event) => setFingerprintUsername(event.target.value)}
+                        placeholder="Masukkan username aplikasi BPJS"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="fingerprint-password">Password</Label>
+                      <Input
+                        id="fingerprint-password"
+                        type="password"
+                        value={fingerprintPassword}
+                        onChange={(event) => setFingerprintPassword(event.target.value)}
+                        placeholder="Masukkan password aplikasi BPJS"
+                      />
+                    </div>
+                    <div className="flex items-start gap-3 rounded-xl border bg-muted/10 px-4 py-3">
+                      <Checkbox
+                        id="fingerprint-auto-submit"
+                        checked={fingerprintAutoSubmit}
+                        onCheckedChange={(checked) => setFingerprintAutoSubmit(checked === true)}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="fingerprint-auto-submit" className="text-sm font-medium">
+                          Login otomatis setelah field terisi
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Jika tidak dicentang, sistem hanya membuka aplikasi dan mengisi username serta password.
+                        </p>
+                      </div>
+                    </div>
+                    <Button type="button" className="w-full" disabled={fingerprintLoading} onClick={handleLaunchFingerprintApp}>
+                      {fingerprintLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Fingerprint className="mr-2 h-4 w-4" />
+                      )}
+                      Buka Aplikasi Sidik Jari
+                    </Button>
+                  </div>
+                }
+                resultTitle="Status eksekusi"
+                resultDescription="Status launch dan automasi input dari backend Windows lokal."
+                result={
+                  fingerprintResult ? (
+                    <FriendlyResult data={fingerprintResult} />
+                  ) : (
+                    <EmptyResult
+                      title="Belum dijalankan"
+                      message="Isi kredensial lalu jalankan tool untuk membuka aplikasi sidik jari BPJS."
+                    />
+                  )
+                }
+              />
+            )}
+
+            {activeTab === "antrian-online" && (
+              <ToolWorkspace
+                eyebrow="Antrol"
+                title="Pendaftaran Antrean Online"
+                description="Pantau daftar antrean BPJS per tanggal, lalu buka task atau detail pendaftaran dari hasil tabel."
+                formTitle="Filter tanggal"
+                formDescription="Pilih tanggal layanan untuk melihat antrean yang sudah terdaftar di BPJS."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Tanggal</Label>
+                      <Input type="date" value={antreanTanggal} onChange={(e) => setAntreanTanggal(e.target.value)} />
+                    </div>
+                    <Button onClick={handleSearchAntrean} className="w-full" disabled={antreanLoading}>
+                      {antreanLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Antrean
+                    </Button>
+                  </div>
+                }
+                resultTitle="Daftar antrean"
+                resultDescription="Seluruh hasil antrean ditampilkan dalam tabel. Detail dan task dibuka dari baris yang dipilih."
+                resultMeta={antreanData.length > 0 ? <Badge variant="secondary">{antreanData.length} antrean</Badge> : null}
+                result={
+                  antreanSearched ? (
+                    <div className="space-y-4">
+                      {antreanData.length > 0 ? (
+                        <div className="rounded-2xl border overflow-hidden bg-background">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                              <thead>
+                                <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
+                                  <th className="px-4 py-3 font-medium">Kode Booking</th>
+                                  <th className="px-4 py-3 font-medium">Peserta</th>
+                                  <th className="px-4 py-3 font-medium">Poli dan Dokter</th>
+                                  <th className="px-4 py-3 font-medium">Jadwal</th>
+                                  <th className="px-4 py-3 font-medium">Status</th>
+                                  <th className="px-4 py-3 text-right font-medium">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {antreanData.map((item) => (
+                                  <tr key={item.kodebooking} className="border-t align-top">
+                                    <td className="px-4 py-3">
+                                      <div className="font-mono text-xs font-medium">{item.kodebooking}</div>
+                                      <div className="mt-1 text-xs text-muted-foreground">No. Antrean: {item.noantrean}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm">BPJS: {item.nokapst}</div>
+                                      <div className="text-xs text-muted-foreground">NIK: {item.nik}</div>
+                                      <div className="text-xs text-muted-foreground">RM: {item.norekammedis}</div>
+                                      <div className="text-xs text-muted-foreground">HP: {item.nohp}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div>{item.kodepoli}</div>
+                                      <div className="text-xs text-muted-foreground">Dokter: {item.kodedokter}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div>{item.jampraktek}</div>
+                                      <div className="text-xs text-muted-foreground">Referensi: {item.nomorreferensi || "-"}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <Badge variant="outline" className={cn(
+                                        item.status === "Belum" && "bg-amber-50 text-amber-700 border-amber-200",
+                                        item.status === "Hadir" && "bg-green-50 text-green-700 border-green-200",
+                                        item.status === "Selesai dilayani" && "bg-blue-50 text-blue-700 border-blue-200",
+                                      )}>
+                                        {item.status}
+                                      </Badge>
+                                      <div className="mt-2 text-xs text-muted-foreground">{item.sumberdata}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="flex justify-end gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}>
+                                          {antreanTasksLoading === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
+                                          Task
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}>
+                                          {antreanDetailLoading === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
+                                          Detail
+                                        </Button>
+                                        <Button variant="destructive" size="sm" disabled={antreanCancelling === item.kodebooking} onClick={() => setAntreanCancelConfirm(item)}>
+                                          {antreanCancelling === item.kodebooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                                          Batal
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <EmptyResult title="Tidak ada antrean" message="Tidak ditemukan antrean BPJS pada tanggal yang dipilih." />
+                      )}
+
+                      {antreanExpandedItem && (
+                        <div className="border-t pt-4">
+                          <div className="mb-4 flex items-center gap-2">
+                            <Button type="button" variant={antreanDetailTab === "tasks" ? "default" : "outline"} size="sm" onClick={() => handleToggleAntreanDetail(antreanExpandedItem, "tasks")}>List Task</Button>
+                            <Button type="button" variant={antreanDetailTab === "detail" ? "default" : "outline"} size="sm" onClick={() => handleToggleAntreanDetail(antreanExpandedItem, "detail")}>Detail Pendaftaran</Button>
+                            <div className="flex-1" />
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setAntreanExpandedItem(null)}>
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {antreanDetailTab === "tasks" && (
+                            antreanTasksLoading === antreanExpandedItem ? (
+                              <EmptyResult title="Memuat task" message="Daftar task sedang diambil dari BPJS." />
+                            ) : antreanTasks[antreanExpandedItem]?.length ? (
+                              <div className="rounded-2xl border overflow-hidden bg-background">
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full text-sm">
+                                    <thead>
+                                      <tr className="bg-muted/30 text-left text-xs text-muted-foreground">
+                                        <th className="px-4 py-3 font-medium">Task ID</th>
+                                        <th className="px-4 py-3 font-medium">Nama Task</th>
+                                        <th className="px-4 py-3 font-medium">Waktu</th>
+                                        <th className="px-4 py-3 font-medium">Waktu RS</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {antreanTasks[antreanExpandedItem].map((task) => (
+                                        <tr key={task.taskid} className="border-t">
+                                          <td className="px-4 py-3">{task.taskid}</td>
+                                          <td className="px-4 py-3">{task.taskname}</td>
+                                          <td className="px-4 py-3">{task.waktu || "-"}</td>
+                                          <td className="px-4 py-3">{task.wakturs || "-"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : (
+                              <EmptyResult title="Tidak ada task" message="BPJS tidak mengirimkan daftar task untuk booking ini." />
+                            )
+                          )}
+
+                          {antreanDetailTab === "detail" && (
+                            antreanDetailLoading === antreanExpandedItem ? (
+                              <EmptyResult title="Memuat detail" message="Detail pendaftaran sedang diambil dari BPJS." />
+                            ) : antreanBookingDetail[antreanExpandedItem]?.length ? (
+                              <div className="space-y-4">
+                                {antreanBookingDetail[antreanExpandedItem].map((detail, index) => (
+                                  <div key={`${detail.kodebooking}-${index}`} className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Detail pendaftaran {index + 1}</p>
+                                    <ResultCards
+                                      entries={[
+                                        ["Kode Booking", detail.kodebooking],
+                                        ["Tanggal", detail.tanggal],
+                                        ["Kode Poli", detail.kodepoli],
+                                        ["Kode Dokter", detail.kodedokter],
+                                        ["Jam Praktek", detail.jampraktek],
+                                        ["NIK", detail.nik],
+                                        ["No. Kartu BPJS", detail.nokapst],
+                                        ["No. HP", detail.nohp],
+                                        ["No. Rekam Medis", detail.norekammedis],
+                                        ["No. Antrean", detail.noantrean],
+                                        ["Jenis Kunjungan", detail.jeniskunjungan === 1 ? "Rujukan FKTP" : detail.jeniskunjungan === 2 ? "Rujukan Internal" : detail.jeniskunjungan === 3 ? "Kontrol" : detail.jeniskunjungan === 4 ? "Rujukan Antar RS" : detail.jeniskunjungan],
+                                        ["No. Referensi", detail.nomorreferensi],
+                                        ["Sumber Data", detail.sumberdata],
+                                        ["Status", detail.status],
+                                        ["Estimasi Dilayani", detail.estimasidilayani ? new Date(detail.estimasidilayani).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"],
+                                        ["Created", detail.createdtime ? new Date(detail.createdtime).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"],
+                                      ]}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <EmptyResult title="Tidak ada detail" message="BPJS tidak mengirimkan detail pendaftaran untuk booking ini." />
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <EmptyResult title="Belum ada pencarian" message="Pilih tanggal layanan lalu jalankan pencarian antrean." />
+                  )
+                }
+              />
+            )}
+
+            {activeTab === "apotek-dpho" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi DPHO"
+                description="Ambil daftar referensi DPHO dari BPJS Apotek Online."
+                formTitle="Aksi"
+                formDescription="Gunakan tombol di bawah ini untuk memuat seluruh referensi DPHO."
+                form={
+                  <Button onClick={handleApotekReferensiDPHO} className="w-full" disabled={apotekLoading === "apotek-dpho"}>
+                    {apotekLoading === "apotek-dpho" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                    Ambil Referensi DPHO
+                  </Button>
+                }
+                resultTitle="Hasil referensi DPHO"
+                resultDescription="Jika hasil berupa daftar, sistem akan menampilkannya sebagai tabel."
+                result={<FriendlyResult data={apotekDPHOResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-setting" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi Apotek"
+                description="Cari referensi apotek berdasarkan kode apotek BPJS."
+                formTitle="Parameter pencarian"
+                formDescription="Masukkan kode apotek yang ingin dicek."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Kode Apotek</Label>
+                      <Input value={apotekKodeApotek} onChange={(e) => setApotekKodeApotek(e.target.value)} placeholder="Contoh: 0112A017" />
+                    </div>
+                    <Button onClick={handleApotekReferensiSetting} className="w-full" disabled={apotekLoading === "apotek-setting"}>
+                      {apotekLoading === "apotek-setting" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Referensi Apotek
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil referensi apotek"
+                resultDescription="Deskripsi apotek akan muncul sebagai kartu informasi atau tabel bila berupa daftar."
+                result={<FriendlyResult data={apotekSettingResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-ppk" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi PPK"
+                description="Cari fasilitas kesehatan berdasarkan jenis faskes dan nama faskes."
+                formTitle="Parameter pencarian"
+                formDescription="Tentukan jenis faskes dan masukkan nama faskes yang ingin dicari."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Jenis Faskes</Label>
+                      <Select value={apotekJenisFaskes} onValueChange={setApotekJenisFaskes}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Faskes 1</SelectItem>
+                          <SelectItem value="2">Faskes 2 / RS</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Nama Faskes</Label>
+                      <Input value={apotekNamaFaskes} onChange={(e) => setApotekNamaFaskes(e.target.value)} placeholder="Nama faskes" />
+                    </div>
+                    <Button onClick={handleApotekReferensiPPK} className="w-full" disabled={apotekLoading === "apotek-ppk"}>
+                      {apotekLoading === "apotek-ppk" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Referensi PPK
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil referensi PPK"
+                resultDescription="Daftar fasilitas kesehatan akan ditampilkan dalam tabel."
+                result={<FriendlyResult data={apotekPPKResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-obat" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi Obat"
+                description="Cari referensi obat berdasarkan jenis obat, tanggal resep, dan kata kunci pencarian."
+                formTitle="Parameter pencarian"
+                formDescription="Lengkapi semua parameter sebelum menjalankan pencarian referensi obat."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Kode Jenis Obat</Label>
+                      <Input value={apotekKodeJenisObat} onChange={(e) => setApotekKodeJenisObat(e.target.value)} placeholder="Kosongkan jika tidak ingin difilter" />
+                    </div>
+                    <div>
+                      <Label>Tanggal Resep</Label>
+                      <Input type="date" value={apotekTglResep} onChange={(e) => setApotekTglResep(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Filter Obat</Label>
+                      <Input value={apotekFilterObat} onChange={(e) => setApotekFilterObat(e.target.value)} placeholder="Boleh dikosongkan" />
+                    </div>
+                    <Button onClick={handleApotekReferensiObat} className="w-full" disabled={apotekLoading === "apotek-obat"}>
+                      {apotekLoading === "apotek-obat" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Referensi Obat
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil referensi obat"
+                resultDescription="Hasil pencarian obat akan ditampilkan dalam format tabel atau kartu deskripsi."
+                result={<FriendlyResult data={apotekObatResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-poli" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi Poli"
+                description="Cari referensi poli berdasarkan kode atau nama poli."
+                formTitle="Parameter pencarian"
+                formDescription="Masukkan kode poli atau nama poli yang ingin dicari."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Kode atau Nama Poli</Label>
+                      <Input value={apotekCariPoli} onChange={(e) => setApotekCariPoli(e.target.value)} placeholder="Contoh: INT" />
+                    </div>
+                    <Button onClick={handleApotekReferensiPoli} className="w-full" disabled={apotekLoading === "apotek-poli"}>
+                      {apotekLoading === "apotek-poli" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari Referensi Poli
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil referensi poli"
+                resultDescription="Hasil ditampilkan dalam bentuk tabel untuk memudahkan pembacaan daftar poli."
+                result={<FriendlyResult data={apotekPoliResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-sep" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="No Kunjungan / SEP"
+                description="Cari data kunjungan berdasarkan nomor SEP atau nomor kunjungan yang dimiliki pasien."
+                formTitle="Parameter pencarian"
+                formDescription="Masukkan nomor SEP atau nomor kunjungan BPJS."
+                form={
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Nomor Kunjungan / SEP</Label>
+                      <Input value={apotekNoSEP} onChange={(e) => setApotekNoSEP(e.target.value)} placeholder="Contoh: 1202R0010318V000092" />
+                    </div>
+                    <Button onClick={handleApotekCariSEP} className="w-full" disabled={apotekLoading === "apotek-sep"}>
+                      {apotekLoading === "apotek-sep" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Cari No Kunjungan / SEP
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil pencarian kunjungan"
+                resultDescription="Detail kunjungan akan disajikan sebagai kartu, dan daftar akan ditampilkan dalam tabel."
+                result={<FriendlyResult data={apotekSEPResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-spesialistik" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Referensi Spesialis"
+                description="Ambil daftar referensi spesialis atau spesialistik yang tersedia di BPJS Apotek Online."
+                formTitle="Aksi"
+                formDescription="Klik tombol di bawah untuk memuat daftar spesialis."
+                form={
+                  <Button onClick={handleApotekSpesialistik} className="w-full" disabled={apotekLoading === "apotek-spesialistik"}>
+                    {apotekLoading === "apotek-spesialistik" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                    Ambil Referensi Spesialis
+                  </Button>
+                }
+                resultTitle="Hasil referensi spesialis"
+                resultDescription="Daftar spesialis akan ditampilkan dalam tabel yang seragam dengan modul lain."
+                result={<FriendlyResult data={apotekSpesialistikResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-klaim" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Data Klaim"
+                description="Laporan rekap data klaim apotek online BPJS."
+                formTitle="Parameter Laporan"
+                formDescription="Pilih bulan, tahun, jenis obat, dan status verifikasi."
+                form={
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Bulan</Label>
+                        <Select value={apotekKlaimBulan} onValueChange={setApotekKlaimBulan}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 12 }).map((_, i) => (
+                              <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Tahun</Label>
+                        <Select value={apotekKlaimTahun} onValueChange={setApotekKlaimTahun}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const year = new Date().getFullYear() - i;
+                              return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Jenis Obat</Label>
+                      <Select value={apotekKlaimJenisObat} onValueChange={setApotekKlaimJenisObat}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Semua</SelectItem>
+                          <SelectItem value="1">Obat PRB</SelectItem>
+                          <SelectItem value="2">Obat Kronis Blm Stabil</SelectItem>
+                          <SelectItem value="3">Obat Kemoterapi</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={apotekKlaimStatus} onValueChange={setApotekKlaimStatus}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Belum diverifikasi</SelectItem>
+                          <SelectItem value="2">Sudah Verifikasi</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleApotekKlaim} className="w-full" disabled={apotekLoading === "apotek-klaim"}>
+                      {apotekLoading === "apotek-klaim" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Tampilkan Data Klaim
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil Laporan Klaim"
+                resultDescription="Menampilkan rekap jumlah data klaim dan daftar SEP beserta biayanya."
+                result={<FriendlyResult data={apotekKlaimResult} />}
+              />
+            )}
+
+            {activeTab === "apotek-rekap-prb" && (
+              <ToolWorkspace
+                eyebrow="Apotek Online"
+                title="Rekap Peserta PRB"
+                description="Daftar peserta PRB yang telah dilayani oleh Apotek pada bulan dan tahun tertentu."
+                formTitle="Parameter Laporan"
+                formDescription="Pilih tahun dan bulan laporan."
+                form={
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Bulan</Label>
+                        <Select value={apotekPrbBulan} onValueChange={setApotekPrbBulan}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 12 }).map((_, i) => (
+                              <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Tahun</Label>
+                        <Select value={apotekPrbTahun} onValueChange={setApotekPrbTahun}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const year = new Date().getFullYear() - i;
+                              return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button onClick={handleApotekRekapPrb} className="w-full" disabled={apotekLoading === "apotek-rekap-prb"}>
+                      {apotekLoading === "apotek-rekap-prb" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Tampilkan Rekap PRB
+                    </Button>
+                  </div>
+                }
+                resultTitle="Hasil Rekap Peserta PRB"
+                resultDescription="Daftar peserta PRB beserta informasi obat dan diagnosa."
+                result={<FriendlyResult data={apotekPrbResult} />}
+              />
+            )}
+          </div>
+        </div>
       </BPJSSectionPanel>
 
       {/* Batal Antrean Confirmation */}

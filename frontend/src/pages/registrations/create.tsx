@@ -280,7 +280,7 @@ export default function RegistrationCreate() {
       const todayDate = `${year}-${month}-${day}`;
 
       const response = await schedulesApi.getAvailableDoctorsByDate(id, todayDate);
-      
+
       // Map back to RoomStaff structure so the combobox can use it seamlessly
       const doctors = (response.data.data || []).map((doc) => ({
         employee_id: doc.employee_id,
@@ -301,7 +301,7 @@ export default function RegistrationCreate() {
     if (paymentMethod === "bpjs" && existingPatient) {
       if (existingPatient.no_bpjs) {
         setBpjsNumber(existingPatient.no_bpjs);
-        
+
         // Cek SEP lokal berdasarkan no_kartu (hanya yang aktif)
         const checkLocalSEP = async () => {
           try {
@@ -387,7 +387,7 @@ export default function RegistrationCreate() {
     try {
       // UGD dan Rawat Inap tidak perlu antrian ruangan
       const needsRoomQueue = selectedServiceType !== "gawat_darurat" && selectedServiceType !== "rawat_inap";
-      
+
       // Prepare registration data
       const registrationData: any = {
         patient_id: existingPatient.id,
@@ -607,18 +607,21 @@ export default function RegistrationCreate() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : searchResults.length > 0 ? (
-                <div className="overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[52px]">Pilih</TableHead>
-                        <TableHead>No. RM</TableHead>
-                        <TableHead>Nama Lengkap</TableHead>
-                        <TableHead>NIK</TableHead>
-                        <TableHead>No. BPJS</TableHead>
-                        <TableHead>Jenis Kelamin</TableHead>
-                        <TableHead>Tanggal Lahir</TableHead>
-                        <TableHead>Alamat</TableHead>
+                <div className="overflow-auto rounded-md border border-border shadow-sm">
+                  <Table 
+                    containerClassName="border-none rounded-none shadow-none" 
+                    className="border-collapse [&_th]:border-r-0 [&_td]:border-r-0 [&_tr+tr_td]:border-t-0 [&_tr]:border-b [&_tr:last-child]:border-b-0"
+                  >
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[52px] text-center">Pilih</TableHead>
+                        <TableHead className="whitespace-nowrap">No. RM</TableHead>
+                        <TableHead className="whitespace-nowrap">Nama Lengkap</TableHead>
+                        <TableHead className="whitespace-nowrap">NIK</TableHead>
+                        <TableHead className="whitespace-nowrap">No. BPJS</TableHead>
+                        <TableHead className="whitespace-nowrap">Jenis Kelamin</TableHead>
+                        <TableHead className="whitespace-nowrap">Tanggal Lahir</TableHead>
+                        <TableHead className="whitespace-nowrap">Alamat</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

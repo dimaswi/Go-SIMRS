@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,14 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   Tooltip,
   TooltipContent,
@@ -119,7 +113,7 @@ export default function SPRIMonitoringPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setPageTitle("Monitoring SPRI");
+    setPageTitle("SPRI");
     loadData();
   }, []);
 
@@ -265,15 +259,15 @@ export default function SPRIMonitoringPage() {
     const cfg = statusConfig[effectiveKey] || { label: spri.status, className: "bg-gray-50 text-gray-600 border-gray-200" };
     return (
       <div className="flex flex-col items-center gap-0.5">
-        <Badge variant="outline" className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge>
+        <Badge variant="outline" className={cn("text-[10px] whitespace-nowrap", cfg.className)}>{cfg.label}</Badge>
         {/* Sub-badges: tampilkan info detail pendaftaran dan SEP */}
         {spri.inpatient_registration_id && !spri.inpatient_sep_id && effectiveKey !== "terdaftar" && (
-          <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-600 border-purple-200">
+          <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-600 border-purple-200 whitespace-nowrap">
             <UserCheck className="h-2.5 w-2.5 mr-0.5" />Terdaftar
           </Badge>
         )}
         {spri.inpatient_sep_id && effectiveKey !== "sep_created" && (
-          <Badge variant="outline" className="text-[9px] bg-indigo-50 text-indigo-600 border-indigo-200">
+          <Badge variant="outline" className="text-[9px] bg-indigo-50 text-indigo-600 border-indigo-200 whitespace-nowrap">
             <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />SEP
           </Badge>
         )}
@@ -281,9 +275,136 @@ export default function SPRIMonitoringPage() {
     );
   };
 
+  const columns = useMemo<ColumnDef<SPRILocal>[]>(() => [
+    {
+      id: "no",
+      header: () => <div className="text-center">#</div>,
+      cell: ({ row }) => <div className="text-center text-muted-foreground text-sm">{row.index + 1}</div>,
+    },
+    {
+      accessorKey: "no_spri",
+      header: "No. SPRI",
+      cell: ({ row }) => {
+        const spri = row.original;
+        return spri.is_bpjs ? (
+          <span className="font-mono text-sm font-semibold text-green-700">{spri.no_spri}</span>
+        ) : (
+          <div className="flex items-center gap-1">
+            <CloudOff className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-sm font-medium text-amber-600 italic">Draft Lokal</span>
+          </div>
+        );
+      }
+    },
+    {
+      accessorFn: (row) => `${row.nama} ${row.no_kartu}`,
+      header: "Nama / No. Kartu",
+      cell: ({ row }) => {
+        const spri = row.original;
+        return (
+          <>
+            <p className="font-medium text-sm">{spri.nama || "-"}</p>
+            <p className="text-xs text-muted-foreground font-mono">{spri.no_kartu}</p>
+          </>
+        );
+      }
+    },
+    {
+      accessorKey: "created_at",
+      header: "Tgl Terbit",
+      cell: ({ row }) => {
+        const val = row.original.created_at;
+        return <div className="text-sm">{val ? format(new Date(val), "dd/MM/yyyy", { locale: idLocale }) : "-"}</div>;
+      }
+    },
+    {
+      accessorKey: "tgl_rencana_kontrol",
+      header: "Tgl Masuk",
+      cell: ({ row }) => {
+        const val = row.original.tgl_rencana_kontrol;
+        return <div className="text-sm font-medium">{val ? format(new Date(val), "dd/MM/yyyy", { locale: idLocale }) : "-"}</div>;
+      }
+    },
+    {
+      accessorFn: (row) => row.nama_poli || row.kode_poli || "-",
+      header: "Poli",
+      cell: ({ row }) => <div className="text-sm max-w-[120px]"><p className="truncate">{row.original.nama_poli || row.original.kode_poli || "-"}</p></div>
+    },
+    {
+      accessorFn: (row) => row.nama_dokter || row.kode_dokter || "-",
+      header: "Dokter DPJP",
+      cell: ({ row }) => <div className="text-sm max-w-[120px]"><p className="truncate">{row.original.nama_dokter || row.original.kode_dokter || "-"}</p></div>
+    },
+    {
+      accessorFn: (row) => row.nama_diagnosa || "-",
+      header: "Diagnosa",
+      cell: ({ row }) => <div className="text-sm max-w-[140px]"><p className="truncate text-xs text-muted-foreground">{row.original.nama_diagnosa || "-"}</p></div>
+    },
+    {
+      id: "status",
+      header: () => <div className="text-center">Status</div>,
+      cell: ({ row }) => <div className="flex justify-center">{getStatusBadge(row.original)}</div>
+    },
+    {
+      id: "aksi",
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => {
+        const spri = row.original;
+        return (
+          <div className="flex items-center justify-center gap-1 flex-nowrap whitespace-nowrap">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(spri)}>
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Detail SPRI</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {spri.status === "active" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className={cn("h-7 w-7", spri.is_bpjs ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50")} onClick={() => handleOpenEdit(spri)}>
+                      {spri.is_bpjs ? <Pencil className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{spri.is_bpjs ? "Edit SPRI" : "Edit & Kirim ke BPJS"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(spri)}>
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cetak SPRI</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {spri.status === "active" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(spri)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{spri.is_bpjs ? "Hapus SPRI dari BPJS" : "Hapus SPRI Lokal"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      }
+    }
+  ], []);
+
   return (
     <BPJSPageFrame
-      title="Monitoring SPRI"
+      title="SPRI"
       description=""
       actions={
         <>
@@ -358,9 +479,6 @@ export default function SPRIMonitoringPage() {
         </Collapsible>
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Memuat..." : `${spriList.length} SPRI ditemukan`}
-          </p>
         </div>
 
         {loading ? (
@@ -377,112 +495,13 @@ export default function SPRIMonitoringPage() {
             <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
           </div>
         ) : (
-          <div className="overflow-hidden border-y border-border/70 bg-background">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>No. SPRI</TableHead>
-                  <TableHead>Nama / No. Kartu</TableHead>
-                  <TableHead>Tgl Terbit</TableHead>
-                  <TableHead>Tgl Rencana Masuk</TableHead>
-                  <TableHead>Poli</TableHead>
-                  <TableHead>Dokter DPJP</TableHead>
-                  <TableHead>Diagnosa</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {spriList.map((spri, idx) => (
-                  <TableRow key={spri.id} className="hover:bg-muted/30">
-                    <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
-                    <TableCell>
-                      {spri.is_bpjs ? (
-                        <span className="font-mono text-sm font-semibold text-green-700">{spri.no_spri}</span>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <CloudOff className="h-3.5 w-3.5 text-amber-500" />
-                          <span className="text-sm font-medium text-amber-600 italic">Draft Lokal</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-medium text-sm">{spri.nama || "-"}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{spri.no_kartu}</p>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {spri.created_at
-                        ? format(new Date(spri.created_at), "dd/MM/yyyy", { locale: idLocale })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">
-                      {spri.tgl_rencana_kontrol
-                        ? format(new Date(spri.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm max-w-[120px]">
-                      <p className="truncate">{spri.nama_poli || spri.kode_poli || "-"}</p>
-                    </TableCell>
-                    <TableCell className="text-sm max-w-[120px]">
-                      <p className="truncate">{spri.nama_dokter || spri.kode_dokter || "-"}</p>
-                    </TableCell>
-                    <TableCell className="text-sm max-w-[140px]">
-                      <p className="truncate text-xs text-muted-foreground">{spri.nama_diagnosa || "-"}</p>
-                    </TableCell>
-                    <TableCell className="text-center">{getStatusBadge(spri)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(spri)}>
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Detail SPRI</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {spri.status === "active" && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className={cn("h-7 w-7", spri.is_bpjs ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50")} onClick={() => handleOpenEdit(spri)}>
-                                  {spri.is_bpjs ? <Pencil className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{spri.is_bpjs ? "Edit SPRI" : "Edit & Kirim ke BPJS"}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(spri)}>
-                                <Printer className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Cetak SPRI</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {spri.status === "active" && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(spri)}>
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{spri.is_bpjs ? "Hapus SPRI dari BPJS" : "Hapus SPRI Lokal"}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="bg-background">
+            <DataTable
+              columns={columns}
+              data={spriList}
+              showSearch={false}
+              pageSize={10}
+            />
           </div>
         )}
       </BPJSSectionPanel>

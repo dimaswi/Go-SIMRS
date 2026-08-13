@@ -16,7 +16,7 @@ import {
 import {
   Loader2, Download, TrendingUp, Building2, DollarSign,
   HeartPulse, Pill, FlaskConical, Boxes, UserCheck, Landmark, Calendar,
-  ArrowRight,
+  ArrowRight, ArrowLeft,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -152,9 +152,9 @@ function DateFilter({ startDate, endDate, onStartChange, onEndChange, onApply, o
       <div className="flex items-center gap-1.5 border border-border/70 bg-background px-2 py-2">
         <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
       </div>
-      <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="h-9 w-[124px] rounded-none border-border/70 px-2 text-xs" />
-      <span className ="shrink-0 text-[11px] text-muted-foreground">/</span>
-      <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="h-9 w-[124px] rounded-none border-border/70 px-2 text-xs" />
+      <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="h-9 w-[145px] rounded-none border-border/70 px-2 text-xs" />
+      <span className="shrink-0 text-[11px] text-muted-foreground"> - </span>
+      <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="h-9 w-[145px] rounded-none border-border/70 px-2 text-xs" />
       <Button onClick={onApply} disabled={loading} size="sm" className="h-9 shrink-0 rounded-none px-3 text-xs">
         {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
         OK
@@ -275,14 +275,9 @@ function ReportFilterField({
 }
 
 function ReportExplorerLayout({
-  sidebarTitle,
   reportItems,
   activeTab,
   onTabChange,
-  onApply,
-  onExport,
-  filters,
-  previewTitle,
   previewChildren,
   showPreview = false,
 }: {
@@ -301,42 +296,23 @@ function ReportExplorerLayout({
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="border border-border/70 bg-background">
-          <div className="space-y-3 p-4">
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: REPORT_MONO_FAMILY }}>Filter</p>
-              <p className="text-sm font-medium">{sidebarTitle}</p>
-            </div>
-            {filters}
-          </div>
-
-          <div className="grid grid-cols-4 border-t border-border/70">
-            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={onApply}>HTML</Button>
-            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs">WORD</Button>
-            <Button variant="ghost" className="h-11 rounded-none border-r border-border/70 text-xs" onClick={onExport}>EXCEL</Button>
-            <Button variant="ghost" className="h-11 rounded-none text-xs">PDF</Button>
-          </div>
-        </div>
-
+      <div className="space-y-4">
         <div className="space-y-4">
           {opened ? (
-            <ReportPanel
-              eyebrow="Data"
-              title={previewTitle}
-              action={
+            <div className="space-y-4 pb-12">
+              <div className="flex justify-end">
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-none border-border/70 text-xs"
+                  className="rounded-none border-border/70 text-xs bg-background hover:bg-muted"
                   onClick={() => setOpened(false)}
                 >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
                   Kembali
                 </Button>
-              }
-            >
+              </div>
               {previewChildren}
-            </ReportPanel>
+            </div>
           ) : (
             <div className="grid gap-3 xl:grid-cols-2">
               {reportItems.map((item) => (
@@ -371,10 +347,8 @@ function ReportExplorerLayout({
       </div>
 
       {showPreview ? (
-        <div className="pt-2">
-          <ReportPanel eyebrow="Data" title={previewTitle}>
-            {previewChildren}
-          </ReportPanel>
+        <div className="pt-2 pb-12">
+          {previewChildren}
         </div>
       ) : null}
     </>
@@ -439,38 +413,38 @@ export default function ReportIndexPage() {
           {reportCategories.map(cat => {
             const Icon = cat.icon;
             return (
-            <Link to={cat.path} key={cat.path} className="group">
-              <div className="group relative h-full overflow-hidden border border-border/70 bg-background transition-colors duration-200 hover:bg-muted/10">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-500 via-cyan-500 to-emerald-500" />
-                <div className="flex h-full flex-col justify-between">
-                  <div className="space-y-2 px-4 pb-0 pt-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border/70 bg-muted/20 text-foreground">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-sm font-semibold text-foreground">{cat.title}</h2>
-                          <Badge variant="secondary" className="ml-auto rounded-none px-2 py-0 text-[10px]">
-                            {cat.count}
-                          </Badge>
+              <Link to={cat.path} key={cat.path} className="group">
+                <div className="group relative h-full overflow-hidden border border-border/70 bg-background transition-colors duration-200 hover:bg-muted/10">
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-500 via-cyan-500 to-emerald-500" />
+                  <div className="flex h-full flex-col justify-between">
+                    <div className="space-y-2 px-4 pb-0 pt-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border/70 bg-muted/20 text-foreground">
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{cat.description}</p>
-                        <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80" style={{ fontFamily: REPORT_MONO_FAMILY }}>
-                          {cat.auditFocus}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-sm font-semibold text-foreground">{cat.title}</h2>
+                            <Badge variant="secondary" className="ml-auto rounded-none px-2 py-0 text-[10px]">
+                              {cat.count}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{cat.description}</p>
+                          <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80" style={{ fontFamily: REPORT_MONO_FAMILY }}>
+                            {cat.auditFocus}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-[11px] text-muted-foreground">
-                    <span>Masuk</span>
-                    <span className="inline-flex items-center gap-1 font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                      Buka <ArrowRight className="h-3 w-3" />
-                    </span>
+                    <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-[11px] text-muted-foreground">
+                      <span>Masuk</span>
+                      <span className="inline-flex items-center gap-1 font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                        Buka <ArrowRight className="h-3 w-3" />
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
             );
           })}
         </div>
@@ -591,300 +565,300 @@ export function ReportVisitsPage() {
   ].filter((item) => item.jumlah > 0);
   const totalVisitCount = Array.isArray(data)
     ? data.reduce((sum: number, row: any) => {
-        const directValue = Number(row?.total ?? row?.jumlah ?? 0);
-        if (!Number.isNaN(directValue) && directValue > 0) return sum + directValue;
-        return sum;
-      }, 0)
+      const directValue = Number(row?.total ?? row?.jumlah ?? 0);
+      if (!Number.isNaN(directValue) && directValue > 0) return sum + directValue;
+      return sum;
+    }, 0)
     : 0;
   const activeReport = reportItems.find((item) => item.value === tab);
   const normalizedData = Array.isArray(data)
     ? data.map((row: any) => ({
-        ...row,
-        service_type:
-          row?.service_type === 'rawat_jalan' ? 'Rawat Jalan'
-            : row?.service_type === 'rawat_inap' ? 'Rawat Inap'
-              : row?.service_type === 'gawat_darurat' ? 'Gawat Darurat'
-                : row?.service_type,
-        nilai: row?.nilai === 'â‰¥ 65 tahun' ? '65+ tahun' : row?.nilai,
-      }))
+      ...row,
+      service_type:
+        row?.service_type === 'rawat_jalan' ? 'Rawat Jalan'
+          : row?.service_type === 'rawat_inap' ? 'Rawat Inap'
+            : row?.service_type === 'gawat_darurat' ? 'Gawat Darurat'
+              : row?.service_type,
+      nilai: row?.nilai === 'â‰¥ 65 tahun' ? '65+ tahun' : row?.nilai,
+    }))
     : data;
 
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<TrendingUp className="h-5 w-5" />} title="Laporan Kunjungan & Pasien">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan kunjungan"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                Baris: {formatNumber(totalRows)} | Total: {formatNumber(totalVisitCount)}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'per-patient' && (
-            <DataTable columns={[
-              { key: 'no_rm', label: 'No RM', width: '0.85fr' },
-              { key: 'nama_pasien', label: 'Pasien', width: '1.4fr' },
-              { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
-              { key: 'total', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
-              { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.8fr' },
-              { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.8fr' },
-              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.7fr' },
-              { key: 'kunjungan_awal', label: 'Awal', width: '0.9fr' },
-              { key: 'kunjungan_akhir', label: 'Akhir', width: '0.9fr' },
-            ]} data={normalizedData} />
-        )}
+        <PageHeader icon={<TrendingUp className="h-5 w-5" />} title="Laporan Kunjungan & Pasien">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan kunjungan"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  Baris: {formatNumber(totalRows)} | Total: {formatNumber(totalVisitCount)}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'per-patient' && (
+                <DataTable columns={[
+                  { key: 'no_rm', label: 'No RM', width: '0.85fr' },
+                  { key: 'nama_pasien', label: 'Pasien', width: '1.4fr' },
+                  { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
+                  { key: 'total', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
+                  { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.8fr' },
+                  { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.8fr' },
+                  { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.7fr' },
+                  { key: 'kunjungan_awal', label: 'Awal', width: '0.9fr' },
+                  { key: 'kunjungan_akhir', label: 'Akhir', width: '0.9fr' },
+                ]} data={normalizedData} />
+              )}
 
-        {tab === 'daily' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Kunjungan Per Hari">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={normalizedData}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0,0,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0,0,0,0]} />
-                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Kunjungan Per Hari">
-              <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
-              { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
-              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-              { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-              ]} data={normalizedData} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'daily' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Kunjungan Per Hari">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={normalizedData}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Kunjungan Per Hari">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
+                      { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
+                      { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
+                      { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                    ]} data={normalizedData} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'summary' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Kunjungan Rekap">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={summaryRows}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="kategori" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Kunjungan Rekap">
-              <DataTable columns={[
-                { key: 'kategori', label: 'Kategori' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              ]} data={summaryRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'summary' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Kunjungan Rekap">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={summaryRows}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="kategori" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Kunjungan Rekap">
+                    <DataTable columns={[
+                      { key: 'kategori', label: 'Kategori' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    ]} data={summaryRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-room' && (
-          <ReportPanel eyebrow="Data" title="Kunjungan Per Unit">
-            <DataTable columns={[
-              { key: 'kode_ruangan', label: 'Kode' },
-              { key: 'nama_ruangan', label: 'Unit/Ruangan' },
-              { key: 'service_type', label: 'Layanan' },
-              { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber },
-              { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-              { key: 'baru', label: 'Baru', align: 'right', format: formatNumber },
-              { key: 'lama', label: 'Lama', align: 'right', format: formatNumber },
-            ]} data={normalizedData} />
-          </ReportPanel>
-        )}
+              {tab === 'by-room' && (
+                <ReportPanel eyebrow="Data" title="Kunjungan Per Unit">
+                  <DataTable columns={[
+                    { key: 'kode_ruangan', label: 'Kode' },
+                    { key: 'nama_ruangan', label: 'Unit/Ruangan' },
+                    { key: 'service_type', label: 'Layanan' },
+                    { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber },
+                    { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+                    { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                    { key: 'baru', label: 'Baru', align: 'right', format: formatNumber },
+                    { key: 'lama', label: 'Lama', align: 'right', format: formatNumber },
+                  ]} data={normalizedData} />
+                </ReportPanel>
+              )}
 
-        {tab === 'by-doctor' && (
-          <ReportPanel eyebrow="Data" title="Kunjungan Per Dokter">
-            <DataTable columns={[
-              { key: 'nama_dokter', label: 'Dokter', width: '1.5fr', wrap: true },
-              { key: 'spesialisasi', label: 'Spesialisasi', width: '1fr' },
-              { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
-              { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.7fr' },
-              { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.7fr' },
-              { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.6fr' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'by-doctor' && (
+                <ReportPanel eyebrow="Data" title="Kunjungan Per Dokter">
+                  <DataTable columns={[
+                    { key: 'nama_dokter', label: 'Dokter', width: '1.5fr', wrap: true },
+                    { key: 'spesialisasi', label: 'Spesialisasi', width: '1fr' },
+                    { key: 'jumlah', label: 'Total', align: 'right', format: formatNumber, width: '0.7fr' },
+                    { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber, width: '0.7fr' },
+                    { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber, width: '0.7fr' },
+                    { key: 'igd', label: 'IGD', align: 'right', format: formatNumber, width: '0.6fr' },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'demographics' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <ReportPanel eyebrow="Chart" title="Jenis Kelamin">
-                {demographicsGender.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart><Pie data={demographicsGender} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
-                      {demographicsGender.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
-                  </ResponsiveContainer>
-                ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-            </ReportPanel>
-            <ReportPanel eyebrow="Chart" title="Kelompok Umur">
-                {demographicsAge.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={demographicsAge}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
-                      <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="value" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-            </ReportPanel>
-            <ReportPanel eyebrow="Chart" title="Metode Pembayaran">
-                {demographicsPayment.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart><Pie data={demographicsPayment} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
-                      {demographicsPayment.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
-                  </ResponsiveContainer>
-                ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
-            </ReportPanel>
-            </div>
-            <ReportPanel eyebrow="Data" title="Demografi">
-              <DataTable columns={[
-                { key: 'kategori', label: 'Kategori' },
-                { key: 'nilai', label: 'Nilai' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              ]} data={normalizedData} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'demographics' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <ReportPanel eyebrow="Chart" title="Jenis Kelamin">
+                      {demographicsGender.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart><Pie data={demographicsGender} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
+                            {demographicsGender.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
+                        </ResponsiveContainer>
+                      ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
+                    </ReportPanel>
+                    <ReportPanel eyebrow="Chart" title="Kelompok Umur">
+                      {demographicsAge.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={demographicsAge}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
+                            <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="value" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
+                    </ReportPanel>
+                    <ReportPanel eyebrow="Chart" title="Metode Pembayaran">
+                      {demographicsPayment.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart><Pie data={demographicsPayment} cx="50%" cy="50%" outerRadius={70} dataKey="value" nameKey="name" label={{ fontSize: 11 }}>
+                            {demographicsPayment.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
+                        </ResponsiveContainer>
+                      ) : <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data</p>}
+                    </ReportPanel>
+                  </div>
+                  <ReportPanel eyebrow="Data" title="Demografi">
+                    <DataTable columns={[
+                      { key: 'kategori', label: 'Kategori' },
+                      { key: 'nilai', label: 'Nilai' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    ]} data={normalizedData} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'service-mix' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Mix Layanan">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={serviceMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="layanan" label={{ fontSize: 11 }}>
-                    {serviceMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Mix Layanan">
-              <DataTable columns={[
-                { key: 'layanan', label: 'Layanan' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              ]} data={serviceMixRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'service-mix' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Mix Layanan">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie data={serviceMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="layanan" label={{ fontSize: 11 }}>
+                          {serviceMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Mix Layanan">
+                    <DataTable columns={[
+                      { key: 'layanan', label: 'Layanan' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    ]} data={serviceMixRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'regions' && (
-          <ReportPanel eyebrow="Data" title="Sebaran Wilayah Pasien">
-            <DataTable columns={[
-              { key: 'provinsi', label: 'Provinsi', width: '1.2fr', wrap: true },
-              { key: 'kabupaten', label: 'Kabupaten', width: '1.2fr', wrap: true },
-              { key: 'kecamatan', label: 'Kecamatan', width: '1.2fr', wrap: true },
-              { key: 'jumlah', label: 'Jumlah Pasien', align: 'right', format: formatNumber, width: '0.8fr' },
-            ]} data={normalizedData} />
-          </ReportPanel>
-        )}
+              {tab === 'regions' && (
+                <ReportPanel eyebrow="Data" title="Sebaran Wilayah Pasien">
+                  <DataTable columns={[
+                    { key: 'provinsi', label: 'Provinsi', width: '1.2fr', wrap: true },
+                    { key: 'kabupaten', label: 'Kabupaten', width: '1.2fr', wrap: true },
+                    { key: 'kecamatan', label: 'Kecamatan', width: '1.2fr', wrap: true },
+                    { key: 'jumlah', label: 'Jumlah Pasien', align: 'right', format: formatNumber, width: '0.8fr' },
+                  ]} data={normalizedData} />
+                </ReportPanel>
+              )}
 
-        {tab === 'top-diagnoses' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Diagnosa Terbanyak">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.slice(0, 15)} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="kode_icd10" type="category" width={80} tick={{ fontSize: 10 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0,0,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Top Diagnosa">
-              <DataTable columns={[
-                { key: 'kode_icd10', label: 'Kode ICD-10' },
-                { key: 'nama', label: 'Nama Penyakit', width: '1.5fr' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-              ]} data={normalizedData} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'top-diagnoses' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Diagnosa Terbanyak">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={data.slice(0, 15)} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis dataKey="kode_icd10" type="category" width={80} tick={{ fontSize: 10 }} />
+                        <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Top Diagnosa">
+                    <DataTable columns={[
+                      { key: 'kode_icd10', label: 'Kode ICD-10' },
+                      { key: 'nama', label: 'Nama Penyakit', width: '1.5fr' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                      { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+                      { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                    ]} data={normalizedData} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'new-vs-old' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Pasien Baru vs Lama">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="pasien_baru" stroke="#3b82f6" name="Baru" strokeWidth={2} />
-                  <Line type="monotone" dataKey="pasien_lama" stroke="#22c55e" name="Lama" strokeWidth={2} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Pasien Baru vs Lama">
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'pasien_baru', label: 'Pasien Baru', align: 'right', format: formatNumber },
-                { key: 'pasien_lama', label: 'Pasien Lama', align: 'right', format: formatNumber },
-                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-              ]} data={normalizedData} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'new-vs-old' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Pasien Baru vs Lama">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                        <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                        <Line type="monotone" dataKey="pasien_baru" stroke="#3b82f6" name="Baru" strokeWidth={2} />
+                        <Line type="monotone" dataKey="pasien_lama" stroke="#22c55e" name="Lama" strokeWidth={2} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Pasien Baru vs Lama">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'pasien_baru', label: 'Pasien Baru', align: 'right', format: formatNumber },
+                      { key: 'pasien_lama', label: 'Pasien Lama', align: 'right', format: formatNumber },
+                      { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                    ]} data={normalizedData} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'payment-methods' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Kunjungan Per Cara Bayar">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart><Pie data={normalizedData} cx="50%" cy="50%" outerRadius={80} dataKey="jumlah" nameKey="metode_bayar" label={{ fontSize: 11 }}>
-                  {normalizedData.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Kunjungan Per Cara Bayar">
-              <DataTable columns={[
-                { key: 'metode_bayar', label: 'Cara Bayar' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
-              ]} data={normalizedData} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'payment-methods' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Kunjungan Per Cara Bayar">
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart><Pie data={normalizedData} cx="50%" cy="50%" outerRadius={80} dataKey="jumlah" nameKey="metode_bayar" label={{ fontSize: 11 }}>
+                        {normalizedData.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie><RechartsTooltip contentStyle={{ fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Kunjungan Per Cara Bayar">
+                    <DataTable columns={[
+                      { key: 'metode_bayar', label: 'Cara Bayar' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                      { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+                    ]} data={normalizedData} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'referrals' && (
-            <DataTable columns={[
-              { key: 'asal_rujukan', label: 'Asal Rujukan', width: '1.1fr', wrap: true },
-              { key: 'nama_rujukan', label: 'Nama Perujuk', width: '1.8fr', wrap: true },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
-            ]} data={normalizedData} />
-        )}
-          </>
-        }
-      />
+              {tab === 'referrals' && (
+                <DataTable columns={[
+                  { key: 'asal_rujukan', label: 'Asal Rujukan', width: '1.1fr', wrap: true },
+                  { key: 'nama_rujukan', label: 'Nama Perujuk', width: '1.8fr', wrap: true },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
+                ]} data={normalizedData} />
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -946,157 +920,157 @@ export function ReportBPJSPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<Building2 className="h-5 w-5" />} title="Laporan BPJS">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan BPJS"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                Baris: {formatNumber(rows.length)} {summary ? `| Total: ${formatNumber(Number(summary.total ?? summary.total_sep ?? 0))}` : ''}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'daily' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Kunjungan BPJS Harian">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rajal" radius={[0,0,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Ranap" radius={[0,0,0,0]} />
-                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Harian">
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
-                { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
-                { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-              ]} data={rows} />
-            </ReportPanel>
-          </div>
-        )}
+        <PageHeader icon={<Building2 className="h-5 w-5" />} title="Laporan BPJS">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan BPJS"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  Baris: {formatNumber(rows.length)} {summary ? `| Total: ${formatNumber(Number(summary.total ?? summary.total_sep ?? 0))}` : ''}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'daily' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Kunjungan BPJS Harian">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                        <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rajal" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="rawat_inap" fill="#0f766e" name="Ranap" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Harian">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
+                      { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
+                      { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
+                      { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                    ]} data={rows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'sep' && (
-          <DataTable columns={[
-            { key: 'no_sep', label: 'No SEP' },
-            { key: 'tgl_sep', label: 'Tanggal' },
-            { key: 'no_kartu', label: 'No Kartu' },
-            { key: 'nama_pasien', label: 'Pasien' },
-            { key: 'jns_pelayanan', label: 'Jenis' },
-            { key: 'nama_poli', label: 'Poli' },
-            { key: 'diag_awal', label: 'Kode Diagnosa' },
-            { key: 'nama_diagnosa', label: 'Nama Diagnosa' },
-            { key: 'nama_dpjp', label: 'DPJP' },
-            { key: 'asal_rujukan', label: 'Asal Rujukan' },
-            { key: 'nama_rujukan', label: 'Nama Rujukan' },
-          ]} data={rows} />
-        )}
+              {tab === 'sep' && (
+                <DataTable columns={[
+                  { key: 'no_sep', label: 'No SEP' },
+                  { key: 'tgl_sep', label: 'Tanggal' },
+                  { key: 'no_kartu', label: 'No Kartu' },
+                  { key: 'nama_pasien', label: 'Pasien' },
+                  { key: 'jns_pelayanan', label: 'Jenis' },
+                  { key: 'nama_poli', label: 'Poli' },
+                  { key: 'diag_awal', label: 'Kode Diagnosa' },
+                  { key: 'nama_diagnosa', label: 'Nama Diagnosa' },
+                  { key: 'nama_dpjp', label: 'DPJP' },
+                  { key: 'asal_rujukan', label: 'Asal Rujukan' },
+                  { key: 'nama_rujukan', label: 'Nama Rujukan' },
+                ]} data={rows} />
+              )}
 
-        {tab === 'surat-kontrol' && (
-          <DataTable columns={[
-            { key: 'no_surat_kontrol', label: 'No Surat' },
-            { key: 'tgl_rencana_kontrol', label: 'Tgl Kontrol' },
-            { key: 'no_kartu', label: 'No Kartu' },
-            { key: 'nama', label: 'Pasien' },
-            { key: 'nama_poli', label: 'Poli' },
-            { key: 'nama_dokter', label: 'Dokter' },
-            { key: 'nama_diagnosa', label: 'Diagnosa' },
-            { key: 'is_prb', label: 'PRB', format: (v: boolean) => v ? 'Ya' : 'Tidak' },
-            { key: 'status', label: 'Status' },
-          ]} data={rows} />
-        )}
+              {tab === 'surat-kontrol' && (
+                <DataTable columns={[
+                  { key: 'no_surat_kontrol', label: 'No Surat' },
+                  { key: 'tgl_rencana_kontrol', label: 'Tgl Kontrol' },
+                  { key: 'no_kartu', label: 'No Kartu' },
+                  { key: 'nama', label: 'Pasien' },
+                  { key: 'nama_poli', label: 'Poli' },
+                  { key: 'nama_dokter', label: 'Dokter' },
+                  { key: 'nama_diagnosa', label: 'Diagnosa' },
+                  { key: 'is_prb', label: 'PRB', format: (v: boolean) => v ? 'Ya' : 'Tidak' },
+                  { key: 'status', label: 'Status' },
+                ]} data={rows} />
+              )}
 
-        {tab === 'antrean' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Antrean Mobile JKN">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="total_booking" fill="#1d4ed8" name="Booking" radius={[0,0,0,0]} />
-                  <Bar dataKey="checkin" fill="#0f766e" name="Check-in" radius={[0,0,0,0]} />
-                  <Bar dataKey="dilayani" fill="#d97706" name="Dilayani" radius={[0,0,0,0]} />
-                  <Bar dataKey="selesai" fill="#7c3aed" name="Selesai" radius={[0,0,0,0]} />
-                  <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Antrean">
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'total_booking', label: 'Booking', align: 'right', format: formatNumber },
-                { key: 'checkin', label: 'Check-in', align: 'right', format: formatNumber },
-                { key: 'dilayani', label: 'Dilayani', align: 'right', format: formatNumber },
-                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
-                { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
-                { key: 'jkn', label: 'JKN', align: 'right', format: formatNumber },
-                { key: 'non_jkn', label: 'Non-JKN', align: 'right', format: formatNumber },
-              ]} data={rows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'antrean' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Antrean Mobile JKN">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={rows}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                        <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="total_booking" fill="#1d4ed8" name="Booking" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="checkin" fill="#0f766e" name="Check-in" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="dilayani" fill="#d97706" name="Dilayani" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="selesai" fill="#7c3aed" name="Selesai" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Antrean">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'total_booking', label: 'Booking', align: 'right', format: formatNumber },
+                      { key: 'checkin', label: 'Check-in', align: 'right', format: formatNumber },
+                      { key: 'dilayani', label: 'Dilayani', align: 'right', format: formatNumber },
+                      { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                      { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
+                      { key: 'jkn', label: 'JKN', align: 'right', format: formatNumber },
+                      { key: 'non_jkn', label: 'Non-JKN', align: 'right', format: formatNumber },
+                    ]} data={rows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'eklaim' && (
-          <div className="space-y-4">
-            {summary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
-                <KPICard label="Total Kasus" value={formatNumber(summary.total_kasus)} />
-                <KPICard label="Total Tarif RS" value={formatCurrency(summary.total_tarif_rs)} />
-                <KPICard label="Total INACBG" value={formatCurrency(summary.total_inacbg)} />
-                <KPICard label="Total Selisih" value={formatCurrency(summary.total_selisih)} />
-              </div>
-            )}
-            <DataTable columns={[
-              { key: 'no_sep', label: 'No SEP' },
-              { key: 'nama_pasien', label: 'Pasien' },
-              { key: 'tgl_masuk', label: 'Tgl Masuk' },
-              { key: 'tgl_pulang', label: 'Tgl Pulang' },
-              { key: 'jenis_rawat', label: 'Jenis Rawat' },
-              { key: 'inacbg_code', label: 'Kode INACBG' },
-              { key: 'total_tarif_rs', label: 'Tarif RS', align: 'right', format: formatCurrency },
-              { key: 'inacbg_tariff', label: 'Tarif INACBG', align: 'right', format: formatCurrency },
-              { key: 'selisih', label: 'Selisih', align: 'right', format: formatCurrency },
-              { key: 'state', label: 'Status' },
-            ]} data={rows} />
-          </div>
-        )}
+              {tab === 'eklaim' && (
+                <div className="space-y-4">
+                  {summary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
+                      <KPICard label="Total Kasus" value={formatNumber(summary.total_kasus)} />
+                      <KPICard label="Total Tarif RS" value={formatCurrency(summary.total_tarif_rs)} />
+                      <KPICard label="Total INACBG" value={formatCurrency(summary.total_inacbg)} />
+                      <KPICard label="Total Selisih" value={formatCurrency(summary.total_selisih)} />
+                    </div>
+                  )}
+                  <DataTable columns={[
+                    { key: 'no_sep', label: 'No SEP' },
+                    { key: 'nama_pasien', label: 'Pasien' },
+                    { key: 'tgl_masuk', label: 'Tgl Masuk' },
+                    { key: 'tgl_pulang', label: 'Tgl Pulang' },
+                    { key: 'jenis_rawat', label: 'Jenis Rawat' },
+                    { key: 'inacbg_code', label: 'Kode INACBG' },
+                    { key: 'total_tarif_rs', label: 'Tarif RS', align: 'right', format: formatCurrency },
+                    { key: 'inacbg_tariff', label: 'Tarif INACBG', align: 'right', format: formatCurrency },
+                    { key: 'selisih', label: 'Selisih', align: 'right', format: formatCurrency },
+                    { key: 'state', label: 'Status' },
+                  ]} data={rows} />
+                </div>
+              )}
 
-        {tab === 'by-poli' && (
-          <DataTable columns={[
-            { key: 'kode_poli', label: 'Kode Poli' },
-            { key: 'nama_poli', label: 'Poli' },
-            { key: 'jumlah', label: 'Kunjungan', align: 'right', format: formatNumber },
-            { key: 'sep_count', label: 'Jumlah SEP', align: 'right', format: formatNumber },
-          ]} data={rows} />
-        )}
-          </>
-        }
-      />
+              {tab === 'by-poli' && (
+                <DataTable columns={[
+                  { key: 'kode_poli', label: 'Kode Poli' },
+                  { key: 'nama_poli', label: 'Poli' },
+                  { key: 'jumlah', label: 'Kunjungan', align: 'right', format: formatNumber },
+                  { key: 'sep_count', label: 'Jumlah SEP', align: 'right', format: formatNumber },
+                ]} data={rows} />
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -1174,157 +1148,157 @@ export function ReportBillingPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<DollarSign className="h-5 w-5" />} title="Laporan Keuangan">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan keuangan"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                Tagihan: {summary ? formatCurrency(summary.total_tagihan) : '-'} | Piutang: {summary ? formatCurrency(summary.total_piutang) : '-'}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'daily-revenue' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Harian">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={rows}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="total_tagihan" fill="#1d4ed8" name="Tagihan" radius={[0,0,0,0]} />
-                  <Bar dataKey="total_bayar" fill="#0f766e" name="Bayar" radius={[0,0,0,0]} />
-                  <Bar dataKey="total_piutang" fill="#dc2626" name="Piutang" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Harian">
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-                { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
-                { key: 'total_piutang', label: 'Piutang', align: 'right', format: formatCurrency },
-                { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
-              ]} data={rows} />
-            </ReportPanel>
-          </div>
-        )}
+        <PageHeader icon={<DollarSign className="h-5 w-5" />} title="Laporan Keuangan">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan keuangan"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  Tagihan: {summary ? formatCurrency(summary.total_tagihan) : '-'} | Piutang: {summary ? formatCurrency(summary.total_piutang) : '-'}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'daily-revenue' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Harian">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={rows}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
+                        <Bar dataKey="total_tagihan" fill="#1d4ed8" name="Tagihan" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="total_bayar" fill="#0f766e" name="Bayar" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="total_piutang" fill="#dc2626" name="Piutang" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Harian">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
+                      { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
+                      { key: 'total_piutang', label: 'Piutang', align: 'right', format: formatCurrency },
+                      { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
+                    ]} data={rows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-payment' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Mix" title="Cara Bayar">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart><Pie data={rows} cx="50%" cy="50%" innerRadius={50} outerRadius={74} dataKey="total_tagihan" nameKey="metode_bayar">
-                  {rows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie><RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Cara Bayar">
-              <DataTable columns={[
-              { key: 'metode_bayar', label: 'Metode' },
-              { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
-              { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-              { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
-            ]} data={rows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'by-payment' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Mix" title="Cara Bayar">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart><Pie data={rows} cx="50%" cy="50%" innerRadius={50} outerRadius={74} dataKey="total_tagihan" nameKey="metode_bayar">
+                        {rows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie><RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Cara Bayar">
+                    <DataTable columns={[
+                      { key: 'metode_bayar', label: 'Metode' },
+                      { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
+                      { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
+                      { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
+                    ]} data={rows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-room' && (
-          <ReportPanel eyebrow="Data" title="Per Ruangan">
-          <DataTable columns={[
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'service_type', label: 'Layanan' },
-            { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
-            { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
+              {tab === 'by-room' && (
+                <ReportPanel eyebrow="Data" title="Per Ruangan">
+                  <DataTable columns={[
+                    { key: 'nama_ruangan', label: 'Ruangan' },
+                    { key: 'service_type', label: 'Layanan' },
+                    { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
+                    { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
+                    { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
 
-        {tab === 'by-doctor' && (
-          <ReportPanel eyebrow="Data" title="Per Dokter">
-          <DataTable columns={[
-            { key: 'nama_dokter', label: 'Dokter' },
-            { key: 'spesialisasi', label: 'Spesialisasi' },
-            { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
-            { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
-            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
+              {tab === 'by-doctor' && (
+                <ReportPanel eyebrow="Data" title="Per Dokter">
+                  <DataTable columns={[
+                    { key: 'nama_dokter', label: 'Dokter' },
+                    { key: 'spesialisasi', label: 'Spesialisasi' },
+                    { key: 'jumlah', label: 'Transaksi', align: 'right', format: formatNumber },
+                    { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency },
+                    { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
 
-        {tab === 'receivables' && (
-          <ReportPanel eyebrow="Data" title="Piutang">
-          <DataTable columns={[
-            { key: 'billing_number', label: 'No Billing', width: '1.1fr' },
-            { key: 'nama_pasien', label: 'Pasien', width: '1.3fr' },
-            { key: 'no_rm', label: 'No RM', width: '0.8fr' },
-            { key: 'metode_bayar', label: 'Metode', width: '0.9fr' },
-            { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency, width: '1fr' },
-            { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency, width: '1fr' },
-            { key: 'sisa_piutang', label: 'Piutang', align: 'right', format: formatCurrency, width: '1fr' },
-            { key: 'tgl_billing', label: 'Tanggal', width: '0.9fr' },
-            { key: 'umur_hari', label: 'Umur', align: 'right', format: formatNumber, width: '0.7fr' },
-            { key: 'status', label: 'Status', width: '0.8fr' },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
+              {tab === 'receivables' && (
+                <ReportPanel eyebrow="Data" title="Piutang">
+                  <DataTable columns={[
+                    { key: 'billing_number', label: 'No Billing', width: '1.1fr' },
+                    { key: 'nama_pasien', label: 'Pasien', width: '1.3fr' },
+                    { key: 'no_rm', label: 'No RM', width: '0.8fr' },
+                    { key: 'metode_bayar', label: 'Metode', width: '0.9fr' },
+                    { key: 'total_tagihan', label: 'Tagihan', align: 'right', format: formatCurrency, width: '1fr' },
+                    { key: 'total_bayar', label: 'Bayar', align: 'right', format: formatCurrency, width: '1fr' },
+                    { key: 'sisa_piutang', label: 'Piutang', align: 'right', format: formatCurrency, width: '1fr' },
+                    { key: 'tgl_billing', label: 'Tanggal', width: '0.9fr' },
+                    { key: 'umur_hari', label: 'Umur', align: 'right', format: formatNumber, width: '0.7fr' },
+                    { key: 'status', label: 'Status', width: '0.8fr' },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
 
-        {tab === 'aging-receivables' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Aging Piutang">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={receivableAgingRows}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="bucket" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="total_piutang" fill="#1d4ed8" name="Piutang" radius={[0,0,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Aging Piutang">
-              <DataTable columns={[
-                { key: 'bucket', label: 'Umur Piutang' },
-                { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
-                { key: 'total_piutang', label: 'Total Piutang', align: 'right', format: formatCurrency },
-              ]} data={receivableAgingRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'aging-receivables' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Aging Piutang">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={receivableAgingRows}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="bucket" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} formatter={(v: number) => formatCurrency(v)} />
+                        <Bar dataKey="total_piutang" fill="#1d4ed8" name="Piutang" radius={[0, 0, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Aging Piutang">
+                    <DataTable columns={[
+                      { key: 'bucket', label: 'Umur Piutang' },
+                      { key: 'jumlah_billing', label: 'Billing', align: 'right', format: formatNumber },
+                      { key: 'total_piutang', label: 'Total Piutang', align: 'right', format: formatCurrency },
+                    ]} data={receivableAgingRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-item-type' && (
-          <ReportPanel eyebrow="Data" title="Per Tipe">
-          <DataTable columns={[
-            { key: 'item_type', label: 'Tipe Item' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'total_nilai', label: 'Total Nilai', align: 'right', format: formatCurrency },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
-          </>
-        }
-      />
+              {tab === 'by-item-type' && (
+                <ReportPanel eyebrow="Data" title="Per Tipe">
+                  <DataTable columns={[
+                    { key: 'item_type', label: 'Tipe Item' },
+                    { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    { key: 'total_nilai', label: 'Total Nilai', align: 'right', format: formatCurrency },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -1417,126 +1391,126 @@ export function ReportInpatientPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Rawat Inap">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan rawat inap"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                BOR: {ind ? `${formatDecimal(ind.bor)}%` : '-'} | ALOS: {ind ? formatDecimal(ind.alos) : '-'}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'indicators' && ind && (
-          <div className="space-y-4">
-            <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-4">
-              <KPICard label="Total TT" value={formatNumber(ind.total_beds)} subtitle="Tempat Tidur" />
-              <KPICard label="Hari Rawat" value={formatNumber(ind.occupied_days)} subtitle="Occupied Days" />
-              <KPICard label="Pasien Keluar" value={formatNumber(ind.total_discharges)} subtitle="Discharges" />
-              <KPICard label="Kematian" value={formatNumber(ind.total_deaths)} subtitle={`< 48 jam: ${formatNumber(ind.deaths_less_48h)}`} />
-            </div>
-            <div className="grid gap-px bg-border/70 md:grid-cols-3">
-              <KPICard label="BOR" value={formatDecimal(ind.bor) + '%'} subtitle="Standar: 60-85%" status={getBORStatus(Number(ind.bor))} />
-              <KPICard label="ALOS" value={formatDecimal(ind.alos) + ' hari'} subtitle="Standar: 6-9 hari" status={getALOSStatus(Number(ind.alos))} />
-              <KPICard label="BTO" value={formatDecimal(ind.bto) + ' kali'} subtitle="Standar: 40-50 kali" status={getBTOStatus(Number(ind.bto))} />
-              <KPICard label="TOI" value={formatDecimal(ind.toi) + ' hari'} subtitle="Standar: 1-3 hari" status={getTOIStatus(Number(ind.toi))} />
-              <KPICard label="GDR" value={formatDecimal(ind.gdr) + '‰'} subtitle="Standar: ≤ 45‰" status={getGDRStatus(Number(ind.gdr))} />
-              <KPICard label="NDR" value={formatDecimal(ind.ndr) + '‰'} subtitle="Standar: ≤ 25‰" status={getNDRStatus(Number(ind.ndr))} />
-            </div>
-          </div>
-        )}
-        {tab === 'indicators' && !ind && !loading && (
-          <p className="text-muted-foreground text-center py-8">Tidak ada data untuk periode ini.</p>
-        )}
+        <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Rawat Inap">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan rawat inap"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  BOR: {ind ? `${formatDecimal(ind.bor)}%` : '-'} | ALOS: {ind ? formatDecimal(ind.alos) : '-'}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'indicators' && ind && (
+                <div className="space-y-4">
+                  <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-4">
+                    <KPICard label="Total TT" value={formatNumber(ind.total_beds)} subtitle="Tempat Tidur" />
+                    <KPICard label="Hari Rawat" value={formatNumber(ind.occupied_days)} subtitle="Occupied Days" />
+                    <KPICard label="Pasien Keluar" value={formatNumber(ind.total_discharges)} subtitle="Discharges" />
+                    <KPICard label="Kematian" value={formatNumber(ind.total_deaths)} subtitle={`< 48 jam: ${formatNumber(ind.deaths_less_48h)}`} />
+                  </div>
+                  <div className="grid gap-px bg-border/70 md:grid-cols-3">
+                    <KPICard label="BOR" value={formatDecimal(ind.bor) + '%'} subtitle="Standar: 60-85%" status={getBORStatus(Number(ind.bor))} />
+                    <KPICard label="ALOS" value={formatDecimal(ind.alos) + ' hari'} subtitle="Standar: 6-9 hari" status={getALOSStatus(Number(ind.alos))} />
+                    <KPICard label="BTO" value={formatDecimal(ind.bto) + ' kali'} subtitle="Standar: 40-50 kali" status={getBTOStatus(Number(ind.bto))} />
+                    <KPICard label="TOI" value={formatDecimal(ind.toi) + ' hari'} subtitle="Standar: 1-3 hari" status={getTOIStatus(Number(ind.toi))} />
+                    <KPICard label="GDR" value={formatDecimal(ind.gdr) + '‰'} subtitle="Standar: ≤ 45‰" status={getGDRStatus(Number(ind.gdr))} />
+                    <KPICard label="NDR" value={formatDecimal(ind.ndr) + '‰'} subtitle="Standar: ≤ 25‰" status={getNDRStatus(Number(ind.ndr))} />
+                  </div>
+                </div>
+              )}
+              {tab === 'indicators' && !ind && !loading && (
+                <p className="text-muted-foreground text-center py-8">Tidak ada data untuk periode ini.</p>
+              )}
 
-        {tab === 'census' && (
-          <ReportPanel eyebrow="Data" title="Sensus">
-          <DataTable columns={[
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'room_class', label: 'Kelas' },
-            { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
-            { key: 'terisi', label: 'Terisi', align: 'right', format: formatNumber },
-            { key: 'kosong', label: 'Kosong', align: 'right', format: formatNumber },
-            { key: 'bor', label: 'BOR (%)', align: 'right', format: formatDecimal },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
+              {tab === 'census' && (
+                <ReportPanel eyebrow="Data" title="Sensus">
+                  <DataTable columns={[
+                    { key: 'nama_ruangan', label: 'Ruangan' },
+                    { key: 'room_class', label: 'Kelas' },
+                    { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
+                    { key: 'terisi', label: 'Terisi', align: 'right', format: formatNumber },
+                    { key: 'kosong', label: 'Kosong', align: 'right', format: formatNumber },
+                    { key: 'bor', label: 'BOR (%)', align: 'right', format: formatDecimal },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
 
-        {tab === 'list' && (
-          <ReportPanel eyebrow="Data" title="Daftar Pasien">
-          <DataTable columns={[
-            { key: 'no_rm', label: 'No RM', width: '0.85fr' },
-            { key: 'nama_pasien', label: 'Pasien', width: '1.2fr' },
-            { key: 'jenis_kelamin', label: 'JK', width: '0.8fr' },
-            { key: 'nama_ruangan', label: 'Ruangan', width: '1fr' },
-            { key: 'nama_bed', label: 'Bed', width: '0.7fr' },
-            { key: 'dokter_dpjp', label: 'DPJP', width: '1.2fr' },
-            { key: 'tgl_masuk', label: 'Tgl Masuk', width: '1fr' },
-            { key: 'tgl_keluar', label: 'Tgl Keluar', width: '1fr' },
-            { key: 'los', label: 'LOS', align: 'right', format: formatNumber, width: '0.6fr' },
-            { key: 'metode_bayar', label: 'Bayar', width: '0.9fr' },
-            { key: 'status', label: 'Status', width: '0.8fr' },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
+              {tab === 'list' && (
+                <ReportPanel eyebrow="Data" title="Daftar Pasien">
+                  <DataTable columns={[
+                    { key: 'no_rm', label: 'No RM', width: '0.85fr' },
+                    { key: 'nama_pasien', label: 'Pasien', width: '1.2fr' },
+                    { key: 'jenis_kelamin', label: 'JK', width: '0.8fr' },
+                    { key: 'nama_ruangan', label: 'Ruangan', width: '1fr' },
+                    { key: 'nama_bed', label: 'Bed', width: '0.7fr' },
+                    { key: 'dokter_dpjp', label: 'DPJP', width: '1.2fr' },
+                    { key: 'tgl_masuk', label: 'Tgl Masuk', width: '1fr' },
+                    { key: 'tgl_keluar', label: 'Tgl Keluar', width: '1fr' },
+                    { key: 'los', label: 'LOS', align: 'right', format: formatNumber, width: '0.6fr' },
+                    { key: 'metode_bayar', label: 'Bayar', width: '0.9fr' },
+                    { key: 'status', label: 'Status', width: '0.8fr' },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
 
-        {tab === 'by-payment' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Cara Bayar">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={inpatientPaymentRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah_pasien" nameKey="metode_bayar" label={{ fontSize: 11 }}>
-                    {inpatientPaymentRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Cara Bayar">
-              <DataTable columns={[
-                { key: 'metode_bayar', label: 'Metode Bayar' },
-                { key: 'jumlah_pasien', label: 'Pasien', align: 'right', format: formatNumber },
-                { key: 'total_los', label: 'Total LOS', align: 'right', format: formatNumber },
-                { key: 'avg_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
-              ]} data={inpatientPaymentRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'by-payment' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Cara Bayar">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={inpatientPaymentRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah_pasien" nameKey="metode_bayar" label={{ fontSize: 11 }}>
+                          {inpatientPaymentRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Cara Bayar">
+                    <DataTable columns={[
+                      { key: 'metode_bayar', label: 'Metode Bayar' },
+                      { key: 'jumlah_pasien', label: 'Pasien', align: 'right', format: formatNumber },
+                      { key: 'total_los', label: 'Total LOS', align: 'right', format: formatNumber },
+                      { key: 'avg_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
+                    ]} data={inpatientPaymentRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-room' && (
-          <ReportPanel eyebrow="Data" title="Per Ruangan">
-          <DataTable columns={[
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'room_class', label: 'Kelas' },
-            { key: 'jumlah_masuk', label: 'Masuk', align: 'right', format: formatNumber },
-            { key: 'jumlah_keluar', label: 'Keluar', align: 'right', format: formatNumber },
-            { key: 'masih_rawat', label: 'Masih Rawat', align: 'right', format: formatNumber },
-            { key: 'rata_rata_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
-          ]} data={rows} />
-          </ReportPanel>
-        )}
-          </>
-        }
-      />
+              {tab === 'by-room' && (
+                <ReportPanel eyebrow="Data" title="Per Ruangan">
+                  <DataTable columns={[
+                    { key: 'nama_ruangan', label: 'Ruangan' },
+                    { key: 'room_class', label: 'Kelas' },
+                    { key: 'jumlah_masuk', label: 'Masuk', align: 'right', format: formatNumber },
+                    { key: 'jumlah_keluar', label: 'Keluar', align: 'right', format: formatNumber },
+                    { key: 'masih_rawat', label: 'Masih Rawat', align: 'right', format: formatNumber },
+                    { key: 'rata_rata_los', label: 'Avg LOS', align: 'right', format: formatDecimal },
+                  ]} data={rows} />
+                </ReportPanel>
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -1599,147 +1573,147 @@ export function ReportPharmacyPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<Pill className="h-5 w-5" />} title="Laporan Farmasi">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan farmasi"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_resep ?? row?.jumlah_resep ?? row?.jumlah_qty ?? 0), 0))}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'daily' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Harian">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="disiapkan" fill="#1d4ed8" name="Siap" radius={[0,0,0,0]} />
-                  <Bar dataKey="diserahkan" fill="#0f766e" name="Serah" radius={[0,0,0,0]} />
-                  <Bar dataKey="pending" fill="#d97706" name="Pending" radius={[0,0,0,0]} />
-                  <Bar dataKey="dibatalkan" fill="#dc2626" name="Batal" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Harian">
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'total_resep', label: 'Total', align: 'right', format: formatNumber },
-              { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
-              { key: 'disiapkan', label: 'Disiapkan', align: 'right', format: formatNumber },
-              { key: 'diserahkan', label: 'Diserahkan', align: 'right', format: formatNumber },
-              { key: 'dibatalkan', label: 'Dibatalkan', align: 'right', format: formatNumber },
-              { key: 'racikan', label: 'Racikan', align: 'right', format: formatNumber },
-              { key: 'non_racikan', label: 'Non-Racikan', align: 'right', format: formatNumber },
-            ]} data={data} />
-            </ReportPanel>
-          </div>
-        )}
+        <PageHeader icon={<Pill className="h-5 w-5" />} title="Laporan Farmasi">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan farmasi"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_resep ?? row?.jumlah_resep ?? row?.jumlah_qty ?? 0), 0))}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'daily' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Harian">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Bar dataKey="disiapkan" fill="#1d4ed8" name="Siap" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="diserahkan" fill="#0f766e" name="Serah" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="pending" fill="#d97706" name="Pending" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="dibatalkan" fill="#dc2626" name="Batal" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Harian">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'total_resep', label: 'Total', align: 'right', format: formatNumber },
+                      { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
+                      { key: 'disiapkan', label: 'Disiapkan', align: 'right', format: formatNumber },
+                      { key: 'diserahkan', label: 'Diserahkan', align: 'right', format: formatNumber },
+                      { key: 'dibatalkan', label: 'Dibatalkan', align: 'right', format: formatNumber },
+                      { key: 'racikan', label: 'Racikan', align: 'right', format: formatNumber },
+                      { key: 'non_racikan', label: 'Non-Racikan', align: 'right', format: formatNumber },
+                    ]} data={data} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'mix-resep' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Komposisi Resep">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={pharmacyMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
-                    {pharmacyMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Mix Resep">
-              <DataTable columns={[
-                { key: 'kategori', label: 'Kategori' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              ]} data={pharmacyMixRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'mix-resep' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Komposisi Resep">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie data={pharmacyMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
+                          {pharmacyMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Mix Resep">
+                    <DataTable columns={[
+                      { key: 'kategori', label: 'Kategori' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    ]} data={pharmacyMixRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'top-medicines' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Obat">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data.slice(0, 15)} layout="vertical">
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="nama_obat" type="category" width={150} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah_qty" fill="#1d4ed8" name="Qty" radius={[0,0,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Obat">
-            <DataTable columns={[
-              { key: 'kode_obat', label: 'Kode Obat' },
-              { key: 'nama_obat', label: 'Nama Obat' },
-              { key: 'satuan', label: 'Satuan' },
-              { key: 'jumlah_qty', label: 'Total Qty', align: 'right', format: formatNumber },
-              { key: 'jumlah_rx', label: 'Jumlah Resep', align: 'right', format: formatNumber },
-            ]} data={data} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'top-medicines' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Obat">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={data.slice(0, 15)} layout="vertical">
+                        <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <YAxis dataKey="nama_obat" type="category" width={150} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Bar dataKey="jumlah_qty" fill="#1d4ed8" name="Qty" radius={[0, 0, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Obat">
+                    <DataTable columns={[
+                      { key: 'kode_obat', label: 'Kode Obat' },
+                      { key: 'nama_obat', label: 'Nama Obat' },
+                      { key: 'satuan', label: 'Satuan' },
+                      { key: 'jumlah_qty', label: 'Total Qty', align: 'right', format: formatNumber },
+                      { key: 'jumlah_rx', label: 'Jumlah Resep', align: 'right', format: formatNumber },
+                    ]} data={data} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'by-doctor' && (
-          <ReportPanel eyebrow="Data" title="Per Dokter">
-          <DataTable columns={[
-            { key: 'nama_dokter', label: 'Dokter' },
-            { key: 'spesialisasi', label: 'Spesialisasi' },
-            { key: 'jumlah_resep', label: 'Resep', align: 'right', format: formatNumber },
-            { key: 'jumlah_item', label: 'Jumlah Item', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'by-doctor' && (
+                <ReportPanel eyebrow="Data" title="Per Dokter">
+                  <DataTable columns={[
+                    { key: 'nama_dokter', label: 'Dokter' },
+                    { key: 'spesialisasi', label: 'Spesialisasi' },
+                    { key: 'jumlah_resep', label: 'Resep', align: 'right', format: formatNumber },
+                    { key: 'jumlah_item', label: 'Jumlah Item', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'by-depo' && (
-          <ReportPanel eyebrow="Data" title="Per Depo">
-          <DataTable columns={[
-            { key: 'nama_depo', label: 'Depo Farmasi' },
-            { key: 'jumlah_resep', label: 'Total Resep', align: 'right', format: formatNumber },
-            { key: 'delivered', label: 'Diserahkan', align: 'right', format: formatNumber },
-            { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'by-depo' && (
+                <ReportPanel eyebrow="Data" title="Per Depo">
+                  <DataTable columns={[
+                    { key: 'nama_depo', label: 'Depo Farmasi' },
+                    { key: 'jumlah_resep', label: 'Total Resep', align: 'right', format: formatNumber },
+                    { key: 'delivered', label: 'Diserahkan', align: 'right', format: formatNumber },
+                    { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'tat' && (
-          <ReportPanel eyebrow="Data" title="Waktu Tunggu">
-          <DataTable columns={[
-            { key: 'nama_depo', label: 'Depo' },
-            { key: 'avg_tat_menit', label: 'Rata-rata (menit)', align: 'right', format: formatDecimal },
-            { key: 'min_tat_menit', label: 'Min (menit)', align: 'right', format: formatDecimal },
-            { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
-            { key: 'jumlah_resep', label: 'Jumlah Resep', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
-          </>
-        }
-      />
+              {tab === 'tat' && (
+                <ReportPanel eyebrow="Data" title="Waktu Tunggu">
+                  <DataTable columns={[
+                    { key: 'nama_depo', label: 'Depo' },
+                    { key: 'avg_tat_menit', label: 'Rata-rata (menit)', align: 'right', format: formatDecimal },
+                    { key: 'min_tat_menit', label: 'Min (menit)', align: 'right', format: formatDecimal },
+                    { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
+                    { key: 'jumlah_resep', label: 'Jumlah Resep', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -1804,134 +1778,134 @@ export function ReportPenunjangPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<FlaskConical className="h-5 w-5" />} title="Laporan Penunjang (Lab & Radiologi)">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <ReportExplorerLayout
-        sidebarTitle="Parameter laporan penunjang"
-        reportItems={reportItems}
-        activeTab={tab}
-        onTabChange={setTab}
-        onApply={fetchData}
-        onExport={exportExcel}
-        previewTitle={activeReport?.label || 'Preview'}
-        filters={
-          <>
-            <ReportFilterField label="Periode Awal">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Periode Akhir">
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
-            </ReportFilterField>
-            <ReportFilterField label="Ringkasan">
-              <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_order ?? row?.jumlah ?? row?.jumlah_order ?? 0), 0))}
-              </div>
-            </ReportFilterField>
-          </>
-        }
-        previewChildren={
-          <>
-        {tab === 'daily' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Harian">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="laboratorium" fill="#1d4ed8" name="Lab" radius={[0,0,0,0]} />
-                  <Bar dataKey="radiologi" fill="#0f766e" name="Radiologi" radius={[0,0,0,0]} />
-                  <Bar dataKey="operasi" fill="#dc2626" name="Operasi" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Harian">
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'total_order', label: 'Total Order', align: 'right', format: formatNumber },
-              { key: 'laboratorium', label: 'Lab', align: 'right', format: formatNumber },
-              { key: 'radiologi', label: 'Radiologi', align: 'right', format: formatNumber },
-              { key: 'konsultasi', label: 'Konsultasi', align: 'right', format: formatNumber },
-              { key: 'operasi', label: 'Operasi', align: 'right', format: formatNumber },
-              { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
-              { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
-            ]} data={data} />
-            </ReportPanel>
-          </div>
-        )}
+        <PageHeader icon={<FlaskConical className="h-5 w-5" />} title="Laporan Penunjang (Lab & Radiologi)">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <ReportExplorerLayout
+          sidebarTitle="Parameter laporan penunjang"
+          reportItems={reportItems}
+          activeTab={tab}
+          onTabChange={setTab}
+          onApply={fetchData}
+          onExport={exportExcel}
+          previewTitle={activeReport?.label || 'Preview'}
+          filters={
+            <>
+              <ReportFilterField label="Periode Awal">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Periode Akhir">
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 rounded-none border-border/70" />
+              </ReportFilterField>
+              <ReportFilterField label="Ringkasan">
+                <div className="border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                  Total: {formatNumber(data.reduce((sum: number, row: any) => sum + Number(row?.total_order ?? row?.jumlah ?? row?.jumlah_order ?? 0), 0))}
+                </div>
+              </ReportFilterField>
+            </>
+          }
+          previewChildren={
+            <>
+              {tab === 'daily' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Trend" title="Harian">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={data}><CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Bar dataKey="laboratorium" fill="#1d4ed8" name="Lab" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="radiologi" fill="#0f766e" name="Radiologi" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="operasi" fill="#dc2626" name="Operasi" radius={[0, 0, 0, 0]} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Harian">
+                    <DataTable columns={[
+                      { key: 'tanggal', label: 'Tanggal' },
+                      { key: 'total_order', label: 'Total Order', align: 'right', format: formatNumber },
+                      { key: 'laboratorium', label: 'Lab', align: 'right', format: formatNumber },
+                      { key: 'radiologi', label: 'Radiologi', align: 'right', format: formatNumber },
+                      { key: 'konsultasi', label: 'Konsultasi', align: 'right', format: formatNumber },
+                      { key: 'operasi', label: 'Operasi', align: 'right', format: formatNumber },
+                      { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
+                      { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
+                    ]} data={data} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'mix-order' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Komposisi Order">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={penunjangMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
-                    {penunjangMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Mix Order">
-              <DataTable columns={[
-                { key: 'kategori', label: 'Kategori' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              ]} data={penunjangMixRows} />
-            </ReportPanel>
-          </div>
-        )}
+              {tab === 'mix-order' && (
+                <div className="space-y-4">
+                  <ReportPanel eyebrow="Chart" title="Komposisi Order">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie data={penunjangMixRows} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="kategori" label={{ fontSize: 11 }}>
+                          {penunjangMixRows.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ReportPanel>
+                  <ReportPanel eyebrow="Data" title="Mix Order">
+                    <DataTable columns={[
+                      { key: 'kategori', label: 'Kategori' },
+                      { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    ]} data={penunjangMixRows} />
+                  </ReportPanel>
+                </div>
+              )}
 
-        {tab === 'top-lab' && (
-          <ReportPanel eyebrow="Data" title="Lab">
-          <DataTable columns={[
-            { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'top-lab' && (
+                <ReportPanel eyebrow="Data" title="Lab">
+                  <DataTable columns={[
+                    { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
+                    { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'top-radiology' && (
-          <ReportPanel eyebrow="Data" title="Radiologi">
-          <DataTable columns={[
-            { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
-            { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-            { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'top-radiology' && (
+                <ReportPanel eyebrow="Data" title="Radiologi">
+                  <DataTable columns={[
+                    { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
+                    { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                    { key: 'completed', label: 'Selesai', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'critical-results' && (
-          <ReportPanel eyebrow="Data" title="Hasil Kritis">
-          <DataTable columns={[
-            { key: 'tanggal', label: 'Tanggal' },
-            { key: 'nama_pasien', label: 'Pasien' },
-            { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
-            { key: 'hasil', label: 'Hasil' },
-            { key: 'order_type', label: 'Tipe' },
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'nama_dokter', label: 'Dokter' },
-          ]} data={data} />
-          </ReportPanel>
-        )}
+              {tab === 'critical-results' && (
+                <ReportPanel eyebrow="Data" title="Hasil Kritis">
+                  <DataTable columns={[
+                    { key: 'tanggal', label: 'Tanggal' },
+                    { key: 'nama_pasien', label: 'Pasien' },
+                    { key: 'nama_pemeriksaan', label: 'Pemeriksaan' },
+                    { key: 'hasil', label: 'Hasil' },
+                    { key: 'order_type', label: 'Tipe' },
+                    { key: 'nama_ruangan', label: 'Ruangan' },
+                    { key: 'nama_dokter', label: 'Dokter' },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
 
-        {tab === 'tat' && (
-          <ReportPanel eyebrow="Data" title="TAT">
-          <DataTable columns={[
-            { key: 'order_type', label: 'Tipe Order' },
-            { key: 'nama_ruangan', label: 'Ruangan' },
-            { key: 'avg_tat_menit', label: 'Rata-rata (menit)', align: 'right', format: formatDecimal },
-            { key: 'min_tat_menit', label: 'Min (menit)', align: 'right', format: formatDecimal },
-            { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
-            { key: 'jumlah_order', label: 'Jumlah', align: 'right', format: formatNumber },
-          ]} data={data} />
-          </ReportPanel>
-        )}
-          </>
-        }
-      />
+              {tab === 'tat' && (
+                <ReportPanel eyebrow="Data" title="TAT">
+                  <DataTable columns={[
+                    { key: 'order_type', label: 'Tipe Order' },
+                    { key: 'nama_ruangan', label: 'Ruangan' },
+                    { key: 'avg_tat_menit', label: 'Rata-rata (menit)', align: 'right', format: formatDecimal },
+                    { key: 'min_tat_menit', label: 'Min (menit)', align: 'right', format: formatDecimal },
+                    { key: 'max_tat_menit', label: 'Max (menit)', align: 'right', format: formatDecimal },
+                    { key: 'jumlah_order', label: 'Jumlah', align: 'right', format: formatNumber },
+                  ]} data={data} />
+                </ReportPanel>
+              )}
+            </>
+          }
+        />
       </PageContent>
     </PageShell>
   );
@@ -2119,127 +2093,127 @@ export function ReportServicesPage() {
               <Badge variant="outline" className="rounded-none">{startDate} s/d {endDate}</Badge>
             </div>
 
-          {tab === 'per-patient' && (
-            <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data.slice(0, 10)}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="nama_pasien" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} hide />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </BarChart>
-              </ResponsiveContainer>
+            {tab === 'per-patient' && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={data.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="nama_pasien" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} hide />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <DataTable columns={[
+                  { key: 'no_rm', label: 'No RM', width: '0.8fr' },
+                  { key: 'nama_pasien', label: 'Pasien', width: '1.5fr', wrap: true },
+                  { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
+                  { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber, width: '0.7fr' },
+                  { key: 'terakhir', label: 'Terakhir', width: '0.9fr' },
+                ]} data={data} />
+              </div>
+            )}
+
+            {tab === 'summary' && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <DataTable columns={[
+                  { key: 'tanggal', label: 'Tanggal' },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                  { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                  { key: 'pasien_unik', label: 'Pasien', align: 'right', format: formatNumber },
+                ]} data={data} />
+              </div>
+            )}
+
+            {tab === 'by-payment' && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={data} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="payment_method" label={{ fontSize: 11 }}>
+                      {data.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <DataTable columns={[
+                  { key: 'payment_method', label: 'Cara Bayar' },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                  { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+                ]} data={data} />
+              </div>
+            )}
+
+            {tab === 'by-class' && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <DataTable columns={[
+                  { key: 'kelas', label: 'Kelas' },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                  { key: 'persentase', label: '%', align: 'right', format: formatPercent },
+                ]} data={data} />
+              </div>
+            )}
+
+            {tab === 'surgery-patients' && (
               <DataTable columns={[
                 { key: 'no_rm', label: 'No RM', width: '0.8fr' },
-                { key: 'nama_pasien', label: 'Pasien', width: '1.5fr', wrap: true },
-                { key: 'jenis_kelamin', label: 'JK', width: '0.7fr' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber, width: '0.7fr' },
-                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber, width: '0.7fr' },
-                { key: 'terakhir', label: 'Terakhir', width: '0.9fr' },
+                { key: 'nama_pasien', label: 'Pasien', width: '1.2fr', wrap: true },
+                { key: 'tindakan', label: 'Tindakan', width: '1.3fr', wrap: true },
+                { key: 'dokter_bedah', label: 'Dokter', width: '1.2fr', wrap: true },
+                { key: 'ruangan', label: 'Ruangan', width: '1fr' },
+                { key: 'jadwal', label: 'Jadwal', width: '0.9fr' },
+                { key: 'status', label: 'Status', width: '0.8fr' },
               ]} data={data} />
-            </div>
-          )}
+            )}
 
-          {tab === 'summary' && (
-            <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </BarChart>
-              </ResponsiveContainer>
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
-                { key: 'pasien_unik', label: 'Pasien', align: 'right', format: formatNumber },
-              ]} data={data} />
-            </div>
-          )}
-
-          {tab === 'by-payment' && (
-            <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={data} cx="50%" cy="50%" outerRadius={82} dataKey="jumlah" nameKey="payment_method" label={{ fontSize: 11 }}>
-                    {data.map((_: unknown, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <DataTable columns={[
-                { key: 'payment_method', label: 'Cara Bayar' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
-              ]} data={data} />
-            </div>
-          )}
-
-          {tab === 'by-class' && (
-            <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah" fill="#1d4ed8" name="Jumlah" radius={[0, 0, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              <DataTable columns={[
-                { key: 'kelas', label: 'Kelas' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'persentase', label: '%', align: 'right', format: formatPercent },
-              ]} data={data} />
-            </div>
-          )}
-
-          {tab === 'surgery-patients' && (
-            <DataTable columns={[
-              { key: 'no_rm', label: 'No RM', width: '0.8fr' },
-              { key: 'nama_pasien', label: 'Pasien', width: '1.2fr', wrap: true },
-              { key: 'tindakan', label: 'Tindakan', width: '1.3fr', wrap: true },
-              { key: 'dokter_bedah', label: 'Dokter', width: '1.2fr', wrap: true },
-              { key: 'ruangan', label: 'Ruangan', width: '1fr' },
-              { key: 'jadwal', label: 'Jadwal', width: '0.9fr' },
-              { key: 'status', label: 'Status', width: '0.8fr' },
-            ]} data={data} />
-          )}
-
-          {tab === 'surgery-schedule' && (
-            <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={data}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="total" fill="#1d4ed8" name="Total" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="pending" fill="#f59e0b" name="Pending" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0, 0, 0, 0]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </BarChart>
-              </ResponsiveContainer>
-              <DataTable columns={[
-                { key: 'tanggal', label: 'Tanggal' },
-                { key: 'ruangan', label: 'Ruangan', wrap: true },
-                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
-                { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
-                { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
-                { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
-              ]} data={data} />
-            </div>
-          )}
+            {tab === 'surgery-schedule' && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="total" fill="#1d4ed8" name="Total" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="pending" fill="#f59e0b" name="Pending" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="selesai" fill="#0f766e" name="Selesai" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="batal" fill="#dc2626" name="Batal" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <DataTable columns={[
+                  { key: 'tanggal', label: 'Tanggal' },
+                  { key: 'ruangan', label: 'Ruangan', wrap: true },
+                  { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                  { key: 'pending', label: 'Pending', align: 'right', format: formatNumber },
+                  { key: 'selesai', label: 'Selesai', align: 'right', format: formatNumber },
+                  { key: 'batal', label: 'Batal', align: 'right', format: formatNumber },
+                ]} data={data} />
+              </div>
+            )}
           </ReportPanel>
         </div>
       </PageContent>
@@ -2292,69 +2266,69 @@ export function ReportInventoryPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<Boxes className="h-5 w-5" />} title="Laporan Inventaris & Stok">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
+        <PageHeader icon={<Boxes className="h-5 w-5" />} title="Laporan Inventaris & Stok">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <InlineNav items={navItems} value={tab} onChange={setTab} />
 
-      <div className="pt-2">
-        {tab === 'medicine-stock' && (
-          <ReportPanel eyebrow="Data" title="Stok Obat">
-            <DataTable columns={[
-              { key: 'nama_depo', label: 'Depo' },
-              { key: 'kode_obat', label: 'Kode Obat' },
-              { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
-              { key: 'satuan', label: 'Satuan' },
-              { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
-              { key: 'stok_min', label: 'Min', align: 'right', format: formatNumber },
-              { key: 'stok_max', label: 'Max', align: 'right', format: formatNumber },
-              { key: 'harga_satuan', label: 'Harga', align: 'right', format: formatCurrency, width: '1.1fr' },
-              { key: 'nilai_stok', label: 'Nilai', align: 'right', format: formatCurrency, width: '1.1fr' },
-              { key: 'status', label: 'Status' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
+        <div className="pt-2">
+          {tab === 'medicine-stock' && (
+            <ReportPanel eyebrow="Data" title="Stok Obat">
+              <DataTable columns={[
+                { key: 'nama_depo', label: 'Depo' },
+                { key: 'kode_obat', label: 'Kode Obat' },
+                { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
+                { key: 'satuan', label: 'Satuan' },
+                { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
+                { key: 'stok_min', label: 'Min', align: 'right', format: formatNumber },
+                { key: 'stok_max', label: 'Max', align: 'right', format: formatNumber },
+                { key: 'harga_satuan', label: 'Harga', align: 'right', format: formatCurrency, width: '1.1fr' },
+                { key: 'nilai_stok', label: 'Nilai', align: 'right', format: formatCurrency, width: '1.1fr' },
+                { key: 'status', label: 'Status' },
+              ]} data={data} />
+            </ReportPanel>
+          )}
 
-        {tab === 'expired-medicines' && (
-          <ReportPanel eyebrow="Data" title="Obat Kadaluarsa">
-            <DataTable columns={[
-              { key: 'kode_obat', label: 'Kode Obat' },
-              { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
-              { key: 'no_batch', label: 'Batch' },
-              { key: 'tgl_kadaluarsa', label: 'Kadaluarsa' },
-              { key: 'sisa', label: 'Sisa', align: 'right', format: formatNumber },
-              { key: 'nama_depo', label: 'Depo' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
+          {tab === 'expired-medicines' && (
+            <ReportPanel eyebrow="Data" title="Obat Kadaluarsa">
+              <DataTable columns={[
+                { key: 'kode_obat', label: 'Kode Obat' },
+                { key: 'nama_obat', label: 'Nama Obat', width: '1.4fr' },
+                { key: 'no_batch', label: 'Batch' },
+                { key: 'tgl_kadaluarsa', label: 'Kadaluarsa' },
+                { key: 'sisa', label: 'Sisa', align: 'right', format: formatNumber },
+                { key: 'nama_depo', label: 'Depo' },
+              ]} data={data} />
+            </ReportPanel>
+          )}
 
-        {tab === 'stock' && (
-          <ReportPanel eyebrow="Data" title="Stok Inventaris">
-            <DataTable columns={[
-              { key: 'nama_ruangan', label: 'Ruangan' },
-              { key: 'kode_barang', label: 'Kode Barang' },
-              { key: 'nama_barang', label: 'Nama Barang', width: '1.5fr' },
-              { key: 'kategori', label: 'Kategori' },
-              { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
-              { key: 'kondisi', label: 'Kondisi' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
+          {tab === 'stock' && (
+            <ReportPanel eyebrow="Data" title="Stok Inventaris">
+              <DataTable columns={[
+                { key: 'nama_ruangan', label: 'Ruangan' },
+                { key: 'kode_barang', label: 'Kode Barang' },
+                { key: 'nama_barang', label: 'Nama Barang', width: '1.5fr' },
+                { key: 'kategori', label: 'Kategori' },
+                { key: 'stok_saat_ini', label: 'Stok', align: 'right', format: formatNumber },
+                { key: 'kondisi', label: 'Kondisi' },
+              ]} data={data} />
+            </ReportPanel>
+          )}
 
-        {tab === 'mutations' && (
-          <ReportPanel eyebrow="Data" title="Mutasi Stok">
-            <DataTable columns={[
-              { key: 'tanggal', label: 'Tanggal' },
-              { key: 'kode_obat', label: 'Kode Obat' },
-              { key: 'nama_obat', label: 'Obat', width: '1.3fr' },
-              { key: 'tipe', label: 'Tipe' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'nama_depo', label: 'Depo' },
-              { key: 'keterangan', label: 'Keterangan', width: '1.5fr' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-      </div>
+          {tab === 'mutations' && (
+            <ReportPanel eyebrow="Data" title="Mutasi Stok">
+              <DataTable columns={[
+                { key: 'tanggal', label: 'Tanggal' },
+                { key: 'kode_obat', label: 'Kode Obat' },
+                { key: 'nama_obat', label: 'Obat', width: '1.3fr' },
+                { key: 'tipe', label: 'Tipe' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'nama_depo', label: 'Depo' },
+                { key: 'keterangan', label: 'Keterangan', width: '1.5fr' },
+              ]} data={data} />
+            </ReportPanel>
+          )}
+        </div>
       </PageContent>
     </PageShell>
   );
@@ -2411,117 +2385,117 @@ export function ReportHRPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<UserCheck className="h-5 w-5" />} title="Laporan SDM">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
+        <PageHeader icon={<UserCheck className="h-5 w-5" />} title="Laporan SDM">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <InlineNav items={navItems} value={tab} onChange={setTab} />
 
-      <div className="pt-2">
-        {tab === 'summary' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Komposisi Pegawai">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="laki" fill="#1d4ed8" name="Laki-laki" radius={[0,0,0,0]} />
-                  <Bar dataKey="perempuan" fill="#db2777" name="Perempuan" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Rekap Pegawai">
+        <div className="pt-2">
+          {tab === 'summary' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Trend" title="Komposisi Pegawai">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                    <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="laki" fill="#1d4ed8" name="Laki-laki" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="perempuan" fill="#db2777" name="Perempuan" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="Rekap Pegawai">
+                <DataTable columns={[
+                  { key: 'tipe_karyawan', label: 'Tipe' },
+                  { key: 'status_kepegawaian', label: 'Status' },
+                  { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                  { key: 'laki', label: 'L', align: 'right', format: formatNumber },
+                  { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                ]} data={data} />
+              </ReportPanel>
+            </div>
+          )}
+
+          {tab === 'doctors' && (
+            <ReportPanel eyebrow="Data" title="Daftar Dokter">
               <DataTable columns={[
+                { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
+                { key: 'spesialisasi', label: 'Spesialisasi' },
+                { key: 'no_str', label: 'No STR' },
+                { key: 'masa_berlaku_str', label: 'Berlaku STR' },
+                { key: 'no_sip', label: 'No SIP' },
+                { key: 'masa_berlaku_sip', label: 'Berlaku SIP' },
+                { key: 'status_kepegawaian', label: 'Status Pegawai' },
+                { key: 'status_str', label: 'Status STR' },
+              ]} data={data} />
+            </ReportPanel>
+          )}
+
+          {tab === 'by-specialization' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Chart" title="Sebaran Spesialisasi">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={specializationRows}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="spesialisasi" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="jumlah_dokter" fill="#1d4ed8" name="Dokter" radius={[0, 0, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="Spesialisasi">
+                <DataTable columns={[
+                  { key: 'spesialisasi', label: 'Spesialisasi' },
+                  { key: 'jumlah_dokter', label: 'Jumlah Dokter', align: 'right', format: formatNumber },
+                ]} data={specializationRows} />
+              </ReportPanel>
+            </div>
+          )}
+
+          {tab === 'license-expiry' && (
+            <ReportPanel eyebrow="Data" title="Masa Berlaku STR / SIP">
+              <DataTable columns={[
+                { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
                 { key: 'tipe_karyawan', label: 'Tipe' },
-                { key: 'status_kepegawaian', label: 'Status' },
-                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-                { key: 'laki', label: 'L', align: 'right', format: formatNumber },
-                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                { key: 'spesialisasi', label: 'Spesialisasi' },
+                { key: 'jenis_surat', label: 'Jenis' },
+                { key: 'nomor_surat', label: 'Nomor' },
+                { key: 'tgl_berlaku', label: 'Berlaku s/d' },
+                { key: 'sisa_hari', label: 'Sisa Hari', align: 'right', format: formatNumber },
+                { key: 'status', label: 'Status' },
               ]} data={data} />
             </ReportPanel>
-          </div>
-        )}
+          )}
 
-        {tab === 'doctors' && (
-          <ReportPanel eyebrow="Data" title="Daftar Dokter">
-            <DataTable columns={[
-              { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
-              { key: 'spesialisasi', label: 'Spesialisasi' },
-              { key: 'no_str', label: 'No STR' },
-              { key: 'masa_berlaku_str', label: 'Berlaku STR' },
-              { key: 'no_sip', label: 'No SIP' },
-              { key: 'masa_berlaku_sip', label: 'Berlaku SIP' },
-              { key: 'status_kepegawaian', label: 'Status Pegawai' },
-              { key: 'status_str', label: 'Status STR' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-
-        {tab === 'by-specialization' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Sebaran Spesialisasi">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={specializationRows}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="spesialisasi" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="jumlah_dokter" fill="#1d4ed8" name="Dokter" radius={[0,0,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Spesialisasi">
-              <DataTable columns={[
-                { key: 'spesialisasi', label: 'Spesialisasi' },
-                { key: 'jumlah_dokter', label: 'Jumlah Dokter', align: 'right', format: formatNumber },
-              ]} data={specializationRows} />
-            </ReportPanel>
-          </div>
-        )}
-
-        {tab === 'license-expiry' && (
-          <ReportPanel eyebrow="Data" title="Masa Berlaku STR / SIP">
-            <DataTable columns={[
-              { key: 'nama_lengkap', label: 'Nama', width: '1.3fr' },
-              { key: 'tipe_karyawan', label: 'Tipe' },
-              { key: 'spesialisasi', label: 'Spesialisasi' },
-              { key: 'jenis_surat', label: 'Jenis' },
-              { key: 'nomor_surat', label: 'Nomor' },
-              { key: 'tgl_berlaku', label: 'Berlaku s/d' },
-              { key: 'sisa_hari', label: 'Sisa Hari', align: 'right', format: formatNumber },
-              { key: 'status', label: 'Status' },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-
-        {tab === 'doctor-workload' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="Beban Kerja Dokter">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.slice(0, 15)} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="nama_dokter" type="category" width={150} tick={{ fontSize: 10 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#3b82f6" name="Rajal" stackId="a" radius={[0,0,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#22c55e" name="Ranap" stackId="a" radius={[0,2,2,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Beban Kerja">
-              <DataTable columns={[
-                { key: 'nama_dokter', label: 'Dokter', width: '1.3fr' },
-                { key: 'spesialisasi', label: 'Spesialisasi' },
-                { key: 'jumlah_pasien', label: 'Total', align: 'right', format: formatNumber },
-                { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber },
-                { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber },
-                { key: 'avg_per_hari', label: 'Avg/Hari', align: 'right', format: formatDecimal },
-              ]} data={data} />
-            </ReportPanel>
-          </div>
-        )}
-      </div>
+          {tab === 'doctor-workload' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Trend" title="Beban Kerja Dokter">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data.slice(0, 15)} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="nama_dokter" type="category" width={150} tick={{ fontSize: 10 }} />
+                    <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="rawat_jalan" fill="#3b82f6" name="Rajal" stackId="a" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="rawat_inap" fill="#22c55e" name="Ranap" stackId="a" radius={[0, 2, 2, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="Beban Kerja">
+                <DataTable columns={[
+                  { key: 'nama_dokter', label: 'Dokter', width: '1.3fr' },
+                  { key: 'spesialisasi', label: 'Spesialisasi' },
+                  { key: 'jumlah_pasien', label: 'Total', align: 'right', format: formatNumber },
+                  { key: 'rawat_jalan', label: 'Rajal', align: 'right', format: formatNumber },
+                  { key: 'rawat_inap', label: 'Ranap', align: 'right', format: formatNumber },
+                  { key: 'avg_per_hari', label: 'Avg/Hari', align: 'right', format: formatDecimal },
+                ]} data={data} />
+              </ReportPanel>
+            </div>
+          )}
+        </div>
       </PageContent>
     </PageShell>
   );
@@ -2597,157 +2571,157 @@ export function ReportKemenkesPage() {
   return (
     <PageShell>
       <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-      <PageHeader icon={<Landmark className="h-5 w-5" />} title="Laporan Kemenkes / RL">
-        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-      </PageHeader>
-      <InlineNav items={navItems} value={tab} onChange={setTab} />
+        <PageHeader icon={<Landmark className="h-5 w-5" />} title="Laporan Kemenkes / RL">
+          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+        </PageHeader>
+        <InlineNav items={navItems} value={tab} onChange={setTab} />
 
-      <div className="pt-2">
-        {tab === 'quality-indicators' && (
-          <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-3">
-            {data.map((row: { indikator: string; nilai: string; standar: string; status: string }, i: number) => (
-              <KPICard
-                key={i}
-                label={row.indikator}
-                value={String(row.nilai)}
-                subtitle={`Standar: ${row.standar}`}
-                status={row.status === 'Ideal' ? 'good' : 'bad'}
-              />
-            ))}
-            {data.length === 0 && !loading && <p className="text-muted-foreground text-center py-8 col-span-full">Tidak ada data untuk periode ini.</p>}
-          </div>
-        )}
+        <div className="pt-2">
+          {tab === 'quality-indicators' && (
+            <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-3">
+              {data.map((row: { indikator: string; nilai: string; standar: string; status: string }, i: number) => (
+                <KPICard
+                  key={i}
+                  label={row.indikator}
+                  value={String(row.nilai)}
+                  subtitle={`Standar: ${row.standar}`}
+                  status={row.status === 'Ideal' ? 'good' : 'bad'}
+                />
+              ))}
+              {data.length === 0 && !loading && <p className="text-muted-foreground text-center py-8 col-span-full">Tidak ada data untuk periode ini.</p>}
+            </div>
+          )}
 
-        {tab === 'rl12-beds' && (
-          <ReportPanel eyebrow="Data" title="RL 1.2 Tempat Tidur">
-            <DataTable columns={[
-              { key: 'ruang_perawatan', label: 'Ruang', width: '1.3fr' },
-              { key: 'kelas', label: 'Kelas' },
-              { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
-              { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
-              { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
-              { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-
-        {tab === 'bed-summary' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Chart" title="Ringkasan Tempat Tidur">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={bedSummaryRows}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
-                  <Bar dataKey="bed_terisi" fill="#0f766e" name="Terisi" radius={[0,0,0,0]} />
-                  <Bar dataKey="bed_kosong" fill="#dc2626" name="Kosong" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="Ringkas Tempat Tidur">
+          {tab === 'rl12-beds' && (
+            <ReportPanel eyebrow="Data" title="RL 1.2 Tempat Tidur">
               <DataTable columns={[
+                { key: 'ruang_perawatan', label: 'Ruang', width: '1.3fr' },
                 { key: 'kelas', label: 'Kelas' },
                 { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
                 { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
                 { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
                 { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
-              ]} data={bedSummaryRows} />
-            </ReportPanel>
-          </div>
-        )}
-
-        {tab === 'rl31-outpatient' && (
-          <ReportPanel eyebrow="Data" title="RL 3.1 Rajal">
-            <DataTable columns={[
-              { key: 'ranking', label: '#', align: 'right' },
-              { key: 'icd10_code', label: 'Kode ICD-10' },
-              { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
-              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-              { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
-              { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-
-        {tab === 'rl32-inpatient' && (
-          <ReportPanel eyebrow="Data" title="RL 3.2 Ranap">
-            <DataTable columns={[
-              { key: 'ranking', label: '#', align: 'right' },
-              { key: 'icd10_code', label: 'Kode ICD-10' },
-              { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
-              { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
-              { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
-              { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
-              { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
-              { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
-              { key: 'lama_laki', label: 'Lama L', align: 'right', format: formatNumber },
-              { key: 'lama_wanita', label: 'Lama P', align: 'right', format: formatNumber },
-            ]} data={data} />
-          </ReportPanel>
-        )}
-
-        {tab === 'rl4a-visits' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="RL 4A Kunjungan">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="bulan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0,0,0,0]} />
-                  <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0,0,0,0]} />
-                  <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0,0,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="RL 4A Kunjungan">
-              <DataTable columns={[
-                { key: 'bulan', label: 'Bulan' },
-                { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
-                { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
-                { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
-                { key: 'total_pasien', label: 'Total', align: 'right', format: formatNumber },
-                { key: 'pasien_baru', label: 'Baru', align: 'right', format: formatNumber },
-                { key: 'pasien_lama', label: 'Lama', align: 'right', format: formatNumber },
               ]} data={data} />
             </ReportPanel>
-          </div>
-        )}
+          )}
 
-        {tab === 'rl51-workforce' && (
-          <div className="space-y-4">
-            <ReportPanel eyebrow="Trend" title="RL 5.1 Ketenagaan">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                  <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="pns" fill="#3b82f6" name="PNS" stackId="a" />
-                  <Bar dataKey="kontrak" fill="#22c55e" name="Kontrak" stackId="a" />
-                  <Bar dataKey="honorer" fill="#f59e0b" name="Honorer" stackId="a" />
-                  <Bar dataKey="magang" fill="#8b5cf6" name="Magang" stackId="a" />
-                  <Bar dataKey="lainnya" fill="#ec4899" name="Lainnya" stackId="a" />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ReportPanel>
-            <ReportPanel eyebrow="Data" title="RL 5.1 Ketenagaan">
+          {tab === 'bed-summary' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Chart" title="Ringkasan Tempat Tidur">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={bedSummaryRows}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="kelas" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #e5e7eb' }} />
+                    <Bar dataKey="bed_terisi" fill="#0f766e" name="Terisi" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="bed_kosong" fill="#dc2626" name="Kosong" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="Ringkas Tempat Tidur">
+                <DataTable columns={[
+                  { key: 'kelas', label: 'Kelas' },
+                  { key: 'total_bed', label: 'Total TT', align: 'right', format: formatNumber },
+                  { key: 'bed_terisi', label: 'Terisi', align: 'right', format: formatNumber },
+                  { key: 'bed_kosong', label: 'Kosong', align: 'right', format: formatNumber },
+                  { key: 'persentase', label: '% Terisi', align: 'right', format: formatPercent },
+                ]} data={bedSummaryRows} />
+              </ReportPanel>
+            </div>
+          )}
+
+          {tab === 'rl31-outpatient' && (
+            <ReportPanel eyebrow="Data" title="RL 3.1 Rajal">
               <DataTable columns={[
-                { key: 'tipe_karyawan', label: 'Tipe' },
-                { key: 'pns', label: 'PNS', align: 'right', format: formatNumber },
-                { key: 'kontrak', label: 'Kontrak', align: 'right', format: formatNumber },
-                { key: 'honorer', label: 'Honorer', align: 'right', format: formatNumber },
-                { key: 'magang', label: 'Magang', align: 'right', format: formatNumber },
-                { key: 'lainnya', label: 'Lainnya', align: 'right', format: formatNumber },
-                { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                { key: 'ranking', label: '#', align: 'right' },
+                { key: 'icd10_code', label: 'Kode ICD-10' },
+                { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
+                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
+                { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
               ]} data={data} />
             </ReportPanel>
-          </div>
-        )}
-      </div>
+          )}
+
+          {tab === 'rl32-inpatient' && (
+            <ReportPanel eyebrow="Data" title="RL 3.2 Ranap">
+              <DataTable columns={[
+                { key: 'ranking', label: '#', align: 'right' },
+                { key: 'icd10_code', label: 'Kode ICD-10' },
+                { key: 'icd10_name', label: 'Penyakit', width: '1.5fr' },
+                { key: 'jumlah', label: 'Jumlah', align: 'right', format: formatNumber },
+                { key: 'laki_laki', label: 'L', align: 'right', format: formatNumber },
+                { key: 'perempuan', label: 'P', align: 'right', format: formatNumber },
+                { key: 'baru_laki', label: 'Baru L', align: 'right', format: formatNumber },
+                { key: 'baru_wanita', label: 'Baru P', align: 'right', format: formatNumber },
+                { key: 'lama_laki', label: 'Lama L', align: 'right', format: formatNumber },
+                { key: 'lama_wanita', label: 'Lama P', align: 'right', format: formatNumber },
+              ]} data={data} />
+            </ReportPanel>
+          )}
+
+          {tab === 'rl4a-visits' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Trend" title="RL 4A Kunjungan">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="bulan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                    <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="rawat_jalan" fill="#1d4ed8" name="Rawat Jalan" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="rawat_inap" fill="#0f766e" name="Rawat Inap" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="igd" fill="#dc2626" name="IGD" radius={[0, 0, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="RL 4A Kunjungan">
+                <DataTable columns={[
+                  { key: 'bulan', label: 'Bulan' },
+                  { key: 'rawat_jalan', label: 'Rawat Jalan', align: 'right', format: formatNumber },
+                  { key: 'rawat_inap', label: 'Rawat Inap', align: 'right', format: formatNumber },
+                  { key: 'igd', label: 'IGD', align: 'right', format: formatNumber },
+                  { key: 'total_pasien', label: 'Total', align: 'right', format: formatNumber },
+                  { key: 'pasien_baru', label: 'Baru', align: 'right', format: formatNumber },
+                  { key: 'pasien_lama', label: 'Lama', align: 'right', format: formatNumber },
+                ]} data={data} />
+              </ReportPanel>
+            </div>
+          )}
+
+          {tab === 'rl51-workforce' && (
+            <div className="space-y-4">
+              <ReportPanel eyebrow="Trend" title="RL 5.1 Ketenagaan">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="tipe_karyawan" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                    <RechartsTooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="pns" fill="#3b82f6" name="PNS" stackId="a" />
+                    <Bar dataKey="kontrak" fill="#22c55e" name="Kontrak" stackId="a" />
+                    <Bar dataKey="honorer" fill="#f59e0b" name="Honorer" stackId="a" />
+                    <Bar dataKey="magang" fill="#8b5cf6" name="Magang" stackId="a" />
+                    <Bar dataKey="lainnya" fill="#ec4899" name="Lainnya" stackId="a" />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ReportPanel>
+              <ReportPanel eyebrow="Data" title="RL 5.1 Ketenagaan">
+                <DataTable columns={[
+                  { key: 'tipe_karyawan', label: 'Tipe' },
+                  { key: 'pns', label: 'PNS', align: 'right', format: formatNumber },
+                  { key: 'kontrak', label: 'Kontrak', align: 'right', format: formatNumber },
+                  { key: 'honorer', label: 'Honorer', align: 'right', format: formatNumber },
+                  { key: 'magang', label: 'Magang', align: 'right', format: formatNumber },
+                  { key: 'lainnya', label: 'Lainnya', align: 'right', format: formatNumber },
+                  { key: 'total', label: 'Total', align: 'right', format: formatNumber },
+                ]} data={data} />
+              </ReportPanel>
+            </div>
+          )}
+        </div>
       </PageContent>
     </PageShell>
   );

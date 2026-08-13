@@ -575,8 +575,12 @@ export default function AdmissionRequestShowPage() {
           "Permintaan rawat inap berhasil diproses. Kunjungan rawat inap telah dibuat.",
       });
 
-      // Show success dialog to ask for signature
-      setSuccessDialogOpen(true);
+      const regId = updatedRequest?.registration_id || request?.registration_id;
+      if (regId) {
+        navigate(`/registrations/${regId}`);
+      } else {
+        navigate("/registrations?tab=admission_requests");
+      }
     } catch (error) {
       console.error("Failed to process request:", error);
       toast({
