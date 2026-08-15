@@ -317,7 +317,7 @@ export function DataTable<TData, TValue>({
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className="sticky top-0 z-2 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
+                      className="sticky top-0 z-20 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
                     >
                       {header.isPlaceholder
                         ? null

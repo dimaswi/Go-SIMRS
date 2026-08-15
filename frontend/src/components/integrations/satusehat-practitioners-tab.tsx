@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
-import { Loader2, Search, CheckCircle, XCircle, AlertCircle, Eye } from "lucide-react";
+import { Loader2, Search, CheckCircle, AlertCircle, Eye } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface Employee {
@@ -49,7 +49,7 @@ export function PractitionersTab({ employees, sending, onLookupPractitioner, onS
         const employee = row.original;
         if (employee.satusehat_id) {
           return (
-            <Badge className="bg-green-100 text-green-800 gap-1">
+            <Badge className="bg-green-100 text-green-800 gap-1 hover:bg-green-200">
               <CheckCircle className="h-3 w-3" />
               {employee.satusehat_id.substring(0, 12)}...
             </Badge>
@@ -57,15 +57,15 @@ export function PractitionersTab({ employees, sending, onLookupPractitioner, onS
         }
         if (employee.nik) {
           return (
-            <Badge variant="secondary" className="gap-1">
+            <Badge variant="secondary" className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-normal gap-1">
               <AlertCircle className="h-3 w-3" />
               Belum Lookup
             </Badge>
           );
         }
         return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
+          <Badge variant="secondary" className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-normal gap-1">
+            <AlertCircle className="h-3 w-3" />
             NIK Kosong
           </Badge>
         );

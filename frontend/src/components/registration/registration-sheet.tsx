@@ -445,15 +445,14 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       toast({
         title: "Pendaftaran Berhasil!",
         description: (
-          <div className="space-y-1">
-            <p className="font-semibold">Pasien: {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
-            <p>No. RM: {patient.no_rm}</p>
-            <p>Ruangan: {roomName}</p>
+          <div className="flex flex-col gap-1 text-sm mt-1">
+            <div><span className="font-medium">Pasien:</span> {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} ({patient.no_rm})</div>
+            <div><span className="font-medium">Ruangan:</span> {roomName}</div>
             {roomQueueNumber && (
-              <p className="text-lg font-bold">Nomor Antrian: {roomQueueNumber}</p>
+              <div><span className="font-medium">Antrian:</span> <span className="font-bold">{roomQueueNumber}</span></div>
             )}
             {sepNumber && (
-              <p>No. SEP: {sepNumber}</p>
+              <div><span className="font-medium">SEP:</span> {sepNumber}</div>
             )}
           </div>
         ),

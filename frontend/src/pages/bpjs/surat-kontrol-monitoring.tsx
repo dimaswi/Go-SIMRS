@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,14 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   Tooltip,
   TooltipContent,
@@ -130,7 +124,7 @@ export default function SuratKontrolMonitoringPage() {
   const poliTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
-    setPageTitle("Monitoring Surat Kontrol");
+    setPageTitle("SKDP");
     loadData();
   }, []);
 
@@ -390,13 +384,174 @@ export default function SuratKontrolMonitoringPage() {
 
   const getStatusBadge = (status: string) => {
     const cfg = statusConfig[status] || { label: status, className: "bg-gray-50 text-gray-600 border-gray-200" };
-    return <Badge variant="outline" className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge>;
+    return <Badge variant="outline" className={cn("text-[10px] whitespace-nowrap", cfg.className)}>{cfg.label}</Badge>;
   };
+
+  const columns = useMemo<ColumnDef<SuratKontrolLocal>[]>(() => [
+    {
+      id: "no",
+      header: () => <div className="text-center">#</div>,
+      cell: ({ row }) => <div className="text-center text-muted-foreground text-sm">{row.index + 1}</div>,
+    },
+    {
+      accessorKey: "no_surat_kontrol",
+      header: "No. SKDP",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex items-center gap-2 font-mono text-sm font-semibold text-purple-700">
+            <span>{item.no_surat_kontrol}</span>
+            {item.source_type === "simrs" && (
+              <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300">
+                SIMRS
+              </Badge>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      accessorFn: (row) => `${row.nama} ${row.no_kartu}`,
+      header: "Pasien",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="max-w-[140px]">
+            <p className="font-medium text-sm truncate" title={item.nama || ""}>{item.nama || "-"}</p>
+            <p className="text-xs text-muted-foreground font-mono">{item.no_kartu}</p>
+          </div>
+        );
+      }
+    },
+    {
+      accessorKey: "no_sep",
+      header: "No. SEP",
+      cell: ({ row }) => <div className="font-mono text-xs text-muted-foreground">{row.original.no_sep}</div>
+    },
+    {
+      accessorKey: "created_at",
+      header: "Tgl Terbit",
+      cell: ({ row }) => {
+        const val = row.original.created_at;
+        return <div className="text-sm">{val ? format(new Date(val), "dd/MM/yyyy", { locale: idLocale }) : "-"}</div>;
+      }
+    },
+    {
+      accessorKey: "tgl_rencana_kontrol",
+      header: "Tgl Kontrol",
+      cell: ({ row }) => {
+        const val = row.original.tgl_rencana_kontrol;
+        return <div className="text-sm font-medium">{val ? format(new Date(val), "dd/MM/yyyy", { locale: idLocale }) : "-"}</div>;
+      }
+    },
+    {
+      accessorFn: (row) => row.nama_poli || row.kode_poli || "-",
+      header: "Poli",
+      cell: ({ row }) => <div className="text-sm max-w-[120px]"><p className="truncate">{row.original.nama_poli || row.original.kode_poli || "-"}</p></div>
+    },
+    {
+      accessorFn: (row) => row.nama_dokter || row.kode_dokter || "-",
+      header: "DPJP",
+      cell: ({ row }) => <div className="text-sm max-w-[120px]"><p className="truncate" title={row.original.nama_dokter || ""}>{row.original.nama_dokter || row.original.kode_dokter || "-"}</p></div>
+    },
+
+    {
+      id: "status_ttd",
+      header: () => <div className="text-center">TTD</div>,
+      cell: ({ row }) => {
+        const item = row.original;
+        const sigStatus = signatureStatuses[`surat_kontrol:${item.id}`];
+        const signed = sigStatus?.signed_signatures || (sigStatus?.is_signed ? 2 : 0);
+        const required = sigStatus?.required_signatures || 2;
+        return (
+          <div className="flex justify-center">
+            {signed === required ? (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] whitespace-nowrap">Lengkap</Badge>
+            ) : (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] whitespace-nowrap">{signed}/{required}</Badge>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      id: "status",
+      header: () => <div className="text-center">Status</div>,
+      cell: ({ row }) => <div className="flex justify-center">{getStatusBadge(row.original.status)}</div>
+    },
+    {
+      id: "aksi",
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex items-center justify-center gap-1 flex-nowrap whitespace-nowrap">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(item)}>
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Detail Surat Kontrol</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {item.status === "active" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => handleOpenEdit(item)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{item.source_type === "simrs" ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {item.status === "active" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => handleSign(item)}>
+                      <PenTool className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tandatangani Dokumen</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(item)}>
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{item.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {item.status === "active" && item.source_type !== "simrs" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(item)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Hapus Surat Kontrol</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      }
+    }
+  ], [signatureStatuses, handleOpenDetail, handleOpenEdit, handleSign, handlePrint, handleConfirmDelete]);
 
   return (
     <BPJSPageFrame
-      title="Monitoring Surat Kontrol"
-      description="Pantau surat kontrol BPJS dan kontrol SIMRS dalam tata letak yang lebih padat agar tabel dan aksi tetap mudah terlihat."
+      title="SKDP"
+      description=""
       actions={
         <>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
@@ -467,9 +622,6 @@ export default function SuratKontrolMonitoringPage() {
         </Collapsible>
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Memuat..." : `${list.length} data kontrol ditemukan`}
-          </p>
         </div>
 
         {loading ? (
@@ -486,146 +638,13 @@ export default function SuratKontrolMonitoringPage() {
             <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
           </div>
         ) : (
-          <div className="overflow-hidden border-y border-border/70 bg-background">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>No. Surat Kontrol</TableHead>
-                  <TableHead>Nama / No. Kartu</TableHead>
-                  <TableHead>No. SEP</TableHead>
-                  <TableHead>Tgl Terbit</TableHead>
-                  <TableHead>Tgl Rencana Kontrol</TableHead>
-                  <TableHead>Poli</TableHead>
-                  <TableHead className="w-[120px]">Dokter DPJP</TableHead>
-                  <TableHead className="w-[80px] text-center">Program</TableHead>
-                  <TableHead className="w-[120px] text-center">Status TTD</TableHead>
-                  <TableHead className="w-[80px] text-center">Status</TableHead>
-                  <TableHead className="w-[150px] text-center">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {list.map((item, idx) => {
-                  const sigStatus = signatureStatuses[`surat_kontrol:${item.id}`];
-                  const signed = sigStatus?.signed_signatures || (sigStatus?.is_signed ? 2 : 0);
-                  const required = sigStatus?.required_signatures || 2;
-
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/30">
-                      <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
-                      <TableCell className="font-mono text-sm font-semibold text-purple-700">
-                        <div className="flex items-center gap-2">
-                          <span>{item.no_surat_kontrol}</span>
-                          {item.source_type === "simrs" && (
-                            <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300">
-                              SIMRS
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium text-sm">{item.nama || "-"}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{item.no_kartu}</p>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{item.no_sep}</TableCell>
-                      <TableCell className="text-sm">
-                        {item.created_at
-                          ? format(new Date(item.created_at), "dd/MM/yyyy", { locale: idLocale })
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {item.tgl_rencana_kontrol
-                          ? format(new Date(item.tgl_rencana_kontrol), "dd/MM/yyyy", { locale: idLocale })
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm max-w-[120px]">
-                        <p className="truncate">{item.nama_poli || item.kode_poli || "-"}</p>
-                      </TableCell>
-                      <TableCell className="text-sm max-w-[120px]">
-                        <p className="truncate">{item.nama_dokter || item.kode_dokter || "-"}</p>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {item.is_prb ? (
-                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                            {item.nama_status_prb || item.kd_status_prb || "PRB"}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {signed === required ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">Lengkap</Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">{signed}/{required}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">{getStatusBadge(item.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDetail(item)}>
-                                  <Eye className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Detail Surat Kontrol</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {item.status === "active" && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => handleOpenEdit(item)}>
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{item.source_type === "simrs" ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {item.status === "active" && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => handleSign(item)}>
-                                    <PenTool className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Tandatangani Dokumen</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePrint(item)}>
-                                  <Printer className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{item.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {item.status === "active" && item.source_type !== "simrs" && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-red-50" onClick={() => handleConfirmDelete(item)}>
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Hapus Surat Kontrol</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="bg-background">
+            <DataTable
+              columns={columns}
+              data={list}
+              showSearch={false}
+              pageSize={10}
+            />
           </div>
         )}
       </BPJSSectionPanel>
@@ -757,102 +776,102 @@ export default function SuratKontrolMonitoringPage() {
             </SheetTitle>
           </SheetHeader>
 
-      {editingItem && (
-        <div className="space-y-6 py-4">
-          {/* Info peserta (read-only) */}
-          <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
-            <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <div>
-                <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
-                <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">Nama</span>
-                <p className="font-medium">{editingItem.nama || "-"}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">No. Kartu</span>
-                <p className="font-mono text-xs">{editingItem.no_kartu}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">No. SEP</span>
-                <p className="font-mono text-xs">{editingItem.no_sep}</p>
-              </div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground text-xs">Diagnosa</span>
-                <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
-              </div>
-              {editingItem.is_prb && (
-                <div className="col-span-2">
-                  <span className="text-muted-foreground text-xs">Program PRB</span>
-                  <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Editable fields */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
-              <Input
-                type="date"
-                value={editForm.tgl_rencana_kontrol}
-                onChange={(e) => {
-                  setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
-                  if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
-                }}
-                className="h-9"
-              />
-            </div>
-
-            {!isEditingSIMRS && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Poli Tujuan *</Label>
-                  <Combobox
-                    options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
-                    value={editForm.kode_poli}
-                    onValueChange={handlePoliChange}
-                    onSearchChange={handlePoliSearchChange}
-                    placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
-                    className="h-9"
-                  />
-                  {editForm.nama_poli && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+          {editingItem && (
+            <div className="space-y-6 py-4">
+              {/* Info peserta (read-only) */}
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
+                <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
+                    <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Nama</span>
+                    <p className="font-medium">{editingItem.nama || "-"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. Kartu</span>
+                    <p className="font-mono text-xs">{editingItem.no_kartu}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">No. SEP</span>
+                    <p className="font-mono text-xs">{editingItem.no_sep}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground text-xs">Diagnosa</span>
+                    <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
+                  </div>
+                  {editingItem.is_prb && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs">Program PRB</span>
+                      <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
+                    </div>
                   )}
                 </div>
+              </div>
 
+              {/* Editable fields */}
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium">Dokter DPJP *</Label>
-                  <Combobox
-                    options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
-                    value={editForm.kode_dokter}
-                    onValueChange={handleDokterChange}
-                    placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                  <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
+                  <Input
+                    type="date"
+                    value={editForm.tgl_rencana_kontrol}
+                    onChange={(e) => {
+                      setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
+                      if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
+                    }}
                     className="h-9"
                   />
-                  {editForm.nama_dokter && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
-                  )}
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
-      <SheetFooter className="pt-4 flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
-          Batal
-        </Button>
-        <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
-        </Button>
-      </SheetFooter>
-    </SheetContent>
+                {!isEditingSIMRS && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                      <Combobox
+                        options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
+                        value={editForm.kode_poli}
+                        onValueChange={handlePoliChange}
+                        onSearchChange={handlePoliSearchChange}
+                        placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
+                        className="h-9"
+                      />
+                      {editForm.nama_poli && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Dokter DPJP *</Label>
+                      <Combobox
+                        options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
+                        value={editForm.kode_dokter}
+                        onValueChange={handleDokterChange}
+                        placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                        className="h-9"
+                      />
+                      {editForm.nama_dokter && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <SheetFooter className="pt-4 flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
+              Batal
+            </Button>
+            <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
       </Sheet >
     </BPJSPageFrame >
   );

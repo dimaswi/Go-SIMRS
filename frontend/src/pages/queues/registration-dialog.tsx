@@ -1021,11 +1021,12 @@ export function RegistrationDialog({
       toast({
         title: "Pendaftaran Berhasil!",
         description: (
-          <div className="space-y-1">
-            <p className="font-semibold">Pasien: {formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
-            <p>No. RM: {existingPatient.no_rm}</p>
-            <p>Ruangan: {roomName}</p>
-            <p className="text-lg font-bold">Nomor Antrian Ruangan: {roomQueueNumber}</p>
+          <div className="flex flex-col gap-1 text-sm mt-1">
+            <div><span className="font-medium">Pasien:</span> {formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)} ({existingPatient.no_rm})</div>
+            <div><span className="font-medium">Ruangan:</span> {roomName}</div>
+            {roomQueueNumber && (
+              <div><span className="font-medium">Antrian:</span> <span className="font-bold">{roomQueueNumber}</span></div>
+            )}
           </div>
         ),
         duration: 10000,

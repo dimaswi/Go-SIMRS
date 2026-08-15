@@ -1,22 +1,23 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Pill,
-  Link2,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Plus,
   Trash2,
   Check,
   CheckCircle,
   AlertCircle,
-  RefreshCw,
   Loader2,
   Search,
   Send,
@@ -32,17 +33,27 @@ import {
 } from "@/lib/api/kfa";
 import type { ColumnDef } from "@tanstack/react-table";
 
+type UnifiedMappingRecord = {
+  id: string;
+  medicine_id: number;
+  medicine: any;
+  mapping: MedicineKFAMapping | null;
+  is_verified: boolean;
+  status: 'unmapped' | 'mapped_pending' | 'verified';
+};
+
 export function KfaMappingTab() {
   const { toast } = useToast();
 
   // States
   const [kfaMappings, setKfaMappings] = useState<MedicineKFAMapping[]>([]);
-  const [kfaStats, setKfaStats] = useState<KFAMappingStats | null>(null);
+  const [_kfaStats, setKfaStats] = useState<KFAMappingStats | null>(null);
   const [unmappedMedicines, setUnmappedMedicines] = useState<UnmappedMedicine[]>([]);
   const [kfaSearchQuery, setKfaSearchQuery] = useState("");
   const [kfaSearchResults, setKfaSearchResults] = useState<KFALookupResult[]>([]);
-  const [selectedMedicine, setSelectedMedicine] = useState<UnmappedMedicine | null>(null);
+  const [selectedMedicine, setSelectedMedicine] = useState<any | null>(null);
   const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
+
   const [newMapping, setNewMapping] = useState({
     kfa_code: "",
     kfa_name: "",
@@ -67,8 +78,8 @@ export function KfaMappingTab() {
     try {
       const [statsRes, mappingsRes, unmappedRes] = await Promise.all([
         kfaStatsApi.getStats(),
-        kfaMappingApi.getAll({ limit: 100 }),
-        kfaStatsApi.getUnmapped({ limit: 100 }),
+        kfaMappingApi.getAll({ limit: 500 }), // increased limit just in case
+        kfaStatsApi.getUnmapped({ limit: 500 }),
       ]);
       setKfaStats(statsRes.data);
       setKfaMappings(mappingsRes.data.data || []);
@@ -79,6 +90,31 @@ export function KfaMappingTab() {
       setLoading(false);
     }
   };
+
+  const unifiedData = useMemo(() => {
+    const data: UnifiedMappingRecord[] = [];
+    unmappedMedicines.forEach(m => {
+      data.push({
+        id: `unmapped-${m.id}`,
+        medicine_id: m.id,
+        medicine: m,
+        mapping: null,
+        is_verified: false,
+        status: 'unmapped'
+      });
+    });
+    kfaMappings.forEach(m => {
+      data.push({
+        id: `mapped-${m.id}`,
+        medicine_id: m.medicine_id,
+        medicine: m.medicine || { id: m.medicine_id, name: (m as any).medicine?.name || 'Unknown', code: (m as any).medicine?.code || '-', generic_name: (m as any).medicine?.generic_name || '-' },
+        mapping: m,
+        is_verified: m.is_verified,
+        status: m.is_verified ? 'verified' : 'mapped_pending'
+      });
+    });
+    return data;
+  }, [unmappedMedicines, kfaMappings]);
 
   const handleSearchKFA = async (query: string) => {
     setKfaSearchQuery(query);
@@ -112,7 +148,6 @@ export function KfaMappingTab() {
 
   const handleLookupKFAByCode = async (code: string) => {
     if (!code || code.length < 5) return;
-
     setLookingUpKFA(true);
     try {
       const res = await kfaLookupApi.lookupByCode(code);
@@ -155,7 +190,6 @@ export function KfaMappingTab() {
 
   const handleCreateMapping = async () => {
     if (!selectedMedicine || !newMapping.kfa_code) return;
-
     setSavingMapping(true);
     try {
       await kfaMappingApi.create({
@@ -260,8 +294,7 @@ export function KfaMappingTab() {
     }
   };
 
-  // Column definitions for KFA Mapping DataTable
-  const kfaMappingColumns: ColumnDef<MedicineKFAMapping>[] = [
+  const kfaMappingColumns: ColumnDef<UnifiedMappingRecord>[] = [
     {
       accessorKey: "medicine.code",
       header: "Kode Obat",
@@ -278,65 +311,44 @@ export function KfaMappingTab() {
       ),
     },
     {
-      accessorKey: "kfa_code",
-      header: "Kode KFA",
-      cell: ({ row }) => <span className="font-mono text-primary">{row.original.kfa_code}</span>,
-    },
-    {
-      accessorKey: "kfa_name",
-      header: "Nama KFA",
-      cell: ({ row }) => (
-        <div>
-          <p>{row.original.kfa_name}</p>
-          {row.original.kfa_display_name && row.original.kfa_display_name !== row.original.kfa_name && (
-            <p className="text-xs text-muted-foreground">{row.original.kfa_display_name}</p>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "is_verified",
-      header: "Verifikasi",
+      id: "kfa_mapping",
+      header: "Mapping KFA",
       cell: ({ row }) => {
-        const mapping = row.original;
-        if (mapping.is_verified) {
+        const mapping = row.original.mapping;
+        if (!mapping) return <span className="text-muted-foreground text-xs italic">Belum di-map</span>;
+
+        return (
+          <div>
+            <span className="font-mono text-primary text-xs bg-primary/10 px-1 py-0.5 rounded">{mapping.kfa_code}</span>
+            <p className="text-xs mt-1 max-w-[200px] truncate" title={mapping.kfa_name}>{mapping.kfa_name}</p>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.original.status;
+        if (status === 'unmapped') {
           return (
-            <Badge className="bg-green-100 text-green-800 gap-1">
+            <Badge variant="secondary" className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-normal">
+              Belum Mapping
+            </Badge>
+          );
+        }
+        if (status === 'verified') {
+          return (
+            <Badge className="bg-green-100 text-green-800 gap-1 hover:bg-green-200">
               <CheckCircle className="h-3 w-3" />
               Terverifikasi
             </Badge>
           );
         }
         return (
-          <Badge variant="secondary" className="gap-1">
+          <Badge variant="outline" className="text-yellow-600 border-yellow-200 bg-yellow-50 gap-1">
             <AlertCircle className="h-3 w-3" />
-            Belum Verifikasi
-          </Badge>
-        );
-      },
-    },
-    {
-      accessorKey: "satusehat_medication_id",
-      header: "Medication",
-      cell: ({ row }) => {
-        const mapping = row.original;
-        if (mapping.satusehat_medication_id) {
-          return (
-            <div>
-              <Badge className="bg-green-100 text-green-800 gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Terkirim
-              </Badge>
-              <p className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-[120px]" title={mapping.satusehat_medication_id}>
-                {mapping.satusehat_medication_id}
-              </p>
-            </div>
-          );
-        }
-        return (
-          <Badge variant="outline" className="text-orange-600 gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Belum Dikirim
+            Menunggu Verifikasi
           </Badge>
         );
       },
@@ -345,100 +357,72 @@ export function KfaMappingTab() {
       id: "actions",
       header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
-        const mapping = row.original;
+        const record = row.original;
+        const mapping = record.mapping;
+
         return (
           <div className="text-right flex gap-2 justify-end">
-            {!mapping.satusehat_medication_id && (
+            {!mapping ? (
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => handleSendMedication(mapping.id)}
-                disabled={sending === `medication-standalone-${mapping.id}`}
-                title="Kirim Medication ke SatuSehat"
+                onClick={() => {
+                  setSelectedMedicine(record.medicine);
+                  setNewMapping({
+                    kfa_code: "",
+                    kfa_name: "",
+                    kfa_display_name: "",
+                    kfa_form: "",
+                    kfa_strength: "",
+                    kfa_manufacturer: "",
+                    kfa_farmalkes: "",
+                    notes: "",
+                  });
+                  setKfaSearchQuery("");
+                  setKfaSearchResults([]);
+                  setMappingDialogOpen(true);
+                }}
               >
-                {sending === `medication-standalone-${mapping.id}` ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-1" />
+                <Plus className="h-4 w-4 mr-1" /> Mapping
+              </Button>
+            ) : (
+              <>
+                {!record.is_verified && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleVerifyMapping(mapping.id)}
+                    title="Verifikasi mapping"
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
                 )}
-                Kirim
-              </Button>
+                {!mapping.satusehat_medication_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSendMedication(mapping.id)}
+                    disabled={sending === `medication-standalone-${mapping.id}`}
+                    title="Kirim Medication ke SatuSehat"
+                  >
+                    {sending === `medication-standalone-${mapping.id}` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteMapping(mapping.id)}
+                  className="text-red-600 hover:text-red-700"
+                  title="Hapus mapping"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
             )}
-            {!mapping.is_verified && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleVerifyMapping(mapping.id)}
-                title="Verifikasi mapping"
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDeleteMapping(mapping.id)}
-              className="text-red-600 hover:text-red-700"
-              title="Hapus mapping"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  // Column definitions for Unmapped Medicines DataTable
-  const unmappedMedicineColumns: ColumnDef<UnmappedMedicine>[] = [
-    {
-      accessorKey: "code",
-      header: "Kode",
-      cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-    },
-    {
-      accessorKey: "name",
-      header: "Nama Obat",
-      cell: ({ row }) => (
-        <div>
-          <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs text-muted-foreground">{row.original.generic_name}</p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "form",
-      header: "Bentuk",
-      cell: ({ row }) => <Badge variant="outline">{row.original.form}</Badge>,
-    },
-    {
-      accessorKey: "strength",
-      header: "Kekuatan",
-      cell: ({ row }) => row.original.strength || '-',
-    },
-    {
-      accessorKey: "manufacturer",
-      header: "Produsen",
-      cell: ({ row }) => row.original.manufacturer || '-',
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-right">Aksi</div>,
-      cell: ({ row }) => {
-        const medicine = row.original;
-        return (
-          <div className="text-right">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedMedicine(medicine);
-                setMappingDialogOpen(true);
-              }}
-            >
-              <Link2 className="h-4 w-4 mr-2" />
-              Map KFA
-            </Button>
           </div>
         );
       },
@@ -455,343 +439,157 @@ export function KfaMappingTab() {
 
   return (
     <div className="space-y-6">
-      {/* KFA Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Pill className="h-4 w-4 text-blue-500" />
-              Total Obat
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kfaStats?.total_medicines || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Obat aktif di sistem</p>
-          </CardContent>
-        </Card>
+      <DataTable
+        columns={kfaMappingColumns}
+        data={unifiedData}
+        searchPlaceholder="Cari nama obat atau kode KFA..."
+        pageSize={10}
+        tableId="unified-kfa-mappings"
+      />
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-green-500" />
-              Sudah Mapping
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {kfaStats?.total_mapped || 0}
-              <span className="text-sm font-normal text-muted-foreground ml-1">
-                ({kfaStats?.mapped_percentage?.toFixed(1) || 0}%)
-              </span>
-            </div>
-            <Progress
-              value={kfaStats?.mapped_percentage || 0}
-              className="mt-2"
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-emerald-500" />
-              Terverifikasi
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {kfaStats?.total_verified || 0}
-              <span className="text-sm font-normal text-muted-foreground ml-1">
-                ({kfaStats?.verified_percentage?.toFixed(1) || 0}%)
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Siap untuk SatuSehat</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-              Belum Mapping
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{kfaStats?.total_unmapped || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Perlu dipetakan ke KFA</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Two Column Layout */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Mapped Medicines */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                Mapping KFA ({kfaMappings.length})
-              </span>
-              <Button variant="outline" size="sm" onClick={loadKFAData}>
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Refresh
-              </Button>
-            </CardTitle>
-            <CardDescription>Obat yang sudah dipetakan ke kode KFA</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <DataTable
-              columns={kfaMappingColumns}
-              data={kfaMappings}
-              searchPlaceholder="Cari nama obat atau kode KFA..."
-              pageSize={5}
-              tableId="kfa-mappings"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Unmapped Medicines */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-              Obat Belum Mapping ({unmappedMedicines.length})
-            </CardTitle>
-            <CardDescription>Obat yang perlu dipetakan ke kode KFA untuk MedicationRequest</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <DataTable
-              columns={unmappedMedicineColumns}
-              data={unmappedMedicines}
-              searchPlaceholder="Cari nama obat..."
-              pageSize={5}
-              tableId="unmapped-medicines"
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Info Box */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-4">
-          <div className="flex gap-3">
-            <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Tentang Kode KFA (Kode Farmasi Indonesia)
-              </p>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                KFA adalah standar kode obat nasional dari Kemenkes RI yang digunakan untuk MedicationRequest di SatuSehat.
-                Setiap obat lokal perlu dipetakan ke kode KFA yang sesuai agar dapat dikirim ke SatuSehat.
-                Anda dapat mencari kode KFA di{" "}
-                <a
-                  href="https://dto.kemkes.go.id/kfa-browser"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-medium hover:text-blue-800 dark:hover:text-blue-200"
-                >
-                  KFA Browser Kemenkes
-                </a>.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* KFA Mapping Dialog */}
+      {/* Mapping Dialog */}
       <Dialog open={mappingDialogOpen} onOpenChange={setMappingDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5" />
-              Mapping Kode KFA
-            </DialogTitle>
+            <DialogTitle>Mapping Obat ke KFA</DialogTitle>
+            <DialogDescription>
+              Cari dan pilih data KFA dari SatuSehat untuk obat lokal ini.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* Medicine Info */}
-            {selectedMedicine && (
-              <div className="p-3 bg-muted/50 rounded-md space-y-1">
-                <p className="text-sm font-medium">{selectedMedicine.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedMedicine.generic_name} | {selectedMedicine.form} | {selectedMedicine.strength}
-                </p>
-                <p className="text-xs text-muted-foreground">Kode: {selectedMedicine.code}</p>
-              </div>
-            )}
-
-            {/* Input Kode KFA with Auto-lookup */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-code">Kode KFA</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="kfa-code"
-                  placeholder="Contoh: 93001295"
-                  value={newMapping.kfa_code}
-                  onChange={(e) => setNewMapping({ ...newMapping, kfa_code: e.target.value })}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleLookupKFAByCode(newMapping.kfa_code)}
-                  disabled={!newMapping.kfa_code || newMapping.kfa_code.length < 5 || lookingUpKFA}
-                >
-                  {lookingUpKFA ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Masukkan kode KFA lalu klik tombol cari untuk auto-fill nama obat dari SatuSehat
-              </p>
-            </div>
-
-            {/* Nama KFA (auto-filled or manual) */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-name">Nama KFA *</Label>
-              <Input
-                id="kfa-name"
-                placeholder="Nama obat di KFA (akan terisi otomatis)"
-                value={newMapping.kfa_name}
-                onChange={(e) => setNewMapping({ ...newMapping, kfa_name: e.target.value })}
-                className={newMapping.kfa_name ? "border-green-500" : ""}
-              />
-            </div>
-
-            {/* Display Name */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-display-name">Display Name *</Label>
-              <Input
-                id="kfa-display-name"
-                placeholder="Nama tampilan untuk FHIR (auto-filled)"
-                value={newMapping.kfa_display_name}
-                onChange={(e) => setNewMapping({ ...newMapping, kfa_display_name: e.target.value })}
-                className={newMapping.kfa_display_name ? "border-green-500" : ""}
-              />
-              <p className="text-xs text-muted-foreground">Digunakan untuk tampilan di FHIR MedicationRequest</p>
-            </div>
-
-            {/* Grid 2 columns untuk form & manufacturer */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="kfa-form">Bentuk Sediaan</Label>
-                <Input
-                  id="kfa-form"
-                  placeholder="Tablet, Kapsul, dll (auto-filled)"
-                  value={newMapping.kfa_form}
-                  onChange={(e) => setNewMapping({ ...newMapping, kfa_form: e.target.value })}
-                  className={newMapping.kfa_form ? "border-green-500" : ""}
-                />
+          {selectedMedicine && (
+            <div className="flex-1 overflow-y-auto pr-2 space-y-6 py-4">
+              {/* Medicine Info */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-1">Obat Lokal</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xl font-bold text-foreground">{selectedMedicine.name}</p>
+                  <Badge variant="secondary" className="font-mono">{selectedMedicine.code}</Badge>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground pt-1">
+                  <span>Generik: <span className="font-medium text-foreground">{selectedMedicine.generic_name || '-'}</span></span>
+                  <span>Bentuk: <span className="font-medium text-foreground">{selectedMedicine.form || '-'}</span></span>
+                  <span>Kekuatan: <span className="font-medium text-foreground">{selectedMedicine.strength || '-'}</span></span>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="kfa-strength">Kekuatan/Dosis</Label>
-                <Input
-                  id="kfa-strength"
-                  placeholder="Contoh: 500 mg"
-                  value={newMapping.kfa_strength}
-                  onChange={(e) => setNewMapping({ ...newMapping, kfa_strength: e.target.value })}
-                />
-              </div>
-            </div>
+              {/* Input Kode KFA with Auto-lookup */}
+              <div className="py-2 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="kfa-code" className="text-base">Pencarian KFA</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Cari berdasarkan nama atau masukkan kode KFA secara manual.
+                  </p>
 
-            {/* Manufacturer */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-manufacturer">Produsen</Label>
-              <Input
-                id="kfa-manufacturer"
-                placeholder="Nama produsen (auto-filled)"
-                value={newMapping.kfa_manufacturer}
-                onChange={(e) => setNewMapping({ ...newMapping, kfa_manufacturer: e.target.value })}
-                className={newMapping.kfa_manufacturer ? "border-green-500" : ""}
-              />
-            </div>
+                  {/* Search box for KFA text search */}
+                  <div className="relative pt-2 pb-3 border-b mb-4">
+                    <Search className="absolute left-3 top-[22px] -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Ketik nama obat standar KFA..."
+                      className="pl-9 h-11"
+                      value={kfaSearchQuery}
+                      onChange={(e) => handleSearchKFA(e.target.value)}
+                    />
 
-            {/* Farmalkes */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-farmalkes">Kode Farmalkes (opsional)</Label>
-              <Input
-                id="kfa-farmalkes"
-                placeholder="Kode Farmalkes (auto-filled)"
-                value={newMapping.kfa_farmalkes}
-                onChange={(e) => setNewMapping({ ...newMapping, kfa_farmalkes: e.target.value })}
-                className={newMapping.kfa_farmalkes ? "border-green-500" : ""}
-              />
-            </div>
+                    {/* Search Results Dropdown/List */}
+                    {kfaSearchResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg max-h-60 overflow-y-auto">
+                        {kfaSearchResults.map((kfa, idx) => (
+                          <button
+                            key={`${kfa.kfa_code}-${idx}`}
+                            type="button"
+                            className="w-full text-left px-4 py-3 hover:bg-muted text-sm border-b last:border-0 transition-colors"
+                            onClick={() => handleSelectKFA(kfa)}
+                          >
+                            <p className="font-semibold text-primary">{kfa.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Kode: <span className="font-mono">{kfa.kfa_code}</span> {kfa.manufacturer && `| Produsen: ${kfa.manufacturer}`}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-            {/* Separator */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">atau cari berdasarkan nama</span>
-              </div>
-            </div>
+                  <div className="flex gap-2">
+                    <Input
+                      id="kfa-code"
+                      placeholder="Atau masukkan Kode KFA langsung: 93001295"
+                      value={newMapping.kfa_code}
+                      onChange={(e) => setNewMapping({ ...newMapping, kfa_code: e.target.value })}
+                      className="flex-1 font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => handleLookupKFAByCode(newMapping.kfa_code)}
+                      disabled={!newMapping.kfa_code || newMapping.kfa_code.length < 5 || lookingUpKFA}
+                    >
+                      {lookingUpKFA ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Lookup Kode
+                    </Button>
+                  </div>
+                </div>
 
-            {/* KFA Search by Name */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-search">Cari di SatuSehat</Label>
-              <div className="relative">
-                <Input
-                  id="kfa-search"
-                  placeholder="Ketik nama obat untuk mencari..."
-                  value={kfaSearchQuery}
-                  onChange={(e) => handleSearchKFA(e.target.value)}
-                />
-                {kfaSearchResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {kfaSearchResults.map((kfa, idx) => (
-                      <button
-                        key={`${kfa.kfa_code}-${idx}`}
-                        type="button"
-                        className="w-full text-left px-3 py-2 hover:bg-muted text-sm border-b last:border-0"
-                        onClick={() => handleSelectKFA(kfa)}
-                      >
-                        <p className="font-medium">{kfa.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Kode: {kfa.kfa_code} {kfa.manufacturer && `| ${kfa.manufacturer}`}
-                        </p>
-                      </button>
-                    ))}
+                {/* Selected KFA Display */}
+                {newMapping.kfa_name && (
+                  <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-500" />
+                      <span className="font-semibold text-green-800 dark:text-green-400">Data KFA Terpilih</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Nama KFA</p>
+                        <p className="font-medium">{newMapping.kfa_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Bentuk Sediaan</p>
+                        <p className="font-medium">{newMapping.kfa_form || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Pabrikan</p>
+                        <p className="font-medium">{newMapping.kfa_manufacturer || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Izin Edar (Farmalkes)</p>
+                        <p className="font-medium">{newMapping.kfa_farmalkes || "-"}</p>
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                {/* Notes */}
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="kfa-notes">Catatan (opsional)</Label>
+                  <Input
+                    id="kfa-notes"
+                    placeholder="Catatan tambahan untuk tim farmasi..."
+                    value={newMapping.notes}
+                    onChange={(e) => setNewMapping({ ...newMapping, notes: e.target.value })}
+                  />
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Minimal 2 karakter untuk mencari nama obat di database SatuSehat
-              </p>
             </div>
+          )}
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="kfa-notes">Catatan (opsional)</Label>
-              <Input
-                id="kfa-notes"
-                placeholder="Catatan tambahan..."
-                value={newMapping.notes}
-                onChange={(e) => setNewMapping({ ...newMapping, notes: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
+          <div className="pt-4 border-t flex justify-end gap-3 mt-auto">
             <Button variant="outline" onClick={() => setMappingDialogOpen(false)}>
               Batal
             </Button>
             <Button
               onClick={handleCreateMapping}
               disabled={!newMapping.kfa_code || !newMapping.kfa_name || savingMapping}
+              className="min-w-[150px]"
             >
               {savingMapping ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
-                <Plus className="h-4 w-4 mr-2" />
+                <Check className="h-4 w-4 mr-2" />
               )}
               Simpan Mapping
             </Button>
@@ -801,3 +599,4 @@ export function KfaMappingTab() {
     </div>
   );
 }
+

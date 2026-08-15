@@ -24,7 +24,7 @@ export function PageShell({ children, className }: PageShellProps) {
 // Zona judul + deskripsi + badge count + slot aksi (tombol)
 interface PageHeaderProps {
   title: string
-  description?: string
+  description?: React.ReactNode
   count?: number
   icon?: LucideIcon
   actions?: React.ReactNode
@@ -37,7 +37,6 @@ interface PageHeaderProps {
 
 export function PageHeader({
   title,
-  description,
   icon: Icon,
   actions,
   className,
@@ -46,28 +45,28 @@ export function PageHeader({
   badges,
 }: PageHeaderProps) {
   return (
-    <div className={cn("border-b border-border/70 bg-background/95 backdrop-blur", className)}>
+    <div className={cn("sticky top-0 z-20 border-b border-border/70 bg-background/95 backdrop-blur", className)}>
       <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex min-w-0 items-start gap-3">
+            <div className="flex min-w-0 items-center gap-3.5">
               {onBack && (
                 <button
                   type="button"
                   onClick={onBack}
-                  className="mt-0.5 flex shrink-0 items-center justify-center border border-border/70 bg-background p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="flex shrink-0 items-center justify-center border border-border/70 bg-background p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               )}
               {Icon && (
-                <div className="mt-0.5 flex-shrink-0 border border-border/70 bg-background p-2">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-shrink-0">
+                  <Icon className="h-7 w-7 text-primary/80" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="min-w-0 text-xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                  <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground break-words">
                     {title}
                   </h1>
                   {badges && (
@@ -76,11 +75,6 @@ export function PageHeader({
                     </div>
                   )}
                 </div>
-                {description && (
-                  <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                    {description}
-                  </p>
-                )}
               </div>
             </div>
           </div>

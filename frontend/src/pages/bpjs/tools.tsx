@@ -901,7 +901,7 @@ export default function BPJSToolsPage() {
   return (
     <BPJSPageFrame
       title="Tools BPJS"
-      description="Seluruh utilitas BPJS dihimpun dalam workspace yang konsisten agar navigasi modul lebih mudah dibaca dan dipakai."
+      description=" "
       className="pb-6"
     >
       <BPJSSectionPanel bodyClassName="p-0">

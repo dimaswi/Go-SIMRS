@@ -263,8 +263,8 @@ export function GeneralConsentInpatientForm({ visitId }: GeneralConsentInpatient
         <Card className="shadow-sm overflow-hidden flex flex-col">
           {/* Scrollable Text Area */}
           <CardContent className="pt-0 px-0 overflow-y-auto max-h-[65vh] border-b">
-            <div className="w-full px-6 py-6 text-sm leading-relaxed">
-              <h3 className="font-bold mb-4 text-center uppercase">KEWAJIBAN PASIEN, HAK PASIEN DAN KELUARGA, DAN HAK KLINIK RAWAT INAP UTAMA MUHAMMADIYAH KEDUNGADEM</h3>
+            <div className="w-full px-6 py-6 text-sm leading-relaxed text-justify text-muted-foreground space-y-4">
+              <h3 className="font-bold uppercase text-center mb-6 text-black underline underline-offset-4">KEWAJIBAN PASIEN, HAK PASIEN DAN KELUARGA, DAN HAK KLINIK RAWAT INAP UTAMA MUHAMMADIYAH KEDUNGADEM</h3>
 
               <div className="space-y-4">
                 <div>

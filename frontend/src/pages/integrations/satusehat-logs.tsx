@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft,
   Loader2,
   RefreshCw,
   CheckCircle,
@@ -64,12 +64,12 @@ interface SyncLog {
 export default function SatuSehatLogsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<SyncLog | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  
+
   // Filters
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -247,148 +247,145 @@ export default function SatuSehatLogsPage() {
     total: logs.length,
     success: logs.filter(l => l.status === "success").length,
     failed: logs.filter(l => l.status === "failed").length,
-    avgDuration: logs.length > 0 
+    avgDuration: logs.length > 0
       ? Math.round(logs.reduce((sum, l) => sum + l.duration_ms, 0) / logs.length)
       : 0,
   };
 
   if (loading && logs.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <PageContent className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </PageContent>
+      </PageShell>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Log Request SatuSehat
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pantau semua request ke API SatuSehat
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
-          {loading ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          Refresh
-        </Button>
-        <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
-          <SlidersHorizontal className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
-      </div>
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
-        <div className="text-center">
-          <p className="text-2xl font-bold">{stats.total}</p>
-          <p className="text-xs text-muted-foreground">Total Request</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-green-600">{stats.success}</p>
-          <p className="text-xs text-muted-foreground">Sukses</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
-          <p className="text-xs text-muted-foreground">Gagal</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold">{stats.avgDuration}ms</p>
-          <p className="text-xs text-muted-foreground">Rata-rata Durasi</p>
-        </div>
-      </div>
-
-      {/* Filter */}
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <CollapsibleContent>
-          <div className="p-4 border rounded-lg mt-2 flex flex-wrap items-end gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[130px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="success">Sukses</SelectItem>
-                  <SelectItem value="failed">Gagal</SelectItem>
-                  <SelectItem value="timeout">Timeout</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Method</Label>
-              <Select value={methodFilter} onValueChange={setMethodFilter}>
-                <SelectTrigger className="w-[100px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="GET">GET</SelectItem>
-                  <SelectItem value="POST">POST</SelectItem>
-                  <SelectItem value="PUT">PUT</SelectItem>
-                  <SelectItem value="DELETE">DELETE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Cari Endpoint</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="/Encounter, /Patient..."
-                  value={searchEndpoint}
-                  onChange={(e) => setSearchEndpoint(e.target.value)}
-                  className="w-[200px] h-9"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Limit</Label>
-              <Select value={limit} onValueChange={(v) => { setLimit(v); }}>
-                <SelectTrigger className="w-[100px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                  <SelectItem value="200">200</SelectItem>
-                  <SelectItem value="500">500</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" size="sm" className="h-9" onClick={loadLogs}>
-              <Search className="h-4 w-4 mr-2" />
-              Terapkan
+    <PageShell>
+      <PageHeader
+        title="Log Request SatuSehat"
+        icon={FileText}
+        onBack={() => navigate(-1)}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              Filter
             </Button>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <DataTable
-        columns={columns}
-        data={filteredLogs}
-        pageSize={15}
-        tableId="satusehat-logs"
-        showSearch={false}
+        }
       />
+      <PageContent>
+        <div className="rounded-lg border bg-card p-4 space-y-4">
 
-      {/* Log Detail Dialog */}
+          {/* Stats Bar */}
+          <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-xs text-muted-foreground">Total Request</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">{stats.success}</p>
+              <p className="text-xs text-muted-foreground">Sukses</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
+              <p className="text-xs text-muted-foreground">Gagal</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold">{stats.avgDuration}ms</p>
+              <p className="text-xs text-muted-foreground">Rata-rata Durasi</p>
+            </div>
+          </div>
+
+          {/* Filter */}
+          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+            <CollapsibleContent>
+              <div className="p-4 border rounded-lg mt-2 flex flex-wrap items-end gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua</SelectItem>
+                      <SelectItem value="success">Sukses</SelectItem>
+                      <SelectItem value="failed">Gagal</SelectItem>
+                      <SelectItem value="timeout">Timeout</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Method</Label>
+                  <Select value={methodFilter} onValueChange={setMethodFilter}>
+                    <SelectTrigger className="w-[100px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua</SelectItem>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="DELETE">DELETE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Cari Endpoint</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="/Encounter, /Patient..."
+                      value={searchEndpoint}
+                      onChange={(e) => setSearchEndpoint(e.target.value)}
+                      className="w-[200px] h-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Limit</Label>
+                  <Select value={limit} onValueChange={(v) => { setLimit(v); }}>
+                    <SelectTrigger className="w-[100px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="200">200</SelectItem>
+                      <SelectItem value="500">500</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="outline" size="sm" className="h-9" onClick={loadLogs}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Terapkan
+                </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <DataTable
+            columns={columns}
+            data={filteredLogs}
+            pageSize={15}
+            tableId="satusehat-logs"
+            showSearch={false}
+          />
+
+          {/* Log Detail Dialog */}
+        </div>
+      </PageContent>
+
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
@@ -464,6 +461,6 @@ export default function SatuSehatLogsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
