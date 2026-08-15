@@ -14,6 +14,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   Loader2,
   Search,
   Save,
@@ -904,29 +910,26 @@ export default function BPJSToolsPage() {
       description=" "
       className="pb-6"
     >
-      <BPJSSectionPanel bodyClassName="p-0">
-        <div className="border-b border-border/70 bg-muted/10 px-4 sm:px-5">
-          <div className="flex flex-wrap gap-6">
+      <div className="rounded-lg border bg-card">
+        <Tabs 
+          value={activeModule.key} 
+          onValueChange={(val) => {
+            const module = moduleMenus.find((m) => m.key === val);
+            if (module) setActiveTab(module.items[0].key);
+          }} 
+          variant="inline"
+        >
+          <TabsList className="px-4">
             {moduleMenus.map((module) => (
-              <button
-                key={module.key}
-                type="button"
-                className={cn(
-                  "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm transition-colors",
-                  activeModule.key === module.key
-                    ? "border-primary font-semibold text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setActiveTab(module.items[0].key)}
-              >
-                <module.icon className="h-4 w-4" />
+              <TabsTrigger key={module.key} value={module.key}>
+                <module.icon className="h-4 w-4 mr-2" />
                 {module.label}
-              </button>
+              </TabsTrigger>
             ))}
-          </div>
-        </div>
+          </TabsList>
+        </Tabs>
 
-        <div className="grid gap-6 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:p-5">
+        <div className="grid gap-6 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:p-5 border-t">
           <aside className="self-start">
             <div className="space-y-1">
               {activeModule.items.map((item) => (
@@ -1949,7 +1952,7 @@ export default function BPJSToolsPage() {
             )}
           </div>
         </div>
-      </BPJSSectionPanel>
+      </div>
 
       {/* Batal Antrean Confirmation */}
       <AlertDialog open={!!antreanCancelConfirm} onOpenChange={(open) => { if (!open) { setAntreanCancelConfirm(null); setAntreanCancelKeterangan(""); } }}>

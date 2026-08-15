@@ -45,7 +45,7 @@ export function PageHeader({
   badges,
 }: PageHeaderProps) {
   return (
-    <div className={cn("border-b border-border/70 bg-background/95 backdrop-blur", className)}>
+    <div className={cn("sticky top-0 z-20 border-b border-border/70 bg-background/95 backdrop-blur", className)}>
       <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
