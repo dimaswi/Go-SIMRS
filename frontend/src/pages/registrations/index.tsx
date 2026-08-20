@@ -430,7 +430,7 @@ export default function RegistrationIndex() {
     }
   };
 
-  const handleActivateCheckin = (reg: Registration, queueId: number) => {
+  const handleActivateCheckin = (_reg: Registration, queueId: number) => {
     executeMjknCheckin(queueId);
   };
 
