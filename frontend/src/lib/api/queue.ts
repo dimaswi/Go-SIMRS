@@ -435,6 +435,7 @@ export const paymentMethodLabels: Record<string, string> = {
   cash: "Tunai",
   bpjs: "BPJS",
   insurance: "Asuransi",
+  Umum: "Tunai",
 };
 
 // Registration Type Labels

@@ -32,13 +32,14 @@ interface ColumnOptions {
   onPrintPatientLabel: (registration: Registration) => void;
   onCancel: (id: number) => void;
   onCancelMjkn: (queueId: number) => void;
-  onActivateMjkn: (queueId: number) => void;
+  onActivateMjkn: (reg: Registration, queueId: number) => void;
   onEditPayment: (registration: Registration) => void;
   onCreateSPRI: (registration: Registration) => void;
   onCreateSEPRanap: (registration: Registration) => void;
   onViewSPRI: (registration: Registration) => void;
   onViewSEPRanap: (registration: Registration) => void;
   onViewSEPOutpatient: (registration: Registration) => void;
+  onCheckInScheduled: (registration: Registration) => void;
   hasViewPermission: boolean;
   hasDeletePermission: boolean;
   printingType?: { regId: number; type: 'queue' | 'label' } | null;
@@ -379,7 +380,7 @@ export function createRegistrationColumns(
                   <TooltipTrigger asChild>
                     <Button
                       size="icon"
-                      onClick={() => options.onActivateMjkn(mjknQueue.id)}
+                      onClick={() => options.onActivateMjkn(reg, mjknQueue.id)}
                       disabled={options.activatingCheckin === mjknQueue.id}
                       className="bg-blue-600 hover:bg-blue-700 h-8 w-8"
                     >
@@ -394,8 +395,29 @@ export function createRegistrationColumns(
                 </Tooltip>
               )}
 
+              {/* Check-in button for non-MJKN scheduled registrations */}
+              {reg.status === "scheduled" && !isMjknPending && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      onClick={() => options.onCheckInScheduled(reg)}
+                      disabled={options.activatingCheckin === regId}
+                      className="bg-green-600 hover:bg-green-700 h-8 w-8"
+                    >
+                      {options.activatingCheckin === regId ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Check-in Kunjungan</TooltipContent>
+                </Tooltip>
+              )}
+
               {/* Print Dropdown */}
-              {(hasRoomQueue || hasPatient) && (
+              {(hasRoomQueue || hasPatient) && reg.status !== "scheduled" && (
                 <DropdownMenu>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -438,7 +460,7 @@ export function createRegistrationColumns(
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              {options.hasViewPermission && (
+              {options.hasViewPermission && reg.status !== "scheduled" && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -454,7 +476,7 @@ export function createRegistrationColumns(
                 </Tooltip>
               )}
 
-              {options.hasViewPermission && (
+              {options.hasViewPermission && reg.status !== "scheduled" && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

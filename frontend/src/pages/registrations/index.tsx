@@ -15,6 +15,7 @@ import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { SEPDetailSheet } from "@/components/sep/sep-detail-sheet";
+
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -189,6 +190,7 @@ export default function RegistrationIndex() {
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [mjknQueueMap, setMjknQueueMap] = useState<Map<number, BPJSQueue>>(new Map());
   const [activatingCheckin, setActivatingCheckin] = useState<number | null>(null);
+
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [editPaymentReg, setEditPaymentReg] = useState<Registration | null>(null);
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
@@ -406,7 +408,7 @@ export default function RegistrationIndex() {
     }
   }, []);
 
-  const handleActivateCheckin = async (queueId: number) => {
+  const executeMjknCheckin = async (queueId: number) => {
     setActivatingCheckin(queueId);
     try {
       await bpjsApi.activateQueueCheckin(queueId);
@@ -426,6 +428,36 @@ export default function RegistrationIndex() {
     } finally {
       setActivatingCheckin(null);
     }
+  };
+
+  const handleActivateCheckin = (reg: Registration, queueId: number) => {
+    executeMjknCheckin(queueId);
+  };
+
+  const executeWebCheckin = async (regId: number) => {
+    setActivatingCheckin(regId);
+    try {
+      await registrationApi.checkIn(regId);
+      toast({
+        title: "Berhasil!",
+        description: "Check-in kunjungan berhasil",
+      });
+      loadData();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.message || "Gagal melakukan check-in";
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: errorMessage,
+      });
+    } finally {
+      setActivatingCheckin(null);
+    }
+  };
+
+  const handleCheckInScheduled = (reg: Registration) => {
+    const regId = reg.id || reg.ID || 0;
+    executeWebCheckin(regId);
   };
 
   const handleCancelMjkn = async () => {
@@ -480,9 +512,9 @@ export default function RegistrationIndex() {
       let registrationsData = response.data.data || [];
 
       // Exclude "scheduled" (Mobile JKN pending checkin) by default when "all" status is selected
-      if (selectedStatus === "all") {
-        registrationsData = registrationsData.filter((r) => r.status !== "scheduled");
-      }
+      // if (selectedStatus === "all") {
+      //   registrationsData = registrationsData.filter((r) => r.status !== "scheduled");
+      // }
 
       if (activeTab === "laboratory") {
         const validRoomTypes = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab", "laboratory"];
@@ -1169,6 +1201,7 @@ export default function RegistrationIndex() {
     onViewSPRI: handleViewSPRI,
     onViewSEPRanap: handleViewSEPRanap,
     onViewSEPOutpatient: handleViewSEPOutpatient,
+    onCheckInScheduled: handleCheckInScheduled,
     hasViewPermission: hasPermission("registrations.view"),
     hasDeletePermission: hasPermission("registrations.delete"),
     printingType,
@@ -2197,6 +2230,8 @@ export default function RegistrationIndex() {
           }}
         />
       )}
+
+
     </PageShell>
   );
 }

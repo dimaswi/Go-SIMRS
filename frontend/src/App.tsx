@@ -78,6 +78,9 @@ const CheckInScannerPage = lazy(() => import('./pages/checkin/scanner'));
 const PatientPortalLogin = lazy(() => import('./pages/patient-portal/login'));
 const PatientPortalDashboard = lazy(() => import('./pages/patient-portal/dashboard'));
 
+// Public Queue Booking
+const AntreanOnlinePage = lazy(() => import('./pages/public/antrean-online'));
+
 function LoadingFallback() {
   return (
     <div className="flex items-center justify-center h-screen">
@@ -140,6 +143,9 @@ function App() {
           {/* Patient Portal (Public with patient authentication) */}
           <Route path="/portal" element={<PatientPortalLogin />} />
           <Route path="/portal/dashboard" element={<PatientPortalDashboard />} />
+
+          {/* Public Queue Booking */}
+          <Route path="/antrean-online" element={<AntreanOnlinePage />} />
           
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={

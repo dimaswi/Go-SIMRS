@@ -2372,10 +2372,21 @@ func generateRoomQueueNumber(tx *gorm.DB, roomID uint, queueDate time.Time) (str
 	return fmt.Sprintf("%s%03d", queueCode, queueNum), nil
 }
 
+func extractQueueNumberFromRegistration(regNumber string) string {
+	parts := strings.Split(regNumber, "-")
+	if len(parts) == 3 && len(parts[1]) == 8 {
+		queueNum, err := strconv.Atoi(parts[2])
+		if err == nil {
+			return fmt.Sprintf("%s%03d", parts[0], queueNum)
+		}
+	}
+	return ""
+}
+
 // CheckInScheduledRegistration godoc
 // @Summary Check-in a scheduled registration
-// @Description Validate that patient has arrived for scheduled follow-up and activate the reserved queue
-// @Tags Registration
+// @Description Check-in a scheduled registration, updating its status and activating/creating the visit and room queue
+// @Tags Registrations
 // @Accept json
 // @Produce json
 // @Param id path int true "Registration ID"
@@ -2482,11 +2493,15 @@ func CheckInScheduledRegistration(c *gin.Context) {
 			}
 		} else {
 			// Create room queue for visit without queue
-			queueNumber, err := generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
-			if err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
-				return
+			queueNumber := extractQueueNumberFromRegistration(registration.RegistrationNumber)
+			if queueNumber == "" {
+				var err error
+				queueNumber, err = generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
+				if err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
+					return
+				}
 			}
 			roomQueue := models.RoomQueue{
 				RoomID:      registration.DestinationRoomID,

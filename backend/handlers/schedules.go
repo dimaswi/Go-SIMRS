@@ -461,14 +461,15 @@ func CreateDoctorSchedule(c *gin.Context) {
 	}
 
 	// Check for overlapping doctor schedules (same doctor, same day)
-	var existing []models.DoctorSchedule
-	database.DB.Where("employee_id = ? AND day_of_week = ?", req.EmployeeID, req.DayOfWeek).Find(&existing)
-	for _, sch := range existing {
-		if isTimeOverlap(req.StartTime, req.EndTime, sch.StartTime, sch.EndTime) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter sudah memiliki jadwal di waktu yang sama"})
-			return
-		}
-	}
+	// (Disabled to allow overlapping schedules across different rooms)
+	// var existing []models.DoctorSchedule
+	// database.DB.Where("employee_id = ? AND day_of_week = ?", req.EmployeeID, req.DayOfWeek).Find(&existing)
+	// for _, sch := range existing {
+	// 	if isTimeOverlap(req.StartTime, req.EndTime, sch.StartTime, sch.EndTime) {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter sudah memiliki jadwal di waktu yang sama"})
+	// 		return
+	// 	}
+	// }
 
 	schedule := models.DoctorSchedule{
 		RoomID:        req.RoomID,
@@ -547,14 +548,15 @@ func UpdateDoctorSchedule(c *gin.Context) {
 	}
 
 	// Check for overlapping doctor schedules (excluding current)
-	var existing []models.DoctorSchedule
-	database.DB.Where("employee_id = ? AND day_of_week = ? AND id != ?", req.EmployeeID, req.DayOfWeek, scheduleID).Find(&existing)
-	for _, sch := range existing {
-		if isTimeOverlap(req.StartTime, req.EndTime, sch.StartTime, sch.EndTime) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter sudah memiliki jadwal di waktu yang sama"})
-			return
-		}
-	}
+	// (Disabled to allow overlapping schedules across different rooms)
+	// var existing []models.DoctorSchedule
+	// database.DB.Where("employee_id = ? AND day_of_week = ? AND id != ?", req.EmployeeID, req.DayOfWeek, scheduleID).Find(&existing)
+	// for _, sch := range existing {
+	// 	if isTimeOverlap(req.StartTime, req.EndTime, sch.StartTime, sch.EndTime) {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter sudah memiliki jadwal di waktu yang sama"})
+	// 		return
+	// 	}
+	// }
 
 	schedule.EmployeeID = req.EmployeeID
 	schedule.DayOfWeek = req.DayOfWeek

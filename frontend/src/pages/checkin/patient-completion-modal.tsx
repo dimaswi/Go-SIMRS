@@ -81,7 +81,7 @@ export function PatientCompletionModal({ isOpen, onClose, patient, onSuccess }: 
         <DialogHeader>
           <DialogTitle>Lengkapi Data Master Pasien</DialogTitle>
           <DialogDescription>
-            Karena Anda adalah pasien baru via Mobile JKN, harap lengkapi data krusial berikut agar tidak perlu antre di Loket Pendaftaran.
+            Silakan lengkapi data krusial pasien berikut sebelum melakukan konfirmasi Check-In / Acc Pendaftaran.
           </DialogDescription>
         </DialogHeader>
 

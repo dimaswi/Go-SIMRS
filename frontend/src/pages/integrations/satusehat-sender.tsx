@@ -1022,7 +1022,7 @@ export default function SatuSehatSenderPage() {
               </TabsTrigger>
             </TabsList>
 
-            <div className="p-4 border-t">
+            <div className="p-4">
               {/* Patients Tab */}
               <TabsContent value="patients" className="mt-0">
                 <PatientsTab

@@ -199,11 +199,15 @@ func CheckInBySuratKontrol(c *gin.Context) {
 			}
 			roomQueue = reg.Visit.RoomQueue
 		} else {
-			queueNumber, err := generateRoomQueueNumber(tx, reg.DestinationRoomID, now)
-			if err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
-				return
+			queueNumber := extractQueueNumberFromRegistration(reg.RegistrationNumber)
+			if queueNumber == "" {
+				var err error
+				queueNumber, err = generateRoomQueueNumber(tx, reg.DestinationRoomID, now)
+				if err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
+					return
+				}
 			}
 			rq := models.RoomQueue{
 				RoomID:      reg.DestinationRoomID,

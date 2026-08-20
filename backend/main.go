@@ -80,6 +80,7 @@ func main() {
 
 	// Setup all routes
 	routes.SetupRoutes(r)
+	routes.SetupPublicQueueRoutes(r)
 
 	log.Printf("Server starting on port %s...", cfg.ServerPort)
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
