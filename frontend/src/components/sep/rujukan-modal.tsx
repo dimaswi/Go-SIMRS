@@ -4,16 +4,19 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarDays, ChevronRight, Loader2, MapPin, RefreshCw, ShieldCheck } from "lucide-react";
+import { CalendarDays, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import {
-  BPJS_MUTED_PANEL_CLASS,
-  BPJS_PANEL_CLASS,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   BPJSSectionHeader,
   BPJSSheetHero,
-  BPJSStatePanel,
-  BPJS_SHEET_MONO_FAMILY,
 } from "./bpjs-sheet-chrome";
 
 export interface RujukanData {
@@ -58,7 +61,6 @@ export function RujukanModal({
   const [rujukanList, setRujukanList] = useState<RujukanData[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch rujukan saat modal dibuka
   useEffect(() => {
     if (open && noKartu) {
       fetchRujukan();
@@ -115,84 +117,97 @@ export function RujukanModal({
           }
         />
 
-        <div className="border-b border-border/70 px-6 py-3">
-          <BPJSSectionHeader
-            eyebrow="Selection"
-            title="Rujukan Aktif"
-            action={
-              rujukanList.length > 0 ? (
-                <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                  {rujukanList.length} data
-                </Badge>
-              ) : null
-            }
-          />
-        </div>
+        <ScrollArea className="flex-1">
+          <div className="space-y-4 p-6">
+            <BPJSSectionHeader
+              eyebrow="Selection"
+              title="Rujukan Aktif"
+            />
 
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-3">
-            {loading ? (
-              <BPJSStatePanel
-                icon={<Loader2 className="h-4 w-4 animate-spin" />}
-                title="Mengambil data rujukan..."
-                description="Sistem sedang mengambil daftar rujukan aktif peserta dari BPJS."
-              />
-            ) : error ? (
-              <BPJSStatePanel tone="danger" title="Data rujukan tidak tersedia" description={error} />
-            ) : rujukanList.length === 0 ? (
-              <BPJSStatePanel title="Tidak ada rujukan aktif" description="Belum ada rujukan yang bisa dipilih untuk peserta ini." />
-            ) : (
-              rujukanList.map((rujukan) => (
-                <div key={rujukan.noKunjungan} className={`${BPJS_PANEL_CLASS} overflow-hidden`}>
-                  <div className="grid gap-px bg-border/70 lg:grid-cols-[1.2fr_0.8fr_1.1fr_1fr_auto]">
-                    <div className="space-y-3 bg-background px-4 py-4">
-                      <div className="space-y-1">
-                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                          No. Rujukan
-                        </div>
-                        <div className="font-mono text-xs font-semibold text-foreground">{rujukan.noKunjungan}</div>
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="font-medium text-foreground">{rujukan.diagnosa?.kode || "-"}</div>
-                        <div className="text-xs leading-relaxed text-muted-foreground">{rujukan.diagnosa?.nama || "Diagnosa tidak tersedia"}</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 bg-background px-4 py-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                        {rujukan.tglKunjungan}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Berlaku s/d {rujukan.tglRujukanBerakhir || "-"}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1 bg-background px-4 py-4">
-                      <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                        Poli Rujukan
-                      </div>
-                      <div className="text-sm font-medium text-foreground">{rujukan.poliRujukan?.nama || "-"}</div>
-                    </div>
-
-                    <div className="space-y-1 bg-background px-4 py-4">
-                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                        <MapPin className="h-3.5 w-3.5" />
-                        PPK Perujuk
-                      </div>
-                      <div className="text-sm font-medium text-foreground">{rujukan.provPerujuk?.nama || "-"}</div>
-                    </div>
-
-                    <div className={`${BPJS_MUTED_PANEL_CLASS} flex items-center justify-end border-0 px-4 py-4`}>
-                      <Button size="sm" variant="outline" className="rounded-none border-border/70" onClick={() => handleSelect(rujukan)}>
-                        Pilih
-                        <ChevronRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+            <div className="mt-4 flex min-h-0 flex-col">
+              <div className="max-h-[400px] overflow-y-auto rounded-md border border-border/70">
+                <Table containerClassName="border-0 rounded-none">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[130px]">No. Rujukan</TableHead>
+                      <TableHead>Diagnosa</TableHead>
+                      <TableHead className="w-[110px]">Tanggal</TableHead>
+                      <TableHead className="w-[100px]">Poli</TableHead>
+                      <TableHead>Faskes</TableHead>
+                      <TableHead className="w-[70px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                          <p className="text-[15px] font-medium text-foreground mt-3">Mengambil data rujukan...</p>
+                          <p className="text-[13px] text-muted-foreground mt-1">Sistem sedang mengambil daftar rujukan aktif peserta dari BPJS.</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    
+                    {!loading && error && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                            <ShieldCheck className="h-5 w-5 text-destructive" />
+                          </div>
+                          <p className="text-[15px] font-medium text-destructive">Data rujukan tidak tersedia</p>
+                          <p className="text-[13px] text-muted-foreground mt-1">{error}</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    
+                    {!loading && !error && rujukanList.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <ShieldCheck className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                          <p className="text-[15px] font-medium text-foreground">Tidak ada rujukan aktif</p>
+                          <p className="text-[13px] text-muted-foreground mt-1">Belum ada rujukan yang bisa dipilih untuk peserta ini.</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    
+                    {!loading && !error && rujukanList.length > 0 && rujukanList.map((rujukan) => (
+                      <TableRow key={rujukan.noKunjungan} className="cursor-pointer hover:bg-muted/50" onClick={() => handleSelect(rujukan)}>
+                        <TableCell>
+                          <div className="font-mono text-xs font-semibold text-foreground">{rujukan.noKunjungan}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{rujukan.diagnosa?.kode || "-"}</span> - {rujukan.diagnosa?.nama || "Diagnosa tidak tersedia"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                              {rujukan.tglKunjungan}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              s/d {rujukan.tglRujukanBerakhir || "-"}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm font-medium text-foreground">{rujukan.poliRujukan?.nama || "-"}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm font-medium text-foreground">{rujukan.provPerujuk?.nama || "-"}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="outline" className="rounded-none border-border/70" onClick={(e) => { e.stopPropagation(); handleSelect(rujukan); }}>
+                            Pilih
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </div>
         </ScrollArea>
 

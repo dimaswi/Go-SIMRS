@@ -358,8 +358,7 @@ export function SEPFormSheet({
     try {
       const res = await vclaimApi.getRujukanByPeserta(noKartu, asalRujukan);
       const rujukanList = res.data.data || [];
-      // Unwrap nested rujukan structure
-      return rujukanList.map((item) => item.rujukan);
+      return rujukanList;
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1123,16 +1122,31 @@ export function SEPFormSheet({
           let noSepAsal = skdp.noSepAsalKontrol || "";
           let tglSepAsal = skdp.tglSEP || tglSEP;
 
-          if (!noSepAsal && skdp.noSuratKontrol) {
+          if (skdp.noSuratKontrol) {
             try {
               const res = await vclaimApi.getSuratKontrolDetail(skdp.noSuratKontrol);
               const detail = res.data.data;
-              if (detail?.sep?.noSep) {
+              
+              if (!noSepAsal && detail?.sep?.noSep) {
                 noSepAsal = detail.sep.noSep;
                 tglSepAsal = detail.sep.tglSep || tglSepAsal;
               }
+
+              // Extract diagnosa from Surat Kontrol Detail (format: "CODE - Name")
+              if (detail?.sep?.diagnosa) {
+                const diagStr = detail.sep.diagnosa;
+                const parts = diagStr.split(" - ");
+                if (parts.length > 0) {
+                  setDiagAwal(parts[0].trim());
+                  if (parts.length > 1) {
+                    setNamaDiagnosa(parts.slice(1).join(" - ").trim());
+                  } else {
+                    setNamaDiagnosa(parts[0].trim());
+                  }
+                }
+              }
             } catch (e) {
-              console.error("Failed to fetch SKDP detail for SEP asal:", e);
+              console.error("Failed to fetch SKDP detail:", e);
             }
           }
 

@@ -71,14 +71,12 @@ func NewVClaimClient() (*VClaimClient, error) {
 	var baseURL string
 	if environment == "production" {
 		baseURL = configMap["base_url_prod"]
-		if baseURL != "" {
-			baseURL = baseURL
-		}
 	} else {
 		baseURL = configMap["base_url_dev"]
-		if baseURL != "" {
-			baseURL = baseURL
-		}
+	}
+
+	if baseURL != "" {
+		baseURL = strings.TrimRight(baseURL, "/")
 	}
 
 	fmt.Printf("[VClaim Client] Environment=%s, BaseURL=%s\n", environment, baseURL)
@@ -401,47 +399,49 @@ func (c *VClaimClient) GetPesertaByNIK(nik string, tglSEP string) (*PesertaRespo
 // ==================== RUJUKAN ====================
 
 // RujukanResponse adalah response data rujukan
+type RujukanDetail struct {
+	NoKunjungan  string `json:"noKunjungan"`
+	TglKunjungan string `json:"tglKunjungan"`
+	ProvPerujuk  struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"provPerujuk"`
+	Diagnosa struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"diagnosa"`
+	Poli struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"poliRujukan"`
+	Peserta struct {
+		Cob struct {
+			NmAsuransi string `json:"nmAsuransi"`
+			NoAsuransi string `json:"noAsuransi"`
+			TglTAT     string `json:"tglTAT"`
+			TglTMT     string `json:"tglTMT"`
+		} `json:"cob"`
+		HakKelas struct {
+			Kode string `json:"kode"`
+			Nama string `json:"nama"`
+		} `json:"hakKelas"`
+		JenisPeserta struct {
+			Kode string `json:"kode"`
+			Nama string `json:"nama"`
+		} `json:"jenisPeserta"`
+		Nik      string `json:"nik"`
+		NoKartu  string `json:"noKartu"`
+		NoMr     string `json:"noMr"`
+		Nama     string `json:"nama"`
+		Sex      string `json:"sex"`
+		TglLahir string `json:"tglLahir"`
+	} `json:"peserta"`
+	TglRujukanBerakhir string `json:"tglRujukanBerakhir"`
+}
+
 type RujukanResponse struct {
-	Rujukan struct {
-		NoKunjungan  string `json:"noKunjungan"`
-		TglKunjungan string `json:"tglKunjungan"`
-		ProvPerujuk  struct {
-			Kode string `json:"kode"`
-			Nama string `json:"nama"`
-		} `json:"provPerujuk"`
-		Diagnosa struct {
-			Kode string `json:"kode"`
-			Nama string `json:"nama"`
-		} `json:"diagnosa"`
-		Poli struct {
-			Kode string `json:"kode"`
-			Nama string `json:"nama"`
-		} `json:"poliRujukan"`
-		Peserta struct {
-			Cob struct {
-				NmAsuransi string `json:"nmAsuransi"`
-				NoAsuransi string `json:"noAsuransi"`
-				TglTAT     string `json:"tglTAT"`
-				TglTMT     string `json:"tglTMT"`
-			} `json:"cob"`
-			HakKelas struct {
-				Kode string `json:"kode"`
-				Nama string `json:"nama"`
-			} `json:"hakKelas"`
-			JenisPeserta struct {
-				Kode string `json:"kode"`
-				Nama string `json:"nama"`
-			} `json:"jenisPeserta"`
-			Nik      string `json:"nik"`
-			NoKartu  string `json:"noKartu"`
-			NoMr     string `json:"noMr"`
-			Nama     string `json:"nama"`
-			Sex      string `json:"sex"`
-			TglLahir string `json:"tglLahir"`
-		} `json:"peserta"`
-		TglRujukanBerakhir string `json:"tglRujukanBerakhir"`
-	} `json:"rujukan"`
-	AsalFaskes string `json:"asalFaskes"` // "1" = Faskes 1, "2" = Faskes 2
+	Rujukan    RujukanDetail `json:"rujukan"`
+	AsalFaskes string        `json:"asalFaskes"` // "1" = Faskes 1, "2" = Faskes 2
 }
 
 // GetRujukanByNomor mendapatkan detail rujukan berdasarkan nomor rujukan
@@ -473,12 +473,12 @@ func (c *VClaimClient) GetRujukanByNomor(noRujukan string, asalFaskes string) (*
 }
 
 // GetRujukanByPeserta mendapatkan list rujukan peserta
-func (c *VClaimClient) GetRujukanByPeserta(noKartu string, asalFaskes string) ([]RujukanResponse, error) {
+func (c *VClaimClient) GetRujukanByPeserta(noKartu string, asalFaskes string) ([]RujukanDetail, error) {
 	var endpoint string
 	if asalFaskes == "2" {
-		endpoint = fmt.Sprintf("/Rujukan/RS/Peserta/%s", noKartu)
+		endpoint = fmt.Sprintf("/Rujukan/RS/List/Peserta/%s", noKartu)
 	} else {
-		endpoint = fmt.Sprintf("/Rujukan/Peserta/%s", noKartu)
+		endpoint = fmt.Sprintf("/Rujukan/List/Peserta/%s", noKartu)
 	}
 
 	respBody, code, err := c.Request("GET", endpoint, nil)
@@ -490,7 +490,7 @@ func (c *VClaimClient) GetRujukanByPeserta(noKartu string, asalFaskes string) ([
 	}
 
 	var result struct {
-		Rujukan []RujukanResponse `json:"rujukan"`
+		Rujukan []RujukanDetail `json:"rujukan"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parse rujukan list response: %w", err)

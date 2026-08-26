@@ -77,6 +77,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   const [unlinkSEPOpen, setUnlinkSEPOpen] = useState(false);
   const [unlinkingSEP, setUnlinkingSEP] = useState(false);
   const [printingSEP, setPrintingSEP] = useState(false);
+  const [followUpAlertOpen, setFollowUpAlertOpen] = useState(false);
 
   // Master data
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -624,40 +625,32 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
             description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
             icon={UserPlus}
             meta={
-              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
-                {paymentMethod.toUpperCase()}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                  {paymentMethod.toUpperCase()}
+                </Badge>
+                {scheduledFollowUps.length > 0 && (
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    className="h-auto border-amber-200 bg-amber-50 px-2 py-1 text-amber-900 hover:bg-amber-100 hover:text-amber-950 rounded-none text-[10px] uppercase tracking-[0.24em]"
+                    style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setFollowUpAlertOpen(true);
+                    }}
+                  >
+                    <AlertTriangle className="mr-1.5 h-3 w-3" />
+                    Jadwal Kontrol Aktif
+                  </Button>
+                )}
+              </div>
             }
           />
 
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <ScrollArea className="flex-1">
-              <div className="space-y-6 p-6">
-                {scheduledFollowUps.length > 0 && (
-                  <BPJSStatePanel
-                    icon={<AlertTriangle className="h-4 w-4" />}
-                    title="Pasien memiliki jadwal kontrol aktif"
-                    description="Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring."
-                    className="border-amber-200 bg-amber-50/80"
-                    extra={
-                      <div className="space-y-1 text-xs text-amber-900/90">
-                        {scheduledFollowUps.slice(0, 3).map((registration) => (
-                          <div key={registration.id || registration.ID}>
-                            Jadwal {formatScheduledDate(registration.scheduled_date)}
-                            {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
-                            {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
-                          </div>
-                        ))}
-                        {scheduledFollowUps.length > 3 && (
-                          <div>+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
-                        )}
-                        {selectedServiceType === "gawat_darurat" && (
-                          <div className="font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</div>
-                        )}
-                      </div>
-                    }
-                  />
-                )}
+              <div className="space-y-6 px-6 pb-6 pt-0">
 
                 <div className={BPJS_SECTION_CLASS}>
                   <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
@@ -1041,6 +1034,38 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
               {unlinkingSEP ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Unlink SEP
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={followUpAlertOpen} onOpenChange={setFollowUpAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Pasien memiliki jadwal kontrol aktif
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4 pt-2">
+              <p>Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring.</p>
+              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/50 p-3 text-sm text-amber-900/90 text-left">
+                {scheduledFollowUps.slice(0, 3).map((registration) => (
+                  <div key={registration.id || registration.ID}>
+                    Jadwal {formatScheduledDate(registration.scheduled_date)}
+                    {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
+                    {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
+                  </div>
+                ))}
+                {scheduledFollowUps.length > 3 && (
+                  <div>+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
+                )}
+                {selectedServiceType === "gawat_darurat" && (
+                  <div className="mt-2 font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Tutup</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

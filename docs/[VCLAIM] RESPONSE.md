@@ -842,3 +842,168 @@ Response :
 }
 Catatan : Ketika pembuatan SPRI atau jenis kontrol 1 tidak ada referensi nomor SEP asalnya, jadi field response SEP kosong atau null. 
 Sedangkan jika pembuatan surat kontrol atau jenis kontrol 2, akan terisi field response SEP karena terdapat referensi nomor SEP asal ketika pembuatan surat kontrol tersebut.
+
+### AMBIL DATA RUJUKAN BERDASARKAN NOMOR KARTU DAN NOMOR NIK
+{BASE URL}/{Service Name}/Rujukan/RS/List/Peserta/{parameter}
+
+Parameter : Nomor kartu
+
+RESPONSE :
+{
+  "metaData": {
+    "code": "200",
+    "message": "OK"
+  },
+  "response": {
+    "rujukan": [
+      {
+        "diagnosa": {
+          "kode": "I21.9",
+          "nama": "Acute myocardial infarction, unspecified"
+        },
+        "keluhan": "",
+        "noKunjungan": "0304R0050217A000079",
+        "pelayanan": {
+          "kode": "1",
+          "nama": "Rawat Inap"
+        },
+        "peserta": {
+          "cob": {
+            "nmAsuransi": null,
+            "noAsuransi": null,
+            "tglTAT": null,
+            "tglTMT": null
+          },
+          "hakKelas": {
+            "keterangan": "KELAS III",
+            "kode": "3"
+          },
+          "informasi": {
+            "dinsos": null,
+            "noSKTM": null,
+            "prolanisPRB": null
+          },
+          "jenisPeserta": {
+            "keterangan": "PBI (APBN)",
+            "kode": "21"
+          },
+          "mr": {
+            "noMR": "971430",
+            "noTelepon": null
+          },
+          "nama": "MUHAMMAD JUSAR",
+          "nik": "1106081301530001",
+          "noKartu": "0105986780439",
+          "pisa": "1",
+          "provUmum": {
+            "kdProvider": "03050301",
+            "nmProvider": "BASO"
+          },
+          "sex": "L",
+          "statusPeserta": {
+            "keterangan": "AKTIF",
+            "kode": "0"
+          },
+          "tglCetakKartu": "2017-11-13",
+          "tglLahir": "1953-07-01",
+          "tglTAT": "2053-07-01",
+          "tglTMT": "2013-01-01",
+          "umur": {
+            "umurSaatPelayanan": "63 tahun ,7 bulan ,23 hari",
+            "umurSekarang": "64 tahun ,4 bulan ,12 hari"
+          }
+        },
+        "poliRujukan": {
+          "kode": "",
+          "nama": ""
+        },
+        "provPerujuk": {
+          "kode": "0304R005",
+          "nama": "RSI IBNU SINA"
+        },
+        "tglKunjungan": "2017-02-24"
+      }
+    ]
+  }
+}
+
+
+### CARI SEP BERDASARKAN NOMOR RUJUKAN
+{BASE URL}/{Service Name}/Rujukan/lastsep/norujukan/{parameter}
+Method : GET
+Format : Json
+Content-Type: Application/x-www-form-urlencoded
+Parameter: Nomor Rujukan
+Response :
+{
+  "metaData": {
+    "code": "200",
+    "message": "Sukses"
+  },
+  "response": {
+    "noSep": "0301R0010323V000039",
+    "tglSep": "2023-03-30",
+    "jnsPelayanan": "Rawat Jalan",
+    "kelasRawat": "Kelas 3",
+    "diagnosa": "Respiratory tuberculosis, bacteriologically and histologically confirmed",
+    "noRujukan": "0050B1070223P000004",
+    "poli": "PENYAKIT DALAM",
+    "poliEksekutif": "0",
+    "catatan": "testinsert RJ",
+    "penjamin": null,
+    "kdStatusKecelakaan": "0",
+    "nmstatusKecelakaan": "Bukan Kecelakaan",
+    "lokasiKejadian": {
+      "kdKab": null,
+      "kdKec": null,
+      "kdProp": null,
+      "ketKejadian": null,
+      "lokasi": null,
+      "tglKejadian": null
+    },
+    "dpjp": {
+      "kdDPJP": "34050",
+      "nmDPJP": "tapS,XXXryoShR..PaBDd"
+    },
+    "peserta": {
+      "asuransi": null,
+      "hakKelas": "Kelas 3",
+      "jnsPeserta": "PBI (APBN)",
+      "kelamin": "P",
+      "nama": "ARSTNUU",
+      "noKartu": "0002802875185",
+      "noMr": "MR5185",
+      "tglLahir": "1944-02-24"
+    },
+    "klsRawat": {
+      "klsRawatHak": "3",
+      "klsRawatNaik": null,
+      "pembiayaan": null,
+      "penanggungJawab": null
+    },
+    "kontrol": {
+      "kdDokter": "34050",
+      "nmDokter": "tapS,XXXryoShR..PaBDd",
+      "noSurat": "0301R0010323K000008"
+    },
+    "cob": "0",
+    "katarak": "0",
+    "tujuanKunj": {
+      "kode": "2",
+      "nama": "Konsul Dokter"
+    },
+    "flagProcedure": {
+      "kode": "0",
+      "nama": "Prosedur tidak berkelanjutan"
+    },
+    "kdPenunjang": {
+      "kode": "0",
+      "nama": ""
+    },
+    "assestmenPel": {
+      "kode": "1",
+      "nama": "Poli spesialis tidak tersedia pada hari sebelumnya"
+    },
+    "eSEP": "True"
+  }
+}

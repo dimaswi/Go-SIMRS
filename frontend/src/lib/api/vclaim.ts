@@ -405,6 +405,7 @@ export interface VClaimSuratKontrolDetail {
     jnsPelayanan?: string;
     poli?: string;
     klsRawat?: string;
+    diagnosa?: string;
   };
   statusKontrol?: string;
   terbitSEP?: string;
@@ -712,7 +713,7 @@ export const vclaimApi = {
     api.get<{ data: VClaimRujukan; message: string }>(`/bpjs/vclaim/rujukan/nomor/${noRujukan}`),
 
   getRujukanByPeserta: (noKartu: string, asalFaskes: string = "1") =>
-    api.get<{ data: VClaimRujukanWrapper[]; message: string }>(`/bpjs/vclaim/rujukan/peserta/${noKartu}`, {
+    api.get<{ data: VClaimRujukan[]; message: string }>(`/bpjs/vclaim/rujukan/peserta/${noKartu}`, {
       params: { asalFaskes }
     }),
 
