@@ -34,6 +34,7 @@ export interface SelectableItem {
   category?: string;
   current_stock?: number;
   price?: number;
+  is_active?: boolean;
 }
 
 export interface SelectedItemWithQty extends SelectableItem {
@@ -166,10 +167,10 @@ export function ItemPickerDialog({
   // Resolved display items (mode-agnostic)
   const displayItems = useMemo(() => {
     if (isServerMode) {
-      return serverItems;
+      return serverItems.filter(item => item.is_active !== false);
     }
     // Client-side filtering
-    let filtered = items || [];
+    let filtered = (items || []).filter(item => item.is_active !== false);
     if (activeTab !== "all") {
       filtered = filtered.filter((item) => item.type === activeTab);
     }
@@ -266,6 +267,7 @@ export function ItemPickerDialog({
   const handleSelectAll = () => {
     const newMap = new Map(tempSelected);
     displayItems.forEach((item) => {
+      if (item.is_active === false) return; // Skip inactive items
       const key = `${item.type}_${item.id}`;
       if (!newMap.has(key)) {
         newMap.set(key, {
@@ -505,10 +507,18 @@ export function ItemPickerDialog({
                             key={`${item.type}_${item.id}`}
                             data-index={virtualRow.index}
                             ref={rowVirtualizer.measureElement}
-                            className={cn("transition-colors hover:bg-muted/10", selected && "bg-muted/20")}
+                            className={cn(
+                              "transition-colors hover:bg-muted/10", 
+                              selected && "bg-muted/20",
+                              item.is_active === false && "opacity-50 grayscale"
+                            )}
                           >
                             <td className={cn("w-12 border-r border-border/60 px-2 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
-                              <Checkbox checked={selected} onCheckedChange={() => toggleItem(item)} />
+                              <Checkbox 
+                                disabled={item.is_active === false}
+                                checked={selected} 
+                                onCheckedChange={() => item.is_active !== false && toggleItem(item)} 
+                              />
                             </td>
                             <td className={cn("border-r border-border/60 px-3 py-1.5 align-middle", !isLastRow && "border-b border-border/60")}>
                               <div className="flex items-start gap-2.5">
@@ -536,6 +546,11 @@ export function ItemPickerDialog({
                                         {item.current_stock > 0 ? `Stok ${item.current_stock}` : "Stok habis"}
                                       </Badge>
                                     ) : null}
+                                    {item.is_active === false && (
+                                      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 text-[10px]">
+                                        Tidak Aktif
+                                      </Badge>
+                                    )}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                                     <span className="font-mono">{item.code}</span>

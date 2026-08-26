@@ -44,10 +44,10 @@ export async function fetchPurchaseItems(
 
   const [medRes, invRes] = await Promise.all([
     fetchMed
-      ? medicinesApi.getAll({ search, page, limit: perTypeLimit, is_active: true })
+      ? medicinesApi.getAll({ search, page, limit: perTypeLimit })
       : Promise.resolve(emptyResult),
     fetchInv
-      ? inventoriesApi.getAll({ search, page, limit: perTypeLimit, is_active: true })
+      ? inventoriesApi.getAll({ search, page, limit: perTypeLimit })
       : Promise.resolve(emptyResult),
   ]);
 
@@ -66,6 +66,7 @@ export async function fetchPurchaseItems(
     category: med.category,
     current_stock: med.current_stock,
     price: med.purchase_price ?? med.price ?? 0,
+    is_active: med.is_active,
   }));
 
   const invItems: SelectableItem[] = inventories.map((inv: any) => ({
@@ -77,6 +78,7 @@ export async function fetchPurchaseItems(
     category: inv.category,
     current_stock: inv.current_stock,
     price: inv.purchase_price ?? inv.price ?? 0,
+    is_active: inv.is_active,
   }));
 
   const merged = [...invItems, ...medItems];

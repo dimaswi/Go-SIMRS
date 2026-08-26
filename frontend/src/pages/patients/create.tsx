@@ -17,6 +17,8 @@ import type {
   Regency,
   District,
   Village,
+  BloodType,
+  RhesusType,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
@@ -36,7 +38,6 @@ import {
   XCircle,
 } from "lucide-react";
 
-// Initial form data
 const initialFormData: PatientRequest = {
   nama_lengkap: "",
   jenis_kelamin: "L",
@@ -339,9 +340,46 @@ export default function PatientCreate() {
         regionsApi.getAllRegencies(),
       ]);
 
-      setMasterData(masterDataRes.data.data || {});
-      setProvinces(provincesRes.data.data || []);
-      setRegencies(allRegenciesRes.data.data || []);
+      const loadedProvinces = provincesRes.data.data || [];
+      const loadedRegencies = allRegenciesRes.data.data || [];
+      const md = masterDataRes.data.data || {};
+      setMasterData(md);
+      setProvinces(loadedProvinces);
+      setRegencies(loadedRegencies);
+
+      // Auto-fill defaults for Jawa Timur & Bojonegoro
+      const defaultProvince = loadedProvinces.find((p: any) => p.name === "JAWA TIMUR");
+      let defaultProvId = "";
+      let defaultKotaId = "";
+      
+      if (defaultProvince) {
+        defaultProvId = defaultProvince.id;
+        try {
+          const resRegencies = await regionsApi.getRegencies(defaultProvId);
+          const ktpRegencies = resRegencies.data.data || [];
+          setRegenciesKTP(ktpRegencies);
+          
+          const defaultRegency = ktpRegencies.find((r: any) => r.name === "KABUPATEN BOJONEGORO" || r.name === "KAB. BOJONEGORO");
+          if (defaultRegency) {
+            defaultKotaId = defaultRegency.id;
+            const resDistricts = await regionsApi.getDistricts(defaultKotaId);
+            setDistrictsKTP(resDistricts.data.data || []);
+          }
+        } catch (err) {
+          console.error("Failed to load default regions:", err);
+        }
+      }
+      
+      const defaultBlood = (md.blood_type?.find((b: any) => b.name.toLowerCase() === "tidak diketahui")?.name || "Tidak Diketahui") as BloodType;
+      const defaultRhesus = (md.rhesus_type?.find((r: any) => r.name.toLowerCase() === "tidak diketahui")?.name || "Tidak Diketahui") as RhesusType;
+
+      setFormData(prev => ({
+        ...prev,
+        provinsi_ktp: prev.provinsi_ktp || defaultProvId,
+        kota_ktp: prev.kota_ktp || defaultKotaId,
+        golongan_darah: prev.golongan_darah || defaultBlood,
+        rhesus: prev.rhesus || defaultRhesus,
+      }));
     } catch (error) {
       console.error("Failed to load reference data:", error);
       toast({
@@ -369,7 +407,7 @@ export default function PatientCreate() {
   ) => {
     if (!data) return [];
     return data.map((item) => ({
-      value: item.name,
+      value: item.id,
       label: item.name,
     }));
   };
@@ -385,7 +423,7 @@ export default function PatientCreate() {
     });
     setDistrictsKTP([]);
     setVillagesKTP([]);
-    const province = provinces.find((p) => p.name === value);
+    const province = provinces.find((p) => p.id === value);
     if (province) {
       try {
         const res = await regionsApi.getRegencies(province.id);
@@ -405,7 +443,7 @@ export default function PatientCreate() {
       kelurahan_ktp: "",
     });
     setVillagesKTP([]);
-    const regency = regenciesKTP.find((r) => r.name === value);
+    const regency = regenciesKTP.find((r) => r.id === value);
     if (regency) {
       try {
         const res = await regionsApi.getDistricts(regency.id);
@@ -419,7 +457,7 @@ export default function PatientCreate() {
   // Handle district change for KTP
   const handleDistrictKTPChange = async (value: string) => {
     setFormData({ ...formData, kecamatan_ktp: value, kelurahan_ktp: "" });
-    const district = districtsKTP.find((d) => d.name === value);
+    const district = districtsKTP.find((d) => d.id === value);
     if (district) {
       try {
         const res = await regionsApi.getVillages(district.id);
@@ -441,7 +479,7 @@ export default function PatientCreate() {
     });
     setDistrictsDomisili([]);
     setVillagesDomisili([]);
-    const province = provinces.find((p) => p.name === value);
+    const province = provinces.find((p) => p.id === value);
     if (province) {
       try {
         const res = await regionsApi.getRegencies(province.id);
@@ -461,7 +499,7 @@ export default function PatientCreate() {
       kelurahan_domisili: "",
     });
     setVillagesDomisili([]);
-    const regency = regenciesDomisili.find((r) => r.name === value);
+    const regency = regenciesDomisili.find((r) => r.id === value);
     if (regency) {
       try {
         const res = await regionsApi.getDistricts(regency.id);
@@ -479,7 +517,7 @@ export default function PatientCreate() {
       kecamatan_domisili: value,
       kelurahan_domisili: "",
     });
-    const district = districtsDomisili.find((d) => d.name === value);
+    const district = districtsDomisili.find((d) => d.id === value);
     if (district) {
       try {
         const res = await regionsApi.getVillages(district.id);
@@ -727,7 +765,7 @@ export default function PatientCreate() {
                                 nik: e.target.value.replace(/\D/g, ""),
                               })
                             }
-                            className="h-9 text-sm pr-8"
+                            className="h-9 text-sm pr-8 border-destructive"
                             tabIndex={1}
                           />
                           {bpjsLoading && (
@@ -789,7 +827,7 @@ export default function PatientCreate() {
                             setFormData({ ...formData, nama_lengkap: e.target.value })
                           }
                           required
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={2}
                           autoFocus
                         />
@@ -831,13 +869,13 @@ export default function PatientCreate() {
                             })
                           }
                           placeholder="Pilih jenis kelamin"
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={4}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-medium">Tempat Lahir</Label>
+                        <Label className="text-xs font-medium">Tempat Lahir *</Label>
                         <Combobox
                           options={regenciesOptions}
                           value={formData.tempat_lahir || ""}
@@ -846,19 +884,19 @@ export default function PatientCreate() {
                           }
                           placeholder="Pilih kabupaten/kota"
                           searchPlaceholder="Cari kabupaten/kota..."
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={5}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-medium">Tanggal Lahir</Label>
+                        <Label className="text-xs font-medium">Tanggal Lahir *</Label>
                         <Input
                           type="date"
                           max={new Date().toISOString().split("T")[0]}
                           value={formData.tanggal_lahir ? formData.tanggal_lahir.split("T")[0] : ""}
                           onChange={(e) => handleDOBChange(e.target.value)}
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={6}
                         />
                       </div>
@@ -929,7 +967,7 @@ export default function PatientCreate() {
                             setFormData({ ...formData, golongan_darah: value as any })
                           }
                           placeholder="Pilih golongan darah"
-                          className="h-9"
+                          className="h-9 [&>button]:border-blue-500 [&>button]:text-blue-700"
                           tabIndex={12}
                         />
                       </div>
@@ -943,13 +981,13 @@ export default function PatientCreate() {
                             setFormData({ ...formData, rhesus: value as any })
                           }
                           placeholder="Pilih rhesus"
-                          className="h-9"
+                          className="h-9 [&>button]:border-blue-500 [&>button]:text-blue-700"
                           tabIndex={13}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-medium">Agama</Label>
+                        <Label className="text-xs font-medium">Agama *</Label>
                         <Combobox
                           options={religionOptions}
                           value={formData.agama || ""}
@@ -957,7 +995,7 @@ export default function PatientCreate() {
                             setFormData({ ...formData, agama: value })
                           }
                           placeholder="Pilih agama"
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={14}
                         />
                       </div>
@@ -1074,7 +1112,7 @@ export default function PatientCreate() {
                   <div className="p-3 sm:p-4 space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="alamat_ktp" className="text-xs font-medium">
-                        Alamat Lengkap
+                        Alamat Lengkap *
                       </Label>
                       <Textarea
                         id="alamat_ktp"
@@ -1083,7 +1121,7 @@ export default function PatientCreate() {
                         onChange={(e) =>
                           setFormData({ ...formData, alamat_ktp: e.target.value })
                         }
-                        className="text-sm"
+                        className="text-sm border-destructive"
                         tabIndex={21}
                       />
                     </div>
@@ -1091,51 +1129,51 @@ export default function PatientCreate() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="rt_ktp" className="text-xs font-medium">
-                          RT
+                          RT *
                         </Label>
                         <Input
                           id="rt_ktp"
-                          placeholder="001"
+                          placeholder="Contoh: 001"
                           maxLength={5}
                           value={formData.rt_ktp || ""}
                           onChange={(e) =>
                             setFormData({ ...formData, rt_ktp: e.target.value })
                           }
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={22}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="rw_ktp" className="text-xs font-medium">
-                          RW
+                          RW *
                         </Label>
                         <Input
                           id="rw_ktp"
-                          placeholder="001"
+                          placeholder="Contoh: 001"
                           maxLength={5}
                           value={formData.rw_ktp || ""}
                           onChange={(e) =>
                             setFormData({ ...formData, rw_ktp: e.target.value })
                           }
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={23}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-medium">Provinsi</Label>
+                        <Label className="text-xs font-medium">Provinsi *</Label>
                         <Combobox
                           options={provinceOptions}
                           value={formData.provinsi_ktp || ""}
                           onValueChange={handleProvinceKTPChange}
                           placeholder="Pilih provinsi"
                           searchPlaceholder="Cari provinsi..."
-                          className="h-9"
+                          className="h-9 [&>button]:border-blue-500 [&>button]:text-blue-700"
                           tabIndex={24}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium">
-                          Kota/Kabupaten
+                          Kota/Kabupaten *
                         </Label>
                         <Combobox
                           options={regencyKTPOptions}
@@ -1143,8 +1181,7 @@ export default function PatientCreate() {
                           onValueChange={handleRegencyKTPChange}
                           placeholder="Pilih kota/kabupaten"
                           searchPlaceholder="Cari kota..."
-                          disabled={!formData.provinsi_ktp}
-                          className="h-9"
+                          className="h-9 [&>button]:border-blue-500 [&>button]:text-blue-700"
                           tabIndex={25}
                         />
                       </div>
@@ -1152,7 +1189,7 @@ export default function PatientCreate() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-xs font-medium">Kecamatan</Label>
+                        <Label className="text-xs font-medium">Kecamatan *</Label>
                         <Combobox
                           options={districtKTPOptions}
                           value={formData.kecamatan_ktp || ""}
@@ -1160,13 +1197,13 @@ export default function PatientCreate() {
                           placeholder="Pilih kecamatan"
                           searchPlaceholder="Cari kecamatan..."
                           disabled={!formData.kota_ktp}
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={26}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium">
-                          Kelurahan/Desa
+                          Kelurahan/Desa *
                         </Label>
                         <Combobox
                           options={villageKTPOptions}
@@ -1177,7 +1214,7 @@ export default function PatientCreate() {
                           placeholder="Pilih kelurahan"
                           searchPlaceholder="Cari kelurahan..."
                           disabled={!formData.kecamatan_ktp}
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={27}
                         />
                       </div>
@@ -1186,11 +1223,11 @@ export default function PatientCreate() {
                           htmlFor="kode_pos_ktp"
                           className="text-xs font-medium"
                         >
-                          Kode Pos
+                          Kode Pos *
                         </Label>
                         <Input
                           id="kode_pos_ktp"
-                          placeholder="12345"
+                          placeholder="Contoh: 62119"
                           maxLength={10}
                           value={formData.kode_pos_ktp || ""}
                           onChange={(e) =>
@@ -1199,7 +1236,7 @@ export default function PatientCreate() {
                               kode_pos_ktp: e.target.value,
                             })
                           }
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={28}
                         />
                       </div>
@@ -1415,7 +1452,7 @@ export default function PatientCreate() {
 
                       <div className="space-y-2">
                         <Label htmlFor="no_hp" className="text-xs font-medium">
-                          Nomor HP
+                          Nomor HP *
                         </Label>
                         <Input
                           id="no_hp"
@@ -1424,9 +1461,10 @@ export default function PatientCreate() {
                           onChange={(e) =>
                             setFormData({ ...formData, no_hp: e.target.value })
                           }
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={38}
                         />
+                        <p className="text-[10px] text-destructive mt-1">Wajib diisi minimal 1</p>
                       </div>
 
                       <div className="space-y-2">
@@ -1484,7 +1522,7 @@ export default function PatientCreate() {
                           htmlFor="nama_penanggung_jawab"
                           className="text-xs font-medium"
                         >
-                          Nama Penanggung Jawab
+                          Nama Penanggung Jawab *
                         </Label>
                         <Input
                           id="nama_penanggung_jawab"
@@ -1496,14 +1534,15 @@ export default function PatientCreate() {
                               nama_penanggung_jawab: e.target.value,
                             })
                           }
-                          className="h-9 text-sm"
+                          className="h-9 text-sm border-destructive"
                           tabIndex={41}
                         />
+                        <p className="text-[10px] text-destructive mt-1">Wajib diisi</p>
                       </div>
 
                       <div className="space-y-2">
                         <Label className="text-xs font-medium">
-                          Hubungan dengan Pasien
+                          Hubungan dengan Pasien *
                         </Label>
                         <Combobox
                           options={relationshipOptions}
@@ -1515,9 +1554,10 @@ export default function PatientCreate() {
                             })
                           }
                           placeholder="Pilih hubungan"
-                          className="h-9"
+                          className="h-9 [&>button]:border-destructive"
                           tabIndex={42}
                         />
+                        <p className="text-[10px] text-destructive mt-1">Wajib diisi</p>
                       </div>
 
                       <div className="space-y-2">

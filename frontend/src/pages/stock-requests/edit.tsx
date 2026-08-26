@@ -295,7 +295,7 @@ export default function StockRequestEdit() {
               <SectionPanel
                 icon={ClipboardList}
                 title="Informasi Dasar"
-                description="Ubah prioritas, tanggal kebutuhan, dan catatan sambil mempertahankan struktur item yang sudah diajukan."
+                description=""
               >
                 <div className="space-y-3 border-b border-border/70 pb-3">
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -316,17 +316,13 @@ export default function StockRequestEdit() {
                   </div>
                 </div>
 
-                <div className="rounded-md border border-sky-200 bg-sky-50/70 px-3 py-3 text-xs leading-5 text-sky-800">
-                  Hanya prioritas, tanggal dibutuhkan, alasan, dan catatan yang bisa diubah. Item tetap mengikuti permintaan awal.
-                </div>
-
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label>Ruangan Pemohon</Label>
                     <Combobox
                       options={rooms}
                       value={formData.from_room_id.toString()}
-                      onValueChange={() => {}}
+                      onValueChange={() => { }}
                       placeholder="Pilih ruangan"
                       disabled
                       className="h-8"
@@ -338,7 +334,7 @@ export default function StockRequestEdit() {
                     <Combobox
                       options={depoRooms}
                       value={formData.to_room_id.toString()}
-                      onValueChange={() => {}}
+                      onValueChange={() => { }}
                       placeholder="Pilih depo/gudang"
                       disabled
                       className="h-8"
@@ -391,7 +387,7 @@ export default function StockRequestEdit() {
               <SectionPanel
                 icon={request.request_type === "inventory" ? Package : Pill}
                 title="Ringkasan Permintaan"
-                description="Status, jumlah item, dan arah distribusi permintaan saat ini."
+                description=""
               >
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">

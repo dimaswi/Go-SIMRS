@@ -31,6 +31,7 @@ interface RoomInventoryItem {
     code: string;
     name: string;
     unit: string;
+    is_active?: boolean;
   };
   quantity: number;
   min_quantity: number;
@@ -45,6 +46,7 @@ interface RoomMedicineItem {
     code: string;
     name: string;
     unit: string;
+    is_active?: boolean;
   };
   quantity: number;
   min_quantity: number;
@@ -55,6 +57,7 @@ interface MasterInventoryItem {
   code: string;
   name: string;
   unit: string;
+  is_active?: boolean;
 }
 
 interface MasterMedicineItem {
@@ -62,6 +65,7 @@ interface MasterMedicineItem {
   code: string;
   name: string;
   unit: string;
+  is_active?: boolean;
 }
 
 const priorityOptions: ComboboxOption[] = [
@@ -177,6 +181,7 @@ export default function StockRequestCreate() {
               unit: ri.inventory!.unit,
               type: "inventory" as const,
               current_stock: ri.quantity,
+              is_active: ri.inventory!.is_active,
             }));
         } else {
           const res = await roomMedicinesApi.getByRoom(roomId, { limit: 500 });
@@ -190,13 +195,13 @@ export default function StockRequestCreate() {
               unit: rm.medicine!.unit,
               type: "medicine" as const,
               current_stock: rm.quantity,
+              is_active: rm.medicine!.is_active,
             }));
         }
       } else {
         if (requestType === "inventory") {
           const res = await inventoriesApi.getAll({
             limit: 500,
-            is_active: true,
             item_group: "bhp",
             item_scope: "unit,both",
           });
@@ -207,9 +212,10 @@ export default function StockRequestCreate() {
             name: inv.name,
             unit: inv.unit,
             type: "inventory" as const,
+            is_active: inv.is_active,
           }));
         } else {
-          const res = await medicinesApi.getAll({ limit: 500, is_active: true });
+          const res = await medicinesApi.getAll({ limit: 500 });
           const medicineItems: MasterMedicineItem[] = res.data.data || [];
           items = medicineItems.map((med) => ({
             id: med.id,
@@ -217,6 +223,7 @@ export default function StockRequestCreate() {
             name: med.name,
             unit: med.unit,
             type: "medicine" as const,
+            is_active: med.is_active,
           }));
         }
       }
