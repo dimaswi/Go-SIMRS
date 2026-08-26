@@ -335,7 +335,7 @@ func resolveReceivingQuantity(item models.PurchaseItem, input ReceivePurchaseIte
 
 func generatePurchasePaymentNumber() string {
 	var count int64
-	database.DB.Model(&models.PurchasePayment{}).
+	database.DB.Unscoped().Model(&models.PurchasePayment{}).
 		Where("created_at >= ?", time.Now().Format("2006-01-01")).
 		Count(&count)
 	return fmt.Sprintf("PPAY-%s-%04d", time.Now().Format("2006"), count+1)
