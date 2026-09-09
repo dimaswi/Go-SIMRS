@@ -18,10 +18,8 @@ import {
 import {
   Loader2,
   Package,
-  CheckCircle2,
   AlertCircle,
   Printer,
-  ShieldCheck,
 } from "lucide-react";
 import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { printApi } from "@/lib/api/print";
@@ -66,7 +64,7 @@ export function PharmacyDispense({
 }: PharmacyDispenseProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
-  const { user } = useAuthStore();
+  useAuthStore();
   const orderApi = apiAdapter || medicineOrdersApi;
   const {
     showPINDialog,
@@ -91,7 +89,7 @@ export function PharmacyDispense({
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [signatureStatus, setSignatureStatus] = useState<{
+  const [_signatureStatus, setSignatureStatus] = useState<{
     is_signed: boolean;
     signed_at?: string;
     signer_name?: string;
