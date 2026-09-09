@@ -141,8 +141,57 @@ func printSPRIImpl(c *gin.Context) {
 	pdf.SetAutoPageBreak(false, 0)
 	pdf.AddPage()
 
+	// === WATERMARK: Logo BPJS diagonal miring ke kanan, full halaman ===
+	if hospitalInfo.BPJSLogo != "" {
+		logoFile := strings.TrimPrefix(hospitalInfo.BPJSLogo, "/")
+		logoFile = strings.TrimPrefix(logoFile, "uploads/")
+		logoPath := filepath.Join("uploads", logoFile)
+		if _, err := os.Stat(logoPath); err == nil {
+			ext := strings.ToLower(filepath.Ext(logoPath))
+			imgType := "PNG"
+			if ext == ".jpg" || ext == ".jpeg" {
+				imgType = "JPG"
+			}
+			wmW := 218.0
+			wmH := 36.0
+			centerX := 210.0 / 2
+			centerY := 297.0 / 2
+			wmX := centerX - wmW/2
+			wmY := centerY - wmH/2
+
+			pdf.SetAlpha(0.07, "Normal")
+			pdf.TransformBegin()
+			pdf.TransformRotate(45, centerX, centerY)
+			pdf.Image(logoPath, wmX, wmY, wmW, wmH, false, imgType, 0, "")
+			pdf.TransformEnd()
+			pdf.SetAlpha(1.0, "Normal")
+		}
+	}
+
+	// Generate QR code
+	qrData := fmt.Sprintf(`{"type": "spri", "no_spri": "%s"}`, spri.NoSPRI)
+	qrImgBytes := generateQRCode(qrData)
+	qrImgName := fmt.Sprintf("qr_spri_%s", spri.NoSPRI)
+	if qrImgBytes != nil {
+		reader := bytes.NewReader(qrImgBytes)
+		pdf.RegisterImageReader(qrImgName, "PNG", reader)
+	}
+
 	// Header
 	addHeader(pdf, hospitalInfo, "Surat Perintah Rawat Inap (SPRI)", "No: "+spri.NoSPRI)
+
+	// QR Code di pojok kanan, sejajar area judul
+	afterHeaderY := pdf.GetY()
+	qrSize := 18.0
+	qrX := 210.0 - 15.0 - qrSize
+	qrTitleY := afterHeaderY - 20.0
+	if qrTitleY < 32 {
+		qrTitleY = 32
+	}
+	if qrImgBytes != nil {
+		pdf.Image(qrImgName, qrX, qrTitleY, qrSize, qrSize, false, "PNG", 0, "")
+	}
+	pdf.SetY(afterHeaderY)
 
 	// === DATA PESERTA ===
 	pdf.SetY(pdf.GetY() + 5)

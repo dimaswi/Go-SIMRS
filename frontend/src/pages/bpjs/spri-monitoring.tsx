@@ -63,8 +63,11 @@ import {
   CloudOff,
   UserCheck,
   ShieldCheck,
+  PenTool,
 } from "lucide-react";
 import { vclaimApi, type SPRILocal } from "@/lib/api/vclaim";
+import { signatureApi } from "@/lib/api/signature";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 import { printApi } from "@/lib/api/print";
 import { PoliDokterSelector } from "@/components/sep/poli-dokter-selector";
 import { format } from "date-fns";
@@ -112,6 +115,11 @@ export default function SPRIMonitoringPage() {
   const [editForm, setEditForm] = useState({ tgl_rencana_kontrol: "", kode_poli: "", nama_poli: "", kode_dokter: "", nama_dokter: "" });
   const [saving, setSaving] = useState(false);
 
+  // Sign on behalf
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [signDoc, setSignDoc] = useState<{ id: number; type: string; title: string } | null>(null);
+  const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
+
   useEffect(() => {
     setPageTitle("SPRI");
     loadData();
@@ -130,7 +138,19 @@ export default function SPRIMonitoringPage() {
       params.limit = 500;
 
       const resp = await vclaimApi.getSPRIList(params as any);
-      setSpriList(resp.data.data || []);
+      const items = resp.data.data || [];
+      setSpriList(items);
+
+      // Fetch signature statuses
+      if (items.length > 0) {
+        const batchDocs = items.map((i) => ({ document_type: "spri", document_id: i.id }));
+        try {
+          const sigRes = await signatureApi.batchSignatureStatus(batchDocs);
+          setSignatureStatuses(sigRes.data?.statuses || {});
+        } catch (e) {
+          console.error("Gagal load signature statuses SPRI", e);
+        }
+      }
     } catch {
       toast({ variant: "destructive", title: "Error", description: "Gagal memuat data SPRI" });
     } finally {
@@ -155,6 +175,20 @@ export default function SPRIMonitoringPage() {
 
   const handlePrint = (spri: SPRILocal) => {
     printApi.spri(spri.id);
+  };
+
+  const handleSign = (spri: SPRILocal) => {
+    setSignDoc({
+      id: spri.id,
+      type: "spri",
+      title: spri.no_spri || "SPRI",
+    });
+    setShowSignDialog(true);
+  };
+
+  const isSpriSigned = (spri: SPRILocal) => {
+    const status = signatureStatuses[`spri:${spri.id}`];
+    return status?.is_signed || false;
   };
 
   const handleConfirmDelete = (spri: SPRILocal) => {
@@ -374,6 +408,21 @@ export default function SPRIMonitoringPage() {
                 </Tooltip>
               </TooltipProvider>
             )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={cn("h-7 w-7", isSpriSigned(spri) ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-purple-600 hover:text-purple-700 hover:bg-purple-50")}
+                    onClick={() => handleSign(spri)}
+                  >
+                    <PenTool className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isSpriSigned(spri) ? "Sudah Ditandatangani" : "Tanda Tangan SPRI"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -717,6 +766,26 @@ export default function SPRIMonitoringPage() {
         </SheetContent>
       </Sheet>
 
+      {/* Tanda Tangan Modal */}
+      {signDoc && (
+        <SignOnBehalfDialog
+          open={showSignDialog}
+          onOpenChange={(isOpen) => {
+            setShowSignDialog(isOpen);
+            if (!isOpen) {
+              loadData();
+            }
+          }}
+          documentType={signDoc.type}
+          documentId={signDoc.id}
+          documentTitle={signDoc.title}
+          signerHint="Tanda Tangan SPRI"
+          requiredSignatures={1}
+          slotLabels={{ right: "Mengetahui DPJP" }}
+          fixedRoles={{ right: "dpjp" }}
+          onSuccess={() => {}}
+        />
+      )}
 
     </BPJSPageFrame>
   );

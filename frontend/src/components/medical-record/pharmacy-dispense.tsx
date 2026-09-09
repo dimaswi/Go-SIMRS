@@ -86,6 +86,8 @@ export function PharmacyDispense({
   const [showDeliveredRows, setShowDeliveredRows] = useState(true);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [pendingFinalReviewToken, setPendingFinalReviewToken] = useState<string | null>(null);
+  const [printingEtiket, setPrintingEtiket] = useState(false);
+  const [printingResep, setPrintingResep] = useState(false);
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
@@ -294,6 +296,26 @@ export function PharmacyDispense({
     }
   };
 
+  const handlePrintEtiket = async () => {
+    if (!selectedOrder) return;
+    setPrintingEtiket(true);
+    try {
+      await printApi.medicineLabels(selectedOrder.id);
+    } finally {
+      setPrintingEtiket(false);
+    }
+  };
+
+  const handlePrintResep = async () => {
+    if (!selectedOrder) return;
+    setPrintingResep(true);
+    try {
+      await printApi.prescriptionThermal(selectedOrder.id);
+    } finally {
+      setPrintingResep(false);
+    }
+  };
+
   const hasDispensePermission = hasPermission("pharmacy.dispense");
   const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
   const isInitialReviewComplete =
@@ -414,31 +436,6 @@ export function PharmacyDispense({
 
   const patient = selectedOrder?.source_visit?.registration?.patient || selectedOrder?.registration?.patient;
 
-  const handlePrintEtiket = async () => {
-    if (!selectedOrder) return;
-    try {
-      await printApi.medicineLabels(selectedOrder.id);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal mencetak etiket obat",
-      });
-    }
-  };
-
-  const handlePrintResep = async () => {
-    if (!selectedOrder) return;
-    try {
-      await printApi.prescription(selectedOrder.id);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal mencetak resep obat",
-      });
-    }
-  };
 
   return (
     <div className="pharmacy-no-sticky-head">
@@ -733,18 +730,28 @@ export function PharmacyDispense({
                   <Button
                     variant="outline"
                     onClick={handlePrintEtiket}
+                    disabled={printingEtiket || !selectedOrder}
                   >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Cetak Etiket
+                    {printingEtiket ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4 mr-2" />
+                    )}
+                    {printingEtiket ? "Mencetak..." : "Cetak Etiket"}
                   </Button>
 
                   {/* Print Resep */}
                   <Button
                     variant="outline"
                     onClick={handlePrintResep}
+                    disabled={printingResep || !selectedOrder}
                   >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Cetak Resep
+                    {printingResep ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4 mr-2" />
+                    )}
+                    {printingResep ? "Mencetak..." : "Cetak Resep"}
                   </Button>
 
               </div>
