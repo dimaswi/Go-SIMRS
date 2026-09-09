@@ -168,30 +168,8 @@ func printSPRIImpl(c *gin.Context) {
 		}
 	}
 
-	// Generate QR code
-	qrData := fmt.Sprintf(`{"type": "spri", "no_spri": "%s"}`, spri.NoSPRI)
-	qrImgBytes := generateQRCode(qrData)
-	qrImgName := fmt.Sprintf("qr_spri_%s", spri.NoSPRI)
-	if qrImgBytes != nil {
-		reader := bytes.NewReader(qrImgBytes)
-		pdf.RegisterImageReader(qrImgName, "PNG", reader)
-	}
-
 	// Header
 	addHeader(pdf, hospitalInfo, "Surat Perintah Rawat Inap (SPRI)", "No: "+spri.NoSPRI)
-
-	// QR Code di pojok kanan, sejajar area judul
-	afterHeaderY := pdf.GetY()
-	qrSize := 18.0
-	qrX := 210.0 - 15.0 - qrSize
-	qrTitleY := afterHeaderY - 20.0
-	if qrTitleY < 32 {
-		qrTitleY = 32
-	}
-	if qrImgBytes != nil {
-		pdf.Image(qrImgName, qrX, qrTitleY, qrSize, qrSize, false, "PNG", 0, "")
-	}
-	pdf.SetY(afterHeaderY)
 
 	// === DATA PESERTA ===
 	pdf.SetY(pdf.GetY() + 5)

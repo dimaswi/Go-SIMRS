@@ -310,7 +310,7 @@ export function PharmacyDispense({
     if (!selectedOrder) return;
     setPrintingResep(true);
     try {
-      await printApi.prescriptionThermal(selectedOrder.id);
+      await printApi.prescription(selectedOrder.id);
     } finally {
       setPrintingResep(false);
     }
