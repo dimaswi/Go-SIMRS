@@ -61,7 +61,7 @@ export const PHARMACY_ORDER_STATUS_META: Record<string, PharmacyStatusMeta> = {
 
 export const PHARMACY_ITEM_STATUS_META: Record<string, PharmacyStatusMeta> = {
   ordered: {
-    label: "Dipesan",
+    label: "Ditambahkan",
     variant: "outline",
     className: "border-slate-200 bg-slate-50 text-slate-700",
   },

@@ -409,19 +409,20 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 	// Get hospital info for header
 	hospitalInfo := getHospitalInfo()
 
-	// Create custom size PDF (100mm x 60mm per page)
+	// Create custom size PDF (100mm x 50mm per page)
 	pageWidth := 100.0
-	pageHeight := 60.0
+	pageHeight := 50.0
 
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{
 		UnitStr: "mm",
 		Size:    gofpdf.SizeType{Wd: pageWidth, Ht: pageHeight},
 	})
-	pdf.SetMargins(3, 3, 3)
+	pdf.SetMargins(2, 2, 2)
 	pdf.SetAutoPageBreak(false, 0)
 
-	contentWidth := 94.0
-	marginL := 3.0
+	contentWidth := 96.0
+	marginL := 2.0
+	marginT := 2.0
 
 	for _, item := range items {
 		// Skip cancelled items
@@ -431,21 +432,78 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		// Add new page for each medicine
 		pdf.AddPage()
 
-		// Border box
-		pdf.SetDrawColor(100, 100, 100)
+		// Outer Border box
+		pdf.SetDrawColor(0, 0, 0)
 		pdf.SetLineWidth(0.3)
-		pdf.Rect(marginL, 3, contentWidth, pageHeight-6, "D")
+		pdf.Rect(marginL, marginT, contentWidth, pageHeight-4, "D")
 
-		// === KOP HEADER (same style as queue ticket) ===
-		headerStartY := 4.0
+		// Horizontal Divider at Y=26
+		dividerY := 26.0
+		pdf.Line(marginL, dividerY, marginL+contentWidth, dividerY)
 
-		// Logo - di sebelah kiri
-		logoWidth := 10.0
-		logoPath := ""
+		// Vertical Divider in Top Section at X=55
+		dividerX := 55.0
+		pdf.Line(dividerX, marginT, dividerX, dividerY)
+
+		// === TOP LEFT: Patient & Medicine Info ===
+		pdf.SetFont("Arial", "", 7)
+		textX := marginL + 2
+		lineH := 3.5
+		currentY := marginT + 1.5
+		
+		medicineName := "-"
+		if item.Medicine != nil {
+			medicineName = item.Medicine.Name
+		}
+		qtyInfo := fmt.Sprintf("%s %s", formatNumber(float64(item.Quantity)), item.Unit)
+
+		// 1. Nama
+		pdf.SetXY(textX, currentY)
+		pdf.CellFormat(15, lineH, "Nama", "", 0, "L", false, 0, "")
+		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetXY(textX+18, currentY)
+		pdf.MultiCell(33, lineH, truncateString(patientName, 40), "", "L", false)
+		currentY = pdf.GetY() + 0.5
+
+		// 2. No RM
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(textX, currentY)
+		pdf.CellFormat(15, lineH, "No. RM", "", 0, "L", false, 0, "")
+		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetXY(textX+18, currentY)
+		pdf.MultiCell(33, lineH, noRM, "", "L", false)
+		currentY = pdf.GetY() + 0.5
+
+		// 3. Nama Obat
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(textX, currentY)
+		pdf.CellFormat(15, lineH, "Nama Obat", "", 0, "L", false, 0, "")
+		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetXY(textX+18, currentY)
+		pdf.MultiCell(33, lineH, truncateString(medicineName, 55), "", "L", false)
+		currentY = pdf.GetY() + 0.5
+
+		// 4. Jumlah
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(textX, currentY)
+		pdf.CellFormat(15, lineH, "Jumlah", "", 0, "L", false, 0, "")
+		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetXY(textX+18, currentY)
+		pdf.MultiCell(33, lineH, qtyInfo, "", "L", false)
+
+		// === TOP RIGHT: Hospital Info ===
+		logoWidth := 8.0
+		logoX := dividerX + ((contentWidth - (dividerX - marginL)) - logoWidth) / 2
+		logoY := marginT + 1.0
+
 		if hospitalInfo.Logo != "" {
 			logoFile := strings.TrimPrefix(hospitalInfo.Logo, "/")
 			logoFile = strings.TrimPrefix(logoFile, "uploads/")
-			logoPath = filepath.Join("uploads", logoFile)
+			logoPath := filepath.Join("uploads", logoFile)
 			if _, err := os.Stat(logoPath); err == nil {
 				ext := strings.ToLower(filepath.Ext(logoPath))
 				imgType := ""
@@ -456,125 +514,83 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 					imgType = "JPG"
 				}
 				if imgType != "" {
-					pdf.Image(logoPath, marginL+1, headerStartY, logoWidth, logoWidth, false, imgType, 0, "")
+					pdf.Image(logoPath, logoX, logoY, logoWidth, logoWidth, false, imgType, 0, "")
 				}
 			}
 		}
 
-		// Hospital name - setelah logo, use MultiCell for wrapping
-		textStartX := marginL + 1 + logoWidth + 2
-		textWidth := contentWidth - logoWidth - 4
-		pdf.SetFont("Arial", "B", 7)
-		pdf.SetXY(textStartX, headerStartY)
-		pdf.MultiCell(textWidth, 3, hospitalInfo.Name, "", "C", false)
-
-		// Address
+		pdf.SetFont("Arial", "B", 6)
+		pdf.SetXY(dividerX+1, logoY+logoWidth+0.5)
+		pdf.MultiCell((contentWidth - (dividerX - marginL)) - 2, 2.5, strings.ToUpper(hospitalInfo.Name), "", "C", false)
+		
 		pdf.SetFont("Arial", "", 5)
 		address := hospitalInfo.Address
 		if hospitalInfo.City != "" {
 			address += ", " + hospitalInfo.City
 		}
-		pdf.SetX(textStartX)
-		pdf.MultiCell(textWidth, 2.5, address, "", "C", false)
+		currentY = pdf.GetY()
+		pdf.SetXY(dividerX+1, currentY)
+		pdf.MultiCell((contentWidth - (dividerX - marginL)) - 2, 2.0, address, "", "C", false)
 
-		// Phone
-		if hospitalInfo.Phone != "" {
-			pdf.SetX(textStartX)
-			pdf.CellFormat(textWidth, 2.5, "Telp: "+hospitalInfo.Phone, "", 1, "C", false, 0, "")
-		}
 
-		// Double line after header
-		lineY := headerStartY + logoWidth + 1
-		pdf.SetDrawColor(100, 100, 100)
-		pdf.SetLineWidth(0.4)
-		pdf.Line(marginL+1, lineY, marginL+contentWidth-1, lineY)
-		pdf.SetLineWidth(0.15)
-		pdf.Line(marginL+1, lineY+0.5, marginL+contentWidth-1, lineY+0.5)
+		// === BOTTOM SECTION: Instructions ===
+		bottomY := dividerY + 1.5
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(marginL+2, bottomY)
+		pdf.CellFormat(18, 4, "Aturan Pakai", "", 0, "L", false, 0, "")
 
-		// === PATIENT INFO ===
-		// Row 1: Patient name | No. RM
-		pdf.SetY(lineY + 2)
-		pdf.SetX(marginL + 4)
-		pdf.SetFont("Arial", "B", 9)
-		pdf.CellFormat(55, 4, truncateString(patientName, 25), "", 0, "L", false, 0, "")
-		pdf.SetFont("Arial", "", 9)
-		pdf.CellFormat(33, 4, noRM, "", 1, "R", false, 0, "")
-
-		// Divider line
-		pdf.SetDrawColor(100, 100, 100)
-		pdf.Line(marginL+1, pdf.GetY()+0.5, marginL+contentWidth-1, pdf.GetY()+0.5)
-
-		// Row 2: Medicine name (large)
-		pdf.SetY(pdf.GetY() + 1.5)
-		pdf.SetX(marginL + 4)
-		medicineName := "-"
-		if item.Medicine != nil {
-			medicineName = strings.ToUpper(item.Medicine.Name)
-		}
-		pdf.SetFont("Arial", "B", 12)
-		pdf.CellFormat(contentWidth-8, 6, truncateString(medicineName, 32), "", 1, "L", false, 0, "")
-
-		// Divider line
-		pdf.SetDrawColor(100, 100, 100)
-		pdf.Line(marginL+1, pdf.GetY(), marginL+contentWidth-1, pdf.GetY())
-
-		// Row 3: Dosage and instructions
-		pdf.SetY(pdf.GetY() + 1)
-		pdf.SetX(marginL + 4)
-		dosageInfo := ""
+		// Right of Aturan Pakai
+		var parts []string
 		if item.Dosage != "" {
-			dosageInfo = item.Dosage
+			parts = append(parts, item.Dosage)
 		}
-		if item.Unit != "" {
-			dosageInfo += " " + item.Unit
+		if item.Frequency != "" {
+			parts = append(parts, item.Frequency)
 		}
-		pdf.SetFont("Arial", "B", 10)
-		pdf.CellFormat(contentWidth-8, 5, dosageInfo, "", 1, "L", false, 0, "")
-
-		// Instructions
-		pdf.SetX(marginL + 4)
-		instructions := item.Instructions
+		if item.Instructions != "" {
+			parts = append(parts, item.Instructions)
+		}
+		
+		instructions := strings.Join(parts, " - ")
 		if instructions == "" {
-			// Format default based on route
-			if item.Route != "" {
-				routeMap := map[string]string{
-					"oral":          "Diminum",
-					"topikal":       "Dioleskan",
-					"injeksi":       "Disuntikkan",
-					"sublingual":    "Di bawah lidah",
-					"inhalasi":      "Dihirup",
-					"rektal":        "Lewat dubur",
-					"tetes_mata":    "Diteteskan ke mata",
-					"tetes_telinga": "Diteteskan ke telinga",
-				}
-				if r, ok := routeMap[item.Route]; ok {
-					instructions = r
-				}
+			instructions = "....... X ....... Tab/Kap/Bungkus"
+		}
+		pdf.CellFormat(3, 4, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7)
+		pdf.CellFormat(0, 4, truncateString(instructions, 45), "", 1, "L", false, 0, "")
+
+		// Time Grid (6 cols, 2 rows)
+		gridX := marginL + 2
+		gridY := bottomY + 8.5
+		colW := 6.5
+		rowHGrid := 4.5
+
+		times := []string{
+			"6-7", "10-11", "11-12", "13-14", "14-15", "16-17",
+			"18-19", "19-20", "20-21", "21-22", "22-23", "",
+		}
+
+		pdf.SetFont("Arial", "", 6)
+		pdf.SetLineWidth(0.2)
+		for i := 0; i < 2; i++ {
+			pdf.SetXY(gridX, gridY+(float64(i)*rowHGrid))
+			for j := 0; j < 6; j++ {
+				idx := i*6 + j
+				pdf.CellFormat(colW, rowHGrid, times[idx], "1", 0, "C", false, 0, "")
 			}
 		}
-		// Check for special instructions
-		if strings.Contains(strings.ToLower(instructions), "sebelum makan") || strings.Contains(strings.ToLower(item.Route), "ac") {
-			pdf.SetFont("Arial", "B", 9)
-			pdf.SetTextColor(200, 0, 0)
-			pdf.CellFormat(contentWidth-8, 4, "SEBELUM MAKAN", "", 1, "L", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
-		} else if instructions != "" {
-			pdf.SetFont("Arial", "", 9)
-			pdf.CellFormat(contentWidth-8, 4, truncateString(instructions, 42), "", 1, "L", false, 0, "")
-		}
 
-		// Divider line
-		pdf.SetDrawColor(100, 100, 100)
-		pdf.Line(marginL+1, pdf.GetY()+0.5, marginL+contentWidth-1, pdf.GetY()+0.5)
+		// Dates
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(marginL+45, gridY)
+		pdf.CellFormat(17, 4.5, "Kadaluarsa", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2, 4.5, ":", "", 0, "C", false, 0, "")
+		pdf.CellFormat(0, 4.5, "    /    /", "", 1, "L", false, 0, "")
 
-		// Row 4: Date | Quantity
-		pdf.SetY(pdf.GetY() + 1.5)
-		pdf.SetX(marginL + 4)
-		pdf.SetFont("Arial", "", 8)
-		pdf.CellFormat(45, 4, formatDateIndonesian(time.Now()), "", 0, "L", false, 0, "")
-		qtyInfo := fmt.Sprintf("%s %s", formatNumber(float64(item.Quantity)), item.Unit)
-		pdf.SetFont("Arial", "B", 9)
-		pdf.CellFormat(43, 4, qtyInfo, "", 1, "R", false, 0, "")
+		pdf.SetXY(marginL+45, gridY+4.5)
+		pdf.CellFormat(17, 4.5, "Tanggal", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2, 4.5, ":", "", 0, "C", false, 0, "")
+		pdf.CellFormat(0, 4.5, formatDateIndonesian(time.Now()), "", 1, "L", false, 0, "")
 	}
 
 	return pdf

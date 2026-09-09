@@ -303,35 +303,26 @@ function buildMR12(): MRPrintEntry[] {
 }
 
 function buildMR13(ctx: MRPrintContext): MRPrintEntry[] {
-  if (ctx.isPharmacyVisit) {
-    return makeCollectionEntries(
-      mr13,
-      ctx.pharmacyMedicineOrders,
-      (order, index) => ({
-        key: `prescription-thermal-${order.id}`,
-        title: `${mr13.title} #${index + 1}`,
-        description: "Cetak resep pasien versi thermal dari workstation farmasi.",
-        handler: () => printApi.prescriptionThermal(order.id),
-      }),
-      "Belum ada resep farmasi yang bisa dicetak di kunjungan ini.",
-    );
-  }
+  const orders = ctx.isPharmacyVisit ? ctx.pharmacyMedicineOrders : ctx.completedMedicineOrders;
+  const emptyMessage = ctx.isPharmacyVisit 
+    ? "Belum ada order obat farmasi yang bisa dicetak."
+    : "Belum ada order obat selesai yang bisa dicetak.";
 
   return makeCollectionEntries(
     mr13,
-    ctx.completedMedicineOrders,
+    orders,
     (order, index) => {
       const orderDate = formatDateShort(order.created_at);
       return {
         key: `prescription-${order.id}`,
         title: `${mr13.title} ${orderDate || `#${index + 1}`}`.trim(),
-        description: "Cetak resep obat dari order yang sudah selesai/diserahkan.",
+        description: "Cetak resep obat dan checklist telaah & verifikasi.",
         handler: () => printApi.prescription(order.id),
         documentType: DOCUMENT_TYPES.PRESCRIPTION,
         documentId: order.id,
       };
     },
-    "Belum ada order obat selesai yang bisa dicetak.",
+    emptyMessage,
   );
 }
 

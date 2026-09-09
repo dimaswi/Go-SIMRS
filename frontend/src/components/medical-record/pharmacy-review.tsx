@@ -529,15 +529,19 @@ export function PharmacyReview({
                     <p className="break-words text-[11px] text-muted-foreground">
                       {item.medicine?.generic_name || "-"}
                     </p>
-                    <p className="mt-1 break-words text-[11px] text-muted-foreground">
-                      {item.instructions || item.notes || "-"}
-                    </p>
                   </td>
                   <td className="px-2 py-1.5">
-                    <p className="break-words text-[11px]">{item.dosage || "-"}</p>
-                    <p className="break-words text-[11px] text-muted-foreground">
-                      {item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}
+                    <p className="break-words text-[11px]">
+                      {[item.dosage || "-", item.frequency || "-"].join(" • ")}
                     </p>
+                    <p className="break-words text-[11px] text-muted-foreground">
+                      Instruksi: {item.instructions || "-"}
+                    </p>
+                    {item.notes && (
+                      <p className="break-words text-[11px] text-muted-foreground">
+                        Catatan: {item.notes}
+                      </p>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
                     {item.quantity} {item.unit}

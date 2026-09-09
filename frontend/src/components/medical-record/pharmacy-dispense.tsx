@@ -24,6 +24,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { printApi } from "@/lib/api/print";
 import type { MedicineOrder, MedicineOrderItem, PrescriptionReview } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
@@ -84,7 +85,7 @@ export function PharmacyDispense({
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [selectedOrderReview, setSelectedOrderReview] = useState<PrescriptionReview | null>(null);
   const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
-  const [showDeliveredRows, setShowDeliveredRows] = useState(false);
+  const [showDeliveredRows, setShowDeliveredRows] = useState(true);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [pendingFinalReviewToken, setPendingFinalReviewToken] = useState<string | null>(null);
 
@@ -415,118 +416,29 @@ export function PharmacyDispense({
 
   const patient = selectedOrder?.source_visit?.registration?.patient || selectedOrder?.registration?.patient;
 
-  const handlePrintDeliveredMedicines = () => {
+  const handlePrintEtiket = async () => {
     if (!selectedOrder) return;
-
-    // Print all delivered items from the order
-    const deliveredItems = (selectedOrder.items || []).filter(item => (item.dispensed_qty || 0) > 0);
-    printMedicineReceipt(deliveredItems.map(item => ({
-      name: item.medicine?.name || "-",
-      qty: item.dispensed_qty || 0,
-      unit: item.unit,
-      dosage: item.dosage,
-      frequency: item.frequency,
-    })));
+    try {
+      await printApi.medicineLabels(selectedOrder.id);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal mencetak etiket obat",
+      });
+    }
   };
 
-  const printMedicineReceipt = (items: { name: string; qty: number; unit: string; dosage?: string; frequency?: string }[]) => {
-    if (!selectedOrder || items.length === 0) return;
-
-    const printWindow = window.open("", "_blank", "width=600,height=800");
-    if (printWindow) {
-      const itemsHtml = items.map(item => `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty.toLocaleString('id-ID')} ${item.unit}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.dosage || "-"}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.frequency || "-"}</td>
-        </tr>
-      `).join("");
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Daftar Obat - ${selectedOrder.order_number}</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
-              .header { text-align: center; margin-bottom: 20px; }
-              .header h2 { margin: 0; }
-              .info-table { width: 100%; margin-bottom: 20px; }
-              .info-table td { padding: 4px 0; }
-              .medicine-table { width: 100%; border-collapse: collapse; }
-              .medicine-table th { background: #f5f5f5; padding: 8px; text-align: left; border-bottom: 2px solid #333; }
-              .medicine-table td { padding: 8px; border-bottom: 1px solid #ddd; }
-              .footer { margin-top: 30px; }
-              .signature { display: flex; justify-content: space-between; margin-top: 40px; }
-              .signature div { width: 45%; text-align: center; }
-              .signature-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>DAFTAR OBAT</h2>
-              <p>No. Order: ${selectedOrder.order_number}</p>
-            </div>
-            
-            <table class="info-table">
-              <tr>
-                <td width="120">Nama Pasien</td>
-                <td>: <strong>${patient?.nama_lengkap || "-"}</strong></td>
-              </tr>
-              <tr>
-                <td>No. RM</td>
-                <td>: ${patient?.no_rm || "-"}</td>
-              </tr>
-              <tr>
-                <td>Diagnosis</td>
-                <td>: ${selectedOrder.diagnosis || "-"}</td>
-              </tr>
-              <tr>
-                <td>Ruang</td>
-                <td>: ${selectedOrder.source_room?.name || "-"}</td>
-              </tr>
-              <tr>
-                <td>Dokter</td>
-                <td>: ${selectedOrder.prescriber?.nama_lengkap || "-"}</td>
-              </tr>
-            </table>
-            
-            <table class="medicine-table">
-              <thead>
-                <tr>
-                  <th>Nama Obat</th>
-                  <th style="text-align: center;">Jumlah</th>
-                  <th>Dosis</th>
-                  <th>Aturan Pakai</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
-            </table>
-            
-            <div class="footer">
-              <p style="font-size: 11px;">Tanggal cetak: ${new Date().toLocaleString("id-ID")}</p>
-            </div>
-            
-            <div class="signature">
-              <div>
-                <p>Petugas Farmasi</p>
-                <p style="margin-top: 5px;">&nbsp;</p>
-                <p class="signature-line">${user?.full_name || "-"}</p>
-              </div>
-              <div>
-                <p>Penerima</p>
-                <p style="margin-top: 5px;">&nbsp;</p>
-                <p class="signature-line">(...........................)</p>
-              </div>
-            </div>
-            
-            <script>window.print();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+  const handlePrintResep = async () => {
+    if (!selectedOrder) return;
+    try {
+      await printApi.prescription(selectedOrder.id);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal mencetak resep obat",
+      });
     }
   };
 
@@ -739,8 +651,17 @@ export function PharmacyDispense({
                               <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
                             </td>
                             <td className="py-1.5 px-2 align-top hidden xl:table-cell">
-                              <p className="text-[11px] break-words">{item.dosage || "-"}</p>
-                              <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"}</p>
+                              <p className="text-[11px] break-words">
+                                {[item.dosage || "-", item.frequency || "-"].join(" • ")}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground break-words">
+                                Instruksi: {item.instructions || "-"}
+                              </p>
+                              {item.notes && (
+                                <p className="text-[11px] text-muted-foreground break-words">
+                                  Catatan: {item.notes}
+                                </p>
+                              )}
                             </td>
                             <td className="py-1.5 px-2 align-top text-[11px]">
                               <p>Dipesan: <span className="font-medium">{item.quantity} {item.unit}</span></p>
@@ -810,35 +731,24 @@ export function PharmacyDispense({
 
               {/* Action buttons */}
               <div className="flex flex-wrap gap-2 p-3 mt-4 border-t border-border/70">
-                  {/* Print delivered medicines list */}
-                  {(selectedOrder?.items || []).some(item => (item.dispensed_qty || 0) > 0) && (
-                    <Button
-                      variant="outline"
-                      onClick={handlePrintDeliveredMedicines}
-                    >
-                      <Printer className="h-4 w-4 mr-2" />
-                      Cetak Daftar Obat
-                    </Button>
-                  )}
+                  {/* Print Etiket List */}
+                  <Button
+                    variant="outline"
+                    onClick={handlePrintEtiket}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Cetak Etiket
+                  </Button>
 
-                  {/* Signature button - show when all delivered */}
-                  {allDelivered && (
-                    signatureStatus?.is_signed ? (
-                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded flex-1">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span className="font-medium">Ditandatangani: {signatureStatus.signer_name}</span>
-                      </div>
-                    ) : (
-                      <Button
-                        onClick={() => setShowSignatureDialog(true)}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        <ShieldCheck className="h-4 w-4 mr-2" />
-                        Tanda Tangani Serah Terima
-                      </Button>
-                    )
-                  )}
+                  {/* Print Resep */}
+                  <Button
+                    variant="outline"
+                    onClick={handlePrintResep}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Cetak Resep
+                  </Button>
+
               </div>
             </div>
           </>

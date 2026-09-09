@@ -35,6 +35,7 @@ export interface MedicineOrderItem {
     dpho_nama_obat?: string;
     // Fallback legacy field (if any endpoint still uses old naming)
     bpjs_kode_obat?: string;
+    selling_price?: number;
   };
   item_type?: string;
   racikan_group?: string;
@@ -57,6 +58,8 @@ export interface MedicineOrderItem {
     batch_number: string;
     expiry_date: string;
   };
+  price?: number;
+  unit_price?: number;
   dispensed_at?: string;
   returned_qty: number;
   returned_at?: string;

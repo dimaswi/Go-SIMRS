@@ -44,7 +44,7 @@ import {
   Clock,
 } from "lucide-react";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
-import { getPharmacyOrderStatusMeta } from "./pharmacy-status";
+import { getPharmacyOrderStatusMeta, getPharmacyItemStatusMeta } from "./pharmacy-status";
 import { cn } from "@/lib/utils";
 import { medicineOrdersApi, getPharmacyRoomMedicines } from "@/lib/api";
 import { medicinesApi } from "@/lib/api/medicines";
@@ -647,46 +647,65 @@ export function PharmacyEditPrescription({
   const handleAddItemFromMedicine = async (roomMedicine: RoomMedicine) => {
     if (!selectedOrder) return;
 
-    setSubmitting(true);
-    try {
-      const medicine = roomMedicine.medicine;
-      const res = await orderApi.addItem(selectedOrder.id, {
-        medicine_id: medicine.id,
-        quantity: 1,
-        unit: medicine.unit,
-        dosage: medicine.strength || "-",
-        frequency: "1x sehari",
-        route: "",
-        duration: "",
-        instructions: "Sesudah makan",
-        notes: "",
-      });
+    const medicine = roomMedicine.medicine;
+    
+    // Create a pending item with id = -1 to signify it's new
+    const pendingItem: MedicineOrderItem = {
+      id: -1,
+      medicine_order_id: selectedOrder.id,
+      medicine_id: medicine.id,
+      medicine: {
+        ...medicine,
+        generic_name: medicine.generic_name || "",
+        category: medicine.category || "",
+      },
+      quantity: 1,
+      unit: medicine.unit,
+      dosage: medicine.strength || "-",
+      frequency: "1x sehari",
+      route: "",
+      duration: "",
+      instructions: "Sesudah makan",
+      notes: "",
+      status: "ordered",
+      dispensed_qty: 0,
+      returned_qty: 0,
+      return_notes: "",
+      is_substituted: false,
+      substituted_medicine: "",
+      substitution_reason: "",
+      price: Number(roomMedicine.unit_price || roomMedicine.price || roomMedicine.selling_price || roomMedicine.medicine?.selling_price || 0),
+      unit_price: Number(roomMedicine.unit_price || roomMedicine.price || roomMedicine.selling_price || roomMedicine.medicine?.selling_price || 0),
+    } as any;
 
-      if (rmDuplicateMode) {
-        const addedItem = res.data;
-        applyLocalOrderUpdate({
-          ...selectedOrder,
-          items: [...(selectedOrder.items || []), addedItem],
-        });
-      }
+    // Initialize the row edits state for this pending item
+    const rowKey = getRowKey(pendingItem, -1);
+    setRowEdits((prev) => ({
+      ...prev,
+      [rowKey]: {
+        medicine_id: pendingItem.medicine_id,
+        unit: pendingItem.unit,
+        dosage: pendingItem.dosage,
+        frequency: pendingItem.frequency,
+        instructions: pendingItem.instructions,
+        route: pendingItem.route,
+        duration: pendingItem.duration,
+        notes: pendingItem.notes,
+        quantity: pendingItem.quantity,
+        item_type: "obat",
+        racikan_group: "",
+        racikan_name: "",
+        racikan_type: "",
+        racikan_qty: 0,
+        racikan_unit: "",
+      },
+    }));
 
-      toast({ title: "Berhasil", description: "Obat berhasil ditambahkan" });
-      setShowAddDialog(false);
-      setSearchTerm("");
-      if (!rmDuplicateMode) {
-        await loadOrders(true, selectedOrder.id);
-        window.dispatchEvent(new CustomEvent("refresh-print-options"));
-        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menambahkan obat",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    setShowAddDialog(false);
+    setSearchTerm("");
+    
+    // Open edit dialog for the newly added item
+    openEditItemDialog(pendingItem);
   };
 
   const handleConfirmDeleteItem = async () => {
@@ -1054,31 +1073,48 @@ export function PharmacyEditPrescription({
 
     setSavingRowId(item.id);
     try {
-      const res = await orderApi.updateItem(selectedOrder.id, item.id, {
-        medicine_id: row.medicine_id,
-        quantity: row.quantity,
-        unit: row.unit,
-        dosage: row.dosage,
-        frequency: row.frequency,
-        route: row.route,
-        duration: row.duration,
-        instructions: row.instructions,
-        notes: row.notes,
-        item_type: row.item_type,
-        racikan_group: row.racikan_group,
-        racikan_name: row.racikan_name,
-        racikan_type: row.racikan_type,
-        racikan_qty: row.racikan_qty,
-        racikan_unit: row.racikan_unit,
-      });
+      let res;
+      if (item.id === -1) {
+        res = await orderApi.addItem(selectedOrder.id, {
+          medicine_id: row.medicine_id,
+          quantity: row.quantity,
+          unit: row.unit,
+          dosage: row.dosage,
+          frequency: row.frequency,
+          route: row.route,
+          duration: row.duration,
+          instructions: row.instructions,
+          notes: row.notes,
+        });
+      } else {
+        res = await orderApi.updateItem(selectedOrder.id, item.id, {
+          medicine_id: row.medicine_id,
+          quantity: row.quantity,
+          unit: row.unit,
+          dosage: row.dosage,
+          frequency: row.frequency,
+          route: row.route,
+          duration: row.duration,
+          instructions: row.instructions,
+          notes: row.notes,
+          item_type: row.item_type,
+          racikan_group: row.racikan_group,
+          racikan_name: row.racikan_name,
+          racikan_type: row.racikan_type,
+          racikan_qty: row.racikan_qty,
+          racikan_unit: row.racikan_unit,
+        });
+      }
 
       if (rmDuplicateMode) {
         const updatedItem = res.data;
         applyLocalOrderUpdate({
           ...selectedOrder,
-          items: (selectedOrder.items || []).map((candidate) =>
-            candidate.id === item.id ? { ...candidate, ...updatedItem } : candidate,
-          ),
+          items: item.id === -1
+            ? [...(selectedOrder.items || []), updatedItem]
+            : (selectedOrder.items || []).map((candidate) =>
+                candidate.id === item.id ? { ...candidate, ...updatedItem } : candidate,
+              ),
         });
       }
 
@@ -1583,8 +1619,11 @@ export function PharmacyEditPrescription({
                                                 <p className="text-sm font-semibold leading-4">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(Number(row.quantity || 0) * unitPrice)}</p>
                                               </td>
                                               <td className="py-2 px-3">
-                                                <Badge variant={dupStatusMeta.variant} className={dupStatusMeta.className}>
-                                                  {dupStatusMeta.label}
+                                                <Badge 
+                                                  variant={rmDuplicateMode ? dupStatusMeta.variant : getPharmacyItemStatusMeta(item.status || "ordered").variant} 
+                                                  className={rmDuplicateMode ? dupStatusMeta.className : getPharmacyItemStatusMeta(item.status || "ordered").className}
+                                                >
+                                                  {rmDuplicateMode ? dupStatusMeta.label : getPharmacyItemStatusMeta(item.status || "ordered").label}
                                                 </Badge>
                                               </td>
                                               {canModify && (
@@ -1955,10 +1994,10 @@ export function PharmacyEditPrescription({
                             </td>
                             <td className="py-2 px-3">
                               <Badge
-                                variant={getPharmacyOrderStatusMeta(item.status || "pending").variant}
-                                className={getPharmacyOrderStatusMeta(item.status || "pending").className}
+                                variant={getPharmacyItemStatusMeta(item.status || "ordered").variant}
+                                className={getPharmacyItemStatusMeta(item.status || "ordered").className}
                               >
-                                {getPharmacyOrderStatusMeta(item.status || "pending").label}
+                                {getPharmacyItemStatusMeta(item.status || "ordered").label}
                               </Badge>
                             </td>
                             {canModify && (

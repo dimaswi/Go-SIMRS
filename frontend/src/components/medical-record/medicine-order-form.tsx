@@ -741,10 +741,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   const handleAddItem = (medicine: PharmacyMedicine) => {
     const item = createOrderItemFromMedicine(medicine);
 
-    setOrderItems((prev) => [...prev, item]);
     setItemErrors({});
     setSearchTerm("");
     setShowAddDialog(false);
+    
+    // Open edit dialog immediately for the newly selected item, but don't add to list yet
+    setEditingItemIndex(-1); // -1 signifies a new pending item
+    setEditingItemDraft(item);
+    setShowEditItemDialog(true);
   };
 
   const handleAddTemplateItem = (medicine: PharmacyMedicine) => {
@@ -809,7 +813,12 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       return;
     }
 
-    setOrderItems((prev) => prev.map((item, idx) => (idx === editingItemIndex ? { ...editingItemDraft } : item)));
+    if (editingItemIndex === -1) {
+      setOrderItems((prev) => [...prev, { ...editingItemDraft }]);
+    } else {
+      setOrderItems((prev) => prev.map((item, idx) => (idx === editingItemIndex ? { ...editingItemDraft } : item)));
+    }
+    
     setItemErrors({});
     setShowEditItemDialog(false);
     setEditingItemIndex(null);
