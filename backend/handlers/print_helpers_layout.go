@@ -643,7 +643,7 @@ const (
 	marginTop       = 15.0
 	marginBottom    = 15.0
 	contentWidth    = pageWidth - marginLeft - marginRight // 180mm
-	signatureHeight = 55.0                                 // Space needed for signature area (increased for QR)
+	signatureHeight = 45.0                                 // Space needed for signature area
 	footerHeight    = 20.0                                 // Space used by digital signature footer block
 	rowHeight       = 5.0                                  // Standard row height
 )

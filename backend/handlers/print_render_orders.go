@@ -958,11 +958,7 @@ func printLaboratoryResultImpl(c *gin.Context) {
 	}
 	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
 
-	// TTD Selalu dibawah
-	if pdf.GetY() > 230 {
-		pdf.AddPage()
-	}
-	pdf.SetY(-55)
+
 
 	// Signature section (digital-aware: reads signature log for lab_result)
 	performedByName := ""
@@ -1242,11 +1238,7 @@ func printRadiologyResultImpl(c *gin.Context) {
 	}
 	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
 
-	// TTD Selalu dibawah
-	if pdf.GetY() > 230 {
-		pdf.AddPage()
-	}
-	pdf.SetY(-55)
+
 
 	// Signature section (digital-aware: reads signature log for radiology_result)
 	performedByName := ""

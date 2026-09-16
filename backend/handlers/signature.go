@@ -542,6 +542,21 @@ func VerifySignaturePIN(c *gin.Context) {
 		return
 	}
 
+	// Check global pin setting first
+	var setting models.Setting
+	pinRequired := true
+	if err := database.DB.Where("key = ?", "signature_pin_required").First(&setting).Error; err == nil {
+		pinRequired = setting.Value == "true" || setting.Value == "1"
+	}
+
+	if !pinRequired {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "PIN valid (bypassed, PIN not required globally)",
+			"valid":   true,
+		})
+		return
+	}
+
 	// Bypass PIN validation if user hasn't set one yet
 	if !user.HasSignaturePin {
 		c.JSON(http.StatusOK, gin.H{
@@ -1025,19 +1040,28 @@ func RevokeDocumentSignature(c *gin.Context) {
 		return
 	}
 
-	// Verify PIN (always required for revocation)
-	if user.SignaturePin == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":    "Anda belum mengatur PIN tanda tangan",
-			"code":     "PIN_NOT_SET",
-			"redirect": "/settings/signature-pin",
-		})
-		return
+	// Check global pin setting
+	var setting models.Setting
+	pinRequired := true
+	if err := database.DB.Where("key = ?", "signature_pin_required").First(&setting).Error; err == nil {
+		pinRequired = setting.Value == "true" || setting.Value == "1"
 	}
 
-	if !user.CheckSignaturePin(req.PIN) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah"})
-		return
+	if pinRequired {
+		// Verify PIN
+		if user.SignaturePin == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":    "Anda belum mengatur PIN tanda tangan",
+				"code":     "PIN_NOT_SET",
+				"redirect": "/settings/signature-pin",
+			})
+			return
+		}
+
+		if !user.CheckSignaturePin(req.PIN) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah"})
+			return
+		}
 	}
 
 	if err := ensureNotOrdererRevokingOrderDoc(req.DocumentType, req.DocumentID, user.EmployeeID); err != nil {
