@@ -39,13 +39,30 @@ export function RevokePINDialog({
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const [pinRequired, setPinRequired] = useState(true);
+  const [initLoading, setInitLoading] = useState(true);
+
   useEffect(() => {
     if (open) {
       setPin(["", "", "", "", "", ""]);
       setReason("");
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      setInitLoading(true);
+
+      signatureApi.checkPINRequired()
+        .then((res) => {
+          setPinRequired(res.data.signature_pin_required);
+        })
+        .catch(() => {
+          setPinRequired(true);
+        })
+        .finally(() => {
+          setInitLoading(false);
+          if (pinRequired) {
+            setTimeout(() => inputRefs.current[0]?.focus(), 100);
+          }
+        });
     }
-  }, [open]);
+  }, [open, pinRequired]);
 
   const handlePinChange = (index: number, value: string) => {
     if (value && !/^\d$/.test(value)) return;
@@ -78,7 +95,7 @@ export function RevokePINDialog({
   const handleRevoke = async () => {
     const pinValue = pin.join("");
 
-    if (pinValue.length !== 6) {
+    if (pinRequired && pinValue.length !== 6) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -92,7 +109,7 @@ export function RevokePINDialog({
       const response = await signatureApi.revokeSignature({
         document_type: documentType,
         document_id: documentId,
-        pin: pinValue,
+        pin: pinRequired ? pinValue : "000000",
         reason: reason || undefined,
       });
 
@@ -148,66 +165,67 @@ export function RevokePINDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Warning */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-amber-800">
-              Pembatalan tanda tangan akan dicatat dalam audit log. Dokumen harus ditandatangani ulang setelah pembatalan.
-            </p>
-          </div>
-
-          {/* Document Info */}
-          <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Jenis Dokumen:</span>
-              <span className="font-medium">{docTypeLabel}</span>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <p>
+                Pembatalan tanda tangan akan dicatat dalam audit log.
+                Dokumen harus ditandatangani ulang setelah pembatalan.
+              </p>
             </div>
-            {documentTitle && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Dokumen:</span>
-                <span className="font-medium">{documentTitle}</span>
+
+            <div className="grid grid-cols-[140px_1fr] gap-2 rounded-md bg-slate-50 p-3 text-sm border">
+              <div className="text-slate-500">Jenis Dokumen:</div>
+              <div className="font-medium">{docTypeLabel}</div>
+              <div className="text-slate-500">Dokumen:</div>
+              <div className="font-medium">{documentTitle || `${docTypeLabel} #${documentId}`}</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Alasan Pembatalan (opsional)</Label>
+              <Textarea
+                placeholder="Contoh: Salah tanda tangan, data perlu dikoreksi..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="resize-none"
+                rows={2}
+                disabled={loading}
+              />
+            </div>
+
+            {initLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               </div>
-            )}
-          </div>
-
-          {/* Reason */}
-          <div className="space-y-2">
-            <Label className="text-sm">Alasan Pembatalan (opsional)</Label>
-            <Textarea
-              placeholder="Contoh: Salah tanda tangan, data perlu dikoreksi..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              className="resize-none text-sm"
-              disabled={loading}
-            />
-          </div>
-
-          {/* PIN Input */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4" />
-              Masukkan PIN Tanda Tangan (6 digit)
-            </Label>
-            <div className="flex justify-center gap-2" onPaste={handlePaste}>
-              {pin.map((digit, index) => (
-                <Input
-                  key={index}
-                  ref={(el) => { inputRefs.current[index] = el; }}
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handlePinChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-12 h-12 text-center text-xl font-mono"
-                  disabled={loading}
-                />
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              PIN diperlukan untuk verifikasi pembatalan
-            </p>
+            ) : pinRequired ? (
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  Masukkan PIN Tanda Tangan (6 digit)
+                </Label>
+                <div className="flex gap-2">
+                  {pin.map((digit, index) => (
+                    <Input
+                      key={index}
+                      ref={(el) => { inputRefs.current[index] = el; }}
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handlePinChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      onPaste={handlePaste}
+                      className="h-12 w-12 text-center text-lg sm:h-14 sm:w-14"
+                      disabled={loading}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">
+                  PIN diperlukan untuk verifikasi pembatalan
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Actions */}

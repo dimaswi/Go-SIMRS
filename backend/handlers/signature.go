@@ -1195,29 +1195,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 }
 
 func ensureNotOrdererRevokingOrderDoc(documentType string, documentID uint, employeeID *uint) error {
-	if employeeID == nil {
-		return nil
-	}
-
-	switch documentType {
-	case models.DocTypeLabResult, models.DocTypeRadiologyResult, models.DocTypeOperativeReport, models.DocTypeConsultationResult:
-		var order models.ProcedureOrder
-		if err := database.DB.Select("ordered_by_id").First(&order, documentID).Error; err != nil {
-			return nil
-		}
-		if order.OrderedByID == *employeeID {
-			return fmt.Errorf("TTD dokumen order tidak bisa dibatalkan dari pengorder")
-		}
-	case models.DocTypePrescription:
-		var order models.MedicineOrder
-		if err := database.DB.Select("prescriber_id").First(&order, documentID).Error; err != nil {
-			return nil
-		}
-		if order.PrescriberID == *employeeID {
-			return fmt.Errorf("TTD dokumen order tidak bisa dibatalkan dari pengorder")
-		}
-	}
-
+	// Bypass strict orderer check as requested by user ("berikan ke longgaran")
 	return nil
 }
 
