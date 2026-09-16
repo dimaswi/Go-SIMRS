@@ -241,7 +241,7 @@ export function RevokePINDialog({
             <Button
               variant="destructive"
               onClick={handleRevoke}
-              disabled={loading || pin.some(d => !d)}
+              disabled={loading || (pinRequired && pin.some(d => !d))}
               className="flex-1"
             >
               {loading ? (
