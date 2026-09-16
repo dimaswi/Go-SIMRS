@@ -623,7 +623,7 @@ func addProcedureOrderInfoTable(pdf *gofpdf.Fpdf, patient *models.Patient, order
 			roomName = order.SourceRoom.Name
 		}
 		pdf.CellFormat(col2, rowHeight, " "+truncateText(roomName, 28), "1", 0, "L", false, 0, "")
-		pdf.CellFormat(col3, rowHeight, " Dokter Pengirim", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(col3, rowHeight, " Pengirim", "1", 0, "L", true, 0, "")
 		doctorName := "-"
 		if order.OrderedBy != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(order.OrderedBy, doctorName)

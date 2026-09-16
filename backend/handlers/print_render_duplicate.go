@@ -203,7 +203,7 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 	pdf.CellFormat(valueWidth, 4, roomName, "", 1, "L", false, 0, "")
 
 	pdf.SetX(marginL + 4)
-	pdf.CellFormat(labelWidth, 4, "Dokter Peresep", "", 0, "L", false, 0, "")
+	pdf.CellFormat(labelWidth, 4, "Pengirim", "", 0, "L", false, 0, "")
 	pdf.CellFormat(3, 4, ":", "", 0, "L", false, 0, "")
 	pdf.CellFormat(valueWidth, 4, doctorName, "", 1, "L", false, 0, "")
 

@@ -146,7 +146,7 @@ func printPrescriptionImpl(c *gin.Context) {
 		}
 	}
 	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "Nama Dokter", "", 0, "L", false, 0, "")
+	pdf.CellFormat(20, lineH, "Pengirim", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
 	pdf.SetXY(startX+24, y)
 	pdf.MultiCell(midX-(startX+24)-2, lineH, doctorName, "", "L", false)
