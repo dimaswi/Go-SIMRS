@@ -239,13 +239,11 @@ function NursingCareCollapsibleRow({
           <div className="col-span-2">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1">
-                {record.problem_status ? (
+                {record.problem_status && record.problem_status !== "-" ? (
                   <Badge className={getProblemStatusColor(record.problem_status)}>
                     {getProblemStatusLabel(record.problem_status)}
                   </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground">-</Badge>
-                )}
+                ) : null}
                 {record.is_verified && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <ShieldCheck className="h-3 w-3" />

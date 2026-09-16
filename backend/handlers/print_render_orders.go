@@ -876,24 +876,27 @@ func printLaboratoryResultImpl(c *gin.Context) {
 		}
 	}
 
-	for idx, item := range activeItems {
-		pdf.AddPage()
-		addHeader(pdf, info, "HASIL PEMERIKSAAN LABORATORIUM", "")
+	pdf.AddPage()
+	addHeader(pdf, info, "HASIL PEMERIKSAAN LABORATORIUM", "")
 
-		// Patient & Order Info Table
-		addProcedureOrderInfoTable(pdf, patient, &order)
+	// Patient & Order Info Table
+	addProcedureOrderInfoTable(pdf, patient, &order)
 
-		// Procedure name
-		addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(item.Procedure.Name)))
+	// Results Table Header
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(230, 230, 230)
+	pdf.CellFormat(60, 7, "Pemeriksaan / Parameter", "TB", 0, "C", true, 0, "")
+	pdf.CellFormat(35, 7, "Hasil", "TB", 0, "C", true, 0, "")
+	pdf.CellFormat(20, 7, "Satuan", "TB", 0, "C", true, 0, "")
+	pdf.CellFormat(45, 7, "Nilai Rujukan", "TB", 0, "C", true, 0, "")
+	pdf.CellFormat(20, 7, "Ket", "TB", 1, "C", true, 0, "")
 
-		// Results Table
+	for _, item := range activeItems {
+		// Category / Procedure name row
+		pdf.SetDashPattern([]float64{}, 0) // Solid
 		pdf.SetFont("Arial", "B", 9)
-		pdf.SetFillColor(230, 230, 230)
-		pdf.CellFormat(60, 7, "Parameter", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(35, 7, "Hasil", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(20, 7, "Satuan", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(45, 7, "Nilai Rujukan", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(20, 7, "Ket", "1", 1, "C", true, 0, "")
+		pdf.SetFillColor(245, 245, 245)
+		pdf.CellFormat(180, 6, strings.ToUpper(item.Procedure.Name), "B", 1, "L", true, 0, "")
 
 		pdf.SetFont("Arial", "", 9)
 		for _, result := range item.Results {
@@ -925,11 +928,12 @@ func printLaboratoryResultImpl(c *gin.Context) {
 				pdf.SetTextColor(0, 0, 255)
 			}
 
-			pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
-			pdf.CellFormat(35, 6, formatNumericString(result.Value), "1", 0, "C", false, 0, "")
+			pdf.SetDashPattern([]float64{1, 1}, 0) // Dashed
+			pdf.CellFormat(60, 6, "  "+paramName, "B", 0, "L", false, 0, "")
+			pdf.CellFormat(35, 6, formatNumericString(result.Value), "B", 0, "C", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)
-			pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(45, 6, formatNumericString(refRange), "1", 0, "C", false, 0, "")
+			pdf.CellFormat(20, 6, unit, "B", 0, "C", false, 0, "")
+			pdf.CellFormat(45, 6, formatNumericString(refRange), "B", 0, "C", false, 0, "")
 
 			// Status with color
 			if result.IsCritical || result.IsHigh {
@@ -937,31 +941,37 @@ func printLaboratoryResultImpl(c *gin.Context) {
 			} else if result.IsLow {
 				pdf.SetTextColor(0, 0, 255)
 			}
-			pdf.CellFormat(20, 6, status, "1", 1, "C", false, 0, "")
+			pdf.CellFormat(20, 6, status, "B", 1, "C", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)
 		}
 
 		// Notes if any
 		if item.Notes != "" {
-			pdf.Ln(3)
+			pdf.SetDashPattern([]float64{}, 0) // Solid
 			pdf.SetFont("Arial", "B", 9)
-			pdf.CellFormat(0, 5, "Catatan:", "", 1, "L", false, 0, "")
+			pdf.CellFormat(60, 5, "Catatan:", "", 0, "L", false, 0, "")
 			pdf.SetFont("Arial", "", 9)
-			pdf.MultiCell(0, 5, item.Notes, "", "L", false)
+			pdf.CellFormat(120, 5, item.Notes, "", 1, "L", false, 0, "")
+			// bottom border
+			pdf.CellFormat(180, 0, "", "T", 1, "L", false, 0, "")
 		}
-
-		// Signature section (digital-aware: reads signature log for lab_result)
-		performedByName := ""
-		if item.PerformedBy != nil {
-			performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
-		}
-		addDualSignature(pdf, info.City, performedByName, models.DocTypeLabResult, order.ID)
-
-		// Page number
-		pdf.SetFont("Arial", "", 8)
-		pdf.SetXY(marginLeft, 280)
-		pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(activeItems)), "", 0, "C", false, 0, "")
 	}
+	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
+
+	// TTD Selalu dibawah
+	if pdf.GetY() > 230 {
+		pdf.AddPage()
+	}
+	pdf.SetY(-55)
+
+	// Signature section (digital-aware: reads signature log for lab_result)
+	performedByName := ""
+	if len(activeItems) > 0 && activeItems[0].PerformedBy != nil {
+		performedByName = resolveAssignedUserNameFromEmployee(activeItems[0].PerformedBy, performedByName)
+	} else if order.PerformedBy != nil {
+		performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
+	}
+	addDualSignature(pdf, info.City, performedByName, models.DocTypeLabResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -1181,58 +1191,71 @@ func printRadiologyResultImpl(c *gin.Context) {
 		}
 	}
 
-	for idx, item := range activeItems {
-		pdf.AddPage()
-		addHeader(pdf, info, "HASIL PEMERIKSAAN RADIOLOGI", "")
+	pdf.AddPage()
+	addHeader(pdf, info, "HASIL PEMERIKSAAN RADIOLOGI", "")
 
-		// Patient & Order Info Table
-		addProcedureOrderInfoTable(pdf, patient, &order)
+	// Patient & Order Info Table
+	addProcedureOrderInfoTable(pdf, patient, &order)
 
+	// Results Table Header
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(230, 230, 230)
+	pdf.CellFormat(60, 7, "Pemeriksaan / Parameter", "TB", 0, "C", true, 0, "")
+	pdf.CellFormat(120, 7, "Hasil", "TB", 1, "C", true, 0, "")
+
+	for _, item := range activeItems {
 		// Procedure name
 		procedureName := "-"
 		if item.Procedure != nil {
 			procedureName = item.Procedure.Name
 		}
-		addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(procedureName)))
+		
+		pdf.SetDashPattern([]float64{}, 0) // Solid
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(245, 245, 245)
+		pdf.CellFormat(180, 6, strings.ToUpper(procedureName), "B", 1, "L", true, 0, "")
 
-		// Results - for radiology, display using addTableMultiRow for consistent style
+		pdf.SetFont("Arial", "", 9)
 		for _, result := range item.Results {
 			paramName := "-"
 			if result.ProcedureParameter != nil {
 				paramName = result.ProcedureParameter.Name
 			}
-
 			value := "-"
 			if result.Value != "" {
 				value = result.Value
 			}
-			addTableMultiRow(pdf, paramName, value, 35)
+			
+			pdf.SetDashPattern([]float64{1, 1}, 0) // Dashed
+			pdf.CellFormat(60, 6, "  "+paramName, "B", 0, "L", false, 0, "")
+			pdf.CellFormat(120, 6, value, "B", 1, "L", false, 0, "")
 		}
-		addTableEnd(pdf)
 
-		// Notes if any
 		if item.Notes != "" {
-			pdf.Ln(2)
-			addTableHeader(pdf, "CATATAN")
-			addTableMultiRow(pdf, "Catatan", item.Notes, 35)
-			addTableEnd(pdf)
+			pdf.SetDashPattern([]float64{}, 0) // Solid
+			pdf.SetFont("Arial", "B", 9)
+			pdf.CellFormat(60, 5, "Catatan:", "", 0, "L", false, 0, "")
+			pdf.SetFont("Arial", "", 9)
+			pdf.CellFormat(120, 5, item.Notes, "", 1, "L", false, 0, "")
+			pdf.CellFormat(180, 0, "", "T", 1, "L", false, 0, "")
 		}
-
-		// Signature section (digital-aware: reads signature log for radiology_result)
-		pdf.Ln(10)
-		performedByName := ""
-		if item.PerformedBy != nil {
-			performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
-		} else if order.PerformedBy != nil {
-			performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
-		}
-		addDualSignature(pdf, info.City, performedByName, models.DocTypeRadiologyResult, order.ID)
-
-		// Page number
-		pdf.SetFont("Arial", "", 8)
-		pdf.SetXY(marginLeft, 280)
-		pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(activeItems)), "", 0, "C", false, 0, "")
 	}
+	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
+
+	// TTD Selalu dibawah
+	if pdf.GetY() > 230 {
+		pdf.AddPage()
+	}
+	pdf.SetY(-55)
+
+	// Signature section (digital-aware: reads signature log for radiology_result)
+	performedByName := ""
+	if len(activeItems) > 0 && activeItems[0].PerformedBy != nil {
+		performedByName = resolveAssignedUserNameFromEmployee(activeItems[0].PerformedBy, performedByName)
+	} else if order.PerformedBy != nil {
+		performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
+	}
+	addDualSignature(pdf, info.City, performedByName, models.DocTypeRadiologyResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer

@@ -415,11 +415,16 @@ func CreateMedicineOrder(c *gin.Context) {
 		queuePriority = "urgent"
 	}
 
+	queueCode := pharmacyRoom.QueueCode
+	if queueCode == "" {
+		queueCode = "F" // Default for Farmasi
+	}
+
 	// Get next queue number for pharmacy room
 	var lastQueue models.RoomQueue
 	var queueSeq int
 
-	todayStart := time.Now().Truncate(24 * time.Hour)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	err = tx.Where("room_id = ? AND queue_date = ?", input.PharmacyRoomID, todayStart).
 		Order("created_at DESC").First(&lastQueue).Error
 
@@ -429,16 +434,16 @@ func CreateMedicineOrder(c *gin.Context) {
 		// Parse last queue number to get sequence
 		var lastNum int
 		if lastQueue.QueueNumber != "" {
-			fmt.Sscanf(lastQueue.QueueNumber, "%*[A-Z]%d", &lastNum)
+			fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
+			// fallback if it fails for some reason
+			if lastNum == 0 && len(lastQueue.QueueNumber) > len(queueCode) {
+				fmt.Sscanf(lastQueue.QueueNumber[len(queueCode):], "%d", &lastNum)
+			}
 		}
 		queueSeq = lastNum + 1
 	}
 
 	// Generate queue number
-	queueCode := pharmacyRoom.QueueCode
-	if queueCode == "" {
-		queueCode = "F" // Default for Farmasi
-	}
 	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueSeq)
 
 	roomQueue := models.RoomQueue{

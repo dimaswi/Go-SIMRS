@@ -157,7 +157,7 @@ const FULFILLMENT_TYPE_LABELS: Record<MedicineFulfillmentType, string> = {
 };
 
 // Collapsible Order Item Component
-function OrderCollapsible({ order }: { order: MedicineOrder }) {
+function OrderCollapsible({ order, onCancel, canCancel }: { order: MedicineOrder; onCancel?: (id: number) => void; canCancel?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [expandedHistoryRacikanGroups, setExpandedHistoryRacikanGroups] = useState<Record<string, boolean>>({});
@@ -228,29 +228,43 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
               </p>
             </div>
           </CollapsibleTrigger>
-          {order.pharmacy_visit?.room_queue && (
-            <TooltipProvider delayDuration={120}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={handlePrintQueue}
-                    disabled={isPrinting}
-                    aria-label="Cetak antrian"
-                  >
-                    {isPrinting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Printer className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Cetak Antrian</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          <div className="flex items-center gap-2">
+            {order.pharmacy_visit?.room_queue && (
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handlePrintQueue}
+                      disabled={isPrinting}
+                      aria-label="Cetak antrian"
+                    >
+                      {isPrinting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Cetak Antrian</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {order.status === "pending" && canCancel && onCancel && (
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => onCancel(order.id)} aria-label="Batalkan order">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Batalkan</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </div>
         <CollapsibleContent>
           <div className="mt-3 ml-6 space-y-3">
@@ -454,6 +468,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   });
   const [editingRacikanComponents, setEditingRacikanComponents] = useState<OrderItem[]>([]);
   const [editingRacikanSearch, setEditingRacikanSearch] = useState("");
+  const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<number | null>(null);
 
   const formatRupiah = (value: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -1314,6 +1329,11 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       setFulfillmentType(sourceServiceType === "rawat_inap" ? "in_room" : "take_home");
       resetRacikanDraft();
 
+      toast({
+        title: "Order Terkirim",
+        description: "Order obat berhasil dikirim ke farmasi.",
+      });
+
       // Reload orders
       loadData();
 
@@ -1328,6 +1348,31 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCancelOrder = (orderId: number) => {
+    setCancelConfirmOrderId(orderId);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelConfirmOrderId) return;
+    
+    try {
+      await medicineOrdersApi.cancel(cancelConfirmOrderId);
+      toast({
+        title: "Berhasil",
+        description: "Order berhasil dibatalkan",
+      });
+      setCancelConfirmOrderId(null);
+      loadData();
+    } catch (error: any) {
+      toast({
+        title: "Gagal",
+        description: error.response?.data?.error || "Gagal membatalkan order",
+        variant: "destructive",
+      });
+      setCancelConfirmOrderId(null);
     }
   };
 
@@ -2651,7 +2696,12 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                 {existingOrders.length > 0 ? (
                   <div className="divide-y border rounded-lg">
                     {existingOrders.map((order) => (
-                      <OrderCollapsible key={order.id} order={order} />
+                      <OrderCollapsible 
+                        key={order.id} 
+                        order={order} 
+                        onCancel={handleCancelOrder} 
+                        canCancel={hasPermission("medicine_orders.cancel") || hasPermission("medicine_order.cancel") || hasPermission("medical_records.medicine_order")} 
+                      />
                     ))}
                   </div>
                 ) : (
@@ -2665,6 +2715,22 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
           </TooltipProvider>
         </div>
       </div>
+      
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={cancelConfirmOrderId !== null} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Pembatalan</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin membatalkan order ini? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelConfirmOrderId(null)}>Batal</Button>
+            <Button variant="destructive" onClick={handleConfirmCancelOrder}>Ya, Batalkan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
