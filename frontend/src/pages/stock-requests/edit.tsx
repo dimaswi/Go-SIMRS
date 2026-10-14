@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -167,7 +167,7 @@ export default function StockRequestEdit() {
       setRooms(
         allRooms.map((r: any) => ({
           value: r.id.toString(),
-          label: `${r.code} - ${r.name}`,
+          label: r.name,
         }))
       );
 
@@ -182,7 +182,7 @@ export default function StockRequestEdit() {
       setDepoRooms(
         depos.map((r: any) => ({
           value: r.id.toString(),
-          label: `${r.code} - ${r.name}`,
+          label: r.name,
         }))
       );
     } catch (error) {

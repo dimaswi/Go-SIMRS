@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"starter/backend/database"
 	"starter/backend/models"
 	"strconv"
@@ -85,7 +86,7 @@ func GetMasterData(c *gin.Context) {
 func CreateMasterData(c *gin.Context) {
 	var input struct {
 		Category    string `json:"category" binding:"required"`
-		Code        string `json:"code" binding:"required"`
+		Code        string `json:"code"`
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
 		SortOrder   int    `json:"sort_order"`
@@ -100,11 +101,18 @@ func CreateMasterData(c *gin.Context) {
 		return
 	}
 
+	code := strings.TrimSpace(input.Code)
+	if code == "" {
+		code = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(input.Name), " ", "_"))
+		if code == "" {
+			code = fmt.Sprintf("MD_%d", time.Now().Unix()%1000000)
+		}
+	}
+
 	// Check for duplicate code in same category
 	var existing models.MasterData
-	if err := database.DB.Where("category = ? AND code = ?", input.Category, input.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode sudah digunakan dalam kategori ini"})
-		return
+	if err := database.DB.Where("category = ? AND code = ?", input.Category, code).First(&existing).Error; err == nil {
+		code = fmt.Sprintf("%s_%d", code, time.Now().Unix()%10000)
 	}
 
 	isActive := true
@@ -114,7 +122,7 @@ func CreateMasterData(c *gin.Context) {
 
 	data := models.MasterData{
 		Category:    models.MasterDataCategory(input.Category),
-		Code:        input.Code,
+		Code:        code,
 		Name:        input.Name,
 		Description: input.Description,
 		SortOrder:   input.SortOrder,
@@ -283,4 +291,68 @@ func GetMasterDataMultiple(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// GetReferralSourceSuggestions returns distinct referral source names from past triages, SEPs, and master data
+func GetReferralSourceSuggestions(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+
+	sourcesMap := make(map[string]bool)
+	var list []string
+
+	// 1. From Triages (distinct rujukan_dari)
+	var triageSources []string
+	triageDB := database.DB.Model(&models.Triage{}).
+		Where("rujukan_dari IS NOT NULL AND TRIM(rujukan_dari) != ''")
+	if query != "" {
+		triageDB = triageDB.Where("rujukan_dari ILIKE ?", "%"+query+"%")
+	}
+	_ = triageDB.Distinct("rujukan_dari").Order("rujukan_dari ASC").Limit(100).Pluck("rujukan_dari", &triageSources)
+
+	for _, s := range triageSources {
+		s = strings.TrimSpace(s)
+		if s != "" && !sourcesMap[strings.ToLower(s)] {
+			sourcesMap[strings.ToLower(s)] = true
+			list = append(list, s)
+		}
+	}
+
+	// 2. From SEPs (distinct nama_rujukan)
+	var sepSources []string
+	sepDB := database.DB.Model(&models.SEP{}).
+		Where("nama_rujukan IS NOT NULL AND TRIM(nama_rujukan) != ''")
+	if query != "" {
+		sepDB = sepDB.Where("nama_rujukan ILIKE ?", "%"+query+"%")
+	}
+	_ = sepDB.Distinct("nama_rujukan").Order("nama_rujukan ASC").Limit(100).Pluck("nama_rujukan", &sepSources)
+
+	for _, s := range sepSources {
+		s = strings.TrimSpace(s)
+		if s != "" && !sourcesMap[strings.ToLower(s)] {
+			sourcesMap[strings.ToLower(s)] = true
+			list = append(list, s)
+		}
+	}
+
+	// 3. From MasterData category 'referral_source' if any
+	var masterSources []models.MasterData
+	masterDB := database.DB.Where("category = ? AND is_active = ?", "referral_source", true)
+	if query != "" {
+		masterDB = masterDB.Where("name ILIKE ?", "%"+query+"%")
+	}
+	_ = masterDB.Order("name ASC").Limit(100).Find(&masterSources)
+	for _, m := range masterSources {
+		s := strings.TrimSpace(m.Name)
+		if s != "" && !sourcesMap[strings.ToLower(s)] {
+			sourcesMap[strings.ToLower(s)] = true
+			list = append(list, s)
+		}
+	}
+
+	sort.Strings(list)
+	if len(list) > 100 {
+		list = list[:100]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": list})
 }

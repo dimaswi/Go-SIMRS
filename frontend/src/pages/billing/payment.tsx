@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -215,7 +215,7 @@ export default function BillingPayment() {
               Pembayaran - {billing.billing_number}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {billing.registration?.patient?.nama_lengkap} â€¢ No. RM: {billing.registration?.patient?.no_rm}
+              {billing.registration?.patient?.nama_lengkap} &bull; No. RM: {billing.registration?.patient?.no_rm}
             </p>
           </div>
         </div>

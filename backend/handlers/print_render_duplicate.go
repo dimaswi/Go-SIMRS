@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jung-kurt/gofpdf"
-	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
+	"gorm.io/gorm"
 )
 
 func printPrescriptionThermalImpl(c *gin.Context) {
@@ -71,9 +73,44 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 	// Get hospital info for header
 	hospitalInfo := getHospitalInfo()
 
+	version := strings.ToLower(strings.TrimSpace(c.Query("version")))
+	items := order.Items
+	if version == "doctor" && order.DoctorItemsJSON != "" {
+		var snapshots []models.DoctorOrderItemSnapshot
+		if err := json.Unmarshal([]byte(order.DoctorItemsJSON), &snapshots); err == nil && len(snapshots) > 0 {
+			var doctorItems []models.MedicineOrderItem
+			for _, snap := range snapshots {
+				doctorItems = append(doctorItems, models.MedicineOrderItem{
+					MedicineID: snap.MedicineID,
+					Medicine: &models.Medicine{
+						ID:   snap.MedicineID,
+						Name: snap.MedicineName,
+						Code: snap.MedicineCode,
+					},
+					ItemType:     snap.ItemType,
+					RacikanGroup: snap.RacikanGroup,
+					RacikanName:  snap.RacikanName,
+					RacikanType:  snap.RacikanType,
+					RacikanQty:   snap.RacikanQty,
+					RacikanUnit:  snap.RacikanUnit,
+					Quantity:     snap.Quantity,
+					Unit:         snap.Unit,
+					Dosage:       snap.Dosage,
+					Frequency:    snap.Frequency,
+					Route:        snap.Route,
+					Duration:     snap.Duration,
+					Instructions: snap.Instructions,
+					Notes:        snap.Notes,
+					Status:       models.ItemStatusOrdered,
+				})
+			}
+			items = doctorItems
+		}
+	}
+
 	// Count active items (not cancelled) for page height calculation
 	activeItemCount := 0
-	for _, item := range order.Items {
+	for _, item := range items {
 		if item.Status != models.ItemStatusCancelled {
 			activeItemCount++
 		}
@@ -222,12 +259,18 @@ func printPrescriptionThermalImpl(c *gin.Context) {
 	// === MEDICINE LIST ===
 	pdf.SetX(marginL + 4)
 	pdf.SetFont("Arial", "B", 8)
-	pdf.CellFormat(contentWidth-8, 4, "DAFTAR OBAT:", "", 1, "L", false, 0, "")
+	orderTypeBadge := "DAFTAR OBAT:"
+	if version == "doctor" {
+		orderTypeBadge = "DAFTAR OBAT:"
+	} else if order.IsEditedByPharmacy {
+		orderTypeBadge = "DAFTAR OBAT:"
+	}
+	pdf.CellFormat(contentWidth-8, 4, orderTypeBadge, "", 1, "L", false, 0, "")
 	pdf.Ln(1)
 
 	// Medicine items
 	itemNo := 0
-	for _, item := range order.Items {
+	for _, item := range items {
 		// Skip cancelled items
 		if item.Status == models.ItemStatusCancelled {
 			continue

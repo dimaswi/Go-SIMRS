@@ -120,6 +120,8 @@ type MedicineBatch struct {
 	Supplier        string     `gorm:"size:200" json:"supplier"`                 // Supplier
 
 	// Location
+	RoomID   *uint `gorm:"index" json:"room_id,omitempty"`
+	Room     *Room `gorm:"foreignKey:RoomID" json:"room,omitempty"`
 	Location string `gorm:"size:200" json:"location"` // Lokasi penyimpanan
 
 	// Status

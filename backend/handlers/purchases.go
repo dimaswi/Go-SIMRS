@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -271,6 +272,9 @@ func preparePurchaseItem(item CreatePurchaseItemInput) (preparedPurchaseItem, er
 		if prepared.UnitLarge == "" {
 			prepared.UnitLarge = strings.TrimSpace(medicine.UnitLarge)
 		}
+		if prepared.UnitLarge == "" {
+			prepared.UnitLarge = "Box"
+		}
 		if item.ConversionFactor < 1 && medicine.LargeToSmallFactor > 1 {
 			prepared.ConversionFactor = medicine.LargeToSmallFactor
 		}
@@ -334,11 +338,40 @@ func resolveReceivingQuantity(item models.PurchaseItem, input ReceivePurchaseIte
 }
 
 func generatePurchasePaymentNumber() string {
-	var count int64
-	database.DB.Unscoped().Model(&models.PurchasePayment{}).
-		Where("created_at >= ?", time.Now().Format("2006-01-01")).
-		Count(&count)
-	return fmt.Sprintf("PPAY-%s-%04d", time.Now().Format("2006"), count+1)
+	year := time.Now().Year()
+	prefix := fmt.Sprintf("PPAY-%d-", year)
+
+	var lastPayment models.PurchasePayment
+	nextSeq := 1
+	if err := database.DB.Unscoped().
+		Where("payment_number LIKE ?", prefix+"%").
+		Order("payment_number DESC").
+		First(&lastPayment).Error; err == nil {
+		parts := strings.Split(lastPayment.PaymentNumber, "-")
+		if len(parts) >= 3 {
+			var lastSeq int
+			if _, err := fmt.Sscanf(parts[len(parts)-1], "%d", &lastSeq); err == nil && lastSeq >= nextSeq {
+				nextSeq = lastSeq + 1
+			}
+		}
+	} else {
+		var count int64
+		database.DB.Unscoped().Model(&models.PurchasePayment{}).
+			Where("EXTRACT(YEAR FROM created_at) = ?", year).
+			Count(&count)
+		nextSeq = int(count) + 1
+	}
+
+	// Guarantee no unique index collision
+	for {
+		candidate := fmt.Sprintf("PPAY-%d-%04d", year, nextSeq)
+		var exists int64
+		database.DB.Unscoped().Model(&models.PurchasePayment{}).Where("payment_number = ?", candidate).Count(&exists)
+		if exists == 0 {
+			return candidate
+		}
+		nextSeq++
+	}
 }
 
 func derivePurchaseReceiptStatus(purchase *models.Purchase) string {
@@ -597,6 +630,23 @@ func CreatePurchase(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create purchase item"})
 			return
 		}
+
+		// Auto-sinkronkan satuan besar, konversi, dan harga beli ke master obat
+		if itemInput.MedicineID != nil && *itemInput.MedicineID > 0 {
+			medUpdates := map[string]interface{}{}
+			if prepared.UnitLarge != "" {
+				medUpdates["unit_large"] = prepared.UnitLarge
+			}
+			if prepared.ConversionFactor > 1 {
+				medUpdates["large_to_small_factor"] = prepared.ConversionFactor
+			}
+			if itemInput.UnitPrice > 0 {
+				medUpdates["purchase_price"] = itemInput.UnitPrice
+			}
+			if len(medUpdates) > 0 {
+				_ = tx.Model(&models.Medicine{}).Where("id = ?", *itemInput.MedicineID).Updates(medUpdates).Error
+			}
+		}
 	}
 
 	tx.Commit()
@@ -777,6 +827,25 @@ func UpdatePurchase(c *gin.Context) {
 				tx.Rollback()
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save purchase items"})
 				return
+			}
+
+			// Auto-sinkronkan satuan besar, konversi, dan harga beli ke master obat
+			for _, nItem := range normalizedItems {
+				if nItem.MedicineID != nil && *nItem.MedicineID > 0 {
+					medUpdates := map[string]interface{}{}
+					if nItem.UnitLarge != "" {
+						medUpdates["unit_large"] = nItem.UnitLarge
+					}
+					if nItem.ConversionFactor > 1 {
+						medUpdates["large_to_small_factor"] = nItem.ConversionFactor
+					}
+					if nItem.UnitPrice > 0 {
+						medUpdates["purchase_price"] = nItem.UnitPrice
+					}
+					if len(medUpdates) > 0 {
+						_ = tx.Model(&models.Medicine{}).Where("id = ?", *nItem.MedicineID).Updates(medUpdates).Error
+					}
+				}
 			}
 		}
 	}
@@ -1062,30 +1131,50 @@ func ReceivePurchase(c *gin.Context) {
 					tx.Save(&roomMedicine)
 				}
 
-				// Create batch if expiry date provided
-				if expiryDate != nil {
-					batch := models.MedicineBatch{
-						MedicineID:   *item.MedicineID,
-						BatchNumber:  itemInput.BatchNumber,
-						ExpiryDate:   *expiryDate,
-						Quantity:     qtyReceiving,
-						RemainingQty: qtyReceiving,
-						Location:     fmt.Sprintf("Ruangan ID: %d", purchase.ToRoomID),
-					}
-					tx.Create(&batch)
+				// Create batch for medicine with FEFO support
+				finalBatchNumber := itemInput.BatchNumber
+				if finalBatchNumber == "" {
+					finalBatchNumber = item.BatchNumber
 				}
+				finalExpiryDate := expiryDate
+				if finalExpiryDate == nil {
+					finalExpiryDate = item.ExpiryDate
+				}
+				if finalExpiryDate == nil {
+					// Fallback: 2 tahun dari sekarang jika belum diinput agar tetap bisa di-track di FEFO
+					fallbackDate := now.AddDate(2, 0, 0)
+					finalExpiryDate = &fallbackDate
+				}
+				if finalBatchNumber == "" {
+					finalBatchNumber = fmt.Sprintf("B-%s-%d", now.Format("060102"), item.ID)
+				}
+
+				batch := models.MedicineBatch{
+					MedicineID:    *item.MedicineID,
+					BatchNumber:   finalBatchNumber,
+					ExpiryDate:    *finalExpiryDate,
+					Quantity:      qtyReceiving,
+					RemainingQty:  qtyReceiving,
+					PurchasePrice: item.UnitPrice,
+					RoomID:        &purchase.ToRoomID,
+					Supplier:      purchase.SupplierName,
+					Location:      fmt.Sprintf("Ruangan ID: %d", purchase.ToRoomID),
+					IsActive:      true,
+				}
+				tx.Create(&batch)
 
 				// Create transaction log
 				medTransaction := models.MedicineTransaction{
 					TransactionType: "in",
 					MedicineID:      *item.MedicineID,
+					MedicineBatchID: &batch.ID,
 					Quantity:        qtyReceiving,
 					PreviousStock:   prevStock,
 					CurrentStock:    roomMedicine.Quantity,
 					ToRoomID:        &purchase.ToRoomID,
 					TransactionDate: now,
 					ReferenceNumber: purchase.PurchaseNumber,
-					Notes:           fmt.Sprintf("Penerimaan pembelian %s", purchase.PurchaseNumber),
+					Notes:           fmt.Sprintf("Penerimaan pembelian %s (Batch: %s)", purchase.PurchaseNumber, finalBatchNumber),
 					UserID:          userID.(uint),
 				}
 				tx.Create(&medTransaction)
@@ -1204,7 +1293,8 @@ func RecordPurchasePayment(c *gin.Context) {
 
 	if err := tx.Create(&payment).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mencatat pembayaran pembelian"})
+		log.Printf("[CreatePurchasePayment] Gagal insert payment: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal mencatat pembayaran pembelian: %v", err)})
 		return
 	}
 
@@ -1217,7 +1307,8 @@ func RecordPurchasePayment(c *gin.Context) {
 
 	if err := tx.Save(&purchase).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui status pembayaran pembelian"})
+		log.Printf("[CreatePurchasePayment] Gagal update purchase: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal memperbarui status pembayaran pembelian: %v", err)})
 		return
 	}
 

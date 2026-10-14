@@ -295,7 +295,7 @@ func Migrate() error {
 		&models.RegistrationTariff{}, &models.Billing{}, &models.BillingItem{}, &models.BillingPayment{},
 		&models.CashierShift{},
 		&models.RoomQueue{}, &models.Schedule{},
-		&models.Procedure{}, &models.ProcedureParameter{},
+		&models.Procedure{}, &models.ProcedureParameter{}, &models.RoomProcedure{},
 		&models.ICD10{}, &models.ICD9CM{}, &models.ICDOMorphology{},
 		&models.LoincMaster{}, &models.SnomedMaster{},
 		&models.Medicine{}, &models.MedicineBatch{}, &models.MedicineTransaction{},
@@ -465,6 +465,11 @@ func Migrate() error {
 		}
 	} else {
 		log.Println("Skipping procedures seed - data already exists")
+	}
+
+	// Ensure standard prescription fee procedures exist and are assigned to rooms
+	if err := seedPrescriptionFeeProcedures(DB); err != nil {
+		log.Printf("Warning: failed to seed prescription fee procedures: %v", err)
 	}
 
 	// Check billing data
@@ -1238,3 +1243,98 @@ func MigrateEKlaimLocal() error {
 		&models.EKlaimLocalLog{},
 	)
 }
+
+// seedPrescriptionFeeProcedures memastikan tersedianya master tindakan jasa resep dan menghubungkannya ke ruangan
+func seedPrescriptionFeeProcedures(db *gorm.DB) error {
+	defaultProcs := []struct {
+		Code        string
+		Name        string
+		Description string
+		ServiceType string
+		Tariff      float64
+	}{
+		{
+			Code:        "PROC-JR-RJ",
+			Name:        "Jasa Resep Rawat Jalan",
+			Description: "Jasa resep untuk pelayanan rawat jalan / poliklinik",
+			ServiceType: "rawat_jalan",
+			Tariff:      5000,
+		},
+		{
+			Code:        "PROC-JR-UGD",
+			Name:        "Jasa Resep UGD",
+			Description: "Jasa resep untuk pelayanan instalasi gawat darurat (UGD)",
+			ServiceType: "emergency",
+			Tariff:      10000,
+		},
+		{
+			Code:        "PROC-JR-RI",
+			Name:        "Jasa Resep Rawat Inap",
+			Description: "Jasa resep untuk pelayanan rawat inap",
+			ServiceType: "rawat_inap",
+			Tariff:      10000,
+		},
+	}
+
+	for _, item := range defaultProcs {
+		var proc models.Procedure
+		if err := db.Where("code = ?", item.Code).First(&proc).Error; err != nil {
+			if err := db.Where("name ILIKE ?", item.Name).First(&proc).Error; err != nil {
+				proc = models.Procedure{
+					Code:           item.Code,
+					Name:           item.Name,
+					Description:    item.Description,
+					ProcedureType:  "procedure",
+					ProcedureGroup: "farmasi",
+					ServiceType:    item.ServiceType,
+					IsActive:       true,
+				}
+				if err := db.Create(&proc).Error; err != nil {
+					log.Printf("Failed to create prescription procedure %s: %v", item.Name, err)
+					continue
+				}
+			}
+		}
+
+		// Ensure tariff exists for non_kelas
+		var countTariff int64
+		db.Model(&models.ProcedureTariff{}).Where("procedure_id = ?", proc.ID).Count(&countTariff)
+		if countTariff == 0 {
+			tariff := models.ProcedureTariff{
+				ProcedureID:  proc.ID,
+				PatientClass: "non_kelas",
+				Sarana:       item.Tariff,
+			}
+			_ = db.Create(&tariff)
+		}
+
+		// Auto-assign to matching rooms if room does not yet have an is_prescription_fee procedure
+		var rooms []models.Room
+		if item.ServiceType == "emergency" {
+			db.Where("service_type = ? OR code ILIKE ? OR name ILIKE ?", "emergency", "%ugd%", "%igd%").Find(&rooms)
+		} else {
+			db.Where("service_type = ?", item.ServiceType).Find(&rooms)
+		}
+
+		for _, r := range rooms {
+			var hasFeeCount int64
+			db.Model(&models.RoomProcedure{}).Where("room_id = ? AND is_prescription_fee = ?", r.ID, true).Count(&hasFeeCount)
+			if hasFeeCount == 0 {
+				var rp models.RoomProcedure
+				if err := db.Where("room_id = ? AND procedure_id = ?", r.ID, proc.ID).First(&rp).Error; err == nil {
+					db.Model(&rp).Update("is_prescription_fee", true)
+				} else {
+					rp = models.RoomProcedure{
+						RoomID:            r.ID,
+						ProcedureID:       proc.ID,
+						IsAvailable:       true,
+						IsPrescriptionFee: true,
+					}
+					_ = db.Create(&rp)
+				}
+			}
+		}
+	}
+	return nil
+}
+

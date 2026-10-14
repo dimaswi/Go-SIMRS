@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -419,10 +419,19 @@ export default function NutritionMealPackageCreate() {
           <div className="space-y-3">
             <div className="space-y-2">
               <Label>Nama Jenis Diet *</Label>
-              <Input value={newDietName} onChange={(e) => setNewDietName(e.target.value)} placeholder="Contoh: Diet Tinggi Serat" />
+              <Input
+                value={newDietName}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewDietName(val);
+                  const autoCode = val.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                  setNewDietCode(autoCode);
+                }}
+                placeholder="Contoh: Diet Tinggi Serat"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Kode (opsional)</Label>
+              <Label>Kode (otomatis terisi)</Label>
               <Input value={newDietCode} onChange={(e) => setNewDietCode(e.target.value)} placeholder="Contoh: tinggi_serat" />
             </div>
             <div className="space-y-2">

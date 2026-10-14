@@ -524,7 +524,6 @@ export default function PurchaseShow() {
                       {purchase.items && purchase.items.length > 0 ? (
                         purchase.items.map((item) => {
                           const itemName = item.inventory?.name || item.medicine?.name || "-";
-                          const itemCode = item.inventory?.code || item.medicine?.code;
                           const received = item.quantity_received || 0;
                           const isComplete = received >= item.quantity_ordered;
                           const factor = Math.max(1, Number(item.conversion_factor || 1));
@@ -549,10 +548,7 @@ export default function PurchaseShow() {
                               <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
                                 <div className="space-y-0.5">
                                   <p className="text-xs font-semibold leading-4 text-foreground">{itemName}</p>
-                                  {itemCode ? (
-                                    <p className="font-mono text-[11px] leading-4 text-muted-foreground">{itemCode}</p>
-                                  ) : null}
-                                  <p className="text-[11px] leading-4 text-muted-foreground">
+                                                                    <p className="text-[11px] leading-4 text-muted-foreground">
                                     Satuan: {item.unit}
                                     {hasLargeUnit ? ` (besar: ${item.unit_large} x${factor})` : ""}
                                   </p>

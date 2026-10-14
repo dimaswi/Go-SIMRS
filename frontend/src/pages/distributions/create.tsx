@@ -24,6 +24,7 @@ import {
   stockRequestStatusLabels,
   priorityLabels,
 } from "@/lib/api/stock-requests";
+import { medicinesApi, type MedicineBatch } from "@/lib/api/medicines";
 import {
   Loader2,
   Truck,
@@ -127,8 +128,6 @@ export default function DistributionCreate() {
   const [selectedRequest, setSelectedRequest] = useState<StockRequest | null>(null);
   const [requestPickerOpen, setRequestPickerOpen] = useState(false);
   const [requestSearch, setRequestSearch] = useState("");
-  const [bulkBatchNumber, setBulkBatchNumber] = useState("");
-  const [bulkExpiryDate, setBulkExpiryDate] = useState("");
 
   const [formData, setFormData] = useState({
     stock_request_id: requestId ? parseInt(requestId) : 0,
@@ -138,6 +137,8 @@ export default function DistributionCreate() {
   });
 
   const [items, setItems] = useState<DistributionItem[]>([]);
+  const [availableBatches, setAvailableBatches] = useState<Record<number, MedicineBatch[]>>({});
+  const [loadingBatches, setLoadingBatches] = useState(false);
 
   useEffect(() => {
     setPageTitle("Buat Distribusi");
@@ -210,6 +211,48 @@ export default function DistributionCreate() {
       }
     );
     setItems(distributionItems);
+
+    // Load available batches for medicines from the source room
+    const medIds = (request.items || [])
+      .map((i) => i.medicine_id)
+      .filter((id): id is number => typeof id === "number" && id > 0);
+
+    if (medIds.length > 0 && request.to_room_id) {
+      setLoadingBatches(true);
+      medicinesApi
+        .getBatchesBulk({
+          medicine_ids: medIds.join(","),
+          room_id: request.to_room_id,
+          active_only: true,
+        })
+        .then((res) => {
+          const grouped = (res.data?.grouped || {}) as Record<number, MedicineBatch[]>;
+          setAvailableBatches(grouped);
+
+          // Auto-assign earliest batch (FEFO) to distribution items if available
+          setItems((prevItems) =>
+            prevItems.map((itm) => {
+              if (itm.medicine_id && grouped[itm.medicine_id]?.length) {
+                const earliest = grouped[itm.medicine_id][0];
+                return {
+                  ...itm,
+                  batch_number: itm.batch_number || earliest.batch_number,
+                  expiry_date: itm.expiry_date || earliest.expiry_date,
+                };
+              }
+              return itm;
+            })
+          );
+        })
+        .catch((err) => {
+          console.error("Gagal memuat batch obat:", err);
+        })
+        .finally(() => {
+          setLoadingBatches(false);
+        });
+    } else {
+      setAvailableBatches({});
+    }
   };
 
   // Toggle all items with remaining quantity
@@ -232,32 +275,6 @@ export default function DistributionCreate() {
       items.map((item) => ({
         ...item,
         quantity: item.selected ? item.remaining : item.quantity,
-      }))
-    );
-  };
-
-  // Apply batch number to all selected medicines
-  const handleApplyBatchToSelected = (batchNumber: string) => {
-    setItems(
-      items.map((item) => ({
-        ...item,
-        batch_number:
-          item.selected && item.item_type === "medicine"
-            ? batchNumber
-            : item.batch_number,
-      }))
-    );
-  };
-
-  // Apply expiry date to all selected medicines
-  const handleApplyExpiryToSelected = (expiryDate: string) => {
-    setItems(
-      items.map((item) => ({
-        ...item,
-        expiry_date:
-          item.selected && item.item_type === "medicine"
-            ? expiryDate
-            : item.expiry_date,
       }))
     );
   };
@@ -357,9 +374,6 @@ export default function DistributionCreate() {
   const selectedCount = items.filter((item) => item.selected).length;
   const totalItems = items.length;
   const itemsWithRemaining = items.filter((item) => item.remaining > 0).length;
-  const selectedMedicines = items.filter(
-    (item) => item.selected && item.item_type === "medicine"
-  ).length;
 
   const filteredRequests = approvedRequests.filter((request) => {
     const search = requestSearch.trim().toLowerCase();
@@ -483,8 +497,8 @@ export default function DistributionCreate() {
               {selectedRequest && items.length > 0 ? (
                 <SectionPanel
                   icon={CheckCheck}
-                  title="Aksi Massal"
-                  description="Pilih semua item yang masih tersisa, isi kuantitas sisa, lalu lengkapi batch obat secara massal bila perlu."
+                  title="Aksi Cepat & FEFO"
+                  description="Pilih semua item yang masih tersisa atau isi kuantitas sisa otomatis."
                   actions={
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="outline" size="sm" className="h-7 rounded-none px-2 text-[10px]" onClick={handleSelectAll}>
@@ -496,64 +510,12 @@ export default function DistributionCreate() {
                     </div>
                   }
                 >
-                  {selectedMedicines > 0 ? (
-                    <div className="space-y-3">
-                      <Alert className="rounded-none border-border/70 px-3 py-2.5">
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                          {selectedMedicines} obat terpilih. Batch dan tanggal kadaluarsa dapat diterapkan sekaligus untuk mempercepat distribusi parsial berikutnya.
-                        </AlertDescription>
-                      </Alert>
-                      <div className="grid gap-3">
-                        <div className="space-y-2 border border-border/70 bg-muted/10 px-3 py-3">
-                          <Label>Batch untuk Obat Terpilih</Label>
-                          <div className="flex gap-2">
-                            <Input value={bulkBatchNumber} onChange={(e) => setBulkBatchNumber(e.target.value)} placeholder="Masukkan batch number" className="rounded-none" />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-none"
-                              onClick={() => {
-                                if (!bulkBatchNumber.trim()) {
-                                  return;
-                                }
-                                handleApplyBatchToSelected(bulkBatchNumber.trim());
-                                toast({ title: "Berhasil", description: `Batch number diterapkan ke ${selectedMedicines} obat.` });
-                              }}
-                            >
-                              Terapkan
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-2 border border-border/70 bg-muted/10 px-3 py-3">
-                          <Label>Exp Date untuk Obat Terpilih</Label>
-                          <div className="flex gap-2">
-                            <Input type="date" value={bulkExpiryDate} onChange={(e) => setBulkExpiryDate(e.target.value)} className="rounded-none" />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-none"
-                              onClick={() => {
-                                if (!bulkExpiryDate) {
-                                  return;
-                                }
-                                handleApplyExpiryToSelected(bulkExpiryDate);
-                                toast({ title: "Berhasil", description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.` });
-                              }}
-                            >
-                              Terapkan
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
-                      Belum ada obat terpilih yang membutuhkan batch dan exp date.
-                    </div>
-                  )}
+                  <Alert className="rounded-none border-border/70 bg-sky-50/50 px-3 py-2.5 text-sky-900 border-sky-200">
+                    <Info className="h-4 w-4 text-sky-600" />
+                    <AlertDescription className="text-xs text-sky-800">
+                      Sistem menerapkan metode <strong>FEFO (First Expired, First Out)</strong> otomatis. Stok obat dengan tanggal kadaluarsa (ED) terdekat dari ruangan asal akan dipotong otomatis tanpa perlu input manual nomor batch dan expired date.
+                    </AlertDescription>
+                  </Alert>
                 </SectionPanel>
               ) : null}
             </div>
@@ -583,18 +545,18 @@ export default function DistributionCreate() {
                     <table className="w-full table-fixed border-collapse text-sm">
                       <thead className="sticky top-0 z-10 bg-background">
                         <tr className="bg-muted/20">
-                          <th rowSpan={2} className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Pilih</th>
-                          <th rowSpan={2} className="h-9 w-[26%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                          <th rowSpan={2} className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                          <th rowSpan={2} className="h-9 w-[5%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Pilih</th>
+                          <th rowSpan={2} className="h-9 w-[24%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                          <th rowSpan={2} className="h-9 w-[6%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
                           <th colSpan={4} className="h-9 border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">QTY</th>
-                          <th rowSpan={2} className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch / Exp</th>
+                          <th rowSpan={2} className="h-9 w-[24%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch / Exp</th>
                           <th rowSpan={2} className="h-9 w-[10%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
                         </tr>
                         <tr className="bg-muted/10">
-                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Approved</th>
-                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Terkirim</th>
-                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Sisa</th>
-                          <th className="h-8 w-[11%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Qty Kirim</th>
+                          <th className="h-8 w-[7%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Approved</th>
+                          <th className="h-8 w-[7%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Terkirim</th>
+                          <th className="h-8 w-[7%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Sisa</th>
+                          <th className="h-8 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-medium text-foreground/80">Qty Kirim</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -611,11 +573,7 @@ export default function DistributionCreate() {
                                 />
                               </td>
                               <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
-                                <div className="space-y-0.5">
-                                  <div className="text-xs font-semibold text-foreground">{item.name}</div>
-                                  <div className="font-mono text-[11px] text-muted-foreground">{item.code || "-"}</div>
-                                  <div className="text-[11px] text-muted-foreground">{isMedicine ? "Obat" : "Inventaris"}</div>
-                                </div>
+                                <div className="text-xs font-semibold text-foreground">{item.name}</div>
                               </td>
                               <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">{item.unit || "-"}</td>
                               <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-sm font-medium text-foreground">{item.quantity_approved}</td>
@@ -641,24 +599,69 @@ export default function DistributionCreate() {
                               </td>
                               <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
                                 {isMedicine ? (
-                                  <div className="grid gap-1.5">
-                                    <Input
-                                      placeholder="Batch"
-                                      value={item.batch_number}
-                                      onChange={(e) => handleItemChange(item.id, "batch_number", e.target.value)}
-                                      disabled={!item.selected || isComplete}
-                                      className="h-8 rounded-none text-xs"
-                                    />
-                                    <Input
-                                      type="date"
-                                      value={item.expiry_date}
-                                      onChange={(e) => handleItemChange(item.id, "expiry_date", e.target.value)}
-                                      disabled={!item.selected || isComplete}
-                                      className="h-8 rounded-none text-xs"
-                                    />
-                                  </div>
+                                  (() => {
+                                    const batches = (item.medicine_id ? availableBatches[item.medicine_id] : []) || [];
+                                    if (loadingBatches) {
+                                      return (
+                                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                          <span>Memuat batch...</span>
+                                        </div>
+                                      );
+                                    }
+                                    if (batches.length === 0) {
+                                      return (
+                                        <div className="space-y-0.5">
+                                          <span className="text-[11px] font-medium text-amber-700">Belum ada batch aktif</span>
+                                          <p className="text-[10px] text-muted-foreground">Otomatis FEFO saat stok ada</p>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                        <div className="space-y-1 py-0.5">
+                                          {batches.map((b, bIdx) => {
+                                            const isSelected = item.batch_number ? item.batch_number === b.batch_number : bIdx === 0;
+                                            return (
+                                              <div
+                                                key={b.id}
+                                                className={cn(
+                                                  "rounded border px-2 py-1 text-xs transition-colors cursor-pointer",
+                                                  isSelected
+                                                    ? "border-sky-300 bg-sky-50/70 shadow-2xs"
+                                                    : "border-border/60 bg-muted/15 hover:bg-muted/30"
+                                                )}
+                                                onClick={() => {
+                                                  handleItemChange(item.id, "batch_number", b.batch_number);
+                                                  handleItemChange(item.id, "expiry_date", b.expiry_date);
+                                                }}
+                                                title="Klik untuk memilih batch ini"
+                                              >
+                                                <div className="flex items-center justify-between gap-1.5">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] font-semibold text-sky-700">BN:</span>
+                                                    <span className="font-semibold text-foreground">{b.batch_number}</span>
+                                                  </div>
+                                                  <span className="text-[10px] font-medium text-muted-foreground">({b.remaining_qty} {item.unit})</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground pt-0.5">
+                                                  <span className="font-medium text-foreground/70">ED:</span>
+                                                  <span className="font-medium text-foreground">
+                                                    {b.expiry_date ? b.expiry_date.split("T")[0] : "-"}
+                                                  </span>
+                                                  {bIdx === 0 && (
+                                                    <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 rounded">
+                                                      FEFO
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()
                                 ) : (
-                                  <span className="text-[11px] text-muted-foreground">Tidak wajib</span>
+                                  <span className="text-[11px] text-muted-foreground">-</span>
                                 )}
                               </td>
                               <td className="border-b border-border/60 px-3 py-1.5 align-middle text-[11px] text-muted-foreground">

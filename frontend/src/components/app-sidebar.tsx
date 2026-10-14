@@ -199,7 +199,7 @@ const menuItems: MenuItem[] = [
       { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
       { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
-      { path: '/clinical-packages', label: 'Paket Klinis', icon: Package, permission: 'master_data.view' },
+      { path: '/clinical-packages', label: 'Paket Tindakan', icon: Package, permission: 'master_data.view' },
       { path: '/icd', label: 'Kode ICD', icon: BookMarked, permission: 'icd.view' },
       { path: '/regions', label: 'Wilayah', icon: MapPin, permission: 'regions.view' },
       { path: '/master-data', label: 'Referensi Data', icon: Database, permission: 'master_data.view' },

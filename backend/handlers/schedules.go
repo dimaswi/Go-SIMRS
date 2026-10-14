@@ -773,6 +773,55 @@ func GetAvailableDoctorsByDate(c *gin.Context) {
 		return
 	}
 
+	type DoctorAvailability struct {
+		EmployeeID   uint    `json:"employee_id"`
+		EmployeeName string  `json:"employee_name"`
+		StartTime    string  `json:"start_time"`
+		EndTime      string  `json:"end_time"`
+		MaxPatients  int     `json:"max_patients"`
+		ConsultFee   float64 `json:"consult_fee"`
+	}
+
+	var availableDoctors []DoctorAvailability
+
+	serviceType := ""
+	if room.ServiceType != "" {
+		serviceType = room.ServiceType
+	}
+	
+	isEmergencyOrInpatient := !room.HasSchedule || 
+		serviceType == "gawat_darurat" || 
+		serviceType == "rawat_inap" || 
+		serviceType == "ugd" || 
+		serviceType == "igd"
+
+	if isEmergencyOrInpatient {
+		// Return all active doctors in the hospital since UGD/Rawat Inap can involve any doctor
+		var doctors []models.Employee
+		database.DB.Where("LOWER(tipe_karyawan) = ? AND is_active = ?", "dokter", true).Find(&doctors)
+		
+		for _, doc := range doctors {
+			availableDoctors = append(availableDoctors, DoctorAvailability{
+				EmployeeID:   doc.ID,
+				EmployeeName: doc.NamaLengkap,
+				StartTime:    "00:00",
+				EndTime:      "23:59",
+				MaxPatients:  999,
+				ConsultFee:   0,
+			})
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data": availableDoctors,
+			"room": gin.H{
+				"id":   room.ID,
+				"name": room.Name,
+				"code": room.Code,
+			},
+		})
+		return
+	}
+
 	// Get doctor schedules for this room on the day of week
 	var schedules []models.DoctorSchedule
 	query := database.DB.Where("room_id = ? AND day_of_week = ? AND is_active = ?", roomID, dayOfWeek, true).
@@ -806,18 +855,6 @@ func GetAvailableDoctorsByDate(c *gin.Context) {
 			roomClosed = true
 		}
 	}
-
-	// Build response
-	type DoctorAvailability struct {
-		EmployeeID   uint    `json:"employee_id"`
-		EmployeeName string  `json:"employee_name"`
-		StartTime    string  `json:"start_time"`
-		EndTime      string  `json:"end_time"`
-		MaxPatients  int     `json:"max_patients"`
-		ConsultFee   float64 `json:"consult_fee"`
-	}
-
-	var availableDoctors []DoctorAvailability
 
 	if !roomClosed {
 		for _, schedule := range schedules {

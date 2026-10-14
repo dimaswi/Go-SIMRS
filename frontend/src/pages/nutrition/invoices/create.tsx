@@ -58,7 +58,7 @@ export default function NutritionInvoiceCreate() {
 
   const ingredientOptions: ComboboxOption[] = ingredientsMaster.map((item) => ({
     value: String(item.id),
-    label: `${item.name} (${item.code})`,
+    label: item.name,
   }));
   const unitOptions: ComboboxOption[] = Object.entries(nutritionIngredientUnitLabels).map(([value, label]) => ({ value, label }));
 

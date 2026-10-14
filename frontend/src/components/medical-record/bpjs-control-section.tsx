@@ -350,26 +350,14 @@ export function BPJSControlSection({
 
   // Submit function
   const handleSubmit = async () => {
-    // For SPRI, we only need patient with no_bpjs (SEP is optional)
-    // For Surat Kontrol, we need both patient and SEP
+    const isLocalOnly = !patient?.no_bpjs || (!isRawatInap && !activeSEP);
+
     if (isRawatInap) {
-      if (!patient?.no_bpjs) {
-        toast({
-          title: "Data tidak lengkap",
-          description: "Data BPJS pasien tidak tersedia",
-          variant: "destructive",
-        });
-        return;
-      }
+      // For SPRI, we only need patient with no_bpjs (SEP is optional) for BPJS SPRI
+      // But now we allow local SPRI for non-BPJS
     } else {
-      if (!activeSEP || !patient) {
-        toast({
-          title: "Data tidak lengkap",
-          description: "Data SEP atau pasien tidak tersedia",
-          variant: "destructive",
-        });
-        return;
-      }
+      // For Surat Kontrol BPJS we need both patient and SEP.
+      // Now we allow local Surat Kontrol for non-BPJS.
     }
 
     if (!kodePoli || !kodeDokter || !tglRencanaKontrol) {
@@ -385,28 +373,67 @@ export function BPJSControlSection({
     try {
       if (isRawatInap) {
         // Create SPRI - use patient's no_bpjs if SEP not available
-        const noKartu = activeSEP?.no_kartu || patient!.no_bpjs!;
-        const res = await vclaimApi.createSPRI({
-          no_kartu: noKartu,
-          visit_id: visitId,
-          sep_id: activeSEP?.id,
-          tgl_rencana_kontrol: tglRencanaKontrol,
-          poli_kontrol: kodePoli,
-          nama_poli: namaPoli,
-          kode_dokter: kodeDokter,
-          nama_dokter: namaDokter,
-        });
-
-        if (res.data.data) {
-          setSPRIResult(res.data.data);
-          onSPRICreated?.(res.data.data);
-          toast({
-            title: "SPRI Berhasil Dibuat",
-            description: `No. SPRI: ${res.data.data.noSPRI}`,
+        const noKartu = activeSEP?.no_kartu || patient?.no_bpjs || "";
+        
+        if (isLocalOnly) {
+          const res = await vclaimApi.createLocalSPRI({
+            no_kartu: noKartu,
+            nama: patient?.nama_lengkap || "",
+            kelamin: patient?.jenis_kelamin || "",
+            tgl_lahir: patient?.tanggal_lahir || "",
+            visit_id: visitId,
+            registration_id: activeSEP?.registration_id || 0,
+            sep_id: activeSEP?.id || 0,
+            tgl_rencana_kontrol: tglRencanaKontrol,
+            poli_kontrol: kodePoli,
+            nama_poli: namaPoli,
+            kode_dokter: kodeDokter,
+            nama_dokter: namaDokter,
+            nama_diagnosa: "", // Can be filled if needed
           });
+
+          if (res.data.data) {
+            const localSPRI = res.data.data;
+            const mappedResult: VClaimSPRIResponse = {
+              noSPRI: localSPRI.no_spri,
+              tglRencanaKontrol: localSPRI.tgl_rencana_kontrol,
+              namaDokter: localSPRI.nama_dokter,
+              noKartu: localSPRI.no_kartu,
+              nama: localSPRI.nama,
+              kelamin: localSPRI.kelamin,
+              tglLahir: localSPRI.tgl_lahir,
+              namaDiagnosa: localSPRI.nama_diagnosa,
+            };
+            setSPRIResult(mappedResult);
+            onSPRICreated?.(mappedResult);
+            toast({
+              title: "SPRI Lokal Berhasil Dibuat",
+              description: `No. SPRI: ${mappedResult.noSPRI}`,
+            });
+          }
+        } else {
+          const res = await vclaimApi.createSPRI({
+            no_kartu: noKartu,
+            visit_id: visitId,
+            sep_id: activeSEP?.id,
+            tgl_rencana_kontrol: tglRencanaKontrol,
+            poli_kontrol: kodePoli,
+            nama_poli: namaPoli,
+            kode_dokter: kodeDokter,
+            nama_dokter: namaDokter,
+          });
+
+          if (res.data.data) {
+            setSPRIResult(res.data.data);
+            onSPRICreated?.(res.data.data);
+            toast({
+              title: "SPRI BPJS Berhasil Dibuat",
+              description: `No. SPRI: ${res.data.data.noSPRI}`,
+            });
+          }
         }
       } else {
-        if (suratKontrolResult && isEditingExisting) {
+        if (suratKontrolResult && isEditingExisting && !isLocalOnly) {
           const res = await vclaimApi.updateSuratKontrol(suratKontrolResult.noSuratKontrol, {
             kode_dokter: kodeDokter,
             nama_dokter: namaDokter,
@@ -427,30 +454,69 @@ export function BPJSControlSection({
           return;
         }
 
-        // Create Surat Kontrol - requires SEP
-        const res = await vclaimApi.createSuratKontrol({
-          no_sep: activeSEP!.no_sep,
-          visit_id: visitId,
-          patient_id: patient!.id,
-          sep_id: activeSEP!.id,
-          tgl_rencana_kontrol: tglRencanaKontrol,
-          kode_poli: kodePoli,
-          nama_poli: namaPoli,
-          kode_dokter: kodeDokter,
-          nama_dokter: namaDokter,
-          version: version,
-          is_prb: version === "v2" && isPRB,
-          kd_status_prb: version === "v2" && isPRB ? kdStatusPRB : undefined,
-          data_prb: version === "v2" && isPRB ? dataPRB : undefined,
-        });
-
-        if (res.data.data) {
-          setSuratKontrolResult(res.data.data);
-          onSuratKontrolCreated?.(res.data.data);
-          toast({
-            title: "Surat Kontrol Berhasil Dibuat",
-            description: `No. Surat Kontrol: ${res.data.data.noSuratKontrol}`,
+        if (isLocalOnly) {
+          const noKartu = activeSEP?.no_kartu || patient?.no_bpjs || "";
+          const res = await vclaimApi.createLocalSuratKontrol({
+            no_kartu: noKartu,
+            nama: patient?.nama_lengkap || "",
+            kelamin: patient?.jenis_kelamin || "",
+            tgl_lahir: patient?.tanggal_lahir || "",
+            visit_id: visitId,
+            registration_id: activeSEP?.registration_id || 0,
+            sep_id: activeSEP?.id || 0,
+            tgl_rencana_kontrol: tglRencanaKontrol,
+            poli_kontrol: kodePoli,
+            nama_poli: namaPoli,
+            kode_dokter: kodeDokter,
+            nama_dokter: namaDokter,
+            nama_diagnosa: "",
           });
+
+          if (res.data.data) {
+            const localSK = res.data.data;
+            const mappedSK: SuratKontrolResponse = {
+              noSuratKontrol: localSK.no_surat_kontrol,
+              tglRencanaKontrol: localSK.tgl_rencana_kontrol,
+              namaDokter: localSK.nama_dokter,
+              noKartu: localSK.no_kartu,
+              nama: localSK.nama,
+              kelamin: localSK.kelamin,
+              tglLahir: localSK.tgl_lahir,
+              namaDiagnosa: localSK.nama_diagnosa,
+            };
+            setSuratKontrolResult(mappedSK);
+            onSuratKontrolCreated?.(mappedSK);
+            toast({
+              title: "Surat Kontrol Lokal Berhasil Dibuat",
+              description: `No. Surat Kontrol: ${mappedSK.noSuratKontrol}`,
+            });
+          }
+        } else {
+          // Create Surat Kontrol BPJS - requires SEP
+          const res = await vclaimApi.createSuratKontrol({
+            no_sep: activeSEP!.no_sep,
+            visit_id: visitId,
+            patient_id: patient!.id,
+            sep_id: activeSEP!.id,
+            tgl_rencana_kontrol: tglRencanaKontrol,
+            kode_poli: kodePoli,
+            nama_poli: namaPoli,
+            kode_dokter: kodeDokter,
+            nama_dokter: namaDokter,
+            version: version,
+            is_prb: version === "v2" && isPRB,
+            kd_status_prb: version === "v2" && isPRB ? kdStatusPRB : undefined,
+            data_prb: version === "v2" && isPRB ? dataPRB : undefined,
+          });
+
+          if (res.data.data) {
+            setSuratKontrolResult(res.data.data);
+            onSuratKontrolCreated?.(res.data.data);
+            toast({
+              title: "Surat Kontrol BPJS Berhasil Dibuat",
+              description: `No. Surat Kontrol: ${res.data.data.noSuratKontrol}`,
+            });
+          }
         }
       }
     } catch (err: any) {
@@ -463,17 +529,6 @@ export function BPJSControlSection({
       setLoading(false);
     }
   };
-
-  // Don't render if no BPJS data
-  // For SPRI (rawat_inap), SEP is NOT required
-  // For Surat Kontrol (pulang/aps), SEP is required
-  if (!patient?.no_bpjs) {
-    return null;
-  }
-  if (!isRawatInap && !activeSEP) {
-    // Surat Kontrol requires SEP
-    return null;
-  }
 
   // Already has result
   const hasResult = isRawatInap ? !!spriResult : !!suratKontrolResult;

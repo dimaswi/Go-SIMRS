@@ -53,6 +53,7 @@ import {
   Loader2,
   Download,
   Settings,
+  RefreshCw,
 } from "lucide-react";
 import {
   procedureParametersApi,
@@ -126,9 +127,22 @@ export function ParameterManagement({
     }
   };
 
+  const generateParamCode = (name?: string) => {
+    if (name && name.trim()) {
+      const slug = name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 30);
+      if (slug) return slug;
+    }
+    return `PRM${Date.now().toString().slice(-6)}`;
+  };
+
   const resetForm = () => {
     setFormData({
-      code: "",
+      code: generateParamCode(),
       name: "",
       description: "",
       input_type: "text",
@@ -145,6 +159,17 @@ export function ParameterManagement({
       is_active: true,
     });
     setEditingParameter(null);
+  };
+
+  const handleNameChange = (nameValue: string) => {
+    setFormData((prev) => {
+      const isAuto = !prev.code || prev.code.startsWith("PRM") || prev.code === generateParamCode(prev.name);
+      return {
+        ...prev,
+        name: nameValue,
+        code: isAuto && nameValue.trim() ? generateParamCode(nameValue) : prev.code,
+      };
+    });
   };
 
   const handleAdd = () => {
@@ -417,20 +442,33 @@ export function ParameterManagement({
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="code">Kode Parameter *</Label>
-                <Input
-                  id="code"
-                  value={formData.code}
-                  onChange={(e) => updateField("code", e.target.value)}
-                  placeholder="Contoh: hemoglobin"
-                />
+                <Label htmlFor="code">Kode Parameter</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="code"
+                    value={formData.code}
+                    onChange={(e) => updateField("code", e.target.value)}
+                    placeholder="Contoh: hemoglobin (otomatis terisi)"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateField("code", generateParamCode(formData.name))}
+                    title="Generate Kode Otomatis"
+                    className="shrink-0"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Nama Parameter *</Label>
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => updateField("name", e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="Contoh: Hemoglobin (Hb)"
                 />
               </div>

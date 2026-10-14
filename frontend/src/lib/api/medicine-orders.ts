@@ -154,7 +154,78 @@ export interface MedicineOrder {
     nama_lengkap: string;
   };
   delivered_at?: string;
+  doctor_items_json?: string;
+  is_edited_by_pharmacy?: boolean;
   items: MedicineOrderItem[];
+}
+
+export interface DoctorOrderItemSnapshot {
+  medicine_id: number;
+  medicine_name: string;
+  medicine_code: string;
+  item_type: string;
+  racikan_group?: string;
+  racikan_name?: string;
+  racikan_type?: string;
+  racikan_qty?: number;
+  racikan_unit?: string;
+  quantity: number;
+  unit: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  duration: string;
+  instructions: string;
+  notes: string;
+}
+
+export function getDoctorItemsFromOrder(order: MedicineOrder): MedicineOrderItem[] {
+  if (order.doctor_items_json) {
+    try {
+      const parsed: DoctorOrderItemSnapshot[] = JSON.parse(order.doctor_items_json);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((snap, idx) => ({
+          id: -1 - idx,
+          medicine_order_id: order.id,
+          medicine_id: snap.medicine_id,
+          medicine: {
+            id: snap.medicine_id,
+            name: snap.medicine_name,
+            code: snap.medicine_code,
+            generic_name: "",
+            unit: snap.unit,
+            category: "",
+            form: "",
+            strength: "",
+          },
+          item_type: snap.item_type || "non_racikan",
+          racikan_group: snap.racikan_group || "",
+          racikan_name: snap.racikan_name || "",
+          racikan_type: snap.racikan_type || "",
+          racikan_qty: snap.racikan_qty || 0,
+          racikan_unit: snap.racikan_unit || "",
+          quantity: snap.quantity,
+          unit: snap.unit,
+          dosage: snap.dosage,
+          frequency: snap.frequency,
+          route: snap.route,
+          duration: snap.duration,
+          instructions: snap.instructions,
+          status: "ordered",
+          dispensed_qty: 0,
+          returned_qty: 0,
+          return_notes: "",
+          is_substituted: false,
+          substituted_medicine: "",
+          substitution_reason: "",
+          notes: snap.notes,
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to parse doctor_items_json", e);
+    }
+  }
+  return (order.items || []).filter((item) => item.status !== "cancelled");
 }
 
 export interface CreateMedicineOrderInput {

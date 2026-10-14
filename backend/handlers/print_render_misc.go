@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf"
@@ -321,13 +322,14 @@ func printRegistrationTicketImpl(c *gin.Context) {
 // F2. ETIKET OBAT (100mm x 40mm Thermal)
 // ===========================================================================
 
-// PrintMedicineLabel generates a thermal medicine label (100mm x 40mm)
+// PrintMedicineLabel generates a thermal medicine label (100mm x 50mm)
 func printMedicineLabelImpl(c *gin.Context) {
 	itemID := c.Param("itemId")
 
 	var item models.MedicineOrderItem
 	if err := database.DB.
 		Preload("Medicine").
+		Preload("MedicineBatch").
 		Preload("MedicineOrder.Registration.Patient").
 		First(&item, itemID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order item not found"})
@@ -362,22 +364,65 @@ func printMedicineLabelImpl(c *gin.Context) {
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
 }
 
-// PrintMedicineLabels generates thermal medicine labels for all items in an order (100mm x 40mm each)
+// PrintMedicineLabels generates thermal medicine labels for all items in an order (100mm x 50mm each)
 func printMedicineLabelsImpl(c *gin.Context) {
 	orderID := c.Param("orderId")
 
 	var order models.MedicineOrder
 	if err := database.DB.
 		Preload("Items.Medicine").
+		Preload("Items.MedicineBatch").
 		Preload("Registration.Patient").
 		First(&order, orderID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
 		return
 	}
 
-	if len(order.Items) == 0 {
+	items := order.Items
+	version := strings.ToLower(strings.TrimSpace(c.Query("version")))
+	if version == "doctor" && order.DoctorItemsJSON != "" {
+		var snapshots []models.DoctorOrderItemSnapshot
+		if err := json.Unmarshal([]byte(order.DoctorItemsJSON), &snapshots); err == nil && len(snapshots) > 0 {
+			var doctorItems []models.MedicineOrderItem
+			for _, snap := range snapshots {
+				doctorItems = append(doctorItems, models.MedicineOrderItem{
+					MedicineID: snap.MedicineID,
+					Medicine: &models.Medicine{
+						ID:   snap.MedicineID,
+						Name: snap.MedicineName,
+						Code: snap.MedicineCode,
+					},
+					ItemType:     snap.ItemType,
+					RacikanGroup: snap.RacikanGroup,
+					RacikanName:  snap.RacikanName,
+					RacikanType:  snap.RacikanType,
+					RacikanQty:   snap.RacikanQty,
+					RacikanUnit:  snap.RacikanUnit,
+					Quantity:     snap.Quantity,
+					Unit:         snap.Unit,
+					Dosage:       snap.Dosage,
+					Frequency:    snap.Frequency,
+					Route:        snap.Route,
+					Duration:     snap.Duration,
+					Instructions: snap.Instructions,
+					Notes:        snap.Notes,
+					Status:       models.ItemStatusOrdered,
+				})
+			}
+			items = doctorItems
+		}
+	}
+
+	if len(items) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No items in order"})
 		return
+	}
+
+	// Link order reference to items if not set
+	for i := range items {
+		if items[i].MedicineOrder == nil {
+			items[i].MedicineOrder = &order
+		}
 	}
 
 	// Get patient info from order
@@ -389,7 +434,7 @@ func printMedicineLabelsImpl(c *gin.Context) {
 	}
 
 	// Generate labels for all items
-	pdf := generateMedicineLabelPDF(order.Items, patientName, noRM)
+	pdf := generateMedicineLabelPDF(items, patientName, noRM)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -402,6 +447,65 @@ func printMedicineLabelsImpl(c *gin.Context) {
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// formatMedicineSigna formats medicine instructions and eliminates duplication
+func formatMedicineSigna(dosage, frequency, instructions, medicineName string) string {
+	dosage = strings.TrimSpace(dosage)
+	frequency = strings.TrimSpace(frequency)
+	instructions = strings.TrimSpace(instructions)
+	if dosage == "-" {
+		dosage = ""
+	}
+	if frequency == "-" {
+		frequency = ""
+	}
+	if instructions == "-" {
+		instructions = ""
+	}
+	medLower := strings.ToLower(medicineName)
+
+	// If frequency and instructions are identical (case-insensitive), drop instructions
+	if strings.EqualFold(frequency, instructions) {
+		instructions = ""
+	}
+
+	// If one contains the other, keep only the longer one
+	if frequency != "" && instructions != "" {
+		fLower := strings.ToLower(frequency)
+		iLower := strings.ToLower(instructions)
+		if strings.Contains(iLower, fLower) {
+			frequency = ""
+		} else if strings.Contains(fLower, iLower) {
+			instructions = ""
+		}
+	}
+
+	var parts []string
+
+	// If dosage is just medicine strength already in the medicine name (e.g. "1mg" in "Alprazolam 1mg"), skip it
+	if dosage != "" {
+		dLower := strings.ToLower(dosage)
+		alreadyInName := strings.Contains(medLower, dLower)
+		alreadyInFreq := frequency != "" && strings.Contains(strings.ToLower(frequency), dLower)
+		alreadyInInstr := instructions != "" && strings.Contains(strings.ToLower(instructions), dLower)
+		if !alreadyInName && !alreadyInFreq && !alreadyInInstr {
+			parts = append(parts, dosage)
+		}
+	}
+
+	if frequency != "" {
+		parts = append(parts, frequency)
+	}
+	if instructions != "" {
+		parts = append(parts, instructions)
+	}
+
+	result := strings.Join(parts, " - ")
+	if result == "" {
+		result = "....... X ....... Tab/Kap/Bungkus"
+	}
+	return result
 }
 
 // generateMedicineLabelPDF creates a PDF with medicine labels (each item on separate page)
@@ -432,73 +536,16 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		// Add new page for each medicine
 		pdf.AddPage()
 
-		// Outer Border box
+		// Outer Border box (100x50 minus 2mm margin all sides = 96x46)
 		pdf.SetDrawColor(0, 0, 0)
 		pdf.SetLineWidth(0.3)
 		pdf.Rect(marginL, marginT, contentWidth, pageHeight-4, "D")
 
-		// Horizontal Divider at Y=26
-		dividerY := 26.0
-		pdf.Line(marginL, dividerY, marginL+contentWidth, dividerY)
-
-		// Vertical Divider in Top Section at X=55
-		dividerX := 55.0
-		pdf.Line(dividerX, marginT, dividerX, dividerY)
-
-		// === TOP LEFT: Patient & Medicine Info ===
-		pdf.SetFont("Arial", "", 7)
-		textX := marginL + 2
-		lineH := 3.5
-		currentY := marginT + 1.5
-		
-		medicineName := "-"
-		if item.Medicine != nil {
-			medicineName = item.Medicine.Name
-		}
-		qtyInfo := fmt.Sprintf("%s %s", formatNumber(float64(item.Quantity)), item.Unit)
-
-		// 1. Nama
-		pdf.SetXY(textX, currentY)
-		pdf.CellFormat(15, lineH, "Nama", "", 0, "L", false, 0, "")
-		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
-		pdf.SetFont("Arial", "B", 7)
-		pdf.SetXY(textX+18, currentY)
-		pdf.MultiCell(33, lineH, truncateString(patientName, 40), "", "L", false)
-		currentY = pdf.GetY() + 0.5
-
-		// 2. No RM
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetXY(textX, currentY)
-		pdf.CellFormat(15, lineH, "No. RM", "", 0, "L", false, 0, "")
-		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
-		pdf.SetFont("Arial", "B", 7)
-		pdf.SetXY(textX+18, currentY)
-		pdf.MultiCell(33, lineH, noRM, "", "L", false)
-		currentY = pdf.GetY() + 0.5
-
-		// 3. Nama Obat
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetXY(textX, currentY)
-		pdf.CellFormat(15, lineH, "Nama Obat", "", 0, "L", false, 0, "")
-		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
-		pdf.SetFont("Arial", "B", 7)
-		pdf.SetXY(textX+18, currentY)
-		pdf.MultiCell(33, lineH, truncateString(medicineName, 55), "", "L", false)
-		currentY = pdf.GetY() + 0.5
-
-		// 4. Jumlah
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetXY(textX, currentY)
-		pdf.CellFormat(15, lineH, "Jumlah", "", 0, "L", false, 0, "")
-		pdf.CellFormat(3, lineH, ":", "", 0, "C", false, 0, "")
-		pdf.SetFont("Arial", "B", 7)
-		pdf.SetXY(textX+18, currentY)
-		pdf.MultiCell(33, lineH, qtyInfo, "", "L", false)
-
-		// === TOP RIGHT: Hospital Info ===
-		logoWidth := 8.0
-		logoX := dividerX + ((contentWidth - (dividerX - marginL)) - logoWidth) / 2
+		// === TOP SECTION: KOP (Centered Header with optional Logo) ===
+		logoWidth := 9.0
+		logoX := marginL + 2.0
 		logoY := marginT + 1.0
+		hasLogo := false
 
 		if hospitalInfo.Logo != "" {
 			logoFile := strings.TrimPrefix(hospitalInfo.Logo, "/")
@@ -515,82 +562,172 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 				}
 				if imgType != "" {
 					pdf.Image(logoPath, logoX, logoY, logoWidth, logoWidth, false, imgType, 0, "")
+					hasLogo = true
 				}
 			}
 		}
 
-		pdf.SetFont("Arial", "B", 6)
-		pdf.SetXY(dividerX+1, logoY+logoWidth+0.5)
-		pdf.MultiCell((contentWidth - (dividerX - marginL)) - 2, 2.5, strings.ToUpper(hospitalInfo.Name), "", "C", false)
-		
-		pdf.SetFont("Arial", "", 5)
+		textStartX := marginL + 1.0
+		textWidth := contentWidth - 2.0
+		if hasLogo {
+			textStartX = logoX + logoWidth + 2.0
+			textWidth = contentWidth - (logoWidth + 4.0)
+		}
+
+		hospitalTitle := hospitalInfo.Name
+		if hospitalTitle == "" {
+			hospitalTitle = "KLINIK KEDUNGADEM"
+		}
+
+		titleFontSize := 8.0
+		titleLineH := 3.0
+		if len(hospitalTitle) > 30 {
+			titleFontSize = 7.5
+			titleLineH = 2.8
+		}
+
+		pdf.SetFont("Arial", "B", titleFontSize)
+		pdf.SetXY(textStartX, marginT+1.0)
+		pdf.MultiCell(textWidth, titleLineH, strings.ToUpper(hospitalTitle), "", "C", false)
+
 		address := hospitalInfo.Address
 		if hospitalInfo.City != "" {
-			address += ", " + hospitalInfo.City
+			if address != "" {
+				address += ", " + hospitalInfo.City
+			} else {
+				address = hospitalInfo.City
+			}
 		}
-		currentY = pdf.GetY()
-		pdf.SetXY(dividerX+1, currentY)
-		pdf.MultiCell((contentWidth - (dividerX - marginL)) - 2, 2.0, address, "", "C", false)
+		if hospitalInfo.Phone != "" {
+			if address != "" {
+				address += " | Telp: " + hospitalInfo.Phone
+			} else {
+				address = "Telp: " + hospitalInfo.Phone
+			}
+		}
+		if address != "" {
+			pdf.SetFont("Arial", "", 4.8)
+			pdf.SetXY(textStartX, pdf.GetY()+0.2)
+			pdf.MultiCell(textWidth, 2.0, address, "", "C", false)
+		}
 
+		// Horizontal Divider under KOP (ensuring divider line is placed below all header text)
+		dividerY := 14.5
+		if pdf.GetY()+0.6 > dividerY {
+			dividerY = pdf.GetY() + 0.6
+		}
+		pdf.SetLineWidth(0.3)
+		pdf.Line(marginL, dividerY, marginL+contentWidth, dividerY)
 
-		// === BOTTOM SECTION: Instructions ===
-		bottomY := dividerY + 1.5
+		// === CONTENT SECTION ===
+		contentY := dividerY + 1.2
+
+		// 1. Tanggal (Top Right under divider)
+		orderDateStr := time.Now().Format("02/01/2006")
+		if item.MedicineOrder != nil && !item.MedicineOrder.CreatedAt.IsZero() {
+			orderDateStr = item.MedicineOrder.CreatedAt.Format("02/01/2006")
+		}
 		pdf.SetFont("Arial", "", 7)
-		pdf.SetXY(marginL+2, bottomY)
-		pdf.CellFormat(18, 4, "Aturan Pakai", "", 0, "L", false, 0, "")
+		pdf.SetXY(marginL+contentWidth-45.0, contentY)
+		pdf.CellFormat(43.0, 3.5, "Tgl: "+orderDateStr, "", 0, "R", false, 0, "")
 
-		// Right of Aturan Pakai
-		var parts []string
-		if item.Dosage != "" {
-			parts = append(parts, item.Dosage)
-		}
-		if item.Frequency != "" {
-			parts = append(parts, item.Frequency)
-		}
-		if item.Instructions != "" {
-			parts = append(parts, item.Instructions)
-		}
-		
-		instructions := strings.Join(parts, " - ")
-		if instructions == "" {
-			instructions = "....... X ....... Tab/Kap/Bungkus"
-		}
-		pdf.CellFormat(3, 4, ":", "", 0, "C", false, 0, "")
-		pdf.SetFont("Arial", "B", 7)
-		pdf.CellFormat(0, 4, truncateString(instructions, 45), "", 1, "L", false, 0, "")
-
-		// Time Grid (6 cols, 2 rows)
-		gridX := marginL + 2
-		gridY := bottomY + 8.5
-		colW := 6.5
-		rowHGrid := 4.5
-
-		times := []string{
-			"6-7", "10-11", "11-12", "13-14", "14-15", "16-17",
-			"18-19", "19-20", "20-21", "21-22", "22-23", "",
+		// Medicine & Qty preparation
+		medicineName := "-"
+		if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanName != "" {
+			medicineName = item.RacikanName
+		} else if item.Medicine != nil {
+			medicineName = item.Medicine.Name
 		}
 
-		pdf.SetFont("Arial", "", 6)
-		pdf.SetLineWidth(0.2)
-		for i := 0; i < 2; i++ {
-			pdf.SetXY(gridX, gridY+(float64(i)*rowHGrid))
-			for j := 0; j < 6; j++ {
-				idx := i*6 + j
-				pdf.CellFormat(colW, rowHGrid, times[idx], "1", 0, "C", false, 0, "")
+		qty := item.Quantity
+		unit := item.Unit
+		if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanQty > 0 {
+			qty = item.RacikanQty
+			if item.RacikanUnit != "" {
+				unit = item.RacikanUnit
+			}
+		}
+		qtyInfo := fmt.Sprintf("%s %s", formatNumber(float64(qty)), unit)
+
+		// Expired Date (ED)
+		edStr := "-"
+		if item.MedicineBatch != nil && !item.MedicineBatch.ExpiryDate.IsZero() {
+			edStr = item.MedicineBatch.ExpiryDate.Format("02/01/2006")
+		} else if item.MedicineID > 0 {
+			var batch models.MedicineBatch
+			if err := database.DB.Where("medicine_id = ? AND remaining_qty > 0 AND expiry_date >= ?", item.MedicineID, time.Now()).Order("expiry_date ASC").First(&batch).Error; err == nil {
+				edStr = batch.ExpiryDate.Format("02/01/2006")
+			} else if err := database.DB.Where("medicine_id = ?", item.MedicineID).Order("expiry_date DESC").First(&batch).Error; err == nil {
+				edStr = batch.ExpiryDate.Format("02/01/2006")
 			}
 		}
 
-		// Dates
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetXY(marginL+45, gridY)
-		pdf.CellFormat(17, 4.5, "Kadaluarsa", "", 0, "L", false, 0, "")
-		pdf.CellFormat(2, 4.5, ":", "", 0, "C", false, 0, "")
-		pdf.CellFormat(0, 4.5, "    /    /", "", 1, "L", false, 0, "")
+		// Aturan Pakai / Signa (clean & deduplicated)
+		instructions := formatMedicineSigna(item.Dosage, item.Frequency, item.Instructions, medicineName)
 
-		pdf.SetXY(marginL+45, gridY+4.5)
-		pdf.CellFormat(17, 4.5, "Tanggal", "", 0, "L", false, 0, "")
-		pdf.CellFormat(2, 4.5, ":", "", 0, "C", false, 0, "")
-		pdf.CellFormat(0, 4.5, formatDateIndonesian(time.Now()), "", 1, "L", false, 0, "")
+		textX := marginL + 2.5
+
+		// Row 1: Nama
+		pdf.SetFont("Arial", "", 7.5)
+		pdf.SetXY(textX, contentY)
+		pdf.CellFormat(16, 3.5, "Nama", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 3.5, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7.5)
+		pdf.CellFormat(36, 3.5, truncateString(patientName, 32), "", 1, "L", false, 0, "")
+
+		// Row 2: No. RM
+		contentY += 3.8
+		pdf.SetFont("Arial", "", 7.5)
+		pdf.SetXY(textX, contentY)
+		pdf.CellFormat(16, 3.5, "No. RM", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 3.5, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7.5)
+		pdf.CellFormat(36, 3.5, noRM, "", 1, "L", false, 0, "")
+
+		// Row 3: Obat
+		contentY += 3.8
+		pdf.SetFont("Arial", "", 7.5)
+		pdf.SetXY(textX, contentY)
+		pdf.CellFormat(16, 3.8, "Obat", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 3.8, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 8)
+		pdf.MultiCell(contentWidth-21.0, 3.8, truncateString(medicineName, 55), "", "L", false)
+		if pdf.GetY() > contentY+3.8 {
+			contentY = pdf.GetY()
+		} else {
+			contentY += 3.8
+		}
+
+		// Row 4: Jumlah & ED
+		contentY += 0.3
+		pdf.SetFont("Arial", "", 7.5)
+		pdf.SetXY(textX, contentY)
+		pdf.CellFormat(16, 3.5, "Jumlah", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 3.5, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7.5)
+		pdf.CellFormat(26, 3.5, qtyInfo, "", 0, "L", false, 0, "")
+
+		pdf.SetFont("Arial", "", 7.5)
+		pdf.SetXY(52.0, contentY)
+		pdf.CellFormat(8, 3.5, "ED", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 3.5, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 7.5)
+		pdf.CellFormat(32, 3.5, edStr, "", 1, "L", false, 0, "")
+
+		// Separator line before Aturan Pakai
+		contentY += 4.0
+		pdf.SetLineWidth(0.15)
+		pdf.Line(marginL+2.0, contentY, marginL+contentWidth-2.0, contentY)
+
+		// Row 5: Aturan Pakai -> Signa
+		contentY += 1.0
+		pdf.SetFont("Arial", "B", 7.5)
+		pdf.SetXY(textX, contentY)
+		pdf.CellFormat(21, 4.0, "Aturan Pakai", "", 0, "L", false, 0, "")
+		pdf.CellFormat(2.5, 4.0, ":", "", 0, "C", false, 0, "")
+		pdf.SetFont("Arial", "B", 8.5)
+		pdf.SetXY(textX+23.5, contentY)
+		pdf.MultiCell(contentWidth-26.0, 4.0, instructions, "", "L", false)
 	}
 
 	return pdf

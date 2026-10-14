@@ -263,10 +263,9 @@ export default function DistributionEdit() {
               <thead className="bg-background">
                 <tr className="bg-muted/20">
                   <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Kode</th>
-                  <th className="h-9 w-[24%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Nama</th>
-                  <th className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Qty</th>
-                  <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Batch</th>
-                  <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Exp. Date</th>
+                  <th className="h-9 w-[26%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Nama</th>
+                  <th className="h-9 w-[12%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Qty</th>
+                  <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Batch / FEFO</th>
                   <th className="h-9 w-[10%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Satuan</th>
                   <th className="h-9 border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/80">Catatan</th>
                 </tr>
@@ -301,24 +300,18 @@ export default function DistributionEdit() {
                       />
                     </td>
                     <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
-                      <Input
-                        placeholder="Batch..."
-                        value={item.batch_number}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "batch_number", e.target.value)
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="border-b border-r border-border/60 px-3 py-1.5 align-middle">
-                      <Input
-                        type="date"
-                        value={item.expiry_date}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "expiry_date", e.target.value)
-                        }
-                        className="h-8 text-xs"
-                      />
+                      {item.medicine_id ? (
+                        <div className="space-y-0.5">
+                          <span className="text-[11px] font-semibold text-foreground">{item.batch_number || "Otomatis FEFO"}</span>
+                          {item.expiry_date ? (
+                            <p className="text-[10px] text-muted-foreground">ED: {item.expiry_date.split("T")[0]}</p>
+                          ) : (
+                            <p className="text-[10px] text-sky-700">ED Terdekat</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">-</span>
+                      )}
                     </td>
                     <td className="border-b border-r border-border/60 px-2 py-1.5 align-middle text-center text-[11px] text-muted-foreground">{item.unit}</td>
                     <td className="border-b border-border/60 px-3 py-1.5 align-middle">

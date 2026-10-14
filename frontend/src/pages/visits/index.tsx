@@ -735,7 +735,7 @@ export default function VisitsIndex() {
               {roomValue
                 ? (() => {
                   const r = rooms.find((r) => r.id.toString() === roomValue);
-                  return r ? `${r.code} - ${r.name}` : `Semua ${currentTab.label}`;
+                  return r ? r.name : `Semua ${currentTab.label}`;
                 })()
                 : `Semua ${currentTab.label}`}
             </span>
@@ -762,7 +762,7 @@ export default function VisitsIndex() {
                     onSelect={() => { onRoomChange(room.id.toString()); setRoomPopoverOpen(false); }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", roomValue === room.id.toString() ? "opacity-100" : "opacity-0")} />
-                    {room.code} - {room.name}
+                    {room.name}
                   </CommandItem>
                 ))}
               </CommandGroup>

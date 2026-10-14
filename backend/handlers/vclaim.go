@@ -1878,6 +1878,100 @@ func CreateLocalSPRI(c *gin.Context) {
 	})
 }
 
+// CreateLocalSuratKontrol membuat Surat Kontrol lokal tanpa koneksi ke BPJS VClaim
+func CreateLocalSuratKontrol(c *gin.Context) {
+	var input struct {
+		NoKartu           string `json:"no_kartu"`
+		Nama              string `json:"nama"`
+		Kelamin           string `json:"kelamin"`
+		TglLahir          string `json:"tgl_lahir"`
+		KodeDokter        string `json:"kode_dokter"`
+		NamaDokter        string `json:"nama_dokter"`
+		PoliKontrol       string `json:"poli_kontrol"`
+		NamaPoli          string `json:"nama_poli"`
+		TglRencanaKontrol string `json:"tgl_rencana_kontrol"`
+		NamaDiagnosa      string `json:"nama_diagnosa"`
+		// Optional - untuk tracking di SIMRS
+		VisitID        uint `json:"visit_id"`
+		RegistrationID uint `json:"registration_id"`
+		SEPID          uint `json:"sep_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Get patient ID from visit or registration
+	var patientID uint
+	if input.VisitID > 0 {
+		var visit models.Visit
+		if err := database.DB.First(&visit, input.VisitID).Error; err == nil {
+			if visit.RegistrationID > 0 {
+				var reg models.Registration
+				if err := database.DB.First(&reg, visit.RegistrationID).Error; err == nil {
+					patientID = reg.PatientID
+				}
+			}
+		}
+	} else if input.RegistrationID > 0 {
+		var reg models.Registration
+		if err := database.DB.First(&reg, input.RegistrationID).Error; err == nil {
+			patientID = reg.PatientID
+		}
+	}
+
+	// Generate random / temporary local Surat Kontrol number
+	now := time.Now()
+	noSK := fmt.Sprintf("SK-LOKAL-%s-%04d", now.Format("060102"), now.Unix()%10000)
+
+	sk := models.SuratKontrol{
+		NoSuratKontrol:    noSK,
+		NoKartu:           input.NoKartu,
+		Nama:              input.Nama,
+		Kelamin:           input.Kelamin,
+		TglLahir:          input.TglLahir,
+		TglRencanaKontrol: input.TglRencanaKontrol,
+		KodePoli:          input.PoliKontrol,
+		NamaPoli:          input.NamaPoli,
+		KodeDokter:        input.KodeDokter,
+		NamaDokter:        input.NamaDokter,
+		NamaDiagnosa:      input.NamaDiagnosa,
+		UserBuat:          user.Username,
+		Status:            "active",
+	}
+
+	if patientID > 0 {
+		sk.PatientID = patientID
+	}
+	if input.VisitID > 0 {
+		sk.VisitID = &input.VisitID
+	}
+	if input.RegistrationID > 0 {
+		sk.RegistrationID = &input.RegistrationID
+	}
+	if input.SEPID > 0 {
+		sk.SEPID = &input.SEPID
+	}
+
+	if err := database.DB.Create(&sk).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan Surat Kontrol lokal: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Surat Kontrol lokal berhasil dibuat (belum terkirim ke BPJS)",
+		"data":    sk,
+	})
+}
+
 // GetSPRIByVisit mendapatkan SPRI berdasarkan visit ID
 func GetSPRIByVisit(c *gin.Context) {
 	visitID := c.Param("visitId")

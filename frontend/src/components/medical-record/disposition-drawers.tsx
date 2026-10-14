@@ -1236,7 +1236,7 @@ export function ReferralDrawer({
     try {
       const res = await ppkApi.getAll({ active: true, limit: 1000 });
       const items = res.data.data || [];
-      setPpkOptions(items.map((item) => ({ value: item.kode_bpjs, label: `${item.kode_bpjs} - ${item.nama}` })));
+      setPpkOptions(items.map((item) => ({ value: item.kode_bpjs, label: item.nama })));
     } catch {
       toast({ variant: "destructive", title: "Gagal", description: "Gagal memuat master PPK." });
     }

@@ -267,7 +267,7 @@ export function FluidBalanceForm({
   const mapMedicineOptions = (medicines: Medicine[]): ComboboxOption[] =>
     medicines.map((medicine) => ({
       value: medicine.name,
-      label: `${medicine.name}${medicine.generic_name ? ` - ${medicine.generic_name}` : ""}${medicine.code ? ` (${medicine.code})` : ""}`,
+      label: medicine.name,
     }));
 
   const loadIVMedicineOptions = useCallback(async (search: string) => {

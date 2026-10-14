@@ -178,13 +178,45 @@ func CreateDistribution(c *gin.Context) {
 			}
 		}
 
+		allocatedBatchNumber := item.BatchNumber
+		allocatedExpiryDate := expiryDate
+
+		// Otomatis FEFO untuk obat: cari batch aktif dengan ED terdekat di ruangan asal
+		if item.MedicineID != nil && *item.MedicineID > 0 {
+			var batches []models.MedicineBatch
+			tx.Where("medicine_id = ? AND remaining_qty > 0 AND is_active = true", *item.MedicineID).
+				Where("room_id = ? OR room_id IS NULL", input.FromRoomID).
+				Order("expiry_date ASC, id ASC").
+				Find(&batches)
+
+			remainingNeeded := item.Quantity
+			for i := range batches {
+				if remainingNeeded <= 0 {
+					break
+				}
+				b := &batches[i]
+				deduct := b.RemainingQty
+				if deduct > remainingNeeded {
+					deduct = remainingNeeded
+				}
+				b.RemainingQty -= deduct
+				tx.Model(b).Update("remaining_qty", b.RemainingQty)
+				remainingNeeded -= deduct
+
+				if allocatedBatchNumber == "" {
+					allocatedBatchNumber = b.BatchNumber
+					allocatedExpiryDate = &b.ExpiryDate
+				}
+			}
+		}
+
 		distItem := models.StockDistributionItem{
 			StockDistributionID: distribution.ID,
 			StockRequestItemID:  item.StockRequestItemID,
 			InventoryID:         item.InventoryID,
 			MedicineID:          item.MedicineID,
-			BatchNumber:         item.BatchNumber,
-			ExpiryDate:          expiryDate,
+			BatchNumber:         allocatedBatchNumber,
+			ExpiryDate:          allocatedExpiryDate,
 			Quantity:            item.Quantity,
 			Unit:                item.Unit,
 			Notes:               item.Notes,
@@ -305,6 +337,30 @@ func ReceiveDistribution(c *gin.Context) {
 
 			// Update or create room medicine
 			updateRoomMedicine(tx, distribution.ToRoomID, *item.MedicineID, item.Quantity)
+
+			// FEFO continuity: Tambahkan/catat batch di ruangan penerima agar FEFO dapat berlanjut
+			if item.ExpiryDate != nil && item.BatchNumber != "" {
+				var destBatch models.MedicineBatch
+				err := tx.Where("room_id = ? AND medicine_id = ? AND batch_number = ?", distribution.ToRoomID, *item.MedicineID, item.BatchNumber).First(&destBatch).Error
+				if err != nil {
+					destBatch = models.MedicineBatch{
+						MedicineID:    *item.MedicineID,
+						BatchNumber:   item.BatchNumber,
+						ExpiryDate:    *item.ExpiryDate,
+						Quantity:      item.Quantity,
+						RemainingQty:  item.Quantity,
+						RoomID:        &distribution.ToRoomID,
+						Location:      fmt.Sprintf("Ruangan ID: %d", distribution.ToRoomID),
+						IsActive:      true,
+						Notes:         fmt.Sprintf("Diterima dari distribusi %s", distribution.DistributionNumber),
+					}
+					tx.Create(&destBatch)
+				} else {
+					destBatch.Quantity += item.Quantity
+					destBatch.RemainingQty += item.Quantity
+					tx.Save(&destBatch)
+				}
+			}
 		}
 	}
 

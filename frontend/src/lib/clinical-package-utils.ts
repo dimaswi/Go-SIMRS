@@ -64,6 +64,8 @@ export function mergeRoomProceduresWithClinicalPackage(roomProcedures: RoomProce
       procedure_id: item.procedure_id,
       procedure: item.procedure,
       is_available: true,
+      is_mandatory: false,
+      is_prescription_fee: false,
       max_per_day: 0,
       requires_booking: false,
       notes: item.notes || 'Paket klinis',

@@ -806,7 +806,9 @@ export default function PatientEdit() {
                       tabIndex={1}
                     />
                     {bpjsLoading && (
-                      <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                      <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
                     )}
                   </div>
 

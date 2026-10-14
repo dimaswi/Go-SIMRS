@@ -39,6 +39,13 @@ export const masterDataApi = {
   getCategories: () =>
     api.get<{ data: MasterDataCategory[] }>('/master-data/categories'),
   
+  getReferralSources: (search?: string) => {
+    const searchParams = new URLSearchParams();
+    if (search) searchParams.append('q', search);
+    const queryString = searchParams.toString();
+    return api.get<{ data: string[] }>(`/master-data/referral-sources${queryString ? `?${queryString}` : ''}`);
+  },
+  
   getByCategory: (category: string, params?: { include_inactive?: boolean }) => {
     const searchParams = new URLSearchParams();
     if (params?.include_inactive) searchParams.append('include_inactive', 'true');

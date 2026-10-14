@@ -97,10 +97,18 @@ export function createProcedureColumns(
       accessorKey: "is_available",
       header: () => <div className="text-center">Status</div>,
       cell: ({ row }) => (
-        <div className="text-center">
+        <div className="flex flex-col items-center gap-1">
           <Badge variant={row.getValue("is_available") ? "default" : "secondary"}>
             {row.getValue("is_available") ? "Tersedia" : "Tidak Tersedia"}
           </Badge>
+          {row.original.is_mandatory && (
+            <Badge variant="destructive" className="text-[10px]">Wajib</Badge>
+          )}
+          {row.original.is_prescription_fee && (
+            <Badge variant="outline" className="text-[10px] border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">
+              Jasa Resep
+            </Badge>
+          )}
         </div>
       ),
     },

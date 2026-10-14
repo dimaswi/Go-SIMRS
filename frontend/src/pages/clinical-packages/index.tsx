@@ -23,14 +23,14 @@ export default function ClinicalPackagesIndex() {
       const response = await clinicalPackagesApi.getAll({ limit: 200 });
       setPackages(response.data.data || []);
     } catch {
-      toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket klinis.' });
+      toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket tindakan.' });
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    setPageTitle('Master Paket Klinis');
+    setPageTitle('Master Paket Tindakan');
     loadData();
   }, [loadData]);
 
@@ -41,10 +41,10 @@ export default function ClinicalPackagesIndex() {
 
     try {
       await clinicalPackagesApi.delete(selectedId);
-      toast({ title: 'Berhasil!', description: 'Paket klinis berhasil dihapus.' });
+      toast({ title: 'Berhasil!', description: 'Paket tindakan berhasil dihapus.' });
       loadData();
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal menghapus paket klinis.' });
+      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal menghapus paket tindakan.' });
     } finally {
       setDeleteDialogOpen(false);
       setSelectedId(null);
@@ -62,19 +62,19 @@ export default function ClinicalPackagesIndex() {
   return (
     <PageShell>
       <PageHeader
-        title="Master Paket Klinis"
-        description="Kelola template tindakan dan obat yang dapat di-assign ke ruangan"
+        title="Master Paket Tindakan"
+        description="Kelola paket tindakan dan obat standar yang dapat ditugaskan ke ruangan"
         count={packages.length}
         actions={
           <Button size="sm" onClick={() => navigate('/clinical-packages/create')}>
-            <Plus className="h-4 w-4" /> Tambah Paket Klinis
+            <Plus className="h-4 w-4" /> Tambah Paket Tindakan
           </Button>
         }
       />
       <PageContent>
         <div className="border border-border/70 bg-background">
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Paket Klinis
+            Daftar Paket Tindakan
           </div>
           <div className="p-3 sm:p-4">
             <DataTable
@@ -87,7 +87,7 @@ export default function ClinicalPackagesIndex() {
             },
           })}
           data={packages}
-          searchPlaceholder="Cari paket klinis berdasarkan kode atau nama..."
+          searchPlaceholder="Cari paket tindakan berdasarkan kode atau nama..."
           pageSize={10}
           tableId="clinical-packages"
         />
@@ -99,8 +99,8 @@ export default function ClinicalPackagesIndex() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDelete}
-        title="Hapus Paket Klinis"
-        description="Apakah Anda yakin ingin menghapus paket klinis ini?"
+        title="Hapus Paket Tindakan"
+        description="Apakah Anda yakin ingin menghapus paket tindakan ini?"
         confirmText="Hapus"
         cancelText="Batal"
         variant="destructive"

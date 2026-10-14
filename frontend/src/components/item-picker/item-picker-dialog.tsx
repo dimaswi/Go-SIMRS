@@ -66,6 +66,7 @@ interface ItemPickerDialogProps {
   defaultTab?: "inventory" | "medicine" | "all";
   showTabs?: boolean;
   enableDualUnit?: boolean;
+  defaultTaxPercent?: number;
   loading?: boolean;
   // Client mode: pass items array directly (backward compat)
   items?: SelectableItem[];
@@ -88,6 +89,7 @@ export function ItemPickerDialog({
   defaultTab = "all",
   showTabs = true,
   enableDualUnit = false,
+  defaultTaxPercent = 11,
   fetchItems,
 }: ItemPickerDialogProps) {
   const isServerMode = !!fetchItems;
@@ -237,8 +239,8 @@ export function ItemPickerDialog({
           unit_price: item.price || 0,
           discount_percent: 0,
           discount_amount: 0,
-          tax_percent: 0,
-          tax_amount: 0,
+          tax_percent: defaultTaxPercent,
+          tax_amount: ((item.price || 0) * defaultTaxPercent) / 100,
           batch_number: "",
           expiry_date: "",
           notes: "",
@@ -276,8 +278,8 @@ export function ItemPickerDialog({
           unit_price: item.price || 0,
           discount_percent: 0,
           discount_amount: 0,
-          tax_percent: 0,
-          tax_amount: 0,
+          tax_percent: defaultTaxPercent,
+          tax_amount: ((item.price || 0) * defaultTaxPercent) / 100,
           batch_number: "",
           expiry_date: "",
           notes: "",
@@ -487,8 +489,8 @@ export function ItemPickerDialog({
                           unit_price: item.price || 0,
                           discount_percent: 0,
                           discount_amount: 0,
-                          tax_percent: 0,
-                          tax_amount: 0,
+                          tax_percent: defaultTaxPercent,
+                          tax_amount: ((item.price || 0) * defaultTaxPercent) / 100,
                           batch_number: "",
                           expiry_date: "",
                           notes: "",

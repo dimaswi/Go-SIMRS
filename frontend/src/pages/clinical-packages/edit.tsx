@@ -14,7 +14,7 @@ export default function ClinicalPackagesEdit() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setPageTitle('Edit Paket Klinis');
+    setPageTitle('Edit Paket Tindakan');
   }, []);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function ClinicalPackagesEdit() {
         const response = await clinicalPackagesApi.getById(Number(id));
         setPkg(response.data.data);
       } catch {
-        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket klinis.' });
+        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket tindakan.' });
         navigate('/clinical-packages');
       } finally {
         setLoading(false);
@@ -37,14 +37,14 @@ export default function ClinicalPackagesEdit() {
     setSaving(true);
     try {
       await clinicalPackagesApi.update(Number(id), data);
-      toast({ title: 'Berhasil!', description: 'Paket klinis berhasil diupdate.' });
+      toast({ title: 'Berhasil!', description: 'Paket tindakan berhasil diupdate.' });
       navigate('/clinical-packages');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal mengupdate paket klinis.' });
+      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal mengupdate paket tindakan.' });
     } finally {
       setSaving(false);
     }
   };
 
-  return <ClinicalPackageForm title="Edit Paket Klinis" submitLabel="Update" initialData={pkg} loading={loading} saving={saving} onSubmit={handleSubmit} />;
+  return <ClinicalPackageForm title="Edit Paket Tindakan" submitLabel="Perbarui Paket" initialData={pkg} loading={loading} saving={saving} onSubmit={handleSubmit} />;
 }

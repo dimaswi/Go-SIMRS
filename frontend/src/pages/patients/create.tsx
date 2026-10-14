@@ -566,11 +566,11 @@ export default function PatientCreate() {
         title: "Berhasil",
         description: "Pasien berhasil didaftarkan",
       });
-      const newPatientId = response.data?.data?.id;
+      const newPatientId = (response as any)?.data?.id || (response as any)?.id;
       if (newPatientId) {
-        navigate(`/patients/${newPatientId}`);
+        navigate(`/patient-search/${newPatientId}`);
       } else {
-        navigate("/patients");
+        navigate("/patient-search");
       }
     } catch (error: any) {
       toast({
@@ -769,7 +769,9 @@ export default function PatientCreate() {
                             tabIndex={1}
                           />
                           {bpjsLoading && (
-                            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
                           )}
                         </div>
 

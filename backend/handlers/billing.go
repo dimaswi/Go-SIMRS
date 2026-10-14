@@ -518,6 +518,13 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 	for _, visit := range clinicalVisits {
 		fmt.Printf("[BILLING] Processing clinical visit %d (type: %s)\n", visit.ID, visit.VisitType)
 
+		// Pastikan setiap order resep aktif dari kunjungan ini memiliki tagihan jasa resep
+		var activeOrders []models.MedicineOrder
+		tx.Where("source_visit_id = ? AND status != ?", visit.ID, models.OrderStatusCancelled).Find(&activeOrders)
+		for i := range activeOrders {
+			_ = ApplyPrescriptionFee(tx, visit.ID, visit.RoomID, nil, &activeOrders[i])
+		}
+
 		// Visit Procedures (Tindakan langsung di ruangan)
 		if err := generateVisitProcedureItems(tx, billing, visit); err != nil {
 			return err
@@ -874,9 +881,24 @@ func generateVisitProcedureItems(tx *gorm.DB, billing *models.Billing, visit *mo
 			billingItem.PerformedByRole = "dokter"
 		}
 
-		// Get tariff for patient class
+		if vp.MedicineOrderID != nil {
+			billingItem.ReferenceType = "prescription_fee"
+		}
+
+		// Get tariff for patient class (with fallback to non_kelas or any configured tariff)
+		var tariff *models.ProcedureTariff
 		if len(vp.Procedure.Tariffs) > 0 {
-			tariff := vp.Procedure.Tariffs[0]
+			tariff = &vp.Procedure.Tariffs[0]
+		} else {
+			var fallbackTariff models.ProcedureTariff
+			if err := tx.Where("procedure_id = ? AND patient_class = ?", vp.ProcedureID, "non_kelas").First(&fallbackTariff).Error; err == nil {
+				tariff = &fallbackTariff
+			} else if err := tx.Where("procedure_id = ?", vp.ProcedureID).First(&fallbackTariff).Error; err == nil {
+				tariff = &fallbackTariff
+			}
+		}
+
+		if tariff != nil {
 			unitPrice = tariff.GetTotal()
 
 			// Store tariff components

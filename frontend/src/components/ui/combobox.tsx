@@ -99,8 +99,8 @@ export function Combobox({
             </span>
           ) : selectedOption ? (
             <span className="truncate">{selectedOption.label}</span>
-          ) : value ? (
-            <span className="truncate">{value}</span>
+          ) : allowCustomValue && value && value !== "0" ? (
+            <span className="truncate">{customValueLabel ? customValueLabel(value) : value}</span>
           ) : (
             placeholder
           )}

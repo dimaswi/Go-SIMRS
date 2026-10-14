@@ -256,7 +256,6 @@ export default function MedicineShow() {
               <DetailField label="Bentuk Sediaan" value={medicineFormLabels[medicine.form]} />
               <DetailField label="Kekuatan" value={medicine.strength || "-"} />
               <DetailField label="Satuan" value={medicine.unit} />
-              <DetailField label="Produsen" value={medicine.manufacturer || "-"} />
               <DetailField label="Butuh Resep" value={<Badge variant={medicine.require_recipe ? "destructive" : "secondary"}>{medicine.require_recipe ? "Ya" : "Tidak"}</Badge>} />
             </div>
           </SectionPanel>

@@ -1353,7 +1353,7 @@ export default function RegistrationIndex() {
               {roomValue
                 ? (() => {
                   const r = rooms.find((r) => r.id.toString() === roomValue);
-                  return r ? `${r.code} - ${r.name}` : "Semua Ruangan";
+                  return r ? r.name : "Semua Ruangan";
                 })()
                 : "Semua Ruangan"}
             </span>
@@ -1380,7 +1380,7 @@ export default function RegistrationIndex() {
                     onSelect={() => { onRoomChange(room.id.toString()); setRoomPopoverOpen(false); }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", roomValue === room.id.toString() ? "opacity-100" : "opacity-0")} />
-                    {room.code} - {room.name}
+                    {room.name}
                   </CommandItem>
                 ))}
               </CommandGroup>

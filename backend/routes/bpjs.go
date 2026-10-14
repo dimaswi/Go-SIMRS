@@ -144,6 +144,7 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 
 			// Surat Kontrol (SKDP Rawat Jalan)
 			vclaim.POST("/surat-kontrol", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateSuratKontrol)
+			vclaim.POST("/surat-kontrol/local", middleware.RequirePermission("registrations.create"), handlers.CreateLocalSuratKontrol)
 			vclaim.DELETE("/surat-kontrol/:noSuratKontrol", middleware.RequirePermission("registrations.delete"), handlers.VClaimDeleteSuratKontrol)
 			vclaim.DELETE("/surat-kontrol/:noSuratKontrol/local", middleware.RequirePermission("registrations.update"), handlers.DeleteSuratKontrolLocal)
 			vclaim.PUT("/surat-kontrol/:noSuratKontrol", middleware.RequirePermission("registrations.update"), handlers.VClaimUpdateSuratKontrol)

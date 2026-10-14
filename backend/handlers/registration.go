@@ -858,12 +858,25 @@ func CreateRegistration(c *gin.Context) {
 			return
 		}
 
-		dayOfWeek := int(time.Now().Weekday())
-		var schedule models.DoctorSchedule
-		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
-			*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan ini pada hari ini"})
-			return
+		serviceType := ""
+		if room.ServiceType != "" {
+			serviceType = room.ServiceType
+		}
+		
+		isEmergencyOrInpatient := !room.HasSchedule || 
+			serviceType == "gawat_darurat" || 
+			serviceType == "rawat_inap" || 
+			serviceType == "ugd" || 
+			serviceType == "igd"
+
+		if !isEmergencyOrInpatient {
+			dayOfWeek := int(time.Now().Weekday())
+			var schedule models.DoctorSchedule
+			if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
+				*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan ini pada hari ini"})
+				return
+			}
 		}
 	}
 
@@ -1339,6 +1352,14 @@ func CreateRegistration(c *gin.Context) {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat resep obat: " + err.Error()})
 						return
 					}
+
+					var creatorID *uint
+					if uVal, ok := c.Get("userID"); ok && uVal != nil {
+						if uid, okUid := uVal.(uint); okUid {
+							creatorID = &uid
+						}
+					}
+					_ = ApplyPrescriptionFee(tx, visit.ID, input.DestinationRoomID, creatorID, &medicineOrder)
 
 					for _, item := range orderItems {
 						medicineName := medicineLabelByID(tx, item.MedicineID)
@@ -2094,14 +2115,34 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 		return
 	}
 
+	// Fetch room to check if it requires a schedule
+	var room models.Room
+	if err := database.DB.First(&room, input.DestinationRoomID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tujuan tidak ditemukan"})
+		return
+	}
+
 	// Check if doctor has schedule on today in the target room
 	if input.DoctorID != nil {
-		dayOfWeek := int(startOfDay.Weekday())
-		var schedule models.DoctorSchedule
-		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
-			*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan pada hari ini"})
-			return
+		serviceType := ""
+		if room.ServiceType != "" {
+			serviceType = room.ServiceType
+		}
+		
+		isEmergencyOrInpatient := !room.HasSchedule || 
+			serviceType == "gawat_darurat" || 
+			serviceType == "rawat_inap" || 
+			serviceType == "ugd" || 
+			serviceType == "igd"
+
+		if !isEmergencyOrInpatient {
+			dayOfWeek := int(startOfDay.Weekday())
+			var schedule models.DoctorSchedule
+			if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ? AND is_active = ?",
+				*input.DoctorID, input.DestinationRoomID, dayOfWeek, true).First(&schedule).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak memiliki jadwal aktif di ruangan pada hari ini"})
+				return
+			}
 		}
 	}
 

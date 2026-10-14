@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -108,7 +111,7 @@ type TariffRequest struct {
 
 // CreateProcedureRequest represents the request body for creating a procedure
 type CreateProcedureRequest struct {
-	Code               string          `json:"code" binding:"required"`
+	Code               string          `json:"code"`
 	Name               string          `json:"name" binding:"required"`
 	Description        string          `json:"description"`
 	ProcedureType      string          `json:"procedure_type"` // medical, radiology, laboratory
@@ -137,12 +140,17 @@ func CreateProcedure(c *gin.Context) {
 		return
 	}
 
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		code = fmt.Sprintf("TDK%06d", time.Now().Unix()%1000000)
+	}
+
 	// Check duplicate code
 	var existing models.Procedure
-	if err := database.DB.Where("code = ?", req.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode tindakan sudah digunakan"})
-		return
+	if err := database.DB.Where("code = ?", code).First(&existing).Error; err == nil {
+		code = fmt.Sprintf("TDK%d", time.Now().UnixNano()%100000000)
 	}
+	req.Code = code
 
 	// Default procedure type
 	procedureType := req.ProcedureType
@@ -403,11 +411,13 @@ func GetRoomProcedures(c *gin.Context) {
 
 // CreateRoomProcedureRequest represents the request body
 type CreateRoomProcedureRequest struct {
-	ProcedureID     uint   `json:"procedure_id" binding:"required"`
-	IsAvailable     bool   `json:"is_available"`
-	MaxPerDay       int    `json:"max_per_day"`
-	RequiresBooking bool   `json:"requires_booking"`
-	Notes           string `json:"notes"`
+	ProcedureID       uint   `json:"procedure_id" binding:"required"`
+	IsAvailable       bool   `json:"is_available"`
+	IsMandatory       bool   `json:"is_mandatory"`
+	IsPrescriptionFee bool   `json:"is_prescription_fee"`
+	MaxPerDay         int    `json:"max_per_day"`
+	RequiresBooking   bool   `json:"requires_booking"`
+	Notes             string `json:"notes"`
 }
 
 // CreateRoomProcedure assigns a procedure to a room
@@ -435,20 +445,43 @@ func CreateRoomProcedure(c *gin.Context) {
 		return
 	}
 
-	// Check if already assigned
+	// Check if already assigned (including soft-deleted)
 	var existing models.RoomProcedure
-	if err := database.DB.Where("room_id = ? AND procedure_id = ?", roomID, req.ProcedureID).First(&existing).Error; err == nil {
+	if err := database.DB.Unscoped().Where("room_id = ? AND procedure_id = ?", roomID, req.ProcedureID).First(&existing).Error; err == nil {
+		if existing.DeletedAt.Valid {
+			// Restore soft-deleted record
+			existing.DeletedAt = gorm.DeletedAt{} // Set to null
+			existing.IsAvailable = req.IsAvailable
+			existing.IsMandatory = req.IsMandatory
+			existing.IsPrescriptionFee = req.IsPrescriptionFee
+			existing.MaxPerDay = req.MaxPerDay
+			existing.RequiresBooking = req.RequiresBooking
+			existing.Notes = req.Notes
+			
+			if err := database.DB.Unscoped().Save(&existing).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			
+			// Load procedure details
+			database.DB.Preload("Procedure").Preload("Procedure.Tariffs").First(&existing, existing.ID)
+			c.JSON(http.StatusCreated, gin.H{"data": existing})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tindakan sudah ditambahkan ke ruangan ini"})
 		return
 	}
 
 	roomProcedure := models.RoomProcedure{
-		RoomID:          uint(roomIDInt),
-		ProcedureID:     req.ProcedureID,
-		IsAvailable:     req.IsAvailable,
-		MaxPerDay:       req.MaxPerDay,
-		RequiresBooking: req.RequiresBooking,
-		Notes:           req.Notes,
+		RoomID:            uint(roomIDInt),
+		ProcedureID:       req.ProcedureID,
+		IsAvailable:       req.IsAvailable,
+		IsMandatory:       req.IsMandatory,
+		IsPrescriptionFee: req.IsPrescriptionFee,
+		MaxPerDay:         req.MaxPerDay,
+		RequiresBooking:   req.RequiresBooking,
+		Notes:             req.Notes,
 	}
 
 	if err := database.DB.Create(&roomProcedure).Error; err != nil {
@@ -488,7 +521,15 @@ func BulkAssignProcedures(c *gin.Context) {
 	for _, procID := range req.ProcedureIDs {
 		// Check if already assigned
 		var existing models.RoomProcedure
-		if err := database.DB.Where("room_id = ? AND procedure_id = ?", roomID, procID).First(&existing).Error; err == nil {
+		if err := database.DB.Unscoped().Where("room_id = ? AND procedure_id = ?", roomID, procID).First(&existing).Error; err == nil {
+			if existing.DeletedAt.Valid {
+				existing.DeletedAt = gorm.DeletedAt{}
+				existing.IsAvailable = true
+				if err := database.DB.Unscoped().Save(&existing).Error; err == nil {
+					created = append(created, existing)
+				}
+				continue
+			}
 			skipped = append(skipped, procID)
 			continue
 		}
@@ -529,6 +570,8 @@ func UpdateRoomProcedure(c *gin.Context) {
 	}
 
 	rp.IsAvailable = req.IsAvailable
+	rp.IsMandatory = req.IsMandatory
+	rp.IsPrescriptionFee = req.IsPrescriptionFee
 	rp.MaxPerDay = req.MaxPerDay
 	rp.RequiresBooking = req.RequiresBooking
 	rp.Notes = req.Notes

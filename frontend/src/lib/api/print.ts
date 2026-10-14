@@ -341,9 +341,11 @@ export const printApi = {
   /**
    * Print prescription (Resep Obat)
    * @param orderId - Medicine order ID
+   * @param options - Options (version: 'doctor' | 'edited')
    */
-  prescription: async (orderId: number) => {
-    return fetchPdf(`${BASE_URL}/prescription/${orderId}`);
+  prescription: async (orderId: number, options?: { version?: "doctor" | "edited" }) => {
+    const query = options?.version ? `?version=${options.version}` : "";
+    return fetchPdf(`${BASE_URL}/prescription/${orderId}${query}`);
   },
 
   /**
@@ -429,17 +431,21 @@ export const printApi = {
   /**
    * Print medicine labels - all items in order (Etiket Obat - Thermal 100mm x 40mm per label)
    * @param orderId - Medicine order ID
+   * @param options - Options (version: 'doctor' | 'edited')
    */
-  medicineLabels: async (orderId: number) => {
-    return fetchPdf(`${BASE_URL}/medicine-labels/${orderId}`);
+  medicineLabels: async (orderId: number, options?: { version?: "doctor" | "edited" }) => {
+    const query = options?.version ? `?version=${options.version}` : "";
+    return fetchPdf(`${BASE_URL}/medicine-labels/${orderId}${query}`);
   },
 
   /**
    * Print prescription thermal (Resep Obat - Thermal 100mm width) for patient
    * @param orderId - Medicine order ID
+   * @param options - Options (version: 'doctor' | 'edited')
    */
-  prescriptionThermal: async (orderId: number) => {
-    return fetchPdf(`${BASE_URL}/prescription-thermal/${orderId}`);
+  prescriptionThermal: async (orderId: number, options?: { version?: "doctor" | "edited" }) => {
+    const query = options?.version ? `?version=${options.version}` : "";
+    return fetchPdf(`${BASE_URL}/prescription-thermal/${orderId}${query}`);
   },
 
 

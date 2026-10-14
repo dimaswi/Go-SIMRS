@@ -663,7 +663,7 @@ export function SEPFormSheet({
                     </Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} â€¢ RM {patient.no_rm}</p>
+                <p className="text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} &bull; RM {patient.no_rm}</p>
               </div>
 
               {canAssignExisting && (

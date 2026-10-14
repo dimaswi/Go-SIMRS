@@ -48,7 +48,7 @@ export default function RoomInventoryPage() {
         { value: '', label: 'Semua Ruangan' },
         ...allRooms.map((r: Room) => ({
           value: r.id.toString(),
-          label: `${r.code} - ${r.name}`,
+          label: r.name,
         })),
       ]);
     } catch (error) {

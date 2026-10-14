@@ -24,7 +24,7 @@ export function calculateBaseAmount(item: PurchaseCommercialItemLike) {
 export function syncPurchaseItemCommercials<T extends PurchaseCommercialItemLike>(item: T): T {
   const subtotal = calculateBaseAmount(item);
   const discountPercent = Math.max(0, item.discount_percent || 0);
-  const taxPercent = Math.max(0, item.tax_percent || 0);
+  const taxPercent = item.tax_percent !== undefined ? Math.max(0, item.tax_percent) : 11;
   const discountAmount = round2(Math.min(subtotal, (subtotal * discountPercent) / 100));
   const taxableBase = Math.max(0, subtotal - discountAmount);
   const taxAmount = round2((taxableBase * taxPercent) / 100);

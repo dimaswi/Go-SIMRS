@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi, DOCUMENT_TYPE_LABELS } from "@/lib/api";
 import { Loader2, ShieldCheck, KeyRound } from "lucide-react";
@@ -44,6 +45,7 @@ export function SignaturePINDialog({
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [pinRequired, setPinRequired] = useState(true);
+  const [showDatePlace, setShowDatePlace] = useState(true);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export function SignaturePINDialog({
         visit_id: visitId,
         required_signatures: requiredSignatures,
         signature_slot: signatureSlot,
+        hide_date_place: !showDatePlace,
       });
 
       toast({
@@ -231,6 +234,17 @@ export function SignaturePINDialog({
               Klik "Tanda Tangani" untuk menandatangani dokumen ini
             </p>
           )}
+
+          <div className="flex items-center space-x-2 py-2">
+            <Checkbox 
+              id="show-date-place" 
+              checked={showDatePlace}
+              onCheckedChange={(checked) => setShowDatePlace(checked as boolean)}
+            />
+            <Label htmlFor="show-date-place" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Tampilkan tempat dan tanggal pada cetakan TTD
+            </Label>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

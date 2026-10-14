@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jung-kurt/gofpdf"
-	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
+	"gorm.io/gorm"
 )
 
 func printPrescriptionImpl(c *gin.Context) {
@@ -82,8 +84,10 @@ func printPrescriptionImpl(c *gin.Context) {
 			ext := strings.ToLower(filepath.Ext(logoPath))
 			imgType := ""
 			switch ext {
-			case ".png": imgType = "PNG"
-			case ".jpg", ".jpeg": imgType = "JPG"
+			case ".png":
+				imgType = "PNG"
+			case ".jpg", ".jpeg":
+				imgType = "JPG"
 			}
 			if imgType != "" {
 				pdf.Image(logoPath, 10, 10, logoWidth, logoWidth, false, imgType, 0, "")
@@ -98,14 +102,22 @@ func printPrescriptionImpl(c *gin.Context) {
 
 	pdf.SetFont("Arial", "", 7)
 	address := hospitalInfo.Address
-	if hospitalInfo.City != "" { address += ", " + hospitalInfo.City }
+	if hospitalInfo.City != "" {
+		address += ", " + hospitalInfo.City
+	}
 	pdf.SetX(textStartX)
 	pdf.MultiCell(textWidth, 3.5, address, "", "C", false)
 
 	contact := []string{}
-	if hospitalInfo.Phone != "" { contact = append(contact, "Telp: "+hospitalInfo.Phone) }
-	if hospitalInfo.Fax != "" { contact = append(contact, "Fax: "+hospitalInfo.Fax) }
-	if hospitalInfo.Email != "" { contact = append(contact, hospitalInfo.Email) }
+	if hospitalInfo.Phone != "" {
+		contact = append(contact, "Telp: "+hospitalInfo.Phone)
+	}
+	if hospitalInfo.Fax != "" {
+		contact = append(contact, "Fax: "+hospitalInfo.Fax)
+	}
+	if hospitalInfo.Email != "" {
+		contact = append(contact, hospitalInfo.Email)
+	}
 	pdf.SetX(textStartX)
 	pdf.CellFormat(textWidth, 3.5, strings.Join(contact, " | "), "", 1, "C", false, 0, "")
 
@@ -145,22 +157,26 @@ func printPrescriptionImpl(c *gin.Context) {
 			sip = visit.Doctor.NoSIP
 		}
 	}
+	leftLabelW := 19.0
+	leftValX := startX + 2 + leftLabelW + 2.0
+	leftValW := midX - leftValX - 1.0
+
 	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "Pengirim", "", 0, "L", false, 0, "")
+	pdf.CellFormat(leftLabelW, lineH, "Pengirim", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, doctorName, "", "L", false)
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, doctorName, "", "L", false)
 	y = pdf.GetY()
 
 	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "SIP", "", 0, "L", false, 0, "")
+	pdf.CellFormat(leftLabelW, lineH, "SIP", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, sip, "", "L", false)
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, sip, "", "L", false)
 	y = pdf.GetY()
 
 	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "PRO", "", 0, "L", false, 0, "")
+	pdf.CellFormat(leftLabelW, lineH, "PRO", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
 	pro := patient.NamaLengkap
 	genderMarker := "L / P"
@@ -169,50 +185,90 @@ func printPrescriptionImpl(c *gin.Context) {
 	} else if patient.JenisKelamin == "P" {
 		genderMarker = "- / P"
 	}
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, fmt.Sprintf("%s (%s)", pro, genderMarker), "", "L", false)
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, fmt.Sprintf("%s (%s)", pro, genderMarker), "", "L", false)
 	y = pdf.GetY()
 
 	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "Tanggal Lahir", "", 0, "L", false, 0, "")
+	pdf.CellFormat(leftLabelW, lineH, "Tanggal Lahir", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
 	birthDate := "-"
 	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
 		birthDate = patient.TanggalLahir.Format("02-01-2006")
 	}
-	weightStr := "___"
-	if physExam.Weight != "" {
-		weightStr = physExam.Weight
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, birthDate, "", "L", false)
+	y = pdf.GetY()
+
+	pdf.SetXY(startX+2, y)
+	pdf.CellFormat(leftLabelW, lineH, "No. RM", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, patient.NoRM, "", "L", false)
+	y = pdf.GetY()
+
+	pdf.SetXY(startX+2, y)
+	pdf.CellFormat(leftLabelW, lineH, "Alamat", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+
+	// Tampilkan nama desa/kelurahan agar ringkas dan rapi 1 baris
+	patientAddress := ""
+	kel := strings.TrimSpace(patient.KelurahanKTP)
+	if kel == "" {
+		kel = strings.TrimSpace(patient.KelurahanDomisili)
 	}
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, fmt.Sprintf("%s     BB %s kg", birthDate, weightStr), "", "L", false)
-	y = pdf.GetY()
 
-	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "No. RM", "", 0, "L", false, 0, "")
-	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, patient.NoRM, "", "L", false)
-	y = pdf.GetY()
+	if kel != "" {
+		lowerKel := strings.ToLower(kel)
+		if strings.HasPrefix(lowerKel, "desa ") || strings.HasPrefix(lowerKel, "ds.") || strings.HasPrefix(lowerKel, "ds ") || strings.HasPrefix(lowerKel, "kel.") || strings.HasPrefix(lowerKel, "kelurahan ") {
+			patientAddress = kel
+		} else {
+			patientAddress = "Ds. " + kel
+		}
+	} else if patient.KecamatanKTP != "" {
+		patientAddress = "Kec. " + strings.TrimSpace(patient.KecamatanKTP)
+	} else if strings.TrimSpace(patient.AlamatKTP) != "" {
+		patientAddress = strings.TrimSpace(patient.AlamatKTP)
+	} else {
+		patientAddress = "-"
+	}
 
-	pdf.SetXY(startX+2, y)
-	pdf.CellFormat(20, lineH, "Alamat", "", 0, "L", false, 0, "")
-	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
-	pdf.SetXY(startX+24, y)
-	pdf.MultiCell(midX-(startX+24)-2, lineH, patient.AlamatKTP, "", "L", false)
+	pdf.SetXY(leftValX, y)
+	pdf.MultiCell(leftValW, lineH, patientAddress, "", "L", false)
 	leftMaxY := pdf.GetY()
 
 	// Right Side Info
+	rightLabelW := 22.0
+	rightValX := midX + 2 + rightLabelW + 2.0
+	rightValW := 138.0 - rightValX - 2.0
+
 	y = startY + 2
+	version := strings.ToLower(strings.TrimSpace(c.Query("version")))
+	orderNoStr := strings.TrimSpace(order.OrderNumber)
+	if orderNoStr == "" {
+		orderNoStr = fmt.Sprintf("RX-%d", order.ID)
+	}
+	if version == "doctor" {
+		orderNoStr += " "
+	} else if order.IsEditedByPharmacy {
+		orderNoStr += ""
+	}
 	pdf.SetXY(midX+2, y)
-	pdf.CellFormat(25, lineH, "Tanggal Resep", "", 0, "L", false, 0, "")
+	pdf.CellFormat(rightLabelW, lineH, "No. Resep", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
-	pdf.SetXY(midX+29, y)
-	pdf.MultiCell(138-(midX+29)-2, lineH, formatDateIndonesian(order.CreatedAt), "", "L", false)
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, orderNoStr, "", "L", false)
 	y = pdf.GetY()
 
 	pdf.SetXY(midX+2, y)
-	pdf.CellFormat(25, lineH, "Ruangan/Poli", "", 0, "L", false, 0, "")
+	pdf.CellFormat(rightLabelW, lineH, "Tanggal Resep", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, formatDateIndonesian(order.CreatedAt), "", "L", false)
+	y = pdf.GetY()
+
+	pdf.SetXY(midX+2, y)
+	pdf.CellFormat(rightLabelW, lineH, "Ruangan/Poli", "", 0, "L", false, 0, "")
 	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
 	roomName := "-"
 	if order.SourceRoom != nil {
@@ -222,56 +278,110 @@ func printPrescriptionImpl(c *gin.Context) {
 	} else if visit.Registration != nil && visit.Registration.DestinationRoom != nil {
 		roomName = visit.Registration.DestinationRoom.Name
 	}
-	pdf.SetXY(midX+29, y)
-	pdf.MultiCell(138-(midX+29)-2, lineH, roomName, "", "L", false)
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, roomName, "", "L", false)
 	y = pdf.GetY()
 
+	// Pembayaran
 	pdf.SetXY(midX+2, y)
-	isUmum := " "
-	isBPJS := " "
-	if visit.Registration != nil {
-		if visit.Registration.PaymentMethod == "bpjs" {
-			isBPJS = "X"
+	pdf.CellFormat(rightLabelW, lineH, "Pembayaran", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+	paymentStr := "Umum"
+	if visit.Registration != nil && visit.Registration.PaymentMethod != "" {
+		pm := strings.ToLower(strings.TrimSpace(visit.Registration.PaymentMethod))
+		if strings.Contains(pm, "bpjs") {
+			paymentStr = "BPJS"
+		} else if pm == "cash" || pm == "umum" {
+			paymentStr = "Umum"
+		} else if pm == "insurance" || pm == "asuransi" {
+			paymentStr = "Asuransi"
 		} else {
-			isUmum = "X"
+			paymentStr = strings.ToUpper(visit.Registration.PaymentMethod)
 		}
 	}
-	pdf.MultiCell(138-(midX+2)-2, lineH, fmt.Sprintf("[ %s ] Umum         [ %s ] BPJS", isUmum, isBPJS), "", "L", false)
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, paymentStr, "", "L", false)
 	y = pdf.GetY()
 
-	pdf.SetXY(midX+2, y)
-	pdf.MultiCell(138-(midX+2)-2, lineH, "Riwayat Alergi", "", "L", false)
-	y = pdf.GetY()
+	// BB / TB
+	weightVal := ""
+	if physExam.Weight != "" {
+		w := strings.TrimSpace(physExam.Weight)
+		w = strings.TrimRight(w, " kKgG")
+		if w != "" {
+			weightVal = w + " kg"
+		}
+	}
+	heightVal := ""
+	if physExam.Height != "" {
+		h := strings.TrimSpace(physExam.Height)
+		h = strings.TrimRight(h, " cCmM")
+		if h != "" {
+			heightVal = h + " cm"
+		}
+	}
 
-	hasAllergy := " "
-	noAllergy := " "
-	allergyName := "............................."
-	
-	patientAllergies := ""
-	if patient.AlergiObat != "" {
-		patientAllergies = patient.AlergiObat
-	} else if patient.AlergiMakanan != "" {
-		patientAllergies = patient.AlergiMakanan
-	} else if patient.AlergiLainnya != "" {
-		patientAllergies = patient.AlergiLainnya
-	}
-	if medRecord.Allergies != "" && medRecord.Allergies != "-" && medRecord.Allergies != "Tidak Ada" && medRecord.Allergies != "tidak ada" && medRecord.Allergies != "Tidak ada" {
-		patientAllergies = medRecord.Allergies
-	}
-	
-	if patientAllergies != "" && patientAllergies != "-" && patientAllergies != "Tidak Ada" && patientAllergies != "tidak ada" && patientAllergies != "Tidak ada" {
-		hasAllergy = "X"
-		allergyName = patientAllergies
+	bbtbStr := "-"
+	if weightVal != "" && heightVal != "" {
+		bbtbStr = fmt.Sprintf("%s / %s", weightVal, heightVal)
+	} else if weightVal != "" {
+		bbtbStr = fmt.Sprintf("%s / ___ cm", weightVal)
+	} else if heightVal != "" {
+		bbtbStr = fmt.Sprintf("___ kg / %s", heightVal)
 	} else {
-		noAllergy = "X"
+		bbtbStr = "___ kg / ___ cm"
 	}
 
 	pdf.SetXY(midX+2, y)
-	pdf.MultiCell(138-(midX+2)-2, lineH, fmt.Sprintf("[ %s ] Ya, Nama %s", hasAllergy, allergyName), "", "L", false)
+	pdf.CellFormat(rightLabelW, lineH, "BB / TB", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, bbtbStr, "", "L", false)
 	y = pdf.GetY()
 
+	// Riwayat Alergi
+	isNoneAllergy := func(s string) bool {
+		trimmed := strings.ToLower(strings.TrimSpace(s))
+		return trimmed == "" || trimmed == "-" || trimmed == "tidak ada" ||
+			trimmed == "tidak ada alergi" || trimmed == "tidak" || trimmed == "none" ||
+			trimmed == "t.a.k" || trimmed == "tak" || trimmed == "disangkal" ||
+			trimmed == "tidak ada riwayat alergi"
+	}
+
+	var allergies []string
+	if patient.AlergiObat != "" && !isNoneAllergy(patient.AlergiObat) {
+		allergies = append(allergies, patient.AlergiObat)
+	}
+	if patient.AlergiMakanan != "" && !isNoneAllergy(patient.AlergiMakanan) {
+		allergies = append(allergies, patient.AlergiMakanan)
+	}
+	if patient.AlergiLainnya != "" && !isNoneAllergy(patient.AlergiLainnya) {
+		allergies = append(allergies, patient.AlergiLainnya)
+	}
+	if medRecord.Allergies != "" && !isNoneAllergy(medRecord.Allergies) {
+		medAllergy := strings.TrimSpace(medRecord.Allergies)
+		found := false
+		for _, a := range allergies {
+			if strings.EqualFold(a, medAllergy) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			allergies = append(allergies, medAllergy)
+		}
+	}
+
+	allergyText := "Tidak ada"
+	if len(allergies) > 0 {
+		allergyText = strings.Join(allergies, ", ")
+	}
+
 	pdf.SetXY(midX+2, y)
-	pdf.MultiCell(138-(midX+2)-2, lineH, fmt.Sprintf("[ %s ] Tidak", noAllergy), "", "L", false)
+	pdf.CellFormat(rightLabelW, lineH, "Riwayat Alergi", "", 0, "L", false, 0, "")
+	pdf.CellFormat(2, lineH, ":", "", 0, "C", false, 0, "")
+	pdf.SetXY(rightValX, y)
+	pdf.MultiCell(rightValW, lineH, allergyText, "", "L", false)
 	rightMaxY := pdf.GetY()
 
 	maxY := leftMaxY
@@ -286,21 +396,21 @@ func printPrescriptionImpl(c *gin.Context) {
 
 	// Lower Body Layout
 	y = startY + boxHeight
-	
+
 	// If the remaining space is less than what's needed for the lower body (approx 125mm)
-	if y + 125.0 > 200.0 {
+	if y+125.0 > 200.0 {
 		pdf.AddPage()
 		y = 10.0
 	}
-	
+
 	availH := 202.0 - y
 	if availH < 125.0 {
 		availH = 125.0
 	}
-	
+
 	// Temporarily disable auto page break so we can draw to the very bottom margin without triggering a new page
 	pdf.SetAutoPageBreak(false, 0)
-	
+
 	pdf.SetXY(startX, y)
 	// Outer border for lower body
 	pdf.Rect(10, y, 128, availH, "D")
@@ -315,20 +425,55 @@ func printPrescriptionImpl(c *gin.Context) {
 	type groupedItem struct {
 		isRacikan   bool
 		racikanName string
+		racikanType string
 		racikanQty  int
 		racikanUnit string
 		components  []models.MedicineOrderItem
 		item        models.MedicineOrderItem
 	}
 
+	itemsToRender := order.Items
+	if version == "doctor" && order.DoctorItemsJSON != "" {
+		var snapshots []models.DoctorOrderItemSnapshot
+		if err := json.Unmarshal([]byte(order.DoctorItemsJSON), &snapshots); err == nil && len(snapshots) > 0 {
+			var doctorItems []models.MedicineOrderItem
+			for _, snap := range snapshots {
+				doctorItems = append(doctorItems, models.MedicineOrderItem{
+					MedicineID: snap.MedicineID,
+					Medicine: &models.Medicine{
+						ID:   snap.MedicineID,
+						Name: snap.MedicineName,
+						Code: snap.MedicineCode,
+					},
+					ItemType:     snap.ItemType,
+					RacikanGroup: snap.RacikanGroup,
+					RacikanName:  snap.RacikanName,
+					RacikanType:  snap.RacikanType,
+					RacikanQty:   snap.RacikanQty,
+					RacikanUnit:  snap.RacikanUnit,
+					Quantity:     snap.Quantity,
+					Unit:         snap.Unit,
+					Dosage:       snap.Dosage,
+					Frequency:    snap.Frequency,
+					Route:        snap.Route,
+					Duration:     snap.Duration,
+					Instructions: snap.Instructions,
+					Notes:        snap.Notes,
+					Status:       models.ItemStatusOrdered,
+				})
+			}
+			itemsToRender = doctorItems
+		}
+	}
+
 	var groups []groupedItem
 	racikanMap := make(map[string]int)
 
-	for _, item := range order.Items {
+	for _, item := range itemsToRender {
 		if item.Status == models.ItemStatusCancelled {
 			continue
 		}
-		
+
 		if item.ItemType == "racikan" && item.RacikanGroup != "" {
 			if idx, exists := racikanMap[item.RacikanGroup]; exists {
 				groups[idx].components = append(groups[idx].components, item)
@@ -336,6 +481,7 @@ func printPrescriptionImpl(c *gin.Context) {
 				ng := groupedItem{
 					isRacikan:   true,
 					racikanName: item.RacikanName,
+					racikanType: item.RacikanType,
 					racikanQty:  item.RacikanQty,
 					racikanUnit: item.RacikanUnit,
 					components:  []models.MedicineOrderItem{item},
@@ -354,128 +500,246 @@ func printPrescriptionImpl(c *gin.Context) {
 	// Medicine List
 	medY := y + 5
 	for _, grp := range groups {
-		pdf.SetFont("Times", "BI", 16)
-		pdf.SetXY(12, medY)
-		pdf.CellFormat(10, 4, "R/.", "", 0, "L", false, 0, "")
-		
 		if !grp.isRacikan {
 			medName := ""
 			if grp.item.Medicine != nil {
 				medName = grp.item.Medicine.Name
 			}
+
+			// Line 1: Quantity on the far right (X=63-73), R/ and Medicine Name on the left
+			pdf.SetFont("Arial", "B", 8.5)
+			pdf.SetXY(63, medY)
+			pdf.CellFormat(10, 4.0, fmt.Sprintf("%d", grp.item.Quantity), "", 0, "R", false, 0, "")
+
+			pdf.SetFont("Times", "BI", 11)
+			pdf.SetXY(12, medY)
+			pdf.CellFormat(5, 4.0, "R/", "", 0, "L", false, 0, "")
+
 			pdf.SetFont("Arial", "B", 8)
-			pdf.SetXY(22, medY)
-			pdf.MultiCell(50, 4, medName, "", "L", false)
-			
-			qtyStr := fmt.Sprintf("Jumlah: %d %s", grp.item.Quantity, grp.item.Unit)
-			if grp.item.Dosage != "" {
-				qtyStr += " | Dosis: " + grp.item.Dosage
+			pdf.SetXY(17, medY)
+			pdf.MultiCell(46, 3.8, medName, "", "L", false)
+
+			// Line 2: S (Signa / Aturan Pakai)
+			signaText := formatMedicineSigna(grp.item.Dosage, grp.item.Frequency, grp.item.Instructions, medName)
+			if signaText == "" || signaText == "....... X ....... Tab/Kap/Bungkus" {
+				signaText = "-"
 			}
-			if grp.item.Frequency != "" {
-				qtyStr += " | Frekuensi: " + grp.item.Frequency
+			pdf.SetFont("Arial", "", 8)
+			pdf.SetXY(17, pdf.GetY()+0.3)
+			pdf.MultiCell(56, 3.8, "S "+signaText, "", "L", false)
+
+			// Line 3: Ket. (Keterangan / Notes)
+			ketText := ""
+			if grp.item.Notes != "" {
+				ketText = "Ket. " + grp.item.Notes
+			} else if grp.item.Duration != "" {
+				ketText = "Ket. " + grp.item.Duration
 			}
-			if grp.item.Route != "" {
-				qtyStr += " | Cara: " + grp.item.Route
+			if ketText != "" {
+				pdf.SetFont("Arial", "", 7.5)
+				pdf.SetXY(17, pdf.GetY()+0.2)
+				pdf.MultiCell(56, 3.5, ketText, "", "L", false)
 			}
-			pdf.SetFont("Arial", "", 7)
-			pdf.SetXY(22, pdf.GetY())
-			pdf.MultiCell(50, 3.5, qtyStr, "", "L", false)
-			
-			pdf.SetFont("Arial", "I", 7)
-			pdf.SetXY(22, pdf.GetY())
-			pdf.MultiCell(50, 3.5, "Signa: "+grp.item.Instructions, "", "L", false)
+
+			medY = pdf.GetY() + 3.0
 		} else {
-			pdf.SetFont("Arial", "B", 8)
-			pdf.SetXY(22, medY)
-			pdf.MultiCell(50, 4, grp.racikanName, "", "L", false)
-			
-			pdf.SetFont("Arial", "", 7)
-			compY := pdf.GetY()
+			// Line 1: Header R/ Nama Racikan
+			pdf.SetFont("Times", "BI", 11)
+			pdf.SetXY(12, medY)
+			pdf.CellFormat(5, 4.0, "R/", "", 0, "L", false, 0, "")
+
+			pdf.SetFont("Arial", "B", 8.5)
+			pdf.SetXY(17, medY)
+			pdf.MultiCell(55, 4.0, grp.racikanName, "", "L", false)
+
+			compY := pdf.GetY() + 0.5
+
+			// Line 2+: Komponen racikan
 			for _, comp := range grp.components {
 				compName := ""
 				if comp.Medicine != nil {
 					compName = comp.Medicine.Name
 				}
-				compLine := fmt.Sprintf("- %s (%d %s)", compName, comp.Quantity, comp.Unit)
-				pdf.SetXY(24, compY)
-				pdf.MultiCell(48, 3.5, compLine, "", "L", false)
-				compY = pdf.GetY()
+
+				// Component dosage or qty (e.g. 100mg, 1/3 Tab, 2 tab)
+				doseStr := strings.TrimSpace(comp.Dosage)
+				if doseStr == "" || doseStr == "-" {
+					if comp.Quantity > 0 {
+						if comp.Unit != "" {
+							doseStr = fmt.Sprintf("%d %s", comp.Quantity, comp.Unit)
+						} else {
+							doseStr = fmt.Sprintf("%d", comp.Quantity)
+						}
+					}
+				}
+
+				pdf.SetFont("Arial", "B", 7.5)
+				doseW := pdf.GetStringWidth(doseStr)
+				if doseW < 10.0 {
+					doseW = 10.0
+				}
+				doseX := 72.5 - doseW
+
+				if doseStr != "" {
+					pdf.SetXY(doseX, compY)
+					pdf.CellFormat(doseW, 3.5, doseStr, "", 0, "R", false, 0, "")
+				}
+
+				pdf.SetFont("Arial", "", 7.5)
+				pdf.SetXY(17, compY)
+				pdf.MultiCell(doseX-18.0, 3.5, compName, "", "L", false)
+				if pdf.GetY() > compY+3.5 {
+					compY = pdf.GetY()
+				} else {
+					compY += 3.5
+				}
 			}
-			
+
+			// Determine Jenis Racikan & Jumlah Racikan
 			firstComp := grp.components[0]
-			qtyStr := fmt.Sprintf("Jumlah: %d %s", grp.racikanQty, grp.racikanUnit)
-			if firstComp.Dosage != "" {
-				qtyStr += " | Dosis: " + firstComp.Dosage
+			racType := grp.racikanType
+			if racType == "" {
+				racType = firstComp.RacikanType
 			}
-			if firstComp.Frequency != "" {
-				qtyStr += " | Frekuensi: " + firstComp.Frequency
+			// Strip code prefix like "R.01 ", "R.02 "
+			if idx := strings.Index(racType, " "); idx != -1 && strings.HasPrefix(racType, "R.") {
+				racType = strings.TrimSpace(racType[idx+1:])
 			}
-			if firstComp.Route != "" {
-				qtyStr += " | Cara: " + firstComp.Route
+			if racType == "" {
+				racType = grp.racikanUnit
 			}
-			pdf.SetXY(22, compY)
-			pdf.MultiCell(50, 3.5, qtyStr, "", "L", false)
-			
-			pdf.SetFont("Arial", "I", 7)
-			pdf.SetXY(22, pdf.GetY())
-			pdf.MultiCell(50, 3.5, "Signa: "+firstComp.Instructions, "", "L", false)
+			if racType == "" {
+				racType = firstComp.RacikanUnit
+			}
+			if racType == "" {
+				racType = "Pulveres"
+			}
+
+			racQty := grp.racikanQty
+			if racQty <= 0 {
+				racQty = firstComp.RacikanQty
+			}
+			if racQty <= 0 {
+				racQty = firstComp.Quantity
+			}
+			if racQty <= 0 {
+				racQty = 10
+			}
+
+			// Line: m.f [Jenis] No.                                         [Jumlah]
+			qtyStr := fmt.Sprintf("%d", racQty)
+			pdf.SetFont("Arial", "B", 8.5)
+			qtyW := pdf.GetStringWidth(qtyStr)
+			if qtyW < 8.0 {
+				qtyW = 8.0
+			}
+			qtyX := 72.5 - qtyW
+
+			pdf.SetXY(qtyX, compY+0.3)
+			pdf.CellFormat(qtyW, 3.8, qtyStr, "", 0, "R", false, 0, "")
+
+			// Left side: m.f [Jenis] No. (aligned with medicine list at X=17)
+			pdf.SetFont("Times", "BI", 9.5)
+			pdf.SetXY(17, compY+0.3)
+			pdf.CellFormat(5.5, 3.8, "m.f ", "", 0, "L", false, 0, "")
+
+			pdf.SetFont("Arial", "B", 8)
+			mfLabel := fmt.Sprintf("%s No.", racType)
+			pdf.SetXY(22.5, compY+0.3)
+			pdf.CellFormat(qtyX-23.5, 3.8, mfLabel, "", 0, "L", false, 0, "")
+			pdf.SetY(compY + 4.1)
+
+			// Line S (Signa / Aturan Pakai)
+			signaText := formatMedicineSigna(firstComp.Dosage, firstComp.Frequency, firstComp.Instructions, grp.racikanName)
+			if signaText == "" || signaText == "....... X ....... Tab/Kap/Bungkus" {
+				signaText = "-"
+			}
+			pdf.SetFont("Arial", "", 8)
+			pdf.SetXY(17, pdf.GetY()+0.3)
+			pdf.MultiCell(56, 3.8, "S "+signaText, "", "L", false)
+
+			// Line Ket. (Keterangan / Notes)
+			ketText := ""
+			if firstComp.Notes != "" {
+				ketText = "Ket. " + firstComp.Notes
+			} else if firstComp.Duration != "" {
+				ketText = "Ket. " + firstComp.Duration
+			}
+			if ketText != "" {
+				pdf.SetFont("Arial", "", 7.5)
+				pdf.SetXY(17, pdf.GetY()+0.2)
+				pdf.MultiCell(56, 3.5, ketText, "", "L", false)
+			}
+
+			medY = pdf.GetY() + 3.0
 		}
-		
-		medY = pdf.GetY() + 4
 	}
 
 	// Checklist Side
 	cY := y + 2
 	cLine := 4.0
 
+	type checkItem struct {
+		checked bool
+		label   string
+	}
+
+	renderCheckItem := func(item checkItem, itemY float64) {
+		pdf.SetXY(splitX+2, itemY)
+		pdf.SetFont("Arial", "", 7)
+		pdf.CellFormat(1.8, 3.5, "[", "", 0, "L", false, 0, "")
+		if item.checked {
+			pdf.SetFont("ZapfDingbats", "", 6.5)
+			pdf.CellFormat(3.0, 3.5, "4", "", 0, "C", false, 0, "")
+		} else {
+			pdf.SetFont("Arial", "", 7)
+			pdf.CellFormat(3.0, 3.5, " ", "", 0, "C", false, 0, "")
+		}
+		pdf.SetFont("Arial", "", 7)
+		pdf.CellFormat(2.0, 3.5, "]", "", 0, "L", false, 0, "")
+		pdf.CellFormat(53.0, 3.5, " "+item.label, "", 1, "L", false, 0, "")
+	}
+
 	// Telaah Resep
 	pdf.SetFont("Arial", "BU", 8)
 	pdf.SetXY(splitX, cY)
 	pdf.CellFormat(63, cLine, "TELAAH RESEP", "", 1, "C", false, 0, "")
-	pdf.SetFont("Arial", "", 7)
-	
-	getCheck := func(b bool) string {
-		if b { return "X" }
-		return " "
-	}
-	
-	telaahItems := []string{
-		fmt.Sprintf("[ %s ] Lengkap Identitas Pasien", getCheck(presReview.PatientIdentityCheck)),
-		fmt.Sprintf("[ %s ] Lengkap Nama & Paraf Dokter", getCheck(presReview.DoctorNameSignCheck)),
-		fmt.Sprintf("[ %s ] Tanggal Resep", getCheck(presReview.PrescriptionDateCheck)),
-		fmt.Sprintf("[ %s ] Ada Nama Obat, Bentuk & Kekuatan", getCheck(presReview.MedicineDataCheck)),
-		fmt.Sprintf("[ %s ] Ada Dosis & Jumlah Obat", getCheck(presReview.DoseCheck)),
-		fmt.Sprintf("[ %s ] Ada Cara Pemakaian", getCheck(presReview.AdministrationRouteCheck)),
-		fmt.Sprintf("[ %s ] Interaksi Obat", getCheck(presReview.DrugInteractionCheck)),
-		fmt.Sprintf("[ %s ] Duplikasi", getCheck(presReview.DuplicationCheck)),
-		fmt.Sprintf("[ %s ] Kontra Indikasi", getCheck(presReview.ContraindicationCheck)),
-		fmt.Sprintf("[ %s ] Alergi / Reaksi Obat Yg Tdk Diinginkan", getCheck(presReview.AllergyCheck)),
+
+	telaahItems := []checkItem{
+		{presReview.PatientIdentityCheck, "Lengkap Identitas Pasien"},
+		{presReview.DoctorNameSignCheck, "Lengkap Nama & Paraf Dokter"},
+		{presReview.PrescriptionDateCheck, "Tanggal Resep"},
+		{presReview.MedicineDataCheck, "Ada Nama Obat, Bentuk & Kekuatan"},
+		{presReview.DoseCheck, "Ada Dosis & Jumlah Obat"},
+		{presReview.AdministrationRouteCheck, "Ada Cara Pemakaian"},
+		{presReview.DrugInteractionCheck, "Interaksi Obat"},
+		{presReview.DuplicationCheck, "Duplikasi"},
+		{presReview.ContraindicationCheck, "Kontra Indikasi"},
+		{presReview.AllergyCheck, "Alergi / Reaksi Obat Yg Tdk Diinginkan"},
 	}
 	cY += cLine
 	for _, ti := range telaahItems {
-		pdf.SetXY(splitX+2, cY)
-		pdf.CellFormat(60, 3.5, ti, "", 1, "L", false, 0, "")
+		renderCheckItem(ti, cY)
 		cY += 3.5
 	}
 	pdf.Line(splitX, cY+2, 138, cY+2)
-	
+
 	// Verifikasi Akhir
 	cY += 6
 	pdf.SetFont("Arial", "BU", 8)
 	pdf.SetXY(splitX, cY)
 	pdf.CellFormat(63, cLine, "VERIFIKASI AKHIR", "", 1, "C", false, 0, "")
-	pdf.SetFont("Arial", "", 7)
-	verifItems := []string{
-		fmt.Sprintf("[ %s ] Benar Pasien", getCheck(presReview.FinalPatientCheck)),
-		fmt.Sprintf("[ %s ] Benar Obat", getCheck(presReview.FinalMedicineCheck)),
-		fmt.Sprintf("[ %s ] Benar Dosis", getCheck(presReview.FinalDoseCheck)),
-		fmt.Sprintf("[ %s ] Benar Waktu Pemberian", getCheck(presReview.FinalTimeCheck)),
-		fmt.Sprintf("[ %s ] Benar Rute Pemberian", getCheck(presReview.FinalRouteCheck)),
+
+	verifItems := []checkItem{
+		{presReview.FinalPatientCheck, "Benar Pasien"},
+		{presReview.FinalMedicineCheck, "Benar Obat"},
+		{presReview.FinalDoseCheck, "Benar Dosis"},
+		{presReview.FinalTimeCheck, "Benar Waktu Pemberian"},
+		{presReview.FinalRouteCheck, "Benar Rute Pemberian"},
 	}
 	cY += cLine
 	for _, vi := range verifItems {
-		pdf.SetXY(splitX+2, cY)
-		pdf.CellFormat(60, 3.5, vi, "", 1, "L", false, 0, "")
+		renderCheckItem(vi, cY)
 		cY += 3.5
 	}
 	pdf.Line(splitX, cY+2, 138, cY+2)
@@ -485,36 +749,33 @@ func printPrescriptionImpl(c *gin.Context) {
 	pdf.SetFont("Arial", "BU", 8)
 	pdf.SetXY(splitX, cY)
 	pdf.CellFormat(63, cLine, "PIO", "", 1, "C", false, 0, "")
-	pdf.SetFont("Arial", "", 7)
-	pioItems := []string{
-		fmt.Sprintf("[ %s ] Nama Obat", getCheck(presReview.PIONameCheck)),
-		fmt.Sprintf("[ %s ] Cara Pakai", getCheck(presReview.PIOUsageCheck)),
-		fmt.Sprintf("[ %s ] Kegunaan", getCheck(presReview.PIOBenefitCheck)),
-		fmt.Sprintf("[ %s ] Penyimpanan", getCheck(presReview.PIOStorageCheck)),
-		fmt.Sprintf("[ %s ] Lain-lain", getCheck(presReview.PIOOtherCheck)),
+
+	pioItems := []checkItem{
+		{presReview.PIONameCheck, "Nama Obat"},
+		{presReview.PIOUsageCheck, "Cara Pakai"},
+		{presReview.PIOBenefitCheck, "Kegunaan"},
+		{presReview.PIOStorageCheck, "Penyimpanan"},
+		{presReview.PIOOtherCheck, "Lain-lain"},
 	}
 	cY += cLine
 	for _, pi := range pioItems {
-		pdf.SetXY(splitX+2, cY)
-		pdf.CellFormat(60, 3.5, pi, "", 1, "L", false, 0, "")
+		renderCheckItem(pi, cY)
 		cY += 3.5
 	}
 
 	// Bottom Signatures & Times
 	sigH := 30.0
 	bY := y + availH - sigH
-	midB := 75.0 // Match splitX
-	pdf.Line(midB, y, midB, bY) // vertical split in middle section
-	pdf.Line(10, bY, 138, bY) // horizontal line above bottom signatures
+	midB := 75.0                      // Match splitX
+	pdf.Line(midB, y, midB, bY)       // vertical split in middle section
+	pdf.Line(10, bY, 138, bY)         // horizontal line above bottom signatures
 	pdf.Line(midB, bY, midB, bY+sigH) // vertical split in bottom section
-	
+
 	pharmacistName := ""
-	patientName := ""
 	pharmacistTitle := ""
-	patientTitle := ""
 
 	sigLookups := []signatureLookup{{models.DocTypePrescription, order.ID}}
-	
+
 	if leftLog, signed := findSignatureLogBySlot("left", sigLookups...); signed {
 		pharmacistName = resolveSignedUserName(leftLog, "Petugas Farmasi")
 		if title := signatureLabelFromMeta(leftLog); title != "" {
@@ -522,18 +783,14 @@ func printPrescriptionImpl(c *gin.Context) {
 		}
 		meta := parseSignatureMeta(leftLog.Notes)
 		if meta.image == "" {
-			addSignatureQR(pdf, leftLog, 10 + 65.0/2.0, bY+(sigH/2.0), 16.0, fmt.Sprintf("default_%s_%d_left", models.DocTypePrescription, order.ID))
+			addSignatureQR(pdf, leftLog, 10+65.0/2.0, bY+(sigH/2.0), 16.0, fmt.Sprintf("default_%s_%d_left", models.DocTypePrescription, order.ID))
 		}
 	}
-	
+
 	if rightLog, signed := findSignatureLogBySlot("right", sigLookups...); signed {
-		patientName = resolveSignedUserName(rightLog, "Pasien")
-		if title := signatureLabelFromMeta(rightLog); title != "" {
-			patientTitle = title
-		}
 		meta := parseSignatureMeta(rightLog.Notes)
 		if meta.image == "" {
-			addSignatureQR(pdf, rightLog, midB + 63.0/2.0, bY+(sigH/2.0), 16.0, fmt.Sprintf("default_%s_%d_right", models.DocTypePrescription, order.ID))
+			addSignatureQR(pdf, rightLog, midB+63.0/2.0, bY+(sigH/2.0), 16.0, fmt.Sprintf("default_%s_%d_right", models.DocTypePrescription, order.ID))
 		}
 	}
 
@@ -545,19 +802,26 @@ func printPrescriptionImpl(c *gin.Context) {
 		pdf.CellFormat(65, 4, pharmacistName, "", 1, "C", false, 0, "")
 	}
 
-	if patientTitle != "" || patientName != "" {
-		pdf.SetXY(midB, bY+2)
-		pdf.CellFormat(63, 4, patientTitle, "", 1, "C", false, 0, "")
-		pdf.SetXY(midB, bY+sigH-6)
-		pdf.CellFormat(63, 4, patientName, "", 1, "C", false, 0, "")
+	city := hospitalInfo.City
+	if strings.TrimSpace(city) == "" {
+		city = "Bojonegoro"
 	}
+	signDateStr := fmt.Sprintf("%s, %s", city, formatDateIndonesian(time.Now()))
+
+	pdf.SetXY(midB, bY+2)
+	pdf.CellFormat(63, 3.5, signDateStr, "", 1, "C", false, 0, "")
+	pdf.SetXY(midB, bY+5.5)
+	pdf.CellFormat(63, 3.5, "Penerima", "", 1, "C", false, 0, "")
+
+	pdf.SetXY(midB, bY+sigH-6)
+	pdf.CellFormat(63, 4, "( ____________________ )", "", 1, "C", false, 0, "")
 
 	// Footer timestamps (placed below the outer box)
 	waktuMasuk := order.CreatedAt.Format("15:04")
 	pdf.SetXY(10, y+availH+1.0)
 	pdf.SetFont("Arial", "I", 6)
 	pdf.CellFormat(65, 3, "Jam Resep Masuk: "+waktuMasuk, "", 0, "L", false, 0, "")
-	
+
 	waktuKeluar := "-"
 	if order.DeliveredAt != nil {
 		waktuKeluar = order.DeliveredAt.Format("15:04")
@@ -958,8 +1222,6 @@ func printLaboratoryResultImpl(c *gin.Context) {
 	}
 	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
 
-
-
 	// Signature section (digital-aware: reads signature log for lab_result)
 	performedByName := ""
 	if len(activeItems) > 0 && activeItems[0].PerformedBy != nil {
@@ -1205,7 +1467,7 @@ func printRadiologyResultImpl(c *gin.Context) {
 		if item.Procedure != nil {
 			procedureName = item.Procedure.Name
 		}
-		
+
 		pdf.SetDashPattern([]float64{}, 0) // Solid
 		pdf.SetFont("Arial", "B", 9)
 		pdf.SetFillColor(245, 245, 245)
@@ -1221,7 +1483,7 @@ func printRadiologyResultImpl(c *gin.Context) {
 			if result.Value != "" {
 				value = result.Value
 			}
-			
+
 			pdf.SetDashPattern([]float64{1, 1}, 0) // Dashed
 			pdf.CellFormat(60, 6, "  "+paramName, "B", 0, "L", false, 0, "")
 			pdf.CellFormat(120, 6, value, "B", 1, "L", false, 0, "")
@@ -1237,8 +1499,6 @@ func printRadiologyResultImpl(c *gin.Context) {
 		}
 	}
 	pdf.SetDashPattern([]float64{}, 0) // Reset to solid
-
-
 
 	// Signature section (digital-aware: reads signature log for radiology_result)
 	performedByName := ""

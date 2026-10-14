@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -276,7 +276,7 @@ export default function StockOpnameCreate() {
                             <Combobox
                               options={rooms.map((room) => ({
                                 value: room.id.toString(),
-                                label: room.code ? `${room.code} - ${room.name}` : room.name,
+                                label: room.name,
                               }))}
                               value={field.value?.toString() || ""}
                               onValueChange={(value) => field.onChange(parseInt(value))}

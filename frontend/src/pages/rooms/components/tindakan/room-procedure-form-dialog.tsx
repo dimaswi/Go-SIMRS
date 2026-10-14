@@ -59,6 +59,8 @@ export function RoomProcedureFormDialog({
   const [formData, setFormData] = useState<CreateRoomProcedureRequest>({
     procedure_id: 0,
     is_available: true,
+    is_mandatory: false,
+    is_prescription_fee: false,
     max_per_day: 0,
     requires_booking: false,
     notes: "",
@@ -78,6 +80,8 @@ export function RoomProcedureFormDialog({
           setFormData({
             procedure_id: roomProcedure.procedure_id,
             is_available: roomProcedure.is_available,
+            is_mandatory: roomProcedure.is_mandatory || false,
+            is_prescription_fee: roomProcedure.is_prescription_fee || false,
             max_per_day: roomProcedure.max_per_day,
             requires_booking: roomProcedure.requires_booking,
             notes: roomProcedure.notes || "",
@@ -86,6 +90,8 @@ export function RoomProcedureFormDialog({
           setFormData({
             procedure_id: 0,
             is_available: true,
+            is_mandatory: false,
+            is_prescription_fee: false,
             max_per_day: 0,
             requires_booking: false,
             notes: "",
@@ -209,7 +215,7 @@ export function RoomProcedureFormDialog({
             <>
               <div className="space-y-2">
                 <Label>Tindakan</Label>
-                <Input disabled value={`${roomProcedure.procedure?.code} - ${roomProcedure.procedure?.name}`} />
+                <Input disabled value={roomProcedure.procedure?.name || ""} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -342,6 +348,24 @@ export function RoomProcedureFormDialog({
                     onCheckedChange={(v) => setFormData((prev) => ({ ...prev, is_available: v }))}
                   />
                   <Label htmlFor="is_available" className="cursor-pointer">Tersedia</Label>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    id="is_mandatory"
+                    checked={formData.is_mandatory}
+                    onCheckedChange={(v) => setFormData((prev) => ({ ...prev, is_mandatory: v }))}
+                  />
+                  <Label htmlFor="is_mandatory" className="cursor-pointer">Tindakan Wajib (Otomatis Masuk)</Label>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    id="is_prescription_fee"
+                    checked={formData.is_prescription_fee}
+                    onCheckedChange={(v) => setFormData((prev) => ({ ...prev, is_prescription_fee: v }))}
+                  />
+                  <Label htmlFor="is_prescription_fee" className="cursor-pointer">
+                    Jasa Resep (Otomatis saat Order Resep)
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2 pt-2">
                   <Switch

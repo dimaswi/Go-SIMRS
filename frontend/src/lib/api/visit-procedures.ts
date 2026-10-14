@@ -17,6 +17,8 @@ export interface RoomProcedureForVisit {
   max_per_day: number;
   parameters: ProcedureParameter[];
   has_parameters: boolean;
+  is_mandatory?: boolean;
+  is_prescription_fee?: boolean;
 }
 
 export interface VisitProcedureResult {

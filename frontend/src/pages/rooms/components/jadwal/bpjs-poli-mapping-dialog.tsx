@@ -129,7 +129,7 @@ export function BpjsPoliMappingDialog({
                   aria-expanded={poliPopoverOpen}
                   className="w-full justify-between"
                 >
-                  {selectedPoli ? `${selectedPoli.kdpoli} - ${selectedPoli.nmpoli}` : "Cari poli (min. 3 huruf)..."}
+                  {selectedPoli ? selectedPoli.nmpoli : "Cari poli (min. 3 huruf)..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -167,7 +167,7 @@ export function BpjsPoliMappingDialog({
                               selectedPoli?.kdpoli === poli.kdpoli ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          {poli.kdpoli} - {poli.nmpoli}
+                          {poli.nmpoli}
                         </CommandItem>
                       ))}
                     </CommandGroup>

@@ -160,7 +160,7 @@ export function PoliDokterSelector({
     () =>
       poliMappings.map((pm) => ({
         value: pm.id.toString(),
-        label: `${pm.kode_poli_bpjs} - ${pm.nama_poli_bpjs} (${pm.room_name})`,
+        label: `${pm.nama_poli_bpjs} (${pm.room_name})`,
       })),
     [poliMappings]
   );
@@ -170,7 +170,7 @@ export function PoliDokterSelector({
     () =>
       filteredDoctors.map((dm) => ({
         value: dm.id.toString(),
-        label: `${dm.kode_dokter_bpjs} - ${dm.nama_dokter_bpjs}${dm.employee_name ? ` (${dm.employee_name})` : ""}`,
+        label: `${dm.nama_dokter_bpjs}${dm.employee_name ? ` (${dm.employee_name})` : ""}`,
       })),
     [filteredDoctors]
   );

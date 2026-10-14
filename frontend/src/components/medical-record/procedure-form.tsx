@@ -585,7 +585,15 @@ export function ProcedureForm({
                         return (
                           <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
                             <td className="py-2 px-3">
-                              <p className="font-medium text-sm truncate">{proc.name}</p>
+                              <div className="flex flex-col items-start gap-1">
+                                <p className="font-medium text-sm truncate max-w-[200px]">{proc.name}</p>
+                                {proc.is_mandatory && (
+                                  <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Wajib</Badge>
+                                )}
+                                {proc.is_prescription_fee && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">Jasa Resep</Badge>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                               <Button
@@ -690,7 +698,7 @@ export function ProcedureForm({
                                 <span>{vp.procedure?.code}</span>
                                 {vp.created_by && (
                                   <>
-                                    <span>â€¢</span>
+                                    <span>&bull;</span>
                                     <span className="flex items-center gap-1" title="Dibuat oleh">
                                       <Plus className="h-3 w-3" />
                                       {vp.created_by.full_name}
@@ -699,7 +707,7 @@ export function ProcedureForm({
                                 )}
                                 {vp.filled_by && vp.filled_by.id !== vp.created_by?.id && (
                                   <>
-                                    <span>â€¢</span>
+                                    <span>&bull;</span>
                                     <span className="flex items-center gap-1" title="Dikerjakan oleh">
                                       <User className="h-3 w-3" />
                                       {vp.filled_by.full_name}
@@ -708,7 +716,7 @@ export function ProcedureForm({
                                 )}
                                 {vp.performed_at && (
                                   <>
-                                    <span>â€¢</span>
+                                    <span>&bull;</span>
                                     <span>{format(new Date(vp.performed_at), "dd MMM HH:mm", { locale: idLocale })}</span>
                                   </>
                                 )}

@@ -72,10 +72,12 @@ func GetRoomProceduresForVisit(c *gin.Context) {
 				"description":      rp.Procedure.Description,
 				"procedure_type":   rp.Procedure.ProcedureType,
 				"duration":         rp.Procedure.Duration,
-				"requires_booking": rp.RequiresBooking,
-				"max_per_day":      rp.MaxPerDay,
-				"parameters":       rp.Procedure.Parameters,
-				"has_parameters":   len(rp.Procedure.Parameters) > 0,
+				"requires_booking":   rp.RequiresBooking,
+				"max_per_day":        rp.MaxPerDay,
+				"is_mandatory":       rp.IsMandatory,
+				"is_prescription_fee": rp.IsPrescriptionFee,
+				"parameters":         rp.Procedure.Parameters,
+				"has_parameters":     len(rp.Procedure.Parameters) > 0,
 			})
 		}
 	}

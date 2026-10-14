@@ -51,6 +51,7 @@ type signatureMetaInfo struct {
 	date     string
 	name     string
 	image    string
+	hideDate bool
 }
 
 func parseSignatureMeta(notes string) signatureMetaInfo {
@@ -83,6 +84,8 @@ func parseSignatureMeta(notes string) signatureMetaInfo {
 			out.name = v
 		case "image":
 			out.image = v
+		case "hide_date":
+			out.hideDate = v == "1" || v == "true"
 		}
 	}
 	return out
@@ -186,13 +189,40 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 	
 	pdf.SetXY(rightX, startY)
 	pdf.SetFont("Arial", "", 10)
-	pdf.CellFormat(slotW, 6, dateStr, "", 1, "C", false, 0, "")
+	
+	meta := parseSignatureMeta(signatureLog.Notes)
+	
+	slotDateStr := dateStr
+	if isSigned {
+		loc := city
+		if meta.location != "" {
+			loc = meta.location
+		}
+		dateVal := signatureLog.SignedAt
+		if meta.date != "" {
+			parsed, err := time.Parse("2006-01-02", meta.date)
+			if err == nil {
+				dateVal = parsed
+			}
+		}
+		if !dateVal.IsZero() {
+			slotDateStr = formatDateIndonesian(dateVal)
+			if loc != "" {
+				slotDateStr = loc + ", " + slotDateStr
+			}
+		}
+	}
+
+	if !isSigned || !meta.hideDate {
+		pdf.CellFormat(slotW, 6, slotDateStr, "", 1, "C", false, 0, "")
+	} else {
+		pdf.CellFormat(slotW, 6, "", "", 1, "C", false, 0, "")
+	}
 	
 	pdf.SetXY(rightX, startY+6)
 	pdf.CellFormat(slotW, 6, patientLabel, "", 1, "C", false, 0, "")
 	
 	if isSigned {
-		meta := parseSignatureMeta(signatureLog.Notes)
 		pdf.SetFont("Arial", "I", 8)
 		pdf.SetTextColor(80, 80, 80)
 		pdf.SetXY(rightX, startY+12)
@@ -231,13 +261,40 @@ func drawUniversalTwoSignatureSlots(pdf *gofpdf.Fpdf, city, dateStr, docType str
 	rmDuplicateSignature := hasRMDuplicateSignatureLookup(lookups...)
 
 	drawSlot := func(x float64, title, fallbackName, slot string, sig models.SignatureLog, signed bool) {
+		meta := parseSignatureMeta(sig.Notes)
 		pdf.SetXY(x, startY)
 		pdf.SetFont("Arial", "", 10)
-		pdf.CellFormat(slotW, 6, dateStr, "", 1, "C", false, 0, "")
+		
+		slotDateStr := dateStr
+		if signed {
+			loc := city
+			if meta.location != "" {
+				loc = meta.location
+			}
+			dateVal := sig.SignedAt
+			if meta.date != "" {
+				parsed, err := time.Parse("2006-01-02", meta.date)
+				if err == nil {
+					dateVal = parsed
+				}
+			}
+			if !dateVal.IsZero() {
+				slotDateStr = formatDateIndonesian(dateVal)
+				if loc != "" {
+					slotDateStr = loc + ", " + slotDateStr
+				}
+			}
+		}
+
+		if !signed || !meta.hideDate {
+			pdf.CellFormat(slotW, 6, slotDateStr, "", 1, "C", false, 0, "")
+		} else {
+			// Print empty space so alignment is consistent
+			pdf.CellFormat(slotW, 6, "", "", 1, "C", false, 0, "")
+		}
 		pdf.SetXY(x, startY+6)
 		pdf.CellFormat(slotW, 6, title, "", 1, "C", false, 0, "")
 		if signed {
-			meta := parseSignatureMeta(sig.Notes)
 			pdf.SetFont("Arial", "I", 8)
 			pdf.SetTextColor(80, 80, 80)
 			pdf.SetXY(x, startY+12)

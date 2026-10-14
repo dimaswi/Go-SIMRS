@@ -137,6 +137,8 @@ export interface RoomProcedure {
   procedure_id: number;
   procedure?: Procedure;
   is_available: boolean;
+  is_mandatory: boolean;
+  is_prescription_fee?: boolean;
   max_per_day: number;
   requires_booking: boolean;
   notes: string;
@@ -205,6 +207,8 @@ export interface CreateParameterRequest {
 export interface CreateRoomProcedureRequest {
   procedure_id: number;
   is_available?: boolean;
+  is_mandatory?: boolean;
+  is_prescription_fee?: boolean;
   max_per_day?: number;
   requires_booking?: boolean;
   notes?: string;
@@ -218,6 +222,8 @@ export interface ProcedureFilters {
   service_type?: string;
   is_active?: boolean;
   is_surgical?: boolean;
+  limit?: number;
+  page?: number;
 }
 
 // ========================================
@@ -235,6 +241,8 @@ export const proceduresApi = {
     if (filters?.service_type) params.append('service_type', filters.service_type);
     if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active));
     if (filters?.is_surgical !== undefined) params.append('is_surgical', String(filters.is_surgical));
+    if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+    if (filters?.page !== undefined) params.append('page', String(filters.page));
     
     const queryString = params.toString();
     return api.get<{ data: Procedure[] }>(`/procedures${queryString ? `?${queryString}` : ''}`);

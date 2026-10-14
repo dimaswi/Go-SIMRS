@@ -268,7 +268,7 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
       setMedicineOptions(
         rows.map((medicine: Medicine) => ({
           value: String(medicine.id),
-          label: `${medicine.name}${medicine.generic_name ? ` - ${medicine.generic_name}` : ""}${medicine.code ? ` (${medicine.code})` : ""}`,
+          label: medicine.name,
         })),
       );
     } catch {

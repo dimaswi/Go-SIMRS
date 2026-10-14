@@ -60,6 +60,7 @@ import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-dr
 import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
 import { VisitMedicineSummary } from "@/components/medical-record/visit-medicine-summary";
 import { MedicalRecordPrintSelect } from "@/components/medical-record/print-select";
+import { PharmacyQueueCallButton } from "@/components/medical-record/pharmacy-queue-call-button";
 import { ObservationReportDrawer } from "@/components/medical-record/observation-report-drawer";
 import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
 import type { MedicalRecordSummary } from "@/lib/api/medical-records";
@@ -90,6 +91,7 @@ const EDIT_TAB_IDS = new Set([
   "surgery-edit",
 ]);
 
+const NO_BUTTON_TAB_IDS = new Set(["procedure", "bhp-usage", "cppt", "nursing-care", "unit-transfer", "patient-discharge"]);
 const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet", "discharge-planning"]);
 const INLINE_PRIMARY_ACTION_REGEX = /(simpan|save|perbarui|update|kirim|send|selesaikan|submit)/i;
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
@@ -151,6 +153,7 @@ export default function VisitShow() {
   const isFinalTab = FINAL_TAB_IDS.has(activeTab);
   const isEditTab = EDIT_TAB_IDS.has(activeTab);
   const isAdministrativeTab = ADMIN_TAB_IDS.has(activeTab);
+  const isNoButtonTab = NO_BUTTON_TAB_IDS.has(activeTab);
   const isFooterActionHiddenTab = !shouldUseFooterActionForTab(activeTab);
 
   // Casemix context
@@ -328,6 +331,7 @@ export default function VisitShow() {
     const buttons = Array.from(activePane.querySelectorAll<HTMLButtonElement>("button"));
     const candidate = buttons.find((button) => {
       if (button.disabled) return false;
+      if (button.getAttribute("data-exclude-footer-action") === "true") return false;
       const label = (button.textContent || "").trim().toLowerCase();
       return INLINE_PRIMARY_ACTION_REGEX.test(label);
     });
@@ -660,17 +664,44 @@ export default function VisitShow() {
       // Triage: count filled fields out of 22
       if (summary.triage) {
         const t = summary.triage;
-        const triageTextFields = [t.arrival_mode, t.triage_complaint, t.triage_level, t.airway, t.airway_note, t.breathing, t.breathing_note, t.circulation, t.circulation_note, t.blood_pressure, t.triage_assessment, t.immediate_actions, t.pain_method, t.pain_location];
-        const filledText = triageTextFields.filter(v => v && String(v).trim() !== "").length;
+        const isNoPain = t.pain_location === "Tidak ada nyeri";
+        const painMethodFilled = isNoPain || Boolean(t.pain_method && String(t.pain_method).trim() !== "");
+        const painLocationFilled = Boolean(t.pain_location && String(t.pain_location).trim() !== "");
+        const painScaleFilled = isNoPain || (t.pain_scale !== undefined && t.pain_scale !== null && String(t.pain_scale) !== "" && Number(t.pain_scale) >= 0);
+
+        const airwayFilled = Boolean(t.airway && String(t.airway).trim() !== "");
+        const airwayNoteFilled = airwayFilled || Boolean(t.airway_note && String(t.airway_note).trim() !== "");
+        const breathingFilled = Boolean(t.breathing && String(t.breathing).trim() !== "");
+        const breathingNoteFilled = breathingFilled || Boolean(t.breathing_note && String(t.breathing_note).trim() !== "");
+        const circulationFilled = Boolean(t.circulation && String(t.circulation).trim() !== "");
+        const circulationNoteFilled = circulationFilled || Boolean(t.circulation_note && String(t.circulation_note).trim() !== "");
+
+        const filledText = [
+          t.arrival_mode,
+          t.triage_complaint,
+          t.triage_level,
+          t.blood_pressure,
+          t.triage_assessment,
+          t.immediate_actions,
+        ].filter(v => v && String(v).trim() !== "").length;
+
+        const filledSurvey = (airwayFilled ? 1 : 0) + (airwayNoteFilled ? 1 : 0) +
+          (breathingFilled ? 1 : 0) + (breathingNoteFilled ? 1 : 0) +
+          (circulationFilled ? 1 : 0) + (circulationNoteFilled ? 1 : 0);
+
+        const filledPain = (painMethodFilled ? 1 : 0) + (painLocationFilled ? 1 : 0) + (painScaleFilled ? 1 : 0);
+
         const filledNumeric = [
-          t.heart_rate, t.respiratory_rate, t.temperature, t.oxygen_saturation, t.pain_scale
+          t.heart_rate, t.respiratory_rate, t.temperature, t.oxygen_saturation
         ].filter(v => Number(v) > 0).length;
+
         const filledGCS = [
           t.gcs_e,
           t.gcs_v,
           t.gcs_m,
         ].filter(v => Number(v) > 0).length;
-        const filledTriage = filledText + filledNumeric + filledGCS;
+
+        const filledTriage = filledText + filledSurvey + filledPain + filledNumeric + filledGCS;
         emitMedicalRecordTabIndicator("triage", `${filledTriage}/22`);
         emitMedicalRecordTabSaved("triage", !!t.id && filledTriage > 0);
       } else {
@@ -1017,6 +1048,7 @@ export default function VisitShow() {
         const buttons = Array.from(pane.querySelectorAll<HTMLButtonElement>("button"));
 
         for (const button of buttons) {
+          if (button.getAttribute("data-exclude-footer-action") === "true") continue;
           const label = (button.textContent || "").trim().toLowerCase();
           const isPrimaryAction = INLINE_PRIMARY_ACTION_REGEX.test(label);
           const hiddenByFooter = button.getAttribute("data-hidden-by-footer") === "true";
@@ -1127,17 +1159,45 @@ export default function VisitShow() {
       });
       emitMedicalRecordTabSaved("triage", true);
       // Update triage field count indicator
-      const triageTextFields = [data.arrival_mode, data.triage_complaint, data.triage_level, data.airway, data.airway_note, data.breathing, data.breathing_note, data.circulation, data.circulation_note, data.blood_pressure, data.triage_assessment, data.immediate_actions, data.pain_method, data.pain_location];
-      const filledText = triageTextFields.filter((v: any) => v && String(v).trim() !== "").length;
+      const isNoPain = data.pain_location === "Tidak ada nyeri";
+      const painMethodFilled = isNoPain || Boolean(data.pain_method && String(data.pain_method).trim() !== "");
+      const painLocationFilled = Boolean(data.pain_location && String(data.pain_location).trim() !== "");
+      const painScaleFilled = isNoPain || (data.pain_scale !== undefined && data.pain_scale !== null && String(data.pain_scale) !== "" && Number(data.pain_scale) >= 0);
+
+      const airwayFilled = Boolean(data.airway && String(data.airway).trim() !== "");
+      const airwayNoteFilled = airwayFilled || Boolean(data.airway_note && String(data.airway_note).trim() !== "");
+      const breathingFilled = Boolean(data.breathing && String(data.breathing).trim() !== "");
+      const breathingNoteFilled = breathingFilled || Boolean(data.breathing_note && String(data.breathing_note).trim() !== "");
+      const circulationFilled = Boolean(data.circulation && String(data.circulation).trim() !== "");
+      const circulationNoteFilled = circulationFilled || Boolean(data.circulation_note && String(data.circulation_note).trim() !== "");
+
+      const filledText = [
+        data.arrival_mode,
+        data.triage_complaint,
+        data.triage_level,
+        data.blood_pressure,
+        data.triage_assessment,
+        data.immediate_actions,
+      ].filter((v: any) => v && String(v).trim() !== "").length;
+
+      const filledSurvey = (airwayFilled ? 1 : 0) + (airwayNoteFilled ? 1 : 0) +
+        (breathingFilled ? 1 : 0) + (breathingNoteFilled ? 1 : 0) +
+        (circulationFilled ? 1 : 0) + (circulationNoteFilled ? 1 : 0);
+
+      const filledPain = (painMethodFilled ? 1 : 0) + (painLocationFilled ? 1 : 0) + (painScaleFilled ? 1 : 0);
+
       const filledNumeric = [
-        data.heart_rate, data.respiratory_rate, data.temperature, data.oxygen_saturation, data.pain_scale
+        data.heart_rate, data.respiratory_rate, data.temperature, data.oxygen_saturation
       ].filter((v: any) => Number(v) > 0).length;
+
       const filledGCS = [
         data.gcs_e,
         data.gcs_v,
         data.gcs_m,
       ].filter((v: any) => Number(v) > 0).length;
-      emitMedicalRecordTabIndicator("triage", `${filledText + filledNumeric + filledGCS}/22`);
+
+      const totalCalculated = filledText + filledSurvey + filledPain + filledNumeric + filledGCS;
+      emitMedicalRecordTabIndicator("triage", `${totalCalculated}/22`);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -2030,6 +2090,19 @@ export default function VisitShow() {
                 </Button>
               )}
               <TooltipProvider delayDuration={200}>
+                {(isPharmacy || visit?.visit_type === "pharmacy" || visit?.room?.service_type === "farmasi") && visit && (
+                  <PharmacyQueueCallButton
+                    visitId={visit.id}
+                    initialQueue={visit.room_queue}
+                    patientName={patientName}
+                    iconOnly
+                    variant="outline"
+                    className="h-8 w-8 rounded-none"
+                    onQueueCalled={(updated) => {
+                      setVisit((prev: any) => prev ? { ...prev, room_queue: updated } : prev);
+                    }}
+                  />
+                )}
                 {showHeaderFinalAction && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -2140,16 +2213,18 @@ export default function VisitShow() {
           {!isEditTab && (
             <div className="mr-footer sticky bottom-0 z-20 shrink-0 border-t bg-background px-3 py-2 sm:px-4">
               <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-none"
-                  onClick={handleCancelActiveTabFromFooter}
-                >
-                  <X className="mr-1.5 h-3.5 w-3.5" />
-                  Batal
-                </Button>
-                {!isFooterActionHiddenTab && !isAdministrativeTab && (
+                {!isNoButtonTab && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-none"
+                    onClick={handleCancelActiveTabFromFooter}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Batal
+                  </Button>
+                )}
+                {!isNoButtonTab && !isFooterActionHiddenTab && !isAdministrativeTab && (
                   <Button
                     size="sm"
                     className="h-8 rounded-none"

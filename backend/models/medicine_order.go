@@ -88,6 +88,10 @@ type MedicineOrder struct {
 	// Status
 	Status string `gorm:"size:20;default:'pending'" json:"status"`
 
+	// Doctor Original Prescription Snapshot & Pharmacy Edit Flag
+	DoctorItemsJSON    string `gorm:"type:text" json:"doctor_items_json,omitempty"`
+	IsEditedByPharmacy bool   `gorm:"default:false" json:"is_edited_by_pharmacy"`
+
 	// Review by Pharmacist
 	ReviewedByID *uint      `gorm:"index" json:"reviewed_by_id"`
 	ReviewedBy   *Employee  `gorm:"foreignKey:ReviewedByID" json:"reviewed_by,omitempty"`
@@ -104,6 +108,27 @@ type MedicineOrder struct {
 
 	// Relation to Items
 	Items []MedicineOrderItem `gorm:"foreignKey:MedicineOrderID" json:"items,omitempty"`
+}
+
+// DoctorOrderItemSnapshot stores an immutable snapshot of an item as originally ordered by the doctor
+type DoctorOrderItemSnapshot struct {
+	MedicineID   uint   `json:"medicine_id"`
+	MedicineName string `json:"medicine_name"`
+	MedicineCode string `json:"medicine_code"`
+	ItemType     string `json:"item_type"`
+	RacikanGroup string `json:"racikan_group,omitempty"`
+	RacikanName  string `json:"racikan_name,omitempty"`
+	RacikanType  string `json:"racikan_type,omitempty"`
+	RacikanQty   int    `json:"racikan_qty,omitempty"`
+	RacikanUnit  string `json:"racikan_unit,omitempty"`
+	Quantity     int    `json:"quantity"`
+	Unit         string `json:"unit"`
+	Dosage       string `json:"dosage"`
+	Frequency    string `json:"frequency"`
+	Route        string `json:"route"`
+	Duration     string `json:"duration"`
+	Instructions string `json:"instructions"`
+	Notes        string `json:"notes"`
 }
 
 // TableName sets the table name for MedicineOrder

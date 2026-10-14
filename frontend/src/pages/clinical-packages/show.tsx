@@ -25,7 +25,7 @@ export default function ClinicalPackagesShow() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setPageTitle('Detail Paket Klinis');
+    setPageTitle('Detail Paket Tindakan');
   }, []);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function ClinicalPackagesShow() {
         const response = await clinicalPackagesApi.getById(Number(id));
         setPkg(response.data.data);
       } catch {
-        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket klinis.' });
+        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat data paket tindakan.' });
         navigate('/clinical-packages');
       } finally {
         setLoading(false);

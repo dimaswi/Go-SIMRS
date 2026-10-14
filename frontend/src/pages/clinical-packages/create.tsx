@@ -11,21 +11,21 @@ export default function ClinicalPackagesCreate() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setPageTitle('Tambah Paket Klinis');
+    setPageTitle('Tambah Paket Tindakan');
   }, []);
 
   const handleSubmit = async (data: ClinicalPackageInput) => {
     setSaving(true);
     try {
       await clinicalPackagesApi.create(data);
-      toast({ title: 'Berhasil!', description: 'Paket klinis berhasil ditambahkan.' });
+      toast({ title: 'Berhasil!', description: 'Paket tindakan berhasil ditambahkan.' });
       navigate('/clinical-packages');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal menyimpan paket klinis.' });
+      toast({ variant: 'destructive', title: 'Error!', description: error?.response?.data?.error || 'Gagal menyimpan paket tindakan.' });
     } finally {
       setSaving(false);
     }
   };
 
-  return <ClinicalPackageForm title="Tambah Paket Klinis" submitLabel="Simpan" saving={saving} onSubmit={handleSubmit} />;
+  return <ClinicalPackageForm title="Tambah Paket Tindakan" submitLabel="Simpan Paket" saving={saving} onSubmit={handleSubmit} />;
 }

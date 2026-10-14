@@ -33,20 +33,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Loader2,
   Pencil,
   Pill,
+  FlaskConical,
+  Printer,
   User,
   Plus,
   Trash2,
   Search,
   AlertCircle,
   Clock,
+  ChevronDown,
+  FileText,
+  FileCheck,
+  Tag,
 } from "lucide-react";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
+import { PharmacyQueueCallButton } from "./pharmacy-queue-call-button";
 import { getPharmacyOrderStatusMeta, getPharmacyItemStatusMeta } from "./pharmacy-status";
 import { cn } from "@/lib/utils";
 import { medicineOrdersApi, getPharmacyRoomMedicines } from "@/lib/api";
+import { printApi } from "@/lib/api/print";
 import { medicinesApi } from "@/lib/api/medicines";
 import type { Medicine } from "@/lib/api/medicines";
 import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
@@ -92,44 +106,34 @@ const getUnitPrice = (item: any): number => {
   return Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
 };
 
-const FREQUENCY_OPTIONS = [
-  { value: "1x", label: "1x" },
-  { value: "2x", label: "2x" },
-  { value: "3x", label: "3x" },
-  { value: "4x", label: "4x" },
-  { value: "1x1", label: "1x1" },
-  { value: "2x1", label: "2x1" },
-  { value: "3x1", label: "3x1" },
-  { value: "4x1", label: "4x1" },
-  { value: "1x sehari", label: "1x sehari" },
-  { value: "2x sehari", label: "2x sehari" },
-  { value: "3x sehari", label: "3x sehari" },
-  { value: "4x sehari", label: "4x sehari" },
-  { value: "setiap 4 jam", label: "setiap 4 jam" },
-  { value: "setiap 6 jam", label: "setiap 6 jam" },
-  { value: "setiap 8 jam", label: "setiap 8 jam" },
-  { value: "setiap 12 jam", label: "setiap 12 jam" },
-  { value: "bila perlu", label: "bila perlu" },
-];
 
-const INSTRUCTION_OPTIONS = [
-  "Sebelum makan",
-  "Sesudah makan",
-  "Bersama makan",
-  "Pagi hari",
-  "Malam hari",
-  "Pagi dan malam",
-  "Saat perut kosong",
-  "Sebelum tidur",
-  "Bila perlu",
-  "Bila demam",
-  "Bila nyeri",
-  "Bila mual",
-  "Dikunyah",
-  "Diteteskan",
-  "Dioleskan",
-  "Dikocok dulu",
-  "Dilarutkan dulu",
+const SIGNA_OPTIONS = [
+  "3 x 1 Setelah Makan",
+  "3 x 1 Sebelum Makan",
+  "3 x 1 Bersama Makan",
+  "2 x 1 Setelah Makan",
+  "2 x 1 Sebelum Makan",
+  "2 x 1 Pagi & Malam",
+  "1 x 1 Pagi Hari Setelah Makan",
+  "1 x 1 Malam Hari Setelah Makan",
+  "1 x 1 Sebelum Tidur",
+  "4 x 1 Setelah Makan",
+  "1 x 1 Tablet Bila Perlu (PRN)",
+  "3 x 1 Sendok Takar (5 ml)",
+  "2 x 1 Sendok Takar (5 ml)",
+  "1 x 1 Sendok Takar (5 ml)",
+  "1 x 1 Tetes Pada Mata/Telinga",
+  "2 x 1 Tetes Pada Mata/Telinga",
+  "3 x 1 Tetes Pada Mata/Telinga",
+  "Oleskan Tipis 2x Sehari (Topikal)",
+  "Oleskan Tipis 3x Sehari (Topikal)",
+  "Bila Perlu / Jika Demam (P.R.N)",
+  "Bila Nyeri (P.R.N)",
+  "Sebelum Makan",
+  "Setelah Makan",
+  "1x Sehari",
+  "2x Sehari",
+  "3x Sehari",
 ].map((option) => ({ value: option, label: option }));
 
 interface RoomMedicine {
@@ -185,6 +189,7 @@ interface RacikanDraft {
   route: string;
   duration: string;
   instructions: string;
+  notes: string;
 }
 
 const replaceOrderInList = (orders: MedicineOrder[], nextOrder: MedicineOrder) => {
@@ -268,6 +273,48 @@ export function PharmacyEditPrescription({
   const [expandedRacikanGroups, setExpandedRacikanGroups] = useState<Record<string, boolean>>({});
   const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MedicineOrderItem | null>(null);
+  const [printingResep, setPrintingResep] = useState(false);
+  const [printingEtiket, setPrintingEtiket] = useState(false);
+
+  const handlePrintResep = async (
+    orderToPrint?: MedicineOrder | null,
+    version?: "doctor" | "edited",
+  ) => {
+    const target = orderToPrint || selectedOrder;
+    if (!target) return;
+    setPrintingResep(true);
+    try {
+      await printApi.prescription(target.id, { version });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak resep",
+      });
+    } finally {
+      setPrintingResep(false);
+    }
+  };
+
+  const handlePrintEtiket = async (
+    orderToPrint?: MedicineOrder | null,
+    version?: "doctor" | "edited",
+  ) => {
+    const target = orderToPrint || selectedOrder;
+    if (!target) return;
+    setPrintingEtiket(true);
+    try {
+      await printApi.medicineLabels(target.id, { version });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak etiket",
+      });
+    } finally {
+      setPrintingEtiket(false);
+    }
+  };
   const [editItemMedicineSearchTerm, setEditItemMedicineSearchTerm] = useState("");
   const [editRacikanDialogOpen, setEditRacikanDialogOpen] = useState(false);
   const [editingRacikanKey, setEditingRacikanKey] = useState<string | null>(null);
@@ -283,6 +330,7 @@ export function PharmacyEditPrescription({
     route: "",
     duration: "",
     instructions: "",
+    notes: "",
   });
 
   const applyLocalOrderUpdate = (nextOrder: MedicineOrder) => {
@@ -455,6 +503,7 @@ export function PharmacyEditPrescription({
       route: "",
       duration: "",
       instructions: "",
+      notes: "",
     });
     setRacikanItems([]);
     setRacikanSearchTerm("");
@@ -662,10 +711,10 @@ export function PharmacyEditPrescription({
       quantity: 1,
       unit: medicine.unit,
       dosage: medicine.strength || "-",
-      frequency: "1x sehari",
+      frequency: "3 x 1 Setelah Makan",
       route: "",
       duration: "",
-      instructions: "Sesudah makan",
+      instructions: "3 x 1 Setelah Makan",
       notes: "",
       status: "ordered",
       dispensed_qty: 0,
@@ -965,11 +1014,11 @@ export function PharmacyEditPrescription({
       toast({ variant: "destructive", title: "Nama racikan wajib diisi" });
       return;
     }
-    if (!racikanDraft.dosage.trim() || !racikanDraft.frequency.trim() || !racikanDraft.instructions.trim()) {
+    if (!racikanDraft.dosage.trim() || !racikanDraft.instructions.trim()) {
       toast({
         variant: "destructive",
         title: "Data racikan belum lengkap",
-        description: "Lengkapi dosis, frekuensi, dan cara pakai racikan.",
+        description: "Lengkapi dosis dan signa racikan.",
       });
       return;
     }
@@ -996,11 +1045,11 @@ export function PharmacyEditPrescription({
             quantity: Number(roomMedicine.quantity || 1),
             unit: roomMedicine.medicine.unit,
             dosage: (roomMedicine.dosage || racikanDraft.dosage || "").trim(),
-            frequency: racikanDraft.frequency,
+            frequency: racikanDraft.frequency || racikanDraft.instructions,
             route: "",
             duration: "",
             instructions: racikanDraft.instructions,
-            notes: "",
+            notes: (racikanDraft.notes || "").trim(),
             item_type: MEDICINE_ORDER_ITEM_TYPE_RACIKAN,
             racikan_group: racikanGroup,
             racikan_name: name,
@@ -1062,12 +1111,8 @@ export function PharmacyEditPrescription({
       toast({ variant: "destructive", title: "Dosis wajib diisi" });
       return false;
     }
-    if (!row.frequency?.trim()) {
-      toast({ variant: "destructive", title: "Frekuensi wajib diisi" });
-      return false;
-    }
     if (!row.instructions?.trim()) {
-      toast({ variant: "destructive", title: "Cara pemakaian wajib diisi" });
+      toast({ variant: "destructive", title: "Signa wajib diisi" });
       return false;
     }
 
@@ -1080,7 +1125,7 @@ export function PharmacyEditPrescription({
           quantity: row.quantity,
           unit: row.unit,
           dosage: row.dosage,
-          frequency: row.frequency,
+          frequency: row.frequency?.trim() ? row.frequency : row.instructions,
           route: row.route,
           duration: row.duration,
           instructions: row.instructions,
@@ -1092,7 +1137,7 @@ export function PharmacyEditPrescription({
           quantity: row.quantity,
           unit: row.unit,
           dosage: row.dosage,
-          frequency: row.frequency,
+          frequency: row.frequency?.trim() ? row.frequency : row.instructions,
           route: row.route,
           duration: row.duration,
           instructions: row.instructions,
@@ -1352,7 +1397,7 @@ export function PharmacyEditPrescription({
       .filter((roomMedicine) => !usedMedicineIds.has(roomMedicine.medicine.id))
       .map((roomMedicine) => ({
         value: String(roomMedicine.medicine.id),
-        label: `${roomMedicine.medicine.name} (${roomMedicine.medicine.code})`,
+        label: roomMedicine.medicine.name,
       }));
   }, [activeItems, editingItem, rmDuplicateMode, roomMedicines, searchResults]);
   const selectedEditingMedicine = useMemo(() => {
@@ -1542,6 +1587,9 @@ export function PharmacyEditPrescription({
                                                   <td className="py-2 px-3">
                                                     <p className="truncate">{detailSummary}</p>
                                                     <p className="text-xs text-muted-foreground truncate">Instruksi: {firstRow.instructions || "-"}</p>
+                                                    {(firstRow.notes || group.sharedFields?.notes) ? (
+                                                      <p className="text-xs text-muted-foreground truncate">Catatan: {firstRow.notes || group.sharedFields?.notes}</p>
+                                                    ) : null}
                                                   </td>
                                                   <td className="py-2 px-3 font-medium">{firstRow.racikan_qty || 1} {firstRow.racikan_unit || "bungkus"}</td>
                                                   <td className="py-2 px-3 text-right">
@@ -1585,8 +1633,26 @@ export function PharmacyEditPrescription({
                                                           <span className="truncate text-muted-foreground">{item.medicine?.name || "Komponen"}</span>
                                                         </div>
                                                       </td>
-                                                      <td className="py-2 px-3 text-xs text-muted-foreground">Bahan racikan</td>
-                                                      <td className="py-2 px-3 text-xs">{row.quantity} {row.unit || item.unit}</td>
+                                                      <td className="py-2 px-3 text-xs text-muted-foreground">
+                                                        {row.dosage ? `Dosis: ${row.dosage}` : "Bahan racikan"}
+                                                      </td>
+                                                      <td className="py-2 px-3 text-xs">
+                                                        {canModify && !groupDisabled ? (
+                                                          <div className="flex items-center gap-1.5">
+                                                            <Input
+                                                              type="number"
+                                                              min={1}
+                                                              value={row.quantity}
+                                                              onChange={(e) => updateRowEdit(getRowKey(item, actualIndex), "quantity", Number(e.target.value) || 1)}
+                                                              className="h-7 w-20 text-xs"
+                                                              title="Qty bahan yang dipotong dari stok"
+                                                            />
+                                                            <span className="text-muted-foreground">{row.unit || item.unit}</span>
+                                                          </div>
+                                                        ) : (
+                                                          <span>{row.quantity} {row.unit || item.unit}</span>
+                                                        )}
+                                                      </td>
                                                       <td className="py-2 px-3 text-right text-xs">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(Number(row.quantity || 0) * unitPrice)}</td>
                                                       <td className="py-2 px-3 text-muted-foreground text-xs">Komponen</td>
                                                       {canModify && <td className="py-2 px-3 text-center">-</td>}
@@ -1654,8 +1720,84 @@ export function PharmacyEditPrescription({
                                   </table>
                                 </div>
                                 {/* Footer with total and delete button */}
-                                <div className="border-t border-border/50 bg-primary/5 px-3 py-2 flex items-center justify-between">
-                                  <div>
+                                <div className="border-t border-border/50 bg-primary/5 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 text-xs gap-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                          disabled={printingResep}
+                                        >
+                                          {printingResep ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                          <span>Cetak Resep</span>
+                                          <ChevronDown className="h-3 w-3 opacity-60" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-56" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={() => handlePrintResep(selectedOrder, "doctor")}
+                                        >
+                                          <FileText className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                                          <div>
+                                            <div className="font-medium text-xs">Resep Dokter (Asli)</div>
+                                            <div className="text-[10px] text-muted-foreground">Sesuai resep awal dokter</div>
+                                          </div>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={() => handlePrintResep(selectedOrder, "edited")}
+                                        >
+                                          <FileCheck className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                          <div>
+                                            <div className="font-medium text-xs">Resep Hasil Edit (Farmasi)</div>
+                                            <div className="text-[10px] text-muted-foreground">Sesuai telaah & penyesuaian farmasi</div>
+                                          </div>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 text-xs gap-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                          disabled={printingEtiket}
+                                        >
+                                          {printingEtiket ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                          <span>Cetak Etiket</span>
+                                          <ChevronDown className="h-3 w-3 opacity-60" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-56" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={() => handlePrintEtiket(selectedOrder, "doctor")}
+                                        >
+                                          <Tag className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                                          <div>
+                                            <div className="font-medium text-xs">Etiket Resep Dokter</div>
+                                            <div className="text-[10px] text-muted-foreground">Etiket resep awal dokter</div>
+                                          </div>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={() => handlePrintEtiket(selectedOrder, "edited")}
+                                        >
+                                          <Tag className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                          <div>
+                                            <div className="font-medium text-xs">Etiket Resep Edit (Farmasi)</div>
+                                            <div className="text-[10px] text-muted-foreground">Etiket penyesuaian farmasi</div>
+                                          </div>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                     {canEdit && (
                                       <Button
                                         variant="destructive"
@@ -1725,24 +1867,27 @@ export function PharmacyEditPrescription({
                     <>
                       <Button
                         type="button"
-                        size="icon"
+                        size="sm"
                         variant="outline"
-                        onClick={openRacikanDialog}
-                        className="h-9 w-9 rounded-md"
-                        title="Tambah Racikan"
-                        aria-label="Tambah Racikan"
+                        onClick={openAddDialog}
+                        className="h-9 px-2.5 text-xs font-medium gap-1.5 rounded-md"
+                        title="Tambah Obat Non-Racikan"
+                        aria-label="Tambah Obat Non-Racikan"
                       >
-                        <Pill className="h-4 w-4" />
+                        <Pill className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span>Non-Racikan</span>
                       </Button>
                       <Button
                         type="button"
-                        size="icon"
-                        onClick={openAddDialog}
-                        className="h-9 w-9 rounded-md"
-                        title="Tambah Obat"
-                        aria-label="Tambah Obat"
+                        size="sm"
+                        variant="default"
+                        onClick={openRacikanDialog}
+                        className="h-9 px-2.5 text-xs font-medium gap-1.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground"
+                        title="Tambah Obat Racikan"
+                        aria-label="Tambah Obat Racikan"
                       >
-                        <Plus className="h-5 w-5" />
+                        <FlaskConical className="h-4 w-4" />
+                        <span>Racikan</span>
                       </Button>
                     </>
                   )}
@@ -1817,6 +1962,37 @@ export function PharmacyEditPrescription({
                           <td className="w-28 py-1.5 align-top text-muted-foreground">No. Resep</td>
                           <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
                         </tr>
+                        {selectedOrder.pharmacy_visit?.room_queue && (
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Antrean Farmasi</td>
+                            <td className="py-1.5 font-medium break-words">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-primary">
+                                  {selectedOrder.pharmacy_visit.room_queue.queue_number}
+                                </span>
+                                <Badge
+                                  variant={selectedOrder.pharmacy_visit.room_queue.status === "called" ? "default" : "outline"}
+                                  className="text-[10px] h-5 px-1.5"
+                                >
+                                  {selectedOrder.pharmacy_visit.room_queue.status === "called"
+                                    ? "Dipanggil"
+                                    : selectedOrder.pharmacy_visit.room_queue.status === "waiting"
+                                      ? "Menunggu"
+                                      : selectedOrder.pharmacy_visit.room_queue.status}
+                                </Badge>
+                                {!rmDuplicateMode && (
+                                  <PharmacyQueueCallButton
+                                    visitId={visitId}
+                                    order={selectedOrder}
+                                    patientName={patient?.nama_lengkap}
+                                    size="sm"
+                                    className="h-7 text-xs px-2"
+                                  />
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         <tr className="border-b">
                           <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
                           <td className="py-1.5 font-medium break-words">{groupedActiveItems.length}</td>
@@ -1899,6 +2075,9 @@ export function PharmacyEditPrescription({
                                 <td className="py-2 px-3">
                                   <p className="truncate">{detailSummary}</p>
                                   <p className="text-xs text-muted-foreground truncate">Instruksi: {firstRow.instructions || "-"}</p>
+                                  {(firstRow.notes || group.sharedFields?.notes) ? (
+                                    <p className="text-xs text-muted-foreground truncate">Catatan: {firstRow.notes || group.sharedFields?.notes}</p>
+                                  ) : null}
                                 </td>
                                 <td className="py-2 px-3 font-medium">{firstRow.racikan_qty || 1} {firstRow.racikan_unit || "bungkus"}</td>
                                 <td className="py-2 px-3 text-right">
@@ -1951,8 +2130,26 @@ export function PharmacyEditPrescription({
                                         </div>
                                         <p className="text-xs text-muted-foreground pl-6 truncate">{item.medicine?.code || "-"}</p>
                                       </td>
-                                      <td className="py-2 px-3 text-xs text-muted-foreground">Bahan racikan</td>
-                                      <td className="py-2 px-3">{row.quantity} {row.unit || item.unit}</td>
+                                      <td className="py-2 px-3 text-xs text-muted-foreground">
+                                        {row.dosage ? `Dosis: ${row.dosage}` : "Bahan racikan"}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        {canModify && !groupDisabled ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <Input
+                                              type="number"
+                                              min={1}
+                                              value={row.quantity}
+                                              onChange={(e) => updateRowEdit(getRowKey(item, actualIndex), "quantity", Number(e.target.value) || 1)}
+                                              className="h-7 w-20 text-xs"
+                                              title="Qty bahan yang dipotong dari stok"
+                                            />
+                                            <span className="text-xs text-muted-foreground">{row.unit || item.unit}</span>
+                                          </div>
+                                        ) : (
+                                          <span>{row.quantity} {row.unit || item.unit}</span>
+                                        )}
+                                      </td>
                                       <td className="py-2 px-3 text-right">{formatRupiah(Number(row.quantity || 0) * unitPrice)}</td>
                                       <td className="py-2 px-3 text-muted-foreground text-xs">Komponen</td>
                                       {canModify && <td className="py-2 px-3 text-center text-muted-foreground">-</td>}
@@ -2033,8 +2230,91 @@ export function PharmacyEditPrescription({
                   </tbody>
                 </table>
               </div>
-              <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-between">
-                <div>
+              <div className="border-t bg-primary/5 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={printingResep || !selectedOrder}
+                        className="gap-1.5"
+                      >
+                        {printingResep ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Printer className="h-4 w-4 mr-1" />
+                        )}
+                        <span>{printingResep ? "Mencetak..." : "Cetak Resep"}</span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-60">
+                      <DropdownMenuItem
+                        className="cursor-pointer py-2"
+                        onClick={() => handlePrintResep(selectedOrder, "doctor")}
+                      >
+                        <FileText className="h-4 w-4 mr-2.5 text-blue-600 shrink-0" />
+                        <div>
+                          <div className="font-medium text-xs">Cetak Resep Dokter (Asli)</div>
+                          <div className="text-[10px] text-muted-foreground">Sesuai resep awal dokter</div>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer py-2"
+                        onClick={() => handlePrintResep(selectedOrder, "edited")}
+                      >
+                        <FileCheck className="h-4 w-4 mr-2.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <div className="font-medium text-xs">Cetak Resep yang Diedit (Farmasi)</div>
+                          <div className="text-[10px] text-muted-foreground">Sesuai telaah & penyesuaian farmasi</div>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={printingEtiket || !selectedOrder}
+                        className="gap-1.5"
+                      >
+                        {printingEtiket ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Printer className="h-4 w-4 mr-1" />
+                        )}
+                        <span>{printingEtiket ? "Mencetak..." : "Cetak Etiket"}</span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-60">
+                      <DropdownMenuItem
+                        className="cursor-pointer py-2"
+                        onClick={() => handlePrintEtiket(selectedOrder, "doctor")}
+                      >
+                        <Tag className="h-4 w-4 mr-2.5 text-blue-600 shrink-0" />
+                        <div>
+                          <div className="font-medium text-xs">Cetak Etiket Resep Dokter</div>
+                          <div className="text-[10px] text-muted-foreground">Etiket sesuai resep awal dokter</div>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer py-2"
+                        onClick={() => handlePrintEtiket(selectedOrder, "edited")}
+                      >
+                        <Tag className="h-4 w-4 mr-2.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <div className="font-medium text-xs">Cetak Etiket Resep Edit (Farmasi)</div>
+                          <div className="text-[10px] text-muted-foreground">Etiket sesuai resep telaah farmasi</div>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   {canEdit && (
                     <Button
                       variant={rmDuplicateMode ? "destructive" : "outline"}
@@ -2196,29 +2476,25 @@ export function PharmacyEditPrescription({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Frekuensi</Label>
+                    <Label>Signa</Label>
                     <Combobox allowCustomValue
-                      options={FREQUENCY_OPTIONS}
-                      value={racikanDraft.frequency}
-                      onValueChange={(value) => setRacikanDraft((prev) => ({ ...prev, frequency: value }))}
-                      placeholder="Pilih frekuensi"
-                      searchPlaceholder="Cari frekuensi..."
-                      emptyText="Frekuensi tidak ditemukan"
+                      options={SIGNA_OPTIONS}
+                      value={racikanDraft.instructions}
+                      onValueChange={(value) => setRacikanDraft((prev) => ({ ...prev, instructions: value, frequency: value }))}
+                      placeholder="Pilih atau ketik signa (contoh: 3 x 1 Setelah Makan)"
+                      searchPlaceholder="Cari atau ketik signa..."
+                      emptyText="Tekan enter untuk menggunakan signa ini"
                       className="w-full"
                     />
                   </div>
-                  <div className="space-y-1 md:col-span-1 xl:col-span-2">
-                    <Label>Cara Pakai</Label>
-                    <Combobox allowCustomValue
-                      options={INSTRUCTION_OPTIONS}
-                      value={racikanDraft.instructions}
-                      onValueChange={(value) => setRacikanDraft((prev) => ({ ...prev, instructions: value }))}
-                      placeholder="Pilih cara pakai"
-                      searchPlaceholder="Cari cara pakai..."
-                      emptyText="Cara pakai tidak ditemukan"
-                      className="w-full"
+                  <div className="space-y-1">
+                    <Label>Catatan</Label>
+                    <Input
+                      value={racikanDraft.notes}
+                      onChange={(e) => setRacikanDraft((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Catatan racikan (opsional)"
                     />
                   </div>
                 </div>
@@ -2228,20 +2504,20 @@ export function PharmacyEditPrescription({
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <h4 className="text-sm font-semibold">Komponen Terpilih</h4>
-                    <p className="text-xs text-muted-foreground">Atur jumlah tiap bahan tanpa keluar dari modal.</p>
+                    <p className="text-xs text-muted-foreground">Atur dosis resep dan jumlah bahan yang diambil dari stok farmasi.</p>
                   </div>
                   <Badge variant="secondary">{racikanItems.length}</Badge>
                 </div>
 
                 {racikanItems.length > 0 ? (
                   <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[780px] text-sm">
+                    <table className="w-full min-w-[760px] text-sm">
                       <thead className="bg-muted/50 border-b">
                         <tr>
                           <th className="py-2 px-3 text-left font-medium">Nama Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[140px]">Dosis Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[140px]">Qty Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[180px]">Info</th>
+                          <th className="py-2 px-3 text-left font-medium w-[160px]">Dosis Resep</th>
+                          <th className="py-2 px-3 text-left font-medium w-[160px]">Qty Ambil Stok</th>
+                          <th className="py-2 px-3 text-left font-medium w-[160px]">Info Stok</th>
                           <th className="py-2 px-3 text-center font-medium w-[72px]">Aksi</th>
                         </tr>
                       </thead>
@@ -2261,17 +2537,20 @@ export function PharmacyEditPrescription({
                               />
                             </td>
                             <td className="py-2 px-3">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={rmDuplicateMode ? undefined : item.available_stock}
-                                value={item.quantity}
-                                onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
-                                className="h-8 w-28"
-                              />
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={rmDuplicateMode ? undefined : item.available_stock}
+                                  value={item.quantity}
+                                  onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
+                                  className="h-8 w-20"
+                                />
+                                <span className="text-xs text-muted-foreground">{item.medicine.unit}</span>
+                              </div>
                             </td>
                             <td className="py-2 px-3 text-xs text-muted-foreground">
-                              {rmDuplicateMode ? `Harga ${formatRupiah(item.unit_price || 0)}` : `Stok tersedia ${item.available_stock ?? item.quantity} ${item.medicine.unit}`}
+                              {rmDuplicateMode ? `Harga ${formatRupiah(item.unit_price || 0)}` : `Stok: ${item.available_stock ?? item.quantity} ${item.medicine.unit}`}
                             </td>
                             <td className="py-2 px-3 text-center">
                               <Button
@@ -2370,7 +2649,7 @@ export function PharmacyEditPrescription({
           <DialogHeader>
             <DialogTitle>Edit Detail Obat</DialogTitle>
             <DialogDescription>
-              Ubah obat, jumlah, dosis, frekuensi, cara pakai, dan catatan tambahan dari tombol aksi.
+              Ubah obat, jumlah, dosis, signa, dan catatan tambahan dari tombol aksi.
             </DialogDescription>
           </DialogHeader>
 
@@ -2438,33 +2717,20 @@ export function PharmacyEditPrescription({
                     disabled={editingItemLocked}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Frekuensi</Label>
+                <div className="space-y-1 md:col-span-2">
+                  <Label>Signa</Label>
                   <Combobox allowCustomValue
-                    options={FREQUENCY_OPTIONS}
-                    value={editingItemRow.frequency}
-                    onValueChange={(value) => {
-                      if (editingItemRowKey === null) return;
-                      updateRowEdit(editingItemRowKey, "frequency", value);
-                    }}
-                    placeholder="Pilih frekuensi"
-                    searchPlaceholder="Cari frekuensi..."
-                    emptyText="Frekuensi tidak ditemukan"
-                    disabled={editingItemLocked}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Cara Pakai</Label>
-                  <Combobox allowCustomValue
-                    options={INSTRUCTION_OPTIONS}
+                    options={SIGNA_OPTIONS}
                     value={editingItemRow.instructions}
                     onValueChange={(value) => {
                       if (editingItemRowKey === null) return;
                       updateRowEdit(editingItemRowKey, "instructions", value);
+                      updateRowEdit(editingItemRowKey, "frequency", value);
                     }}
-                    placeholder="Pilih cara pakai"
-                    searchPlaceholder="Cari cara pakai..."
-                    emptyText="Cara pakai tidak ditemukan"
+                    placeholder="Pilih atau ketik signa (contoh: 3 x 1 Setelah Makan)"
+                    searchPlaceholder="Cari atau ketik signa..."
+                    emptyText="Tekan enter untuk menggunakan signa ini"
+                    disabled={editingItemLocked}
                     className="w-full"
                   />
                 </div>
@@ -2592,29 +2858,30 @@ export function PharmacyEditPrescription({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label>Frekuensi</Label>
+                      <Label>Signa</Label>
                       <Combobox allowCustomValue
-                        options={FREQUENCY_OPTIONS}
-                        value={editingRacikanRow.frequency}
-                        onValueChange={(value) => updateRacikanGroupEdit(editingRacikanItems, "frequency", value)}
-                        placeholder="Pilih frekuensi"
-                        searchPlaceholder="Cari frekuensi..."
-                        emptyText="Frekuensi tidak ditemukan"
+                        options={SIGNA_OPTIONS}
+                        value={editingRacikanRow.instructions}
+                        onValueChange={(value) => {
+                          updateRacikanGroupEdit(editingRacikanItems, "instructions", value);
+                          updateRacikanGroupEdit(editingRacikanItems, "frequency", value);
+                        }}
+                        placeholder="Pilih atau ketik signa (contoh: 3 x 1 Setelah Makan)"
+                        searchPlaceholder="Cari atau ketik signa..."
+                        emptyText="Tekan enter untuk menggunakan signa ini"
+                        disabled={editingRacikanLocked}
                         className="w-full"
                       />
                     </div>
-                    <div className="space-y-1 md:col-span-1 xl:col-span-2">
-                      <Label>Cara Pakai</Label>
-                      <Combobox allowCustomValue
-                        options={INSTRUCTION_OPTIONS}
-                        value={editingRacikanRow.instructions}
-                        onValueChange={(value) => updateRacikanGroupEdit(editingRacikanItems, "instructions", value)}
-                        placeholder="Pilih cara pakai"
-                        searchPlaceholder="Cari cara pakai..."
-                        emptyText="Cara pakai tidak ditemukan"
-                        className="w-full"
+                    <div className="space-y-1">
+                      <Label>Catatan</Label>
+                      <Input
+                        value={editingRacikanRow.notes || ""}
+                        onChange={(e) => updateRacikanGroupEdit(editingRacikanItems, "notes", e.target.value)}
+                        placeholder="Catatan racikan (opsional)"
+                        disabled={editingRacikanLocked}
                       />
                     </div>
                   </div>
@@ -2624,20 +2891,20 @@ export function PharmacyEditPrescription({
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <h4 className="text-sm font-semibold">Komponen Racikan</h4>
-                      <p className="text-xs text-muted-foreground">Jumlah bahan bisa diedit langsung tanpa tabel panjang.</p>
+                      <p className="text-xs text-muted-foreground">Atur dosis resep dan jumlah bahan yang dipotong dari stok farmasi.</p>
                     </div>
                     <Badge variant="secondary">{editingRacikanItems.length}</Badge>
                   </div>
 
                   <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[720px] text-sm">
+                    <table className="w-full min-w-[760px] text-sm">
                       <thead className="bg-muted/50 border-b">
                         <tr>
                           <th className="py-2 px-3 text-left font-medium">Nama Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[140px]">Dosis Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[140px]">Qty Bahan</th>
-                          <th className="py-2 px-3 text-left font-medium w-[180px]">Info</th>
-                          <th className="py-2 px-3 text-right font-medium w-[140px]">Subtotal</th>
+                          <th className="py-2 px-3 text-left font-medium w-[150px]">Dosis Resep</th>
+                          <th className="py-2 px-3 text-left font-medium w-[160px]">Qty Ambil Stok</th>
+                          <th className="py-2 px-3 text-left font-medium w-[150px]">Info Stok</th>
+                          <th className="py-2 px-3 text-right font-medium w-[120px]">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2654,20 +2921,31 @@ export function PharmacyEditPrescription({
                                 <p className="font-medium text-sm truncate">{item.medicine?.name || "Komponen"}</p>
                                 <p className="text-xs text-muted-foreground truncate">{item.medicine?.code || "-"}</p>
                               </td>
-                              <td className="py-2 px-3 text-sm">{row.dosage || "-"}</td>
                               <td className="py-2 px-3">
                                 <Input
-                                  type="number"
-                                  min={1}
-                                  max={!rmDuplicateMode && stock > 0 ? stock : undefined}
-                                  value={row.quantity}
-                                  onChange={(e) => updateRowEdit(rowKey, "quantity", Number(e.target.value) || 1)}
+                                  value={row.dosage || ""}
+                                  onChange={(e) => updateRowEdit(rowKey, "dosage", e.target.value)}
+                                  placeholder="Contoh: 1/2 tablet"
                                   disabled={editingRacikanLocked}
-                                  className="h-8 w-28"
+                                  className="h-8"
                                 />
                               </td>
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={!rmDuplicateMode && stock > 0 ? stock : undefined}
+                                    value={row.quantity}
+                                    onChange={(e) => updateRowEdit(rowKey, "quantity", Number(e.target.value) || 1)}
+                                    disabled={editingRacikanLocked}
+                                    className="h-8 w-20"
+                                  />
+                                  <span className="text-xs text-muted-foreground">{row.unit || item.unit}</span>
+                                </div>
+                              </td>
                               <td className="py-2 px-3 text-xs text-muted-foreground">
-                                {rmDuplicateMode ? formatRupiah(unitPrice) : `Maks ${stock} ${row.unit || item.unit}`}
+                                {rmDuplicateMode ? formatRupiah(unitPrice) : `Stok: ${stock} ${row.unit || item.unit}`}
                               </td>
                               <td className="py-2 px-3 text-right font-medium">{formatRupiah(Number(row.quantity || 0) * unitPrice)}</td>
                             </tr>

@@ -747,7 +747,7 @@ export default function RegistrationCreate() {
                           .filter((room) => room.service_type === selectedServiceType)
                           .map((room) => ({
                             value: room.id.toString(),
-                            label: `${room.code} - ${room.name}`,
+                            label: room.name,
                           }))}
                         value={destinationRoomId?.toString() || ""}
                         onValueChange={handleRoomChange}

@@ -233,7 +233,7 @@ export function RoomMedicineFormDialog({
                   disabled={!!roomMedicine}
                 >
                   {selectedMedicine
-                    ? `${selectedMedicine.code} - ${selectedMedicine.name}`
+                    ? selectedMedicine.name
                     : "Pilih obat..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -265,7 +265,7 @@ export function RoomMedicineFormDialog({
                           <div className="flex flex-col flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">
-                                {medicine.code} - {medicine.name}
+                                {medicine.name}
                               </span>
                               {getCategoryBadge(medicine.category)}
                               {getTypeBadge(medicine.type)}

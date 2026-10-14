@@ -36,6 +36,7 @@ export interface SignDocumentRequest {
   signature_location?: string;
   signature_date?: string;
   signature_name?: string;
+  hide_date_place?: boolean;
 }
 
 // ==================== Response Types ====================

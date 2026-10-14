@@ -118,8 +118,6 @@ export default function PurchaseReceive() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [purchase, setPurchase] = useState<Purchase | null>(null);
-  const [bulkBatchNumber, setBulkBatchNumber] = useState("");
-  const [bulkExpiryDate, setBulkExpiryDate] = useState("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -221,40 +219,16 @@ export default function PurchaseReceive() {
     const currentItems = form.getValues("items");
     form.setValue(
       "items",
-      currentItems.map((item) => ({
-        ...item,
-        quantity_received: item.selected ? item.remaining : item.quantity_received,
-      }))
-    );
-  };
-
-  // Apply batch number to all selected medicines
-  const handleApplyBatchToSelected = (batchNumber: string) => {
-    const currentItems = form.getValues("items");
-    form.setValue(
-      "items",
-      currentItems.map((item) => ({
-        ...item,
-        batch_number:
-          item.selected && item.item_type === "medicine"
-            ? batchNumber
-            : item.batch_number,
-      }))
-    );
-  };
-
-  // Apply expiry date to all selected medicines
-  const handleApplyExpiryToSelected = (expiryDate: string) => {
-    const currentItems = form.getValues("items");
-    form.setValue(
-      "items",
-      currentItems.map((item) => ({
-        ...item,
-        expiry_date:
-          item.selected && item.item_type === "medicine"
-            ? expiryDate
-            : item.expiry_date,
-      }))
+      currentItems.map((item) => {
+        const factor = Math.max(1, Number(item.conversion_factor || 1));
+        const fillQty = item.selected ? item.remaining : item.quantity_received;
+        return {
+          ...item,
+          quantity_received: fillQty,
+          quantity_large_received: Math.floor(fillQty / factor),
+          quantity_small_received: fillQty % factor,
+        };
+      })
     );
   };
 
@@ -262,13 +236,6 @@ export default function PurchaseReceive() {
     if (!id) return;
 
     const resolveItemReceiveQty = (item: FormValues["items"][number]) => {
-      const factor = Math.max(1, Number(item.conversion_factor || 1));
-      const hasLargeUnit = item.item_type === "medicine" && !!item.unit_large && factor > 1;
-      if (hasLargeUnit) {
-        const qtyLarge = Math.max(0, Number(item.quantity_large_received || 0));
-        const qtySmall = Math.max(0, Number(item.quantity_small_received || 0));
-        return (qtyLarge * factor) + qtySmall;
-      }
       return Math.max(0, Number(item.quantity_received || 0));
     };
 
@@ -320,13 +287,6 @@ export default function PurchaseReceive() {
 
   const resolveDisplayReceived = (item?: FormValues["items"][number]) => {
     if (!item) return 0;
-    const factor = Math.max(1, Number(item.conversion_factor || 1));
-    const hasLargeUnit = item.item_type === "medicine" && !!item.unit_large && factor > 1;
-    if (hasLargeUnit) {
-      const qtyLarge = Math.max(0, Number(item.quantity_large_received || 0));
-      const qtySmall = Math.max(0, Number(item.quantity_small_received || 0));
-      return (qtyLarge * factor) + qtySmall;
-    }
     return Math.max(0, Number(item.quantity_received || 0));
   };
 
@@ -457,8 +417,8 @@ export default function PurchaseReceive() {
 
                 <SectionPanel
                   icon={CheckCheck}
-                  title="Aksi Massal"
-                  description="Pilih item aktif, isi sisa otomatis, lalu terapkan batch atau exp untuk obat terpilih."
+                  title="Aksi Cepat"
+                  description="Pilih item aktif dan isi sisa otomatis penerimaan barang."
                   className="flex flex-col"
                   contentClassName="space-y-3"
                   actions={
@@ -481,80 +441,18 @@ export default function PurchaseReceive() {
                     </div>
                   }
                 >
-                  {selectedMedicines > 0 ? (
-                    <>
-                      <Alert className="border-border/70 px-3 py-2">
-                        <Info className="h-4 w-4" />
-                        <AlertDescription className="text-xs leading-5">
-                          <strong>{selectedMedicines} obat</strong> sedang dipilih. Batch dan tanggal kadaluarsa bisa diisi massal dari panel ini.
-                        </AlertDescription>
-                      </Alert>
-
-                      <div className="grid gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            Batch Semua Obat Terpilih
-                          </label>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Masukkan batch"
-                              value={bulkBatchNumber}
-                              onChange={(e) => setBulkBatchNumber(e.target.value)}
-                            />
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="h-8 px-3 text-[11px]"
-                              onClick={() => {
-                                if (!bulkBatchNumber) return;
-                                handleApplyBatchToSelected(bulkBatchNumber);
-                                toast({
-                                  title: "Berhasil",
-                                  description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
-                                });
-                              }}
-                            >
-                              Terapkan
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            Exp. Semua Obat Terpilih
-                          </label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="date"
-                              value={bulkExpiryDate}
-                              onChange={(e) => setBulkExpiryDate(e.target.value)}
-                            />
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="h-8 px-3 text-[11px]"
-                              onClick={() => {
-                                if (!bulkExpiryDate) return;
-                                handleApplyExpiryToSelected(bulkExpiryDate);
-                                toast({
-                                  title: "Berhasil",
-                                  description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
-                                });
-                              }}
-                            >
-                              Terapkan
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-xs text-muted-foreground">
-                      Pilih minimal satu item obat di tabel kanan agar aksi batch dan exp tersedia.
-                    </div>
-                  )}
+                  <Alert className="border-border/70 px-3 py-2">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-xs leading-5">
+                      {selectedCount > 0 ? (
+                        <>
+                          <strong>{selectedCount} item</strong> sedang dipilih ({selectedMedicines} obat). Nomor batch dan tanggal kadaluarsa disesuaikan langsung pada tiap obat di tabel.
+                        </>
+                      ) : (
+                        "Pilih item di tabel atau klik tombol 'Pilih Semua' di atas untuk memproses penerimaan barang."
+                      )}
+                    </AlertDescription>
+                  </Alert>
                 </SectionPanel>
               </div>
             </div>
@@ -647,10 +545,7 @@ export default function PurchaseReceive() {
                                   </div>
                                   <div className="min-w-0 space-y-0.5">
                                     <p className="truncate text-xs font-semibold leading-4 text-foreground">{item?.item_name}</p>
-                                    {item?.item_code ? (
-                                      <p className="font-mono text-[11px] leading-4 text-muted-foreground">{item.item_code}</p>
-                                    ) : null}
-                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                                       <Badge
                                         variant="outline"
                                         className={cn(
@@ -687,60 +582,61 @@ export default function PurchaseReceive() {
                                 ) : isSelected ? (
                                   <div className="grid gap-2 sm:grid-cols-2">
                                     {isMedicine && item?.unit_large && (item?.conversion_factor || 1) > 1 ? (
-                                      <>
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.quantity_large_received`}
-                                          render={({ field: qtyLargeField }) => (
-                                            <FormItem className="space-y-1">
-                                              <FormLabel>Qty Besar ({item.unit_large})</FormLabel>
-                                              <FormControl>
-                                                <Input
-                                                  type="number"
-                                                  min={0}
-                                                  value={qtyLargeField.value ?? 0}
-                                                  onChange={(e) => {
-                                                    const nextLarge = Math.max(0, parseInt(e.target.value) || 0);
-                                                    const factor = Math.max(1, Number(item?.conversion_factor || 1));
-                                                    const smallPath = `items.${index}.quantity_small_received` as const;
-                                                    const currentSmall = Math.max(0, Number(form.getValues(smallPath) || 0));
-                                                    const nextTotal = (nextLarge * factor) + currentSmall;
-                                                    form.setValue(`items.${index}.quantity_large_received`, nextLarge);
-                                                    form.setValue(`items.${index}.quantity_received`, Math.min(item?.remaining || 0, nextTotal));
-                                                  }}
-                                                />
-                                              </FormControl>
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.quantity_small_received`}
-                                          render={({ field: qtySmallField }) => (
-                                            <FormItem className="space-y-1">
-                                              <FormLabel>Qty Kecil ({item.unit_small || item.unit})</FormLabel>
-                                              <FormControl>
-                                                <Input
-                                                  type="number"
-                                                  min={0}
-                                                  value={qtySmallField.value ?? 0}
-                                                  onChange={(e) => {
-                                                    const nextSmall = Math.max(0, parseInt(e.target.value) || 0);
-                                                    const factor = Math.max(1, Number(item?.conversion_factor || 1));
-                                                    const largePath = `items.${index}.quantity_large_received` as const;
-                                                    const currentLarge = Math.max(0, Number(form.getValues(largePath) || 0));
-                                                    const nextTotal = (currentLarge * factor) + nextSmall;
-                                                    form.setValue(`items.${index}.quantity_small_received`, nextSmall);
-                                                    form.setValue(`items.${index}.quantity_received`, Math.min(item?.remaining || 0, nextTotal));
-                                                  }}
-                                                />
-                                              </FormControl>
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <div className="sm:col-span-2 rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
-                                          Total diterima sesi ini: <span className="font-semibold text-foreground">{resolveDisplayReceived(item)}</span> {item?.unit_small || item?.unit}
-                                        </div>
+                                       <>
+                                         <FormField
+                                           control={form.control}
+                                           name={`items.${index}.quantity_large_received`}
+                                           render={({ field: qtyLargeField }) => (
+                                             <FormItem className="space-y-1">
+                                               <FormLabel>Qty Besar ({item.unit_large})</FormLabel>
+                                               <FormControl>
+                                                 <Input
+                                                   type="number"
+                                                   min={0}
+                                                   value={qtyLargeField.value ?? 0}
+                                                   onChange={(e) => {
+                                                     const nextLarge = Math.max(0, parseInt(e.target.value) || 0);
+                                                     const factor = Math.max(1, Number(item?.conversion_factor || 1));
+                                                     const nextTotal = Math.min(item?.remaining || 0, nextLarge * factor);
+                                                     form.setValue(`items.${index}.quantity_large_received`, nextLarge);
+                                                     form.setValue(`items.${index}.quantity_received`, nextTotal);
+                                                     form.setValue(`items.${index}.quantity_small_received`, nextTotal % factor);
+                                                   }}
+                                                 />
+                                               </FormControl>
+                                             </FormItem>
+                                           )}
+                                         />
+                                         <FormField
+                                           control={form.control}
+                                           name={`items.${index}.quantity_received`}
+                                           render={({ field: qtyTotalField }) => (
+                                             <FormItem className="space-y-1">
+                                               <FormLabel>Total ({item.unit_small || item.unit})</FormLabel>
+                                               <FormControl>
+                                                 <Input
+                                                   type="number"
+                                                   min={0}
+                                                   max={item?.remaining}
+                                                   value={qtyTotalField.value ?? 0}
+                                                   onChange={(e) => {
+                                                     const rawVal = parseInt(e.target.value) || 0;
+                                                     const nextTotal = Math.min(item?.remaining || 0, Math.max(0, rawVal));
+                                                     const factor = Math.max(1, Number(item?.conversion_factor || 1));
+                                                     const nextLarge = Math.floor(nextTotal / factor);
+                                                     form.setValue(`items.${index}.quantity_received`, nextTotal);
+                                                     form.setValue(`items.${index}.quantity_large_received`, nextLarge);
+                                                     form.setValue(`items.${index}.quantity_small_received`, nextTotal % factor);
+                                                   }}
+                                                 />
+                                               </FormControl>
+                                             </FormItem>
+                                           )}
+                                         />
+                                         <div className="sm:col-span-2 rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground flex items-center justify-between">
+                                           <span>Total diterima: <span className="font-semibold text-foreground">{resolveDisplayReceived(item)} {item?.unit_small || item?.unit}</span></span>
+                                           <span>({form.watch(`items.${index}.quantity_large_received`) || 0} {item?.unit_large}{(Number(form.watch(`items.${index}.quantity_received`) || 0) % (Number(item?.conversion_factor) || 1)) > 0 ? ` + ${Number(form.watch(`items.${index}.quantity_received`)) % (Number(item?.conversion_factor) || 1)} ${item?.unit_small || item?.unit}` : ""})</span>
+                                         </div>
                                       </>
                                     ) : (
                                       <FormField

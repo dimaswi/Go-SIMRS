@@ -136,6 +136,7 @@ export default function RoomShow() {
   // Room Procedures states
   const [roomProcedures, setRoomProcedures] = useState<RoomProcedure[]>([]);
   const [roomProcedureDialogOpen, setRoomProcedureDialogOpen] = useState(false);
+  const [editingRoomProcedure, setEditingRoomProcedure] = useState<RoomProcedure | null>(null);
   const [deleteRoomProcedureDialogOpen, setDeleteRoomProcedureDialogOpen] = useState(false);
   const [roomProcedureToDelete, setRoomProcedureToDelete] = useState<number | null>(null);
 
@@ -1304,7 +1305,14 @@ export default function RoomShow() {
                       roomProcedures={roomProcedures}
                       onRefresh={loadData}
                       hasPermission={hasPermission('rooms.update')}
-                      onAdd={() => setRoomProcedureDialogOpen(true)}
+                      onAdd={() => {
+                        setEditingRoomProcedure(null);
+                        setRoomProcedureDialogOpen(true);
+                      }}
+                      onEdit={(rp) => {
+                        setEditingRoomProcedure(rp);
+                        setRoomProcedureDialogOpen(true);
+                      }}
                       onDelete={(rpId) => {
                         setRoomProcedureToDelete(rpId);
                         setDeleteRoomProcedureDialogOpen(true);
@@ -1442,13 +1450,14 @@ export default function RoomShow() {
             roomId={parseInt(id!)}
             schedule={editingDoctorSchedule}
             onSuccess={loadData}
+            isUgd={room?.has_schedule === false || ['ugd', 'igd', 'gawat_darurat', 'rawat_inap'].includes(room?.service_type?.toLowerCase() || '')}
           />
 
           <RoomProcedureFormDialog
             open={roomProcedureDialogOpen}
             onOpenChange={setRoomProcedureDialogOpen}
             roomId={parseInt(id!)}
-            roomProcedure={null}
+            roomProcedure={editingRoomProcedure}
             onSuccess={loadData}
           />
 

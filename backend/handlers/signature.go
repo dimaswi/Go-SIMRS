@@ -262,6 +262,7 @@ type SignDocumentRequest struct {
 	SignatureLocation  string `json:"signature_location,omitempty"`  // free text
 	SignatureDate      string `json:"signature_date,omitempty"`      // YYYY-MM-DD
 	SignatureName      string `json:"signature_name,omitempty"`      // optional display name (e.g. patient name)
+	HideDatePlace      bool   `json:"hide_date_place,omitempty"`
 }
 
 // SignDocument signs a document with the user's PIN
@@ -402,10 +403,16 @@ func SignDocument(c *gin.Context) {
 	}
 
 	resolvedSlot := normalizeSignatureSlot(req.SignatureSlot)
+	
+	hideDateStr := "0"
+	if req.HideDatePlace {
+		hideDateStr = "1"
+	}
+
 	if req.Notes == "" {
-		req.Notes = buildSignatureMetaNote(resolvedSlot, req.SignatureRole, req.SignatureLocation, req.SignatureDate, req.SignatureName)
+		req.Notes = buildSignatureMetaNote(resolvedSlot, req.SignatureRole, req.SignatureLocation, req.SignatureDate, req.SignatureName, hideDateStr)
 	} else {
-		req.Notes = req.Notes + " | " + buildSignatureMetaNote(resolvedSlot, req.SignatureRole, req.SignatureLocation, req.SignatureDate, req.SignatureName)
+		req.Notes = req.Notes + " | " + buildSignatureMetaNote(resolvedSlot, req.SignatureRole, req.SignatureLocation, req.SignatureDate, req.SignatureName, hideDateStr)
 	}
 
 	// Create signature log
@@ -1377,7 +1384,7 @@ func normalizeSignatureSlot(slot string) string {
 	}
 	return s
 }
-func buildSignatureMetaNote(slot, role, location, date, name string) string {
+func buildSignatureMetaNote(slot, role, location, date, name, hideDate string) string {
 	slot = normalizeSignatureSlot(slot)
 	role = strings.ToLower(strings.TrimSpace(role))
 	switch role {
@@ -1391,7 +1398,7 @@ func buildSignatureMetaNote(slot, role, location, date, name string) string {
 	if date == "" {
 		date = time.Now().Format("2006-01-02")
 	}
-	return fmt.Sprintf("signature_meta[slot=%s;role=%s;location=%s;date=%s;name=%s]", slot, role, location, date, name)
+	return fmt.Sprintf("signature_meta[slot=%s;role=%s;location=%s;date=%s;name=%s;hide_date=%s]", slot, role, location, date, name, hideDate)
 }
 
 func getSignedSlots(sigDB *gorm.DB, docType string, docID uint) map[string]bool {

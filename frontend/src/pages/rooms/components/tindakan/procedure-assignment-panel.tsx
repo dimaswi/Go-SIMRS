@@ -104,7 +104,17 @@ export function ProcedureAssignmentPanel({
                   return (
                     <tr key={item.id} className="align-middle hover:bg-muted/30">
                       <td className="px-4 py-3">
-                        <div className="font-medium">{item.procedure?.name || 'Unknown'}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium">{item.procedure?.name || 'Unknown'}</div>
+                          {item.is_mandatory && (
+                            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">Wajib</Badge>
+                          )}
+                          {item.is_prescription_fee && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">
+                              Jasa Resep
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">{item.procedure?.code || '-'}</div>
                       </td>
                       <td className="px-4 py-3">

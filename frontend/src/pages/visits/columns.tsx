@@ -353,19 +353,28 @@ export const createVisitColumns = ({
           visit.room?.name?.toLowerCase().includes("rawat inap") ||
           visit.room?.name?.toLowerCase().includes("ranap");
 
+        // Check if this is a pharmacy visit
+        const isPharmacy = visit.visit_type === "pharmacy" ||
+          visit.room?.service_type === "farmasi" ||
+          visit.room?.name?.toLowerCase().includes("farmasi") ||
+          visit.room?.name?.toLowerCase().includes("apotek");
+
         // Check if room has no queue system (no room_queue data)
         const hasNoQueueSystem = !visit.room_queue;
 
-        // UGD dan Rawat Inap tidak menggunakan sistem antrian, langsung dilayani
+        // UGD, Rawat Inap, dan Farmasi tidak memanggil antrian dari tabel kunjungan.
+        // Antrean farmasi diproses terlebih dahulu baru dipanggil dari dalam detail order farmasi.
         const canCall = hasCallPermission &&
           !isEmergency &&
           !isInpatient &&
+          !isPharmacy &&
           !hasNoQueueSystem &&
           visit.room_queue?.status === "waiting";
 
         const canRecall = hasCallPermission &&
           !isEmergency &&
           !isInpatient &&
+          !isPharmacy &&
           !hasNoQueueSystem &&
           visit.room_queue?.status === "called" &&
           visit.status !== "in_progress";
@@ -373,13 +382,13 @@ export const createVisitColumns = ({
         // Can accept if:
         // - Has accept permission
         // - Visit status is not yet in_progress or completed
-        // - For UGD/emergency/inpatient/rooms without queue: can accept directly from waiting or in_queue status
+        // - For UGD/emergency/inpatient/pharmacy/rooms without queue: can accept directly from waiting or in_queue status
         // - For regular rooms with queue: only after queue has been called
         const canAccept = hasAcceptPermission &&
           visit.status !== "in_progress" &&
           visit.status !== "completed" &&
           (
-            ((isEmergency || isInpatient || hasNoQueueSystem) && (visit.status === "waiting" || visit.status === "in_queue")) ||
+            ((isEmergency || isInpatient || isPharmacy || hasNoQueueSystem) && (visit.status === "waiting" || visit.status === "in_queue")) ||
             visit.room_queue?.status === "called"
           );
 

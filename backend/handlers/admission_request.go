@@ -329,6 +329,11 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		return
 	}
 
+	// Apply mandatory procedures
+	if err := ApplyMandatoryProcedures(tx, inpatientVisit.ID, input.RoomID, &userID); err != nil {
+		fmt.Printf("Warning: failed to apply mandatory procedures for inpatient visit %d: %v\n", inpatientVisit.ID, err)
+	}
+
 	// Update bed status
 	if err := tx.Model(&models.Bed{}).Where("id = ?", input.BedID).Update("status", "occupied").Error; err != nil {
 		tx.Rollback()

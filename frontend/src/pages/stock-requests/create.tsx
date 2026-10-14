@@ -260,7 +260,7 @@ export default function StockRequestCreate() {
       // All rooms for "from" selection
       setRooms(allRooms.map((r: any) => ({
         value: r.id.toString(),
-        label: `${r.code} - ${r.name}`,
+        label: r.name,
       })));
 
       // Filter depo/pharmacy rooms for "to" selection
@@ -268,7 +268,7 @@ export default function StockRequestCreate() {
       const depos = allRooms.filter((r: any) => depoTypes.includes(r.room_type));
       setDepoRooms(depos.map((r: any) => ({
         value: r.id.toString(),
-        label: `${r.code} - ${r.name}`,
+        label: r.name,
       })));
     } catch (error) {
       toast({

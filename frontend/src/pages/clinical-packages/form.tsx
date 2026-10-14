@@ -1,22 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Combobox } from '@/components/ui/combobox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { ClinicalPackage, ClinicalPackageInput } from '@/lib/api/clinical-packages';
 import { medicinesApi, type Medicine } from '@/lib/api/medicines';
 import { proceduresApi, type Procedure } from '@/lib/api/procedures';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Package, Pill, Plus, ScanSearch, Stethoscope, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 
 interface ProcedureFormItem {
   procedure_id: number;
@@ -29,11 +34,7 @@ interface MedicineFormItem {
   medicine?: Medicine;
   quantity: number;
   unit: string;
-  dosage: string;
-  frequency: string;
-  route: string;
-  duration: string;
-  instructions: string;
+  signa: string;
   notes: string;
 }
 
@@ -53,93 +54,37 @@ const PROCEDURE_TYPE_LABELS: Record<string, string> = {
   medical: 'Medis',
 };
 
-const DOSAGE_OPTIONS = [
-  '1/2 tablet',
-  '1 tablet',
-  '2 tablet',
-  '1 kapsul',
-  '2 kapsul',
-  '5 ml',
-  '10 ml',
-  '15 ml',
-  '1 sendok takar',
-  '2 sendok takar',
-  '1 ampul',
-  '1 vial',
-  '1 tetes',
-  '2 tetes',
-  '3 tetes',
-  '1 puff',
-  '2 puff',
-];
+const SIGNA_OPTIONS = [
+  '3 x 1 Setelah Makan',
+  '3 x 1 Sebelum Makan',
+  '3 x 1 Bersama Makan',
+  '2 x 1 Setelah Makan',
+  '2 x 1 Sebelum Makan',
+  '2 x 1 Pagi & Malam',
+  '1 x 1 Pagi Hari Setelah Makan',
+  '1 x 1 Malam Hari Setelah Makan',
+  '1 x 1 Sebelum Tidur',
+  '4 x 1 Setelah Makan',
+  '1 x 1 Tablet Bila Perlu (PRN)',
+  '3 x 1 Sendok Takar (5 ml)',
+  '2 x 1 Sendok Takar (5 ml)',
+  '1 x 1 Sendok Takar (5 ml)',
+  '1 x 1 Tetes Pada Mata/Telinga',
+  '2 x 1 Tetes Pada Mata/Telinga',
+  '3 x 1 Tetes Pada Mata/Telinga',
+  'Oleskan Tipis 2x Sehari (Topikal)',
+  'Oleskan Tipis 3x Sehari (Topikal)',
+  'Bila Perlu / Jika Demam (P.R.N)',
+  'Bila Nyeri (P.R.N)',
+  'Sebelum Makan',
+  'Setelah Makan',
+  '1x Sehari',
+  '2x Sehari',
+  '3x Sehari',
+  'Habiskan',
+].map((s) => ({ value: s, label: s }));
 
-const FREQUENCY_OPTIONS = [
-  '1x1',
-  '2x1',
-  '3x1',
-  '4x1',
-  '1x sehari',
-  '2x sehari',
-  '3x sehari',
-  '4x sehari',
-  'setiap 4 jam',
-  'setiap 6 jam',
-  'setiap 8 jam',
-  'setiap 12 jam',
-  'bila perlu',
-];
-
-const ROUTE_OPTIONS = [
-  { value: 'oral', label: 'Oral' },
-  { value: 'sublingual', label: 'Sublingual' },
-  { value: 'topikal', label: 'Topikal' },
-  { value: 'intramuskular', label: 'Intramuskular (IM)' },
-  { value: 'intravena', label: 'Intravena (IV)' },
-  { value: 'subkutan', label: 'Subkutan (SC)' },
-  { value: 'rektal', label: 'Rektal' },
-  { value: 'inhalasi', label: 'Inhalasi' },
-  { value: 'nasal', label: 'Nasal' },
-  { value: 'otic', label: 'Otic (Telinga)' },
-  { value: 'ophthalmic', label: 'Ophthalmic (Mata)' },
-];
-
-const INSTRUCTION_OPTIONS = [
-  'Sebelum makan',
-  'Sesudah makan',
-  'Bersama makan',
-  'Pagi hari',
-  'Malam hari',
-  'Pagi dan malam',
-  'Saat perut kosong',
-  'Sebelum tidur',
-  'Bila perlu',
-  'Bila demam',
-  'Bila nyeri',
-  'Bila mual',
-  'Dikunyah',
-  'Diteteskan',
-  'Dioleskan',
-  'Dikocok dulu',
-  'Dilarutkan dulu',
-];
-
-function formatMedicineMeta(medicine?: Medicine) {
-  return [medicine?.form, medicine?.strength, medicine?.unit].filter(Boolean).join(' • ');
-}
-
-function buildDosageOptions(item: MedicineFormItem) {
-  const options = new Set(DOSAGE_OPTIONS);
-  if (item.dosage?.trim()) {
-    options.add(item.dosage.trim());
-  }
-  if (item.medicine?.dosage?.trim()) {
-    options.add(item.medicine.dosage.trim());
-  }
-  if (item.medicine?.strength?.trim()) {
-    options.add(item.medicine.strength.trim());
-  }
-  return Array.from(options);
-}
+const generatePackageCode = () => `PKT${Date.now().toString().slice(-6)}`;
 
 export function ClinicalPackageForm({
   title,
@@ -151,100 +96,115 @@ export function ClinicalPackageForm({
 }: ClinicalPackageFormProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [referenceLoading, setReferenceLoading] = useState(true);
-  const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
-  const [allMedicines, setAllMedicines] = useState<Medicine[]>([]);
-  const [code, setCode] = useState('');
+
+  const [code, setCode] = useState(() => (initialData?.code ? initialData.code : generatePackageCode()));
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [notes, setNotes] = useState('');
+
   const [procedureItems, setProcedureItems] = useState<ProcedureFormItem[]>([]);
   const [medicineItems, setMedicineItems] = useState<MedicineFormItem[]>([]);
+
   const [selectedProcedureId, setSelectedProcedureId] = useState('');
   const [selectedMedicineId, setSelectedMedicineId] = useState('');
 
+  const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
+  const [allMedicines, setAllMedicines] = useState<Medicine[]>([]);
+  const [referenceLoading, setReferenceLoading] = useState(true);
+
   useEffect(() => {
-    const loadReferenceData = async () => {
+    const loadReferences = async () => {
       try {
         const [proceduresRes, medicinesRes] = await Promise.all([
-          proceduresApi.getAll({ is_active: true }),
-          medicinesApi.getAll({ limit: 1000, is_active: true }),
+          proceduresApi.getAll({ is_active: true, limit: 1000 }),
+          medicinesApi.getAll({ is_active: true, limit: 1000 }),
         ]);
 
-        setAllProcedures(proceduresRes.data.data || []);
-        setAllMedicines(medicinesRes.data.data || []);
-      } catch {
-        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat referensi tindakan dan obat.' });
+        const procedures = proceduresRes.data.data || [];
+        const medicines = medicinesRes.data.data || [];
+
+        setAllProcedures(procedures);
+        setAllMedicines(medicines);
+      } catch (error) {
+        console.error('Failed to load references:', error);
+        toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat master tindakan dan obat.' });
       } finally {
         setReferenceLoading(false);
       }
     };
 
-    loadReferenceData();
+    loadReferences();
   }, [toast]);
 
   useEffect(() => {
-    setCode(initialData?.code || '');
-    setName(initialData?.name || '');
-    setDescription(initialData?.description || '');
-    setIsActive(initialData?.is_active ?? true);
-    setNotes(initialData?.notes || '');
-    setProcedureItems(
-      (initialData?.procedure_items || []).map((item) => ({
-        procedure_id: item.procedure_id,
-        procedure: item.procedure,
-        notes: item.notes || '',
-      }))
-    );
-    setMedicineItems(
-      (initialData?.medicine_items || []).map((item) => ({
-        medicine_id: item.medicine_id,
-        medicine: item.medicine,
-        quantity: item.quantity || 1,
-        unit: item.unit || item.medicine?.unit || '',
-        dosage: item.dosage || item.medicine?.dosage || '',
-        frequency: item.frequency || '',
-        route: item.route || '',
-        duration: item.duration || '',
-        instructions: item.instructions || '',
-        notes: item.notes || '',
-      }))
-    );
+    if (initialData) {
+      setCode(initialData.code || '');
+      setName(initialData.name || '');
+      setDescription(initialData.description || '');
+      setIsActive(initialData.is_active ?? true);
+      setNotes(initialData.notes || '');
+
+      setProcedureItems(
+        (initialData.procedure_items || []).map((item) => ({
+          procedure_id: item.procedure_id,
+          procedure: item.procedure,
+          notes: item.notes || '',
+        }))
+      );
+
+      setMedicineItems(
+        (initialData.medicine_items || []).map((item) => {
+          const signaValue =
+            item.instructions ||
+            item.dosage ||
+            (item.frequency ? `${item.frequency} ${item.instructions || ''}`.trim() : '');
+
+          return {
+            medicine_id: item.medicine_id,
+            medicine: item.medicine,
+            quantity: item.quantity || 1,
+            unit: item.unit || item.medicine?.unit || '',
+            signa: signaValue || '',
+            notes: item.notes || '',
+          };
+        })
+      );
+    } else {
+      setCode(generatePackageCode());
+    }
   }, [initialData]);
 
-  const availableProcedures = useMemo(
-    () => allProcedures.filter((procedure) => !procedureItems.some((item) => item.procedure_id === procedure.id)),
-    [allProcedures, procedureItems]
-  );
+  const availableProcedures = useMemo(() => {
+    const selectedIds = new Set(procedureItems.map((item) => item.procedure_id));
+    return allProcedures.filter((item) => !selectedIds.has(item.id));
+  }, [allProcedures, procedureItems]);
 
-  const availableMedicines = useMemo(
-    () => allMedicines.filter((medicine) => !medicineItems.some((item) => item.medicine_id === medicine.id)),
-    [allMedicines, medicineItems]
-  );
-
-  const totalMedicineQuantity = useMemo(
-    () => medicineItems.reduce((total, item) => total + Math.max(item.quantity || 0, 0), 0),
-    [medicineItems]
-  );
+  const availableMedicines = useMemo(() => {
+    const selectedIds = new Set(medicineItems.map((item) => item.medicine_id));
+    return allMedicines.filter((item) => !selectedIds.has(item.id));
+  }, [allMedicines, medicineItems]);
 
   const addProcedure = (procedureIdValue: string) => {
     const procedureId = Number(procedureIdValue);
     const procedure = allProcedures.find((item) => item.id === procedureId);
-    if (!procedure) {
-      return;
-    }
+    if (!procedure) return;
 
-    setProcedureItems((prev) => [...prev, { procedure_id: procedure.id, procedure, notes: '' }]);
+    setProcedureItems((prev) => [
+      ...prev,
+      {
+        procedure_id: procedure.id,
+        procedure,
+        notes: '',
+      },
+    ]);
     setSelectedProcedureId('');
   };
 
   const addMedicine = (medicineIdValue: string) => {
     const medicineId = Number(medicineIdValue);
     const medicine = allMedicines.find((item) => item.id === medicineId);
-    if (!medicine) {
-      return;
-    }
+    if (!medicine) return;
 
     setMedicineItems((prev) => [
       ...prev,
@@ -253,11 +213,7 @@ export function ClinicalPackageForm({
         medicine,
         quantity: 1,
         unit: medicine.unit || '',
-        dosage: medicine.dosage || '',
-        frequency: '',
-        route: '',
-        duration: '',
-        instructions: '',
+        signa: '',
         notes: '',
       },
     ]);
@@ -265,19 +221,23 @@ export function ClinicalPackageForm({
   };
 
   const updateMedicineItem = (index: number, field: keyof MedicineFormItem, value: string | number) => {
-    setMedicineItems((prev) => prev.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, [field]: value } : currentItem));
+    setMedicineItems((prev) =>
+      prev.map((currentItem, currentIndex) =>
+        currentIndex === index ? { ...currentItem, [field]: value } : currentItem
+      )
+    );
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!name.trim()) {
-      toast({ variant: 'destructive', title: 'Error!', description: 'Nama paket wajib diisi.' });
+      toast({ variant: 'destructive', title: 'Error!', description: 'Nama paket tindakan wajib diisi.' });
       return;
     }
 
     if (procedureItems.length === 0 && medicineItems.length === 0) {
-      toast({ variant: 'destructive', title: 'Error!', description: 'Tambahkan minimal satu tindakan atau obat.' });
+      toast({ variant: 'destructive', title: 'Error!', description: 'Tambahkan minimal satu tindakan atau obat dalam paket.' });
       return;
     }
 
@@ -296,11 +256,9 @@ export function ClinicalPackageForm({
         medicine_id: item.medicine_id,
         quantity: Math.max(item.quantity || 1, 1),
         unit: item.unit,
-        dosage: item.dosage,
-        frequency: item.frequency,
-        route: item.route,
-        duration: item.duration,
-        instructions: item.instructions,
+        dosage: item.signa,
+        frequency: item.signa,
+        instructions: item.signa,
         notes: item.notes,
         sort_order: index + 1,
       })),
@@ -309,7 +267,7 @@ export function ClinicalPackageForm({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -319,384 +277,337 @@ export function ClinicalPackageForm({
     <PageShell>
       <PageHeader
         title={title}
-        description="Susun paket tindakan dan obat dalam satu layar."
+        description="Susun paket tindakan medis dan obat standar yang siap ditugaskan ke ruangan"
         actions={
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" asChild className="h-9 w-9">
+              <Link to="/clinical-packages">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button type="submit" form="package-form" disabled={saving} className="h-9">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              {submitLabel}
+            </Button>
+          </div>
         }
       />
       <PageContent>
-      <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]">
-        <div className="space-y-4">
-          <Card className="overflow-hidden border-slate-200/80">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-emerald-50/70">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Package className="h-4 w-4" />
-                Informasi Paket
-              </CardTitle>
-              <CardDescription>
-                Nama dan identitas paket. Jika kode paket dikosongkan, sistem akan membuatkannya otomatis saat simpan.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Kode Paket</Label>
-                  <Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Contoh: PK-UGD-001 atau kosongkan" />
-                </div>
-                <div className="rounded-lg border bg-muted/30 px-4 py-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Status Paket</p>
-                    <p className="text-xs text-muted-foreground">Atur apakah paket ini siap dipakai di ruangan.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={isActive ? 'default' : 'secondary'}>{isActive ? 'Aktif' : 'Nonaktif'}</Badge>
-                    <Switch id="package_active" checked={isActive} onCheckedChange={setIsActive} />
-                  </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Nama Paket *</Label>
-                  <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Contoh: Paket UGD Trauma Ringan" required />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Deskripsi</Label>
-                  <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} placeholder="Jelaskan kondisi atau alur penggunaan paket ini." />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Kontainer Utama Bersih (Single Border Layout Standar SIMRS) */}
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
+            <span>DATA PAKET TINDAKAN</span>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] tracking-normal text-muted-foreground uppercase">Status:</span>
+              <Badge variant={isActive ? 'default' : 'secondary'} className="text-[10px] h-5 px-2">
+                {isActive ? 'Aktif' : 'Nonaktif'}
+              </Badge>
+              <Switch id="package_active" checked={isActive} onCheckedChange={setIsActive} />
+            </div>
+          </div>
 
-          <Card className="overflow-hidden border-sky-200/70">
-            <CardHeader className="bg-sky-50/70">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Stethoscope className="h-4 w-4" />
-                    Tindakan Paket
-                  </CardTitle>
-                  <CardDescription>
-                    Pilih tindakan dari master. Kode tindakan langsung tampil otomatis setelah dipilih.
-                  </CardDescription>
-                </div>
-                <Badge variant="outline" className="bg-white">{procedureItems.length} tindakan</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Tambah Tindakan</Label>
-                <Combobox
-                  options={availableProcedures.map((procedure) => ({
-                    value: String(procedure.id),
-                    label: `${procedure.code || '-'} - ${procedure.name}`,
-                  }))}
-                  value={selectedProcedureId}
-                  onValueChange={(value) => {
-                    setSelectedProcedureId(value);
-                    if (value) {
-                      addProcedure(value);
-                    }
-                  }}
-                  placeholder={referenceLoading ? 'Memuat tindakan...' : 'Cari dan pilih tindakan...'}
-                  searchPlaceholder="Ketik kode atau nama tindakan..."
-                  emptyText="Tidak ada tindakan"
-                  loading={referenceLoading}
-                />
-              </div>
-
-              {procedureItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground space-y-2">
-                  <ScanSearch className="mx-auto h-8 w-8 opacity-50" />
-                  <p>Belum ada tindakan di paket ini.</p>
-                  <p className="text-xs">Gunakan pencarian di atas untuk menambahkan tindakan yang sesuai.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {procedureItems.map((item, index) => (
-                    <div key={`${item.procedure_id}-${index}`} className="rounded-xl border bg-background p-4 space-y-3 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">#{index + 1}</Badge>
-                            <Badge variant="outline" className="font-mono">{item.procedure?.code || '-'}</Badge>
-                            <Badge variant="outline">{PROCEDURE_TYPE_LABELS[item.procedure?.procedure_type || ''] || 'Tindakan'}</Badge>
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm">{item.procedure?.name || `Tindakan #${item.procedure_id}`}</p>
-                            {item.procedure?.description ? (
-                              <p className="text-xs text-muted-foreground line-clamp-2">{item.procedure.description}</p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setProcedureItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Catatan Tindakan</Label>
-                        <Input
-                          value={item.notes}
-                          onChange={(event) => setProcedureItems((prev) => prev.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, notes: event.target.value } : currentItem))}
-                          placeholder="Contoh: prioritas utama, lakukan sebelum observasi"
-                        />
-                      </div>
+          <div className="p-4 sm:p-6">
+            <form id="package-form" onSubmit={handleSubmit} className="space-y-6 [&_input]:h-9 [&_[role=combobox]]:h-9">
+              {/* Bagian 1: Informasi Dasar */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Informasi Dasar</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="code">Kode Paket Tindakan *</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="code"
+                        value={code}
+                        onChange={(event) => setCode(event.target.value)}
+                        placeholder="Contoh: PKT123456"
+                        required
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCode(generatePackageCode())}
+                        title="Generate Kode Otomatis"
+                        className="shrink-0"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
                     </div>
-                  ))}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nama Paket Tindakan *</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Contoh: Paket UGD Trauma Ringan"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="description">Deskripsi</Label>
+                    <Textarea
+                      id="description"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      rows={2}
+                      placeholder="Jelaskan kondisi atau alur penggunaan paket tindakan ini..."
+                      className="text-sm"
+                    />
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-emerald-200/70">
-            <CardHeader className="bg-emerald-50/70">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Pill className="h-4 w-4" />
-                    Obat Paket
-                  </CardTitle>
-                  <CardDescription>
-                    Pilih obat dari master, lalu sesuaikan jumlah dan instruksinya seperlunya.
-                  </CardDescription>
-                </div>
-                <Badge variant="outline" className="bg-white">{medicineItems.length} obat</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Tambah Obat</Label>
-                <Combobox
-                  options={availableMedicines.map((medicine) => ({
-                    value: String(medicine.id),
-                    label: `${medicine.code || '-'} - ${medicine.name}`,
-                  }))}
-                  value={selectedMedicineId}
-                  onValueChange={(value) => {
-                    setSelectedMedicineId(value);
-                    if (value) {
-                      addMedicine(value);
-                    }
-                  }}
-                  placeholder={referenceLoading ? 'Memuat obat...' : 'Cari dan pilih obat...'}
-                  searchPlaceholder="Ketik kode atau nama obat..."
-                  emptyText="Tidak ada obat"
-                  loading={referenceLoading}
-                />
-              </div>
-
-              {medicineItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground space-y-2">
-                  <ScanSearch className="mx-auto h-8 w-8 opacity-50" />
-                  <p>Belum ada obat di paket ini.</p>
-                  <p className="text-xs">Tambahkan obat untuk melengkapi paket klinis sesuai kebutuhan ruangan.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {medicineItems.map((item, index) => (
-                    <div key={`${item.medicine_id}-${index}`} className="rounded-xl border bg-background p-4 space-y-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">#{index + 1}</Badge>
-                            <Badge variant="outline" className="font-mono">{item.medicine?.code || '-'}</Badge>
-                            {formatMedicineMeta(item.medicine) ? <Badge variant="outline">{formatMedicineMeta(item.medicine)}</Badge> : null}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm">{item.medicine?.name || `Obat #${item.medicine_id}`}</p>
-                            {item.medicine?.generic_name ? (
-                              <p className="text-xs text-muted-foreground">{item.medicine.generic_name}</p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setMedicineItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="space-y-2">
-                          <Label>Qty</Label>
-                          <Input type="number" min="1" value={item.quantity} onChange={(event) => updateMedicineItem(index, 'quantity', Math.max(Number(event.target.value) || 1, 1))} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Satuan</Label>
-                          <Input value={item.unit} onChange={(event) => updateMedicineItem(index, 'unit', event.target.value)} placeholder="tablet, vial, botol" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Dosis</Label>
-                          <Select value={item.dosage} onValueChange={(value) => updateMedicineItem(index, 'dosage', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih dosis" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {buildDosageOptions(item).map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Frekuensi</Label>
-                          <Select value={item.frequency} onValueChange={(value) => updateMedicineItem(index, 'frequency', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih frekuensi" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FREQUENCY_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Rute</Label>
-                          <Select value={item.route} onValueChange={(value) => updateMedicineItem(index, 'route', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih rute" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ROUTE_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Durasi</Label>
-                          <Input value={item.duration} onChange={(event) => updateMedicineItem(index, 'duration', event.target.value)} placeholder="3 hari" />
-                        </div>
-                        <div className="space-y-2 md:col-span-3">
-                          <Label>Instruksi</Label>
-                          <Select value={item.instructions} onValueChange={(value) => updateMedicineItem(index, 'instructions', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih instruksi" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {INSTRUCTION_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2 md:col-span-3">
-                          <Label>Catatan Obat</Label>
-                          <Input value={item.notes} onChange={(event) => updateMedicineItem(index, 'notes', event.target.value)} placeholder="Catatan tambahan untuk obat ini" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Catatan Paket</CardTitle>
-              <CardDescription>
-                Informasi umum yang akan membantu petugas memahami konteks penggunaan paket.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} placeholder="Contoh: digunakan untuk pasien observasi singkat tanpa rawat inap" />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4 xl:sticky xl:top-4 self-start">
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gradient-to-br from-emerald-50 via-white to-sky-50">
-              <CardTitle className="text-base">Ringkasan Paket</CardTitle>
-              <CardDescription>
-                Pantau isi paket saat Anda menyusun tindakan dan obat.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Identitas</p>
-                <p className="font-medium">{name || 'Nama paket belum diisi'}</p>
-                <p className="text-xs text-muted-foreground font-mono">{code || 'Kode akan dibuat otomatis bila dikosongkan'}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Tindakan</p>
-                  <p className="text-2xl font-semibold">{procedureItems.length}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Obat</p>
-                  <p className="text-2xl font-semibold">{medicineItems.length}</p>
-                </div>
-                <div className="rounded-lg border p-3 col-span-2">
-                  <p className="text-xs text-muted-foreground">Total Qty Obat</p>
-                  <p className="text-2xl font-semibold">{totalMedicineQuantity}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={isActive ? 'default' : 'secondary'}>{isActive ? 'Paket aktif' : 'Paket nonaktif'}</Badge>
-                {procedureItems.length === 0 && medicineItems.length === 0 ? <Badge variant="outline">Belum lengkap</Badge> : null}
               </div>
 
               <Separator />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Daftar Tindakan</p>
-                  <Badge variant="outline">{procedureItems.length}</Badge>
-                </div>
-                <ScrollArea className="h-40 rounded-lg border">
-                  <div className="p-3 space-y-2">
-                    {procedureItems.length > 0 ? procedureItems.map((item, index) => (
-                      <div key={`summary-procedure-${item.procedure_id}-${index}`} className="rounded-md border bg-muted/20 px-3 py-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="secondary">#{index + 1}</Badge>
-                          <Badge variant="outline" className="font-mono">{item.procedure?.code || '-'}</Badge>
-                        </div>
-                        <p className="text-sm font-medium leading-tight">{item.procedure?.name || `Tindakan #${item.procedure_id}`}</p>
-                      </div>
-                    )) : <p className="text-sm text-muted-foreground">Belum ada tindakan.</p>}
+              {/* Bagian 2: Daftar Tindakan */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-medium">Daftar Tindakan Medis ({procedureItems.length})</h3>
+                    <p className="text-xs text-muted-foreground">Tindakan dari master yang otomatis ditambahkan ketika paket dipilih</p>
                   </div>
-                </ScrollArea>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Pilih & Tambah Tindakan</Label>
+                  <Combobox
+                    options={availableProcedures.map((procedure) => ({
+                      value: String(procedure.id),
+                      label: procedure.name,
+                    }))}
+                    value={selectedProcedureId}
+                    onValueChange={(value) => {
+                      setSelectedProcedureId(value);
+                      if (value) addProcedure(value);
+                    }}
+                    placeholder={referenceLoading ? 'Memuat master tindakan...' : 'Ketik atau pilih tindakan medis...'}
+                    searchPlaceholder="Ketik nama tindakan..."
+                    emptyText="Tidak ada tindakan tersedia"
+                    loading={referenceLoading}
+                  />
+                </div>
+
+                <div className="rounded-md border border-border/70 overflow-hidden">
+                  <Table containerClassName="border-0 border-x-0 border-r-0 border-l-0 rounded-none">
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-muted/30 text-[11px] uppercase tracking-wider">
+                        <TableHead className="w-12 text-center">No</TableHead>
+                        <TableHead>Nama Tindakan</TableHead>
+                        <TableHead className="w-32">Jenis</TableHead>
+                        <TableHead className="min-w-[220px]">Catatan Tindakan</TableHead>
+                        <TableHead className="w-14 text-center">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {procedureItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
+                            Belum ada tindakan di paket ini. Pilih tindakan dari pencarian di atas.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        procedureItems.map((item, index) => (
+                          <TableRow key={`${item.procedure_id}-${index}`}>
+                            <TableCell className="text-center font-mono text-xs">{index + 1}</TableCell>
+                            <TableCell>
+                              <p className="font-medium text-sm">{item.procedure?.name || `Tindakan #${item.procedure_id}`}</p>
+                              {item.procedure?.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-1">{item.procedure.description}</p>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[10px]">
+                                {PROCEDURE_TYPE_LABELS[item.procedure?.procedure_type || ''] || 'Tindakan'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.notes}
+                                onChange={(event) =>
+                                  setProcedureItems((prev) =>
+                                    prev.map((currentItem, currentIndex) =>
+                                      currentIndex === index ? { ...currentItem, notes: event.target.value } : currentItem
+                                    )
+                                  )
+                                }
+                                placeholder="Catatan/instruksi khusus tindakan..."
+                                className="h-8 text-xs"
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setProcedureItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
+                                title="Hapus tindakan"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Daftar Obat</p>
-                  <Badge variant="outline">{medicineItems.length}</Badge>
-                </div>
-                <ScrollArea className="h-52 rounded-lg border">
-                  <div className="p-3 space-y-2">
-                    {medicineItems.length > 0 ? medicineItems.map((item, index) => (
-                      <div key={`summary-medicine-${item.medicine_id}-${index}`} className="rounded-md border bg-muted/20 px-3 py-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="secondary">#{index + 1}</Badge>
-                          <Badge variant="outline" className="font-mono">{item.medicine?.code || '-'}</Badge>
-                        </div>
-                        <p className="text-sm font-medium leading-tight">{item.medicine?.name || `Obat #${item.medicine_id}`}</p>
-                        <p className="text-xs text-muted-foreground">Qty {item.quantity} {item.unit || item.medicine?.unit || ''}</p>
-                      </div>
-                    )) : <p className="text-sm text-muted-foreground">Belum ada obat.</p>}
-                  </div>
-                </ScrollArea>
-              </div>
-            </CardContent>
-          </Card>
+              <Separator />
 
-          <Card>
-            <CardContent className="p-4 flex flex-col gap-3">
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                {submitLabel}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/clinical-packages')} className="w-full">
-                Batal
-              </Button>
-            </CardContent>
-          </Card>
+              {/* Bagian 3: Daftar Obat & BHP */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-medium">Daftar Obat & BHP ({medicineItems.length})</h3>
+                    <p className="text-xs text-muted-foreground">Obat standar yang otomatis dibuatkan order resep ke farmasi saat paket dipilih</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Pilih & Tambah Obat / BHP</Label>
+                  <Combobox
+                    options={availableMedicines.map((medicine) => ({
+                      value: String(medicine.id),
+                      label: medicine.name,
+                    }))}
+                    value={selectedMedicineId}
+                    onValueChange={(value) => {
+                      setSelectedMedicineId(value);
+                      if (value) addMedicine(value);
+                    }}
+                    placeholder={referenceLoading ? 'Memuat master obat...' : 'Ketik atau pilih obat / BHP...'}
+                    searchPlaceholder="Ketik nama obat..."
+                    emptyText="Tidak ada obat tersedia"
+                    loading={referenceLoading}
+                  />
+                </div>
+
+                <div className="rounded-md border border-border/70 overflow-x-auto">
+                  <Table containerClassName="border-0 border-x-0 border-r-0 border-l-0 rounded-none">
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-muted/30 text-[11px] uppercase tracking-wider">
+                        <TableHead className="w-12 text-center">No</TableHead>
+                        <TableHead className="min-w-[200px]">Nama Obat</TableHead>
+                        <TableHead className="w-24">Jumlah</TableHead>
+                        <TableHead className="w-28">Satuan</TableHead>
+                        <TableHead className="min-w-[240px]">Signa (Aturan Pakai)</TableHead>
+                        <TableHead className="min-w-[180px]">Catatan</TableHead>
+                        <TableHead className="w-14 text-center">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {medicineItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-6 text-sm text-muted-foreground">
+                            Belum ada obat di paket ini. (Opsional) Pilih obat dari pencarian di atas jika paket menyertakan resep/obat.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        medicineItems.map((item, index) => (
+                          <TableRow key={`${item.medicine_id}-${index}`}>
+                            <TableCell className="text-center font-mono text-xs">{index + 1}</TableCell>
+                            <TableCell>
+                              <p className="font-medium text-sm">{item.medicine?.name || `Obat #${item.medicine_id}`}</p>
+                              {item.medicine?.dosage && (
+                                <p className="text-xs text-muted-foreground">{item.medicine.dosage}</p>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(event) =>
+                                  updateMedicineItem(index, 'quantity', Math.max(Number(event.target.value) || 1, 1))
+                                }
+                                className="h-8 text-xs w-20"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.unit}
+                                onChange={(event) => updateMedicineItem(index, 'unit', event.target.value)}
+                                placeholder="tablet/vial"
+                                className="h-8 text-xs w-24"
+                              />
+                            </TableCell>
+                            <TableCell className="min-w-[240px]">
+                              <Combobox
+                                allowCustomValue
+                                options={SIGNA_OPTIONS}
+                                value={item.signa}
+                                onValueChange={(value) => updateMedicineItem(index, 'signa', value)}
+                                placeholder="Pilih atau ketik signa"
+                                searchPlaceholder="Cari atau ketik signa..."
+                                emptyText="Tekan enter untuk menggunakan signa ini"
+                                className="h-8 text-xs w-full"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.notes}
+                                onChange={(event) => updateMedicineItem(index, 'notes', event.target.value)}
+                                placeholder="Catatan tambahan..."
+                                className="h-8 text-xs"
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setMedicineItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
+                                title="Hapus obat"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Bagian 4: Catatan Tambahan */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Catatan Tambahan</h3>
+                <Textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={2}
+                  placeholder="Catatan atau petunjuk operasional paket tindakan ini..."
+                  className="text-sm"
+                />
+              </div>
+
+              {/* Action Footer */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/70">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => navigate('/clinical-packages')}
+                  className="h-9"
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={saving} className="h-9">
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {submitLabel}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
-      </form>
       </PageContent>
     </PageShell>
   );
-}
+}

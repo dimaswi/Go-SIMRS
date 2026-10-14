@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
 import { useAuthStore } from "@/lib/store";
 import { usePINVerification, PINVerificationDialog } from "@/components/medical-record/edit-mode-controller";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,13 +18,12 @@ import {
   Loader2,
   Package,
   AlertCircle,
-  Printer,
 } from "lucide-react";
 import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
-import { printApi } from "@/lib/api/print";
 import type { MedicineOrder, MedicineOrderItem, PrescriptionReview } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { OrderDetailInfoButton } from "./order-detail-info-button";
+import { PharmacyQueueCallButton } from "./pharmacy-queue-call-button";
 import { getPharmacyItemStatusMeta, getPharmacyOrderStatusMeta } from "./pharmacy-status";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
@@ -86,8 +84,6 @@ export function PharmacyDispense({
   const [showDeliveredRows, setShowDeliveredRows] = useState(true);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [pendingFinalReviewToken, setPendingFinalReviewToken] = useState<string | null>(null);
-  const [printingEtiket, setPrintingEtiket] = useState(false);
-  const [printingResep, setPrintingResep] = useState(false);
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
@@ -217,12 +213,13 @@ export function PharmacyDispense({
     const items: DispenseItem[] = (order.items || [])
       .filter((item) => item.status !== "cancelled")
       .map((item) => {
+        const isRacikan = item.item_type === "racikan";
         const remaining = item.quantity - (item.dispensed_qty || 0);
         return {
           item_id: item.id!,
           item,
-          dispensed_qty: remaining,
-          selected: remaining > 0 && item.status !== "delivered",
+          dispensed_qty: remaining > 0 ? remaining : (isRacikan && item.status !== "delivered" ? 1 : 0),
+          selected: (remaining > 0 || (isRacikan && item.status !== "delivered")) && item.status !== "delivered",
           remaining,
         };
       });
@@ -239,20 +236,28 @@ export function PharmacyDispense({
 
   const handleQuantityChange = (itemId: number, qty: number) => {
     setDispenseItems((prev) =>
-      prev.map((item) =>
-        item.item_id === itemId
-          ? { ...item, dispensed_qty: Math.min(Math.max(0, qty), item.remaining) }
-          : item
-      )
+      prev.map((item) => {
+        if (item.item_id !== itemId) return item;
+        const isRacikan = item.item.item_type === "racikan";
+        const val = Math.max(0, qty);
+        return {
+          ...item,
+          dispensed_qty: isRacikan ? val : Math.min(val, item.remaining),
+        };
+      })
     );
   };
 
   const handleSelectAll = (selected: boolean) => {
     setDispenseItems((prev) =>
-      prev.map((item) => ({
-        ...item,
-        selected: item.remaining > 0 ? selected : false,
-      }))
+      prev.map((item) => {
+        const isRacikan = item.item.item_type === "racikan";
+        const canSelect = (item.remaining > 0 || (isRacikan && item.item.status !== "delivered")) && item.item.status !== "delivered";
+        return {
+          ...item,
+          selected: canSelect ? selected : false,
+        };
+      })
     );
   };
 
@@ -293,26 +298,6 @@ export function PharmacyDispense({
       });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handlePrintEtiket = async () => {
-    if (!selectedOrder) return;
-    setPrintingEtiket(true);
-    try {
-      await printApi.medicineLabels(selectedOrder.id);
-    } finally {
-      setPrintingEtiket(false);
-    }
-  };
-
-  const handlePrintResep = async () => {
-    if (!selectedOrder) return;
-    setPrintingResep(true);
-    try {
-      await printApi.prescription(selectedOrder.id);
-    } finally {
-      setPrintingResep(false);
     }
   };
 
@@ -538,6 +523,15 @@ export function PharmacyDispense({
                   >
                     {getPharmacyOrderStatusMeta(selectedOrder.status).label}
                   </Badge>
+                  {!rmDuplicateMode && (
+                    <PharmacyQueueCallButton
+                      visitId={visitId}
+                      order={selectedOrder}
+                      patientName={patient?.nama_lengkap}
+                      size="sm"
+                      className="h-9 px-2.5 text-xs"
+                    />
+                  )}
                   <OrderDetailInfoButton
                     title="Detail Order Farmasi"
                     tooltip="Lihat detail order farmasi"
@@ -615,9 +609,10 @@ export function PharmacyDispense({
                     <tbody>
                       {visibleDispenseItems.map((dispenseItem) => {
                         const { item, remaining, selected, dispensed_qty } = dispenseItem;
+                        const isRacikan = item.item_type === "racikan";
                         const isDelivered = remaining === 0;
                         const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
-                        const orderedSubtotal = unitPrice * Number(item.quantity || 0);
+                        const orderedSubtotal = unitPrice * Number((isDelivered ? item.dispensed_qty : (isRacikan && dispensed_qty > 0 ? dispensed_qty : item.quantity)) || 0);
 
                         return (
                           <tr
@@ -642,7 +637,14 @@ export function PharmacyDispense({
                               )}
                             </td>
                             <td className="py-1.5 px-2 align-top">
-                              <p className="font-medium leading-5 break-words">{item.medicine?.name || "Obat"}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-medium leading-5 break-words">{item.medicine?.name || "Obat"}</p>
+                                {isRacikan && (
+                                  <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                                    Racikan: {item.racikan_name || "Racikan"} ({item.racikan_qty || 1} {item.racikan_unit || "bungkus"})
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
                             </td>
                             <td className="py-1.5 px-2 align-top hidden xl:table-cell">
@@ -659,23 +661,25 @@ export function PharmacyDispense({
                               )}
                             </td>
                             <td className="py-1.5 px-2 align-top text-[11px]">
-                              <p>Dipesan: <span className="font-medium">{item.quantity} {item.unit}</span></p>
+                              <p>{isRacikan ? "Kebutuhan:" : "Dipesan:"} <span className="font-medium">{item.quantity} {item.unit}</span></p>
                               <p>Diserah: <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span></p>
                               <p className="text-muted-foreground">Sisa: {remaining} {item.unit}</p>
                             </td>
                             <td className="py-1.5 px-2 align-top">
-                              {remaining > 0 && canDispense ? (
+                              {(remaining > 0 || (isRacikan && !isDelivered)) && canDispense ? (
                                 <div className="space-y-1">
                                   <Input
                                     type="number"
                                     min={1}
-                                    max={remaining}
+                                    max={isRacikan ? undefined : remaining}
                                     value={dispensed_qty}
                                     onChange={(e) => handleQuantityChange(item.id!, parseInt(e.target.value) || 0)}
                                     className="h-7 w-16 text-xs"
                                     disabled={readOnly || !selected}
                                   />
-                                  <span className="text-[11px] text-muted-foreground block">maks {remaining}</span>
+                                  <span className="text-[11px] text-muted-foreground block">
+                                    {isRacikan ? "ambil stok" : `maks ${remaining}`}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className="text-[11px] text-muted-foreground">-</span>
@@ -722,38 +726,6 @@ export function PharmacyDispense({
                       )}
                     </tfoot>
                   </table>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex flex-wrap gap-2 p-3 mt-4 border-t border-border/70">
-                  {/* Print Etiket List */}
-                  <Button
-                    variant="outline"
-                    onClick={handlePrintEtiket}
-                    disabled={printingEtiket || !selectedOrder}
-                  >
-                    {printingEtiket ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Printer className="h-4 w-4 mr-2" />
-                    )}
-                    {printingEtiket ? "Mencetak..." : "Cetak Etiket"}
-                  </Button>
-
-                  {/* Print Resep */}
-                  <Button
-                    variant="outline"
-                    onClick={handlePrintResep}
-                    disabled={printingResep || !selectedOrder}
-                  >
-                    {printingResep ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Printer className="h-4 w-4 mr-2" />
-                    )}
-                    {printingResep ? "Mencetak..." : "Cetak Resep"}
-                  </Button>
-
               </div>
             </div>
           </>

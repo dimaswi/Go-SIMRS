@@ -927,6 +927,23 @@ export const vclaimApi = {
   createSuratKontrol: (data: SuratKontrolRequest) =>
     api.post<{ data: SuratKontrolResponse; message: string; surat_kontrol_id: number; antrean?: { success: boolean; message: string; kode_booking?: string; nomor_antrean?: string } }>('/bpjs/vclaim/surat-kontrol', data),
 
+  createLocalSuratKontrol: (data: {
+    no_kartu: string;
+    nama?: string;
+    kelamin?: string;
+    tgl_lahir?: string;
+    kode_dokter: string;
+    nama_dokter?: string;
+    poli_kontrol: string;
+    nama_poli?: string;
+    tgl_rencana_kontrol: string;
+    nama_diagnosa?: string;
+    visit_id?: number;
+    registration_id?: number;
+    sep_id?: number;
+  }) =>
+    api.post<{ data: any; message: string }>('/bpjs/vclaim/surat-kontrol/local', data),
+
   deleteSuratKontrol: (noSuratKontrol: string) =>
     api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`),
 

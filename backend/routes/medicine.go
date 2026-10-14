@@ -20,6 +20,10 @@ func setupMedicineRoutes(rg *gin.RouterGroup) {
 		medicines.GET("", middleware.RequirePermission("medicines.view"), handlers.GetMedicines)
 		medicines.POST("", middleware.RequirePermission("medicines.create"), handlers.CreateMedicine)
 
+		// Batch operations
+		medicines.GET("/batches", handlers.GetMedicinesBatchesBulk)
+		medicines.GET("/:id/batches", handlers.GetMedicineBatches)
+
 		// Single medicine operations
 		medicines.GET("/:id/traceability", middleware.RequirePermission("medicines.view"), handlers.GetMedicineTraceability)
 		medicines.GET("/:id", middleware.RequirePermission("medicines.view"), handlers.GetMedicine)

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -511,7 +511,7 @@ export default function EKlaimShow() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                No. Kartu BPJS: {claim.no_kartu} â€¢ {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
+                No. Kartu BPJS: {claim.no_kartu} &bull; {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
               </p>
             </div>
             
@@ -911,7 +911,7 @@ export default function EKlaimShow() {
                               <Badge variant="outline" className="text-xs">
                                 {eklaimStateLabels[log.from_state as EKlaimState] || log.from_state}
                               </Badge>
-                              <span className="text-muted-foreground">â†’</span>
+                              <span className="text-muted-foreground">&rarr;</span>
                               <Badge className={`text-xs ${eklaimStateColors[log.to_state as EKlaimState] || ''}`}>
                                 {eklaimStateLabels[log.to_state as EKlaimState] || log.to_state}
                               </Badge>
@@ -923,7 +923,7 @@ export default function EKlaimShow() {
                           <p className="text-sm text-red-600 mt-1">Error: {log.error_message}</p>
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
-                          {formatDateTime(log.created_at)} â€¢ {log.user?.name || 'System'}
+                          {formatDateTime(log.created_at)} &bull; {log.user?.name || 'System'}
                         </p>
                       </div>
                     </div>

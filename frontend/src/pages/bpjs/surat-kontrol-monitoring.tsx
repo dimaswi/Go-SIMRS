@@ -831,7 +831,7 @@ export default function SuratKontrolMonitoringPage() {
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">Poli Tujuan *</Label>
                       <Combobox
-                        options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
+                        options={poliOptions.map(p => ({ value: p.kode, label: p.nama }))}
                         value={editForm.kode_poli}
                         onValueChange={handlePoliChange}
                         onSearchChange={handlePoliSearchChange}
@@ -846,7 +846,7 @@ export default function SuratKontrolMonitoringPage() {
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">Dokter DPJP *</Label>
                       <Combobox
-                        options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
+                        options={dokterOptions.map(d => ({ value: d.kode, label: d.nama }))}
                         value={editForm.kode_dokter}
                         onValueChange={handleDokterChange}
                         placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}

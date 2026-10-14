@@ -218,7 +218,7 @@ export function RoomInventoryFormDialog({
                   disabled={!!roomInventory}
                 >
                   {selectedInventory
-                    ? `${selectedInventory.code} - ${selectedInventory.name}`
+                    ? selectedInventory.name
                     : "Pilih inventaris..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -250,7 +250,7 @@ export function RoomInventoryFormDialog({
                           <div className="flex flex-col flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">
-                                {inventory.code} - {inventory.name}
+                                {inventory.name}
                               </span>
                               {getCategoryBadge(inventory.category)}
                             </div>

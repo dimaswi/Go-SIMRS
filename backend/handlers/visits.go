@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetVisits returns all visits with filters
@@ -529,6 +530,16 @@ func AcceptVisit(c *gin.Context) {
 	// Bed auto-assignment for UGD has been removed.
 	// UGD bed availability is now calculated via pure math using active visits count.
 
+	// Apply mandatory procedures upon entering the room
+	userIDVal, _ := c.Get("userID")
+	var userIDPtr *uint
+	if id, ok := userIDVal.(uint); ok {
+		userIDPtr = &id
+	}
+	if err := ApplyMandatoryProcedures(tx, visit.ID, visit.RoomID, userIDPtr); err != nil {
+		fmt.Printf("Warning: failed to apply mandatory procedures for visit %d: %v\n", visit.ID, err)
+	}
+
 	tx.Commit()
 
 	isEmergency := visit.VisitType == "emergency" || (visit.Room != nil && (strings.ToLower(visit.Room.ServiceType) == "ugd" || strings.ToLower(visit.Room.ServiceType) == "igd" || strings.ToLower(visit.Room.ServiceType) == "emergency"))
@@ -870,4 +881,35 @@ func GetVisitStats(c *gin.Context) {
 			"end_date":   endDate,
 		},
 	})
+}
+
+// ApplyMandatoryProcedures otomatis menambahkan tindakan wajib ke kunjungan
+func ApplyMandatoryProcedures(tx *gorm.DB, visitID uint, roomID uint, userID *uint) error {
+	var mandatoryProcs []models.RoomProcedure
+	if err := tx.Where("room_id = ? AND is_mandatory = ?", roomID, true).Find(&mandatoryProcs).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	for _, proc := range mandatoryProcs {
+		var count int64
+		tx.Model(&models.VisitProcedure{}).
+			Where("visit_id = ? AND procedure_id = ?", visitID, proc.ProcedureID).
+			Count(&count)
+			
+		if count == 0 {
+			vp := models.VisitProcedure{
+				VisitID:     visitID,
+				ProcedureID: proc.ProcedureID,
+				Status:      models.VisitProcedureStatusCompleted,
+				PerformedAt: &now,
+				CreatedByID: userID,
+				FilledByID:  userID,
+			}
+			if err := tx.Create(&vp).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

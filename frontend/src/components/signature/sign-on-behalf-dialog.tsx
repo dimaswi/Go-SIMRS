@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi } from "@/lib/api/signature";
 import { employeesApi, type Employee } from "@/lib/api/employees";
@@ -55,6 +56,24 @@ interface SignOnBehalfDialogProps {
   needEmployee?: boolean;
 }
 
+const ROLE_OPTIONS = [
+  { value: "dpjp", label: "DPJP" },
+  { value: "dokter_ruangan", label: "Dokter Ruangan" },
+  { value: "dokter_igd", label: "Dokter IGD" },
+  { value: "perawat", label: "Perawat" },
+  { value: "bidan", label: "Bidan" },
+  { value: "analis_laboratorium", label: "Analis Laboratorium" },
+  { value: "radiografer", label: "Radiografer" },
+  { value: "apoteker", label: "Apoteker" },
+  { value: "asisten_apoteker", label: "Asisten Apoteker" },
+  { value: "fisioterapis", label: "Fisioterapis" },
+  { value: "ahli_gizi", label: "Ahli Gizi (Nutrisionis)" },
+  { value: "petugas_rm", label: "Petugas Pendaftaran / Rekam Medis" },
+  { value: "pasien", label: "Pasien" },
+  { value: "wali", label: "Wali" },
+  { value: "kosong", label: "Kosong" },
+];
+
 export function SignOnBehalfDialog({
   open,
   onOpenChange,
@@ -77,15 +96,18 @@ export function SignOnBehalfDialog({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [roleSearchQuery, setRoleSearchQuery] = useState("");
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
   const [pinRequired, setPinRequired] = useState(true);
   const [slot, setSlot] = useState<"left" | "right">("left");
   const [step, setStep] = useState<"pick" | "form" | "pin" | "patient_mode" | "patient_qr" | "patient_direct">("pick");
   const [isFaceValidation, setIsFaceValidation] = useState(false);
-  const [role, setRole] = useState<"dpjp" | "perawat" | "pasien" | "wali" | "kosong">("kosong");
+  const [role, setRole] = useState<string>("kosong");
   const [signatureName, setSignatureName] = useState("");
   const [location, setLocation] = useState("");
   const [signatureDate, setSignatureDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [showDatePlace, setShowDatePlace] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [signedSlots, setSignedSlots] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
@@ -490,6 +512,7 @@ export function SignOnBehalfDialog({
         signature_location: location,
         signature_date: signatureDate,
         signature_name: (role === "pasien" || role === "wali") ? signatureName : "",
+        hide_date_place: !showDatePlace,
       });
 
       const emp = employees.find((e) => e.id.toString() === selectedEmployeeId);
@@ -602,13 +625,53 @@ export function SignOnBehalfDialog({
                   {!fixedRoles?.[slot] && (
                     <div className="space-y-1">
                       <Label className="text-xs">Peran</Label>
-                      <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as any)}>
-                        <option value="dpjp">DPJP</option>
-                        <option value="perawat">Perawat</option>
-                        <option value="pasien">Pasien</option>
-                        <option value="wali">Wali</option>
-                        <option value="kosong">Kosong</option>
-                      </select>
+                      <Popover open={roleDropdownOpen} onOpenChange={setRoleDropdownOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={roleDropdownOpen}
+                            className="w-full justify-between font-normal h-9 px-3"
+                          >
+                            <span className="truncate">
+                              {ROLE_OPTIONS.find((r) => r.value === role)?.label || "Pilih peran..."}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] sm:w-[400px] p-0" align="start">
+                          <Command>
+                            <CommandInput
+                              placeholder="Cari peran..."
+                              value={roleSearchQuery}
+                              onValueChange={setRoleSearchQuery}
+                            />
+                            <CommandList>
+                              <CommandEmpty>Peran tidak ditemukan.</CommandEmpty>
+                              <CommandGroup>
+                                {ROLE_OPTIONS.map((opt) => (
+                                  <CommandItem
+                                    key={opt.value}
+                                    value={opt.value}
+                                    onSelect={(currentValue) => {
+                                      setRole(currentValue);
+                                      setRoleDropdownOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4 shrink-0",
+                                        role === opt.value ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {opt.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   )}
                   <div className={cn("space-y-1", fixedRoles?.[slot] ? "col-span-2" : "")}>
@@ -698,6 +761,20 @@ export function SignOnBehalfDialog({
                 )}
               </div>
             )}
+            
+            {step === "form" && (
+              <div className="flex items-center space-x-2 py-2">
+                <Checkbox 
+                  id="show-date-place" 
+                  checked={showDatePlace}
+                  onCheckedChange={(checked) => setShowDatePlace(checked as boolean)}
+                />
+                <Label htmlFor="show-date-place" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Tampilkan tempat dan tanggal pada cetakan TTD
+                </Label>
+              </div>
+            )}
+
             {/* Actions for Form Step */}
             {step === "form" && (
               <div className="flex items-center justify-between pt-4">

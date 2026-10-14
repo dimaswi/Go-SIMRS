@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -36,6 +37,107 @@ func normalizeMedicineOrderItemType(value string) string {
 	}
 
 	return models.MedicineOrderItemTypeNonRacikan
+}
+
+// ApplyPrescriptionFee menambahkan tindakan jasa resep otomatis ke kunjungan sumber berdasarkan ruangan pengorder
+func ApplyPrescriptionFee(tx *gorm.DB, visitID uint, roomID uint, userID *uint, order *models.MedicineOrder) error {
+	if visitID == 0 || roomID == 0 || order == nil {
+		return nil
+	}
+
+	// 1. Cari tindakan jasa resep yang dikonfigurasi pada ruangan ini (is_prescription_fee = true)
+	var feeProcs []models.RoomProcedure
+	if err := tx.Where("room_id = ? AND is_prescription_fee = ?", roomID, true).
+		Preload("Procedure").
+		Find(&feeProcs).Error; err != nil {
+		return err
+	}
+
+	var targetProcedureIDs []uint
+	for _, rp := range feeProcs {
+		if rp.IsAvailable && rp.ProcedureID != 0 {
+			targetProcedureIDs = append(targetProcedureIDs, rp.ProcedureID)
+		}
+	}
+
+	// 2. Fallback: cari dari room_procedures ruangan ini yang mengandung "Jasa Resep" atau "Embalase"
+	if len(targetProcedureIDs) == 0 {
+		var nameMatchedRP []models.RoomProcedure
+		_ = tx.Joins("JOIN procedures ON procedures.id = room_procedures.procedure_id").
+			Where("room_procedures.room_id = ? AND room_procedures.is_available = ? AND (procedures.name ILIKE ? OR procedures.name ILIKE ?)",
+				roomID, true, "%jasa resep%", "%embalase%").
+			Find(&nameMatchedRP).Error
+
+		for _, rp := range nameMatchedRP {
+			targetProcedureIDs = append(targetProcedureIDs, rp.ProcedureID)
+		}
+	}
+
+	// 3. Fallback cerdas: cari dari master procedures berdasarkan tipe layanan ruangan
+	if len(targetProcedureIDs) == 0 {
+		var room models.Room
+		if err := tx.First(&room, roomID).Error; err == nil {
+			var proc models.Procedure
+			found := false
+			svcType := strings.ToLower(room.ServiceType)
+			roomName := strings.ToLower(room.Name)
+
+			if svcType == "rawat_inap" || strings.Contains(roomName, "inap") {
+				if err := tx.Where("is_active = ? AND (code = ? OR name ILIKE ?)", true, "PROC-JR-RI", "%jasa resep%inap%").First(&proc).Error; err == nil {
+					found = true
+				}
+			} else if svcType == "emergency" || strings.Contains(roomName, "ugd") || strings.Contains(roomName, "igd") {
+				if err := tx.Where("is_active = ? AND (code = ? OR name ILIKE ? OR name ILIKE ?)", true, "PROC-JR-UGD", "%jasa resep%ugd%", "%jasa resep%darurat%").First(&proc).Error; err == nil {
+					found = true
+				}
+			} else {
+				// Rawat Jalan / Poliklinik
+				if err := tx.Where("is_active = ? AND (code = ? OR name ILIKE ? OR name ILIKE ?)", true, "PROC-JR-RJ", "%jasa resep%jalan%", "%jasa resep%poli%").First(&proc).Error; err == nil {
+					found = true
+				}
+			}
+
+			// Fallback umum jika belum cocok
+			if !found {
+				if err := tx.Where("is_active = ? AND name ILIKE ?", true, "%jasa resep%").First(&proc).Error; err == nil {
+					found = true
+				}
+			}
+
+			if found && proc.ID != 0 {
+				targetProcedureIDs = append(targetProcedureIDs, proc.ID)
+			}
+		}
+	}
+
+	// Buat VisitProcedure untuk setiap target tindakan jasa resep
+	now := time.Now()
+	for _, procID := range targetProcedureIDs {
+		// Cek apakah sudah pernah dibuat untuk order resep ini
+		var count int64
+		tx.Model(&models.VisitProcedure{}).
+			Where("visit_id = ? AND procedure_id = ? AND (medicine_order_id = ? OR notes LIKE ?)",
+				visitID, procID, order.ID, "%"+order.OrderNumber+"%").
+			Count(&count)
+
+		if count == 0 {
+			vp := models.VisitProcedure{
+				VisitID:         visitID,
+				ProcedureID:     procID,
+				MedicineOrderID: &order.ID,
+				Status:          models.VisitProcedureStatusCompleted,
+				PerformedAt:     &now,
+				CreatedByID:     userID,
+				FilledByID:      userID,
+				Notes:           fmt.Sprintf("Jasa Resep (%s)", order.OrderNumber),
+			}
+			if err := tx.Create(&vp).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetMedicineOrders returns medicine orders with filters
@@ -297,6 +399,7 @@ func CreateMedicineOrder(c *gin.Context) {
 	}
 
 	// Create order items
+	var doctorSnapshots []models.DoctorOrderItemSnapshot
 	for _, item := range input.Items {
 		// Validate medicine exists
 		var medicine models.Medicine
@@ -370,6 +473,31 @@ func CreateMedicineOrder(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		doctorSnapshots = append(doctorSnapshots, models.DoctorOrderItemSnapshot{
+			MedicineID:   item.MedicineID,
+			MedicineName: medicine.Name,
+			MedicineCode: medicine.Code,
+			ItemType:     itemType,
+			RacikanGroup: racikanGroup,
+			RacikanName:  racikanName,
+			RacikanType:  racikanType,
+			RacikanQty:   racikanQty,
+			RacikanUnit:  racikanUnit,
+			Quantity:     item.Quantity,
+			Unit:         unit,
+			Dosage:       item.Dosage,
+			Frequency:    item.Frequency,
+			Route:        item.Route,
+			Duration:     item.Duration,
+			Instructions: item.Instructions,
+			Notes:        item.Notes,
+		})
+	}
+
+	if snapJSON, err := json.Marshal(doctorSnapshots); err == nil {
+		order.DoctorItemsJSON = string(snapJSON)
+		tx.Model(&order).Update("doctor_items_json", order.DoctorItemsJSON)
 	}
 
 	// Create pharmacy visit
@@ -467,6 +595,11 @@ func CreateMedicineOrder(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Otomatis tambahkan tindakan jasa resep sesuai ruangan pengorder
+	if err := ApplyPrescriptionFee(tx, sourceVisit.ID, sourceVisit.RoomID, &userID, &order); err != nil {
+		fmt.Printf("[PRESCRIPTION_FEE] Warning: failed to apply prescription fee: %v\n", err)
 	}
 
 	// Commit transaction
@@ -635,6 +768,11 @@ func CancelMedicineOrder(c *gin.Context) {
 		}
 	}
 
+	// Batalkan tindakan jasa resep yang terkait dengan order ini jika ada
+	_ = tx.Model(&models.VisitProcedure{}).
+		Where("medicine_order_id = ? OR (visit_id = ? AND notes LIKE ?)", order.ID, order.SourceVisitID, "%"+order.OrderNumber+"%").
+		Update("status", models.VisitProcedureStatusCancelled).Error
+
 	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled successfully"})
 }
@@ -696,9 +834,51 @@ func RecalculateOrderStatus(c *gin.Context) {
 	})
 }
 
-// ===========================================================================
-// PHARMACY ITEM MANAGEMENT HANDLERS (for pharmacists to edit prescriptions)
-// ===========================================================================
+// ensureDoctorItemsSnapshot ensures the doctor's initial prescription items are captured before pharmacy modifies anything
+func ensureDoctorItemsSnapshot(db *gorm.DB, order *models.MedicineOrder) {
+	if order.DoctorItemsJSON != "" {
+		return
+	}
+	var existingItems []models.MedicineOrderItem
+	if err := db.Preload("Medicine").Where("medicine_order_id = ? AND status != ?", order.ID, models.ItemStatusCancelled).Find(&existingItems).Error; err != nil {
+		return
+	}
+	if len(existingItems) == 0 {
+		return
+	}
+	var snapshots []models.DoctorOrderItemSnapshot
+	for _, it := range existingItems {
+		medName := ""
+		medCode := ""
+		if it.Medicine != nil {
+			medName = it.Medicine.Name
+			medCode = it.Medicine.Code
+		}
+		snapshots = append(snapshots, models.DoctorOrderItemSnapshot{
+			MedicineID:   it.MedicineID,
+			MedicineName: medName,
+			MedicineCode: medCode,
+			ItemType:     it.ItemType,
+			RacikanGroup: it.RacikanGroup,
+			RacikanName:  it.RacikanName,
+			RacikanType:  it.RacikanType,
+			RacikanQty:   it.RacikanQty,
+			RacikanUnit:  it.RacikanUnit,
+			Quantity:     it.Quantity,
+			Unit:         it.Unit,
+			Dosage:       it.Dosage,
+			Frequency:    it.Frequency,
+			Route:        it.Route,
+			Duration:     it.Duration,
+			Instructions: it.Instructions,
+			Notes:        it.Notes,
+		})
+	}
+	if bytes, err := json.Marshal(snapshots); err == nil {
+		order.DoctorItemsJSON = string(bytes)
+		db.Model(order).Update("doctor_items_json", order.DoctorItemsJSON)
+	}
+}
 
 // AddMedicineOrderItem adds a new item to an existing medicine order
 func AddMedicineOrderItem(c *gin.Context) {
@@ -786,6 +966,9 @@ func AddMedicineOrderItem(c *gin.Context) {
 		return
 	}
 
+	// Snapshot doctor prescription before pharmacy modifications if not yet captured
+	ensureDoctorItemsSnapshot(database.DB, &order)
+
 	unit := input.Unit
 	if unit == "" {
 		unit = medicine.Unit
@@ -816,6 +999,9 @@ func AddMedicineOrderItem(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Mark order as edited by pharmacy
+	database.DB.Model(&order).Update("is_edited_by_pharmacy", true)
 
 	// If order was cancelled (because all items were removed), reactivate it
 	if order.Status == models.OrderStatusCancelled {
@@ -986,10 +1172,16 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
+		// Snapshot doctor prescription before pharmacy modifications if not yet captured
+		ensureDoctorItemsSnapshot(database.DB, &order)
+
 		if err := database.DB.Model(&item).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		// Mark order as edited by pharmacy
+		database.DB.Model(&order).Update("is_edited_by_pharmacy", true)
 	}
 
 	// Reload with medicine relation
@@ -1027,11 +1219,17 @@ func DeleteMedicineOrderItem(c *gin.Context) {
 		return
 	}
 
+	// Snapshot doctor prescription before pharmacy modifications if not yet captured
+	ensureDoctorItemsSnapshot(database.DB, &order)
+
 	// Soft delete by updating status to cancelled
 	if err := database.DB.Model(&item).Update("status", models.ItemStatusCancelled).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Mark order as edited by pharmacy
+	database.DB.Model(&order).Update("is_edited_by_pharmacy", true)
 
 	// Check if all items are now cancelled - if so, mark order as cancelled
 	var activeItemCount int64
@@ -1415,17 +1613,54 @@ func DispenseMedicine(c *gin.Context) {
 			return
 		}
 
+		// Otomatis alokasi FEFO untuk penyerahan obat (dispensing) jika belum ditentukan batch-nya
+		chosenBatchID := itemInput.MedicineBatchID
+		if chosenBatchID == nil || *chosenBatchID == 0 {
+			var earliestBatch models.MedicineBatch
+			err := tx.Where("medicine_id = ? AND remaining_qty > 0 AND is_active = true", item.MedicineID).
+				Where("room_id = ? OR room_id IS NULL", order.PharmacyRoomID).
+				Order("expiry_date ASC, id ASC").
+				First(&earliestBatch).Error
+			if err == nil {
+				chosenBatchID = &earliestBatch.ID
+				deduct := itemInput.DispensedQty
+				if earliestBatch.RemainingQty < deduct {
+					earliestBatch.RemainingQty = 0
+				} else {
+					earliestBatch.RemainingQty -= deduct
+				}
+				tx.Model(&earliestBatch).Update("remaining_qty", earliestBatch.RemainingQty)
+			}
+		} else {
+			var chosenBatch models.MedicineBatch
+			if err := tx.First(&chosenBatch, *chosenBatchID).Error; err == nil {
+				if chosenBatch.RemainingQty >= itemInput.DispensedQty {
+					chosenBatch.RemainingQty -= itemInput.DispensedQty
+				} else {
+					chosenBatch.RemainingQty = 0
+				}
+				tx.Model(&chosenBatch).Update("remaining_qty", chosenBatch.RemainingQty)
+			}
+		}
+
 		// Update item
 		newDispensedQty := item.DispensedQty + itemInput.DispensedQty
 		updates := map[string]interface{}{
 			"dispensed_qty":     newDispensedQty,
 			"dispensed_at":      now,
-			"medicine_batch_id": itemInput.MedicineBatchID,
+			"medicine_batch_id": chosenBatchID,
 		}
 
 		// Set dispensed by (petugas farmasi yang menyerahkan)
 		if user.EmployeeID != nil {
 			updates["dispensed_by_id"] = *user.EmployeeID
+		}
+
+		// If racikan and dispensed quantity exceeds initial quantity (which was just a placeholder on doctor order),
+		// update quantity to match dispensed quantity so billing and inventory records reflect actual compounded amount.
+		if item.ItemType == models.MedicineOrderItemTypeRacikan && newDispensedQty > item.Quantity {
+			updates["quantity"] = newDispensedQty
+			item.Quantity = newDispensedQty
 		}
 
 		if newDispensedQty >= item.Quantity {
@@ -1456,7 +1691,7 @@ func DispenseMedicine(c *gin.Context) {
 			transaction := models.MedicineTransaction{
 				TransactionType: "dispensing",
 				MedicineID:      item.MedicineID,
-				MedicineBatchID: itemInput.MedicineBatchID,
+				MedicineBatchID: chosenBatchID,
 				Quantity:        itemInput.DispensedQty,
 				PreviousStock:   roomMedicine.Quantity,
 				CurrentStock:    newQty,

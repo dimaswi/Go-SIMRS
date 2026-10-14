@@ -501,7 +501,7 @@ export function RegistrationDialog({
           .filter((rp) => rp.room)
           .map((rp) => ({
             value: String(rp.room_id),
-            label: `${rp.room?.code || `RM-${rp.room_id}`} - ${rp.room?.name || "Tanpa nama"}`,
+            label: rp.room?.name || "Tanpa nama",
           }));
         return [procedureId, options] as const;
       })
@@ -544,7 +544,7 @@ export function RegistrationDialog({
           .filter((rm: RoomMedicine) => rm.room?.is_active && rm.room?.service_type === "farmasi")
           .map((rm: RoomMedicine) => ({
             value: String(rm.room_id),
-            label: `${rm.room?.code || `RM-${rm.room_id}`} - ${rm.room?.name || "Tanpa nama"} (Stok: ${rm.quantity})`,
+            label: `${rm.room?.name || "Tanpa nama"} (Stok: ${rm.quantity})`,
           }));
         return [medicineId, options] as const;
       })
@@ -1633,7 +1633,7 @@ export function RegistrationDialog({
                       .filter(room => room.service_type === selectedServiceType)
                       .map(room => ({
                         value: room.id.toString(),
-                        label: `${room.code} - ${room.name}`,
+                        label: room.name,
                       }))}
                     value={destinationRoomId?.toString() || ""}
                     onValueChange={handleRoomChange}

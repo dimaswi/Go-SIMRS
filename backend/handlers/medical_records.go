@@ -91,6 +91,7 @@ func SaveTriage(c *gin.Context) {
 
 	var input struct {
 		ArrivalMode       string      `json:"arrival_mode"`
+		RujukanDari       string      `json:"rujukan_dari"`
 		TriageComplaint   string      `json:"triage_complaint"` // Match frontend field name
 		ChiefComplaint    string      `json:"chief_complaint"`  // Legacy support
 		TriageLevel       string      `json:"triage_level"`
@@ -192,6 +193,7 @@ func SaveTriage(c *gin.Context) {
 
 	// Update fields
 	triage.ArrivalMode = input.ArrivalMode
+	triage.RujukanDari = strings.TrimSpace(input.RujukanDari)
 	triage.TriageComplaint = complaint
 	triage.TriageLevel = input.TriageLevel
 	triage.Consciousness = input.Consciousness

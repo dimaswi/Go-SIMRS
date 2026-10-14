@@ -54,6 +54,7 @@ const (
 
 	// Medical Record Categories (SATUSEHAT Compliant)
 	CategoryArrivalMode        MasterDataCategory = "arrival_mode"         // Moda Kedatangan
+	CategoryReferralSource     MasterDataCategory = "referral_source"      // Faskes / Dokter Perujuk
 	CategoryTriageLevel        MasterDataCategory = "triage_level"         // Level Triase (ESI)
 	CategoryGeneralCondition   MasterDataCategory = "general_condition"    // Keadaan Umum
 	CategoryConsciousnessLevel MasterDataCategory = "consciousness_level"  // Tingkat Kesadaran
@@ -132,6 +133,7 @@ func GetCategoryLabel(category MasterDataCategory) string {
 		CategoryAnesthesiaType:       "Jenis Anestesi",
 		// Medical Record
 		CategoryArrivalMode:        "Moda Kedatangan",
+		CategoryReferralSource:     "Faskes / Dokter Perujuk",
 		CategoryTriageLevel:        "Level Triase",
 		CategoryGeneralCondition:   "Keadaan Umum",
 		CategoryConsciousnessLevel: "Tingkat Kesadaran",
@@ -191,6 +193,7 @@ func GetCategoryDescription(category MasterDataCategory) string {
 		CategoryAnesthesiaType:       "Jenis anestesi untuk tindakan",
 		// Medical Record
 		CategoryArrivalMode:        "Cara kedatangan pasien ke UGD (ambulans, kendaraan pribadi, dll)",
+		CategoryReferralSource:     "Daftar nama faskes atau dokter perujuk",
 		CategoryGeneralCondition:   "Keadaan umum pasien (Baik, Sedang, Lemah, Buruk)",
 		CategoryTriageLevel:        "Level triase berdasarkan ESI (Emergency Severity Index)",
 		CategoryConsciousnessLevel: "Tingkat kesadaran pasien (Composmentis, Apatis, Somnolen, dll)",
@@ -245,6 +248,7 @@ func GetAllCategories() []map[string]string {
 		CategoryAnesthesiaType,
 		// Medical Record
 		CategoryArrivalMode,
+		CategoryReferralSource,
 		CategoryGeneralCondition,
 		CategoryTriageLevel,
 		CategoryConsciousnessLevel,
@@ -303,6 +307,7 @@ func GetAllCategoriesInfo() []map[string]string {
 		// Medical Record
 		CategoryGeneralCondition,
 		CategoryArrivalMode,
+		CategoryReferralSource,
 		CategoryTriageLevel,
 		CategoryConsciousnessLevel,
 		CategoryAirwayStatus,

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
-import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { medicalRecordsApi, masterDataApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
@@ -318,6 +318,33 @@ export function TriageForm({
     }
   };
 
+  // Referral sources suggestions
+  const [referralSources, setReferralSources] = useState<string[]>([]);
+
+  useEffect(() => {
+    masterDataApi.getReferralSources()
+      .then((res) => {
+        if (res.data?.data) {
+          setReferralSources(res.data.data);
+        }
+      })
+      .catch((err) => {
+        console.error("Gagal memuat daftar rujukan:", err);
+      });
+  }, []);
+
+  const referralSourceOptions = useMemo(() => {
+    const list = [...referralSources];
+    if (formData.rujukan_dari && !list.some(s => s.toLowerCase() === formData.rujukan_dari.toLowerCase())) {
+      list.unshift(formData.rujukan_dari);
+    }
+    return list.map((source) => ({
+      value: source,
+      label: source,
+    }));
+  }, [referralSources, formData.rujukan_dari]);
+
+
   // Load existing data on mount
   useEffect(() => {
     if (useExternalData) {
@@ -414,10 +441,43 @@ export function TriageForm({
   };
 
   // Count filled fields for tab indicator
-  const triageTextFilled = [formData.arrival_mode, formData.triage_complaint, formData.triage_level, formData.airway, formData.airway_note, formData.breathing, formData.breathing_note, formData.circulation, formData.circulation_note, formData.blood_pressure, formData.triage_assessment, formData.immediate_actions, formData.pain_method, formData.pain_location].filter(v => v && v.trim() !== "").length;
-  const triageNumericFilled = [formData.heart_rate, formData.respiratory_rate, formData.temperature, formData.oxygen_saturation, formData.pain_scale].filter(v => Number(v) > 0).length;
+  const isNoPain = formData.pain_location === "Tidak ada nyeri";
+  const painMethodFilled = isNoPain || Boolean(formData.pain_method && formData.pain_method.trim() !== "");
+  const painLocationFilled = Boolean(formData.pain_location && formData.pain_location.trim() !== "");
+  const painScaleFilled = isNoPain || (formData.pain_scale !== "" && formData.pain_scale !== undefined && formData.pain_scale !== null && Number(formData.pain_scale) >= 0);
+
+  const airwayFilled = Boolean(formData.airway && formData.airway.trim() !== "");
+  const airwayNoteFilled = airwayFilled || Boolean(formData.airway_note && formData.airway_note.trim() !== "");
+  const breathingFilled = Boolean(formData.breathing && formData.breathing.trim() !== "");
+  const breathingNoteFilled = breathingFilled || Boolean(formData.breathing_note && formData.breathing_note.trim() !== "");
+  const circulationFilled = Boolean(formData.circulation && formData.circulation.trim() !== "");
+  const circulationNoteFilled = circulationFilled || Boolean(formData.circulation_note && formData.circulation_note.trim() !== "");
+
+  const triageTextFilled = [
+    formData.arrival_mode,
+    formData.triage_complaint,
+    formData.triage_level,
+    formData.blood_pressure,
+    formData.triage_assessment,
+    formData.immediate_actions,
+  ].filter(v => v && v.trim() !== "").length;
+
+  const triageSurveyFilled = (airwayFilled ? 1 : 0) + (airwayNoteFilled ? 1 : 0) +
+    (breathingFilled ? 1 : 0) + (breathingNoteFilled ? 1 : 0) +
+    (circulationFilled ? 1 : 0) + (circulationNoteFilled ? 1 : 0);
+
+  const triagePainFilled = (painMethodFilled ? 1 : 0) + (painLocationFilled ? 1 : 0) + (painScaleFilled ? 1 : 0);
+
+  const triageNumericFilled = [
+    formData.heart_rate,
+    formData.respiratory_rate,
+    formData.temperature,
+    formData.oxygen_saturation,
+  ].filter(v => Number(v) > 0).length;
+
   const triageGCSFilled = (formData.gcs_e ? 1 : 0) + (formData.gcs_v ? 1 : 0) + (formData.gcs_m ? 1 : 0);
-  const filledTriage = triageTextFilled + triageNumericFilled + triageGCSFilled;
+
+  const filledTriage = triageTextFilled + triageSurveyFilled + triagePainFilled + triageNumericFilled + triageGCSFilled;
   const totalTriage = 22;
 
   useEffect(() => {
@@ -578,11 +638,15 @@ export function TriageForm({
                   <Label htmlFor="triage_rujukan" className="text-sm font-semibold">
                     Rujukan Dari
                   </Label>
-                  <Input
-                    id="triage_rujukan"
-                    placeholder="Nama faskes / dokter (opsional)..."
+                  <Combobox
+                    allowCustomValue
+                    options={referralSourceOptions}
                     value={formData.rujukan_dari || ""}
-                    onChange={(e) => handleChange("rujukan_dari", e.target.value)}
+                    onValueChange={(value) => handleChange("rujukan_dari", value || "")}
+                    placeholder="Pilih atau ketik nama faskes / dokter..."
+                    searchPlaceholder="Cari faskes/dokter atau ketik baru..."
+                    emptyText="Belum ada faskes tercatat. Ketik untuk menambahkan baru."
+                    disabled={isFormDisabled}
                     className="h-11"
                   />
                 </div>

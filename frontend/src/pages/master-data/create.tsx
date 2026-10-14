@@ -8,9 +8,18 @@ import { Switch } from '@/components/ui/switch';
 import { masterDataApi, type MasterData, type MasterDataRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, RefreshCw } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { resolveBackendFileUrl } from '@/lib/api/client';
+
+const generateMasterDataCode = (name: string) => {
+  const cleaned = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return cleaned || `MD_${Date.now().toString().slice(-6)}`;
+};
 
 // Category options
 const CATEGORY_OPTIONS = [
@@ -180,6 +189,19 @@ export default function CreateMasterDataPage() {
       setBodyMarkerImageUrl('');
     }
 
+    if (field === 'name') {
+      const newName = String(value || '');
+      setFormData(prev => {
+        const isCodeAuto = !prev.code || prev.code === generateMasterDataCode(prev.name || '') || prev.code.startsWith('MD_');
+        return {
+          ...prev,
+          name: newName,
+          code: isCodeAuto && newName.trim() ? generateMasterDataCode(newName) : prev.code,
+        };
+      });
+      return;
+    }
+
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -216,13 +238,26 @@ export default function CreateMasterDataPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="code">Kode <span className="text-destructive">*</span></Label>
-              <Input
-                id="code"
-                value={formData.code}
-                onChange={(e) => handleChange('code', e.target.value.toUpperCase())}
-                placeholder="Contoh: L, P, ISLAM, S1"
-              />
+              <Label htmlFor="code">Kode</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="code"
+                  value={formData.code}
+                  onChange={(e) => handleChange('code', e.target.value.toUpperCase())}
+                  placeholder="Contoh: L, P, ISLAM, S1 (otomatis terisi)"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleChange('code', generateMasterDataCode(formData.name || ''))}
+                  title="Generate Kode Otomatis"
+                  className="shrink-0"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -30,6 +30,10 @@ type VisitProcedure struct {
 	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
 	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
+	// Medicine Order Reference (untuk Jasa Resep otomatis)
+	MedicineOrderID *uint          `gorm:"index" json:"medicine_order_id,omitempty"`
+	MedicineOrder   *MedicineOrder `gorm:"foreignKey:MedicineOrderID" json:"medicine_order,omitempty"`
+
 	// Status
 	Status string `gorm:"size:30;default:'pending'" json:"status"` // pending, in_progress, completed, cancelled
 

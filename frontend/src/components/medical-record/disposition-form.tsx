@@ -704,9 +704,14 @@ export function DispositionForm({
           // Call API to cancel the follow-up registration
           await medicalRecordsApi.cancelFollowUpRegistration(visitId);
           canceledItems.push("Jadwal Kontrol SIMRS");
-        } catch (err) {
-          console.error("Failed to cancel follow-up registration:", err);
-          failedItems.push("Jadwal Kontrol SIMRS");
+        } catch (err: unknown) {
+          const error = err as { response?: { status?: number, data?: { error?: string } } };
+          if (error.response?.status === 404 || (error.response?.status === 400 && error.response?.data?.error === "Tidak ada jadwal kontrol untuk dibatalkan")) {
+            canceledItems.push("Jadwal Kontrol SIMRS (sudah dibatalkan)");
+          } else {
+            console.error("Failed to cancel follow-up registration:", err);
+            failedItems.push("Jadwal Kontrol SIMRS");
+          }
         }
       }
 
@@ -1064,6 +1069,27 @@ export function DispositionForm({
         !!formData.follow_up_date &&
         !!formData.follow_up_room_id &&
         !!formData.follow_up_doctor_id;
+
+      // Buat Surat Kontrol lokal (tanpa BPJS) agar bisa di-print langsung dari dropdown
+      if (formData.disposition_type === "pulang" && kontrolType === "simrs" && !!formData.follow_up_date) {
+        try {
+          await vclaimApi.createLocalSuratKontrol({
+            no_kartu: patientNoBpjs || activeSEP?.no_kartu || "",
+            nama: patientData?.nama_lengkap || "",
+            kelamin: patientData?.jenis_kelamin || "",
+            tgl_lahir: patientData?.tanggal_lahir || "",
+            kode_dokter: "",
+            poli_kontrol: "",
+            tgl_rencana_kontrol: formData.follow_up_date,
+            nama_diagnosa: formData.discharge_condition || "",
+            visit_id: visitId,
+            registration_id: registrationId || activeSEP?.registration_id || 0,
+            sep_id: activeSEP?.id || 0,
+          });
+        } catch (localSKErr) {
+          console.warn("Gagal membuat Surat Kontrol lokal (non-blocking):", localSKErr);
+        }
+      }
         
       const payload = {
         ...formData,
@@ -1120,6 +1146,9 @@ export function DispositionForm({
       setReferralDrawerOpen(false);
       setDeathDrawerOpen(false);
       setOutpatientTransferDrawerOpen(false);
+      
+      // Reload BPJS data to fetch newly created local Surat Kontrol/SPRI
+      await loadBPJSData();
       
       setLoadedDispositionData(response.data);
       onSave?.(response.data);
@@ -1200,11 +1229,13 @@ export function DispositionForm({
                         )}
                       </div>
                       
-                      {/* Surat Kontrol BPJS */}
+                      {/* Surat Kontrol */}
                       {suratKontrolResult && (
                         <div className="pt-2 border-t flex justify-between items-center">
                           <div>
-                            <span className="text-xs text-muted-foreground">Surat Kontrol BPJS</span>
+                            <span className="text-xs text-muted-foreground">
+                              Surat Kontrol {(!suratKontrolResult.noSuratKontrol?.includes("LOCAL") && !suratKontrolResult.noSuratKontrol?.startsWith("SK-") && suratKontrolResult.noSuratKontrol?.length >= 18) ? "BPJS" : "Umum"}
+                            </span>
                             <p className="font-medium">{suratKontrolResult.noSuratKontrol}</p>
                             <p className="text-xs text-muted-foreground">
                               Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
@@ -1260,11 +1291,11 @@ export function DispositionForm({
                         </div>
                       )}
                       
-                      {/* Jadwal Kontrol SIMRS */}
+                      {/* Surat Kontrol Umum / Jadwal SIMRS */}
                       {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
                         <div className="pt-2 border-t flex justify-between items-center">
                           <div>
-                            <span className="text-xs text-muted-foreground">Jadwal Kontrol SIMRS</span>
+                            <span className="text-xs text-muted-foreground">Surat Kontrol Umum (SIMRS)</span>
                             <p className="font-medium text-green-700">✓ Sudah dibuat</p>
                           </div>
                           <div className="flex gap-2">
@@ -1281,7 +1312,7 @@ export function DispositionForm({
                             <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => {
                               const regId = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
                               if (regId) printApi.suratKontrolSimrs(regId);
-                            }} title="Cetak Kontrol SIMRS">
+                            }} title="Cetak Surat Kontrol Umum">
                               <Printer className="h-3.5 w-3.5 mr-1" />
                               Cetak
                             </Button>

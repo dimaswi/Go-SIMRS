@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -744,6 +745,16 @@ export function NursingCareForm({
     (item) => normalizeSdkiCode(item.sdki.code) === normalizeSdkiCode(currentMasterCode || ""),
   );
 
+  const nursingMasterOptions = useMemo(
+    () =>
+      nursingMasterItems.map((item) => ({
+        value: item.sdki.code,
+        label: `${item.sdki.code} - ${item.sdki.label}`,
+      })),
+    [nursingMasterItems]
+  );
+
+
   // Save
   const handleSave = async () => {
     setSaving(true);
@@ -922,24 +933,17 @@ export function NursingCareForm({
               {/* Top Section: Master Selection */}
               <div className="shrink-0 flex items-center gap-4 bg-muted/10 border border-border/70 p-2">
                 <Label className="whitespace-nowrap text-xs">Pilih SDKI dari Master:</Label>
-                <Select value={currentMasterCode || ""} onValueChange={handleApplyMasterSdki}>
-                  <SelectTrigger className="w-[300px] h-8 text-xs rounded-none border-border/70">
-                    <SelectValue placeholder="Pilih diagnosis SDKI..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-none">
-                    {nursingMasterItems.length === 0 ? (
-                      <SelectItem value="__empty" disabled className="text-xs">
-                        Master data SDKI belum terbaca.
-                      </SelectItem>
-                    ) : (
-                      nursingMasterItems.map((item) => (
-                        <SelectItem key={item.sdki.code} value={item.sdki.code} className="text-xs">
-                          {item.sdki.code} - {item.sdki.label}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="w-[320px] sm:w-[420px]">
+                  <Combobox
+                    options={nursingMasterOptions}
+                    value={currentMasterCode || ""}
+                    onValueChange={(val) => handleApplyMasterSdki(val)}
+                    placeholder="Pilih diagnosis SDKI..."
+                    searchPlaceholder="Cari kode atau nama (mis. D.0001, napas)..."
+                    emptyText="Diagnosis tidak ditemukan."
+                    className="h-8 text-xs rounded-none border-border/70 bg-background"
+                  />
+                </div>
                 {selectedMasterItem && (
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-auto">
                     <Badge variant="outline" className="rounded-none font-normal text-[10px] border-border/70">

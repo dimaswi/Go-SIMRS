@@ -28,7 +28,7 @@ export default function NutritionMenuCreate() {
   const [ingredients, setIngredients] = useState<MenuIngredientInput[]>([]);
 
   const categoryOptions: ComboboxOption[] = Object.entries(nutritionCategoryLabels).map(([value, label]) => ({ value, label }));
-  const ingredientOptions: ComboboxOption[] = ingredientsMaster.map((item) => ({ value: String(item.id), label: `${item.name} (${item.code})` }));
+  const ingredientOptions: ComboboxOption[] = ingredientsMaster.map((item) => ({ value: String(item.id), label: item.name }));
   const unitOptions: ComboboxOption[] = Object.entries(nutritionIngredientUnitLabels).map(([value, label]) => ({ value, label }));
 
   const [formData, setFormData] = useState({

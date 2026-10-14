@@ -105,10 +105,12 @@ type RoomProcedure struct {
 	Procedure   *Procedure `gorm:"foreignKey:ProcedureID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"procedure,omitempty"`
 
 	// Room-specific settings
-	IsAvailable     bool   `gorm:"default:true" json:"is_available"`      // Tersedia di ruangan ini
-	MaxPerDay       int    `gorm:"default:0" json:"max_per_day"`          // Maksimal tindakan per hari
-	RequiresBooking bool   `gorm:"default:false" json:"requires_booking"` // Perlu booking
-	Notes           string `gorm:"type:text" json:"notes"`
+	IsAvailable       bool   `gorm:"default:true" json:"is_available"`          // Tersedia di ruangan ini
+	IsMandatory       bool   `gorm:"default:false" json:"is_mandatory"`         // Otomatis terisi & terselesaikan saat masuk ruang
+	IsPrescriptionFee bool   `gorm:"default:false" json:"is_prescription_fee"`   // Jasa resep otomatis saat order resep dari ruangan ini
+	MaxPerDay         int    `gorm:"default:0" json:"max_per_day"`              // Maksimal tindakan per hari
+	RequiresBooking   bool   `gorm:"default:false" json:"requires_booking"`     // Perlu booking
+	Notes             string `gorm:"type:text" json:"notes"`
 }
 
 // TableName sets the table name for RoomProcedure

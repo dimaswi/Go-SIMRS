@@ -178,6 +178,8 @@ export interface MedicineTraceabilityDistribution {
   received_date?: string;
   quantity_sent: number;
   unit: string;
+  batch_number?: string;
+  expiry_date?: string;
   notes?: string;
 }
 
@@ -226,6 +228,8 @@ export interface MedicineTraceabilityPatientUsage {
   route?: string;
   duration?: string;
   instructions?: string;
+  batch_number?: string;
+  expiry_date?: string;
   administration_summary: MedicineTraceabilityAdministrationSummary;
 }
 
@@ -274,11 +278,38 @@ export const medicineFormLabels: Record<MedicineForm, string> = {
   other: 'Lainnya',
 };
 
+// Medicine Batch
+export interface MedicineBatch {
+  id: number;
+  medicine_id: number;
+  batch_number: string;
+  expiry_date: string;
+  manufacture_date?: string;
+  quantity: number;
+  remaining_qty: number;
+  purchase_price?: number;
+  supplier?: string;
+  room_id?: number;
+  location?: string;
+  is_active: boolean;
+  notes?: string;
+}
+
 // Medicine API
 export const medicinesApi = {
   // Get all medicines
   getAll: async (params?: MedicineListParams) => {
     return api.get('/medicines', { params });
+  },
+
+  // Get batches for a single medicine
+  getBatches: async (id: number, params?: { room_id?: number; active_only?: boolean }) => {
+    return api.get(`/medicines/${id}/batches`, { params });
+  },
+
+  // Get batches for multiple medicines in bulk
+  getBatchesBulk: async (params: { medicine_ids: string; room_id?: number; active_only?: boolean }) => {
+    return api.get('/medicines/batches', { params });
   },
 
   // Get single medicine

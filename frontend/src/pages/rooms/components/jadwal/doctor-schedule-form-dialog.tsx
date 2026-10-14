@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -31,6 +32,7 @@ interface DoctorScheduleFormDialogProps {
   roomId: number;
   schedule: DoctorSchedule | null;
   onSuccess: () => void;
+  isUgd?: boolean;
 }
 
 export function DoctorScheduleFormDialog({
@@ -39,6 +41,7 @@ export function DoctorScheduleFormDialog({
   roomId,
   schedule,
   onSuccess,
+  isUgd,
 }: DoctorScheduleFormDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,20 @@ export function DoctorScheduleFormDialog({
     is_active: true,
     notes: "",
   });
+
+  const [is24Hours, setIs24Hours] = useState(false);
+
+  const handle24HoursToggle = (checked: boolean) => {
+    setIs24Hours(checked);
+    if (checked) {
+      setFormData(prev => ({
+        ...prev,
+        start_time: "00:00",
+        end_time: "23:59",
+        max_patients: 0
+      }));
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -108,6 +125,8 @@ export function DoctorScheduleFormDialog({
 
   useEffect(() => {
     if (schedule) {
+      const isFullDay = schedule.start_time === "00:00" && schedule.end_time === "23:59";
+      setIs24Hours(isFullDay);
       setFormData({
         employee_id: schedule.employee_id,
         day_of_week: schedule.day_of_week,
@@ -119,6 +138,7 @@ export function DoctorScheduleFormDialog({
         notes: schedule.notes || "",
       });
     } else {
+      setIs24Hours(false);
       setFormData({
         employee_id: 0,
         day_of_week: 1,
@@ -269,6 +289,24 @@ export function DoctorScheduleFormDialog({
               </Alert>
             )}
 
+            {isUgd && (
+              <div className="flex items-center space-x-2 bg-blue-50/50 p-3 rounded-md border border-blue-100">
+                <Checkbox
+                  id="is_24_hours"
+                  checked={is24Hours}
+                  onCheckedChange={handle24HoursToggle}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="is_24_hours" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Jadwal UGD 24 Jam
+                  </Label>
+                  <p className="text-[0.8rem] text-muted-foreground">
+                    Set waktu otomatis ke 00:00 - 23:59 (tanpa batas maksimal pasien).
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start_time">Jam Mulai</Label>
@@ -277,6 +315,7 @@ export function DoctorScheduleFormDialog({
                   type="time"
                   value={formData.start_time}
                   onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                  disabled={is24Hours}
                   required
                 />
               </div>
@@ -287,6 +326,7 @@ export function DoctorScheduleFormDialog({
                   type="time"
                   value={formData.end_time}
                   onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                  disabled={is24Hours}
                   required
                 />
               </div>
@@ -301,6 +341,7 @@ export function DoctorScheduleFormDialog({
                   min={0}
                   value={formData.max_patients}
                   onChange={(e) => setFormData({ ...formData, max_patients: parseInt(e.target.value) || 0 })}
+                  disabled={is24Hours}
                   placeholder="0 = tidak terbatas"
                 />
               </div>

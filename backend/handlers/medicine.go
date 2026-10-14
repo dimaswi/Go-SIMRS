@@ -124,6 +124,8 @@ type medicineTraceabilityDistribution struct {
 	ReceivedDate       *time.Time `json:"received_date,omitempty"`
 	QuantitySent       int        `json:"quantity_sent"`
 	Unit               string     `json:"unit"`
+	BatchNumber        string     `json:"batch_number,omitempty"`
+	ExpiryDate         *time.Time `json:"expiry_date,omitempty"`
 	Notes              string     `json:"notes,omitempty"`
 }
 
@@ -172,6 +174,8 @@ type medicineTraceabilityPatientUsage struct {
 	Route                 string                                    `json:"route,omitempty"`
 	Duration              string                                    `json:"duration,omitempty"`
 	Instructions          string                                    `json:"instructions,omitempty"`
+	BatchNumber           string                                    `json:"batch_number,omitempty"`
+	ExpiryDate            *time.Time                                `json:"expiry_date,omitempty"`
 	AdministrationSummary medicineTraceabilityAdministrationSummary `json:"administration_summary"`
 }
 
@@ -207,15 +211,8 @@ func roomDisplayName(room *models.Room) string {
 		return "-"
 	}
 	name := strings.TrimSpace(room.Name)
-	code := strings.TrimSpace(room.Code)
-	if name != "" && code != "" {
-		return name + " (" + code + ")"
-	}
 	if name != "" {
 		return name
-	}
-	if code != "" {
-		return code
 	}
 	return "-"
 }
@@ -250,7 +247,13 @@ func GetMedicineTraceability(c *gin.Context) {
 			RoomCode:    strings.TrimSpace(roomMedicine.Room.Code),
 			Quantity:    roomMedicine.Quantity,
 			MinQuantity: roomMedicine.MinQuantity,
-			Notes:       strings.TrimSpace(roomMedicine.Notes),
+			Notes: func() string {
+				n := strings.TrimSpace(roomMedicine.Notes)
+				if strings.Contains(strings.ToLower(n), "import") || strings.Contains(strings.ToLower(n), ".csv") {
+					return ""
+				}
+				return n
+			}(),
 		})
 	}
 
@@ -378,6 +381,8 @@ func GetMedicineTraceability(c *gin.Context) {
 			ReceivedDate:       distribution.ReceivedDate,
 			QuantitySent:       item.Quantity,
 			Unit:               strings.TrimSpace(item.Unit),
+			BatchNumber:        strings.TrimSpace(item.BatchNumber),
+			ExpiryDate:         item.ExpiryDate,
 			Notes:              strings.TrimSpace(item.Notes),
 		})
 	}
@@ -388,9 +393,10 @@ func GetMedicineTraceability(c *gin.Context) {
 		Preload("MedicineOrder.SourceRoom").
 		Preload("MedicineOrder.PharmacyRoom").
 		Preload("MedicineOrder.Prescriber").
+		Preload("MedicineBatch").
 		Where("medicine_id = ?", medicine.ID).
 		Order("created_at DESC").
-		Limit(20).
+		Limit(100).
 		Find(&orderItems).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch patient usage trace"})
 		return
@@ -471,6 +477,16 @@ func GetMedicineTraceability(c *gin.Context) {
 			}
 		}
 
+		var batchNo string
+		var expiryDate *time.Time
+		if item.MedicineBatch != nil {
+			batchNo = strings.TrimSpace(item.MedicineBatch.BatchNumber)
+			if !item.MedicineBatch.ExpiryDate.IsZero() {
+				ed := item.MedicineBatch.ExpiryDate
+				expiryDate = &ed
+			}
+		}
+
 		patientUsages = append(patientUsages, medicineTraceabilityPatientUsage{
 			OrderItemID:           item.ID,
 			OrderID:               order.ID,
@@ -496,6 +512,8 @@ func GetMedicineTraceability(c *gin.Context) {
 			Route:                 strings.TrimSpace(item.Route),
 			Duration:              strings.TrimSpace(item.Duration),
 			Instructions:          strings.TrimSpace(item.Instructions),
+			BatchNumber:           batchNo,
+			ExpiryDate:            expiryDate,
 			AdministrationSummary: summary,
 		})
 	}
@@ -944,3 +962,74 @@ func RemoveMedicineFromRoom(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Medicine removed from room successfully"})
 }
+
+// GetMedicineBatches returns active batches for a single medicine
+func GetMedicineBatches(c *gin.Context) {
+	medicineID := c.Param("id")
+	roomID := c.Query("room_id")
+
+	query := database.DB.Where("medicine_id = ?", medicineID)
+
+	if activeOnly := c.DefaultQuery("active_only", "true"); activeOnly == "true" {
+		query = query.Where("is_active = ? AND remaining_qty > 0", true)
+	}
+
+	if roomID != "" && roomID != "0" {
+		query = query.Where("room_id = ? OR room_id IS NULL", roomID)
+	}
+
+	var batches []models.MedicineBatch
+	if err := query.Order("expiry_date ASC, id ASC").Find(&batches).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch batches"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": batches})
+}
+
+// GetMedicinesBatchesBulk returns active batches for multiple medicine IDs
+func GetMedicinesBatchesBulk(c *gin.Context) {
+	medIDsStr := c.Query("medicine_ids")
+	roomID := c.Query("room_id")
+
+	var medIDs []uint
+	if medIDsStr != "" {
+		for _, s := range strings.Split(medIDsStr, ",") {
+			s = strings.TrimSpace(s)
+			if id, err := strconv.ParseUint(s, 10, 32); err == nil {
+				medIDs = append(medIDs, uint(id))
+			}
+		}
+	}
+
+	query := database.DB.Model(&models.MedicineBatch{})
+	if len(medIDs) > 0 {
+		query = query.Where("medicine_id IN ?", medIDs)
+	}
+
+	if activeOnly := c.DefaultQuery("active_only", "true"); activeOnly == "true" {
+		query = query.Where("is_active = ? AND remaining_qty > 0", true)
+	}
+
+	if roomID != "" && roomID != "0" {
+		query = query.Where("room_id = ? OR room_id IS NULL", roomID)
+	}
+
+	var batches []models.MedicineBatch
+	if err := query.Order("expiry_date ASC, id ASC").Find(&batches).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch batches"})
+		return
+	}
+
+	// Group batches by medicine_id
+	grouped := make(map[uint][]models.MedicineBatch)
+	for _, b := range batches {
+		grouped[b.MedicineID] = append(grouped[b.MedicineID], b)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    batches,
+		"grouped": grouped,
+	})
+}
+

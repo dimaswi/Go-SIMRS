@@ -229,7 +229,7 @@ export default function MedicineCreate() {
                 </div>
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Dasar</div>
-                  <p className="mt-1 text-xs text-muted-foreground">Identitas obat, klasifikasi, produsen, dan relasi ke katalog DPHO.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Identitas obat, klasifikasi, dan relasi ke katalog DPHO.</p>
                 </div>
               </div>
             </div>
@@ -333,7 +333,7 @@ export default function MedicineCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label
                     htmlFor="strength"
@@ -369,63 +369,6 @@ export default function MedicineCreate() {
                     searchPlaceholder="Cari satuan..."
                     emptyText="Satuan tidak ditemukan"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="manufacturer"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    Produsen
-                  </Label>
-                  <Input
-                    id="manufacturer"
-                    placeholder="Contoh: PT Kimia Farma"
-                    value={formData.manufacturer}
-                    onChange={(e) =>
-                      setFormData({ ...formData, manufacturer: e.target.value })
-                    }
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="unit_large"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    Satuan Besar
-                  </Label>
-                  <Combobox
-                    options={unitOptions}
-                    value={formData.unit_large}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, unit_large: value })
-                    }
-                    placeholder="Opsional (mis: box/strip)"
-                    searchPlaceholder="Cari satuan besar..."
-                    emptyText="Satuan tidak ditemukan"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="large_to_small_factor" className="text-xs font-medium flex items-center gap-2">
-                    Konversi Besar ke Kecil
-                  </Label>
-                  <Input
-                    id="large_to_small_factor"
-                    type="number"
-                    min={1}
-                    placeholder="Contoh: 10"
-                    value={formData.large_to_small_factor}
-                    onChange={(e) =>
-                      setFormData({ ...formData, large_to_small_factor: Math.max(1, parseInt(e.target.value) || 1) })
-                    }
-                    disabled={!formData.unit_large}
-                    className="h-9 text-sm"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {formData.unit_large
-                      ? `1 ${formData.unit_large} = ${formData.large_to_small_factor} ${formData.unit || "satuan kecil"}`
-                      : "Isi Satuan Besar dulu jika ingin pakai qty besar/kecil."}
-                  </p>
                 </div>
               </div>  
               <DPHOMappingField

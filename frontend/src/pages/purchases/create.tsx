@@ -24,6 +24,7 @@ import {
   SelectedItemsTable,
   type SelectedItemWithQty,
   fetchPurchaseItems,
+  syncPurchaseItemCommercials,
 } from "@/components/item-picker";
 
 interface Room {
@@ -33,13 +34,15 @@ interface Room {
 }
 
 function resolveOrderedQtySmall(item: SelectedItemWithQty) {
+  if (Number(item.quantity) > 0) {
+    return Number(item.quantity);
+  }
   const factor = Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1));
   const qtyLarge = Math.max(0, Number(item.quantity_large || 0));
-  const qtySmall = Math.max(0, Number(item.quantity_small || 0));
-  if (qtyLarge > 0 || qtySmall > 0) {
-    return (qtyLarge * factor) + qtySmall;
+  if (qtyLarge > 0) {
+    return Math.round(qtyLarge * factor);
   }
-  return Math.max(1, Number(item.quantity || 0));
+  return 1;
 }
 
 export default function PurchaseCreate() {
@@ -81,7 +84,7 @@ export default function PurchaseCreate() {
       const depos = allRooms.filter((r: Room) => depoTypes.includes((r as any).room_type));
       setDepoRooms(depos.map((r: Room) => ({
         value: r.id.toString(),
-        label: `${r.code} - ${r.name}`,
+        label: r.name,
       })));
       setSuppliers(suppliersRes.data.data || []);
     } catch (error) {
@@ -114,15 +117,26 @@ export default function PurchaseCreate() {
   const handleItemsConfirm = (items: SelectedItemWithQty[]) => {
     setSelectedItems(
       items.map((item) => {
-        if (item.type !== "medicine") return item;
         const factor = Math.max(1, Number(item.conversion_factor || item.large_to_small_factor || 1));
-        return {
+        const initialLarge = item.quantity_large !== undefined ? item.quantity_large : 1;
+        const initialSmall = item.quantity_small !== undefined ? item.quantity_small : 0;
+        const tax = typeof item.tax_percent === "number" && item.tax_percent > 0 ? item.tax_percent : 11;
+        if (item.type !== "medicine") {
+          return syncPurchaseItemCommercials({
+            ...item,
+            tax_percent: tax,
+          });
+        }
+        return syncPurchaseItemCommercials({
           ...item,
+          unit_large: item.unit_large || "Box",
           unit_small: item.unit_small || item.unit,
           conversion_factor: factor,
-          quantity_large: item.quantity_large ?? 0,
-          quantity_small: item.quantity_small || item.quantity || 1,
-        };
+          quantity_large: initialLarge,
+          quantity_small: initialSmall,
+          quantity: (initialLarge * factor) + initialSmall,
+          tax_percent: tax,
+        });
       })
     );
   };
@@ -284,9 +298,9 @@ export default function PurchaseCreate() {
                       <Combobox
                         options={suppliers.map((supplier) => ({
                           value: supplier.id.toString(),
-                          label: supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name,
+                          label: supplier.name,
                         }))}
-                        value={formData.supplier_id?.toString() || ""}
+                        value={formData.supplier_id && formData.supplier_id > 0 ? formData.supplier_id.toString() : ""}
                         onValueChange={handleSupplierChange}
                         placeholder="Pilih supplier"
                         searchPlaceholder="Cari supplier..."
@@ -330,7 +344,7 @@ export default function PurchaseCreate() {
                   <Label>Ruangan Tujuan (Depo/Gudang) *</Label>
                   <Combobox
                     options={depoRooms}
-                    value={formData.to_room_id?.toString() || ""}
+                    value={formData.to_room_id && formData.to_room_id > 0 ? formData.to_room_id.toString() : ""}
                     onValueChange={(value) => setFormData({ ...formData, to_room_id: parseInt(value) })}
                     placeholder="Pilih depo/gudang tujuan"
                     searchPlaceholder="Cari ruangan..."
@@ -437,7 +451,7 @@ export default function PurchaseCreate() {
                 enableDualUnit={true}
                 compactMode={true}
                 showPrice={true}
-                showBatch={false}
+                showBatch={true}
                 showExpiry={true}
                 enforceStockLimit={false}
                 emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
@@ -476,6 +490,7 @@ export default function PurchaseCreate() {
         enforceStockLimit={false}
         showTabs={true}
         enableDualUnit={false}
+        defaultTaxPercent={11}
       />
     </PageShell>
   );

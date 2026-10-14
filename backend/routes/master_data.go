@@ -11,6 +11,7 @@ func setupMasterDataRoutes(rg *gin.RouterGroup) {
 	// Public access for dropdowns
 	rg.GET("/master-data/categories", handlers.GetMasterDataCategories)
 	rg.GET("/master-data/category/:category", handlers.GetMasterDataByCategory)
+	rg.GET("/master-data/referral-sources", handlers.GetReferralSourceSuggestions)
 	rg.POST("/master-data/multiple", handlers.GetMasterDataMultiple)
 
 	// Protected CRUD
