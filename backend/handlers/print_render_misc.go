@@ -345,7 +345,21 @@ func printMedicineLabelImpl(c *gin.Context) {
 	}
 
 	// Generate single label
-	pdf := generateMedicineLabelPDF([]models.MedicineOrderItem{item}, patientName, noRM)
+	// If item is part of a racikan group, load all components in that racikan group
+	items := []models.MedicineOrderItem{item}
+	if (item.ItemType == models.MedicineOrderItemTypeRacikan || item.ItemType == "racikan") && item.RacikanGroup != "" && item.MedicineOrderID > 0 {
+		var siblingItems []models.MedicineOrderItem
+		if err := database.DB.
+			Preload("Medicine").
+			Preload("MedicineBatch").
+			Preload("MedicineOrder.Registration.Patient").
+			Where("medicine_order_id = ? AND racikan_group = ? AND status != ?", item.MedicineOrderID, item.RacikanGroup, models.ItemStatusCancelled).
+			Find(&siblingItems).Error; err == nil && len(siblingItems) > 0 {
+			items = siblingItems
+		}
+	}
+
+	pdf := generateMedicineLabelPDF(items, patientName, noRM)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -355,7 +369,9 @@ func printMedicineLabelImpl(c *gin.Context) {
 	}
 
 	medicineName := "Obat"
-	if item.Medicine != nil {
+	if (item.ItemType == models.MedicineOrderItemTypeRacikan || item.ItemType == "racikan") && item.RacikanName != "" {
+		medicineName = item.RacikanName
+	} else if item.Medicine != nil {
 		medicineName = item.Medicine.Name
 	}
 	filename := fmt.Sprintf("Etiket_%s.pdf", strings.ReplaceAll(medicineName, " ", "_"))
@@ -528,7 +544,72 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 	marginL := 2.0
 	marginT := 2.0
 
+	// Group items: consolidate racikan components under the same group into one label
+	type labelGroupItem struct {
+		IsRacikan    bool
+		RacikanGroup string
+		RacikanName  string
+		RacikanType  string
+		RacikanQty   int
+		RacikanUnit  string
+		Components   []models.MedicineOrderItem
+		PrimaryItem  models.MedicineOrderItem
+	}
+
+	var groups []labelGroupItem
+	racikanMap := make(map[string]int)
+
 	for _, item := range items {
+		// Skip cancelled items
+		if item.Status == models.ItemStatusCancelled {
+			continue
+		}
+
+		isRacikan := item.ItemType == models.MedicineOrderItemTypeRacikan || item.ItemType == "racikan"
+		groupKey := strings.TrimSpace(item.RacikanGroup)
+		if isRacikan && groupKey == "" && strings.TrimSpace(item.RacikanName) != "" {
+			groupKey = "name:" + strings.ToLower(strings.TrimSpace(item.RacikanName))
+		}
+
+		if isRacikan && groupKey != "" {
+			if idx, exists := racikanMap[groupKey]; exists {
+				groups[idx].Components = append(groups[idx].Components, item)
+				if groups[idx].RacikanName == "" && item.RacikanName != "" {
+					groups[idx].RacikanName = item.RacikanName
+				}
+				if groups[idx].RacikanType == "" && item.RacikanType != "" {
+					groups[idx].RacikanType = item.RacikanType
+				}
+				if groups[idx].RacikanQty <= 0 && item.RacikanQty > 0 {
+					groups[idx].RacikanQty = item.RacikanQty
+				}
+				if groups[idx].RacikanUnit == "" && item.RacikanUnit != "" {
+					groups[idx].RacikanUnit = item.RacikanUnit
+				}
+			} else {
+				ng := labelGroupItem{
+					IsRacikan:    true,
+					RacikanGroup: groupKey,
+					RacikanName:  item.RacikanName,
+					RacikanType:  item.RacikanType,
+					RacikanQty:   item.RacikanQty,
+					RacikanUnit:  item.RacikanUnit,
+					Components:   []models.MedicineOrderItem{item},
+					PrimaryItem:  item,
+				}
+				groups = append(groups, ng)
+				racikanMap[groupKey] = len(groups) - 1
+			}
+		} else {
+			groups = append(groups, labelGroupItem{
+				IsRacikan:   false,
+				PrimaryItem: item,
+			})
+		}
+	}
+
+	for _, group := range groups {
+		item := group.PrimaryItem
 		// Skip cancelled items
 		if item.Status == models.ItemStatusCancelled {
 			continue
@@ -633,7 +714,16 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 
 		// Medicine & Qty preparation
 		medicineName := "-"
-		if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanName != "" {
+		if group.IsRacikan {
+			racTitle := strings.TrimSpace(group.RacikanName)
+			if racTitle == "" {
+				racTitle = "Obat Racikan"
+			}
+			if group.RacikanType != "" && !strings.Contains(strings.ToLower(racTitle), strings.ToLower(group.RacikanType)) {
+				racTitle = fmt.Sprintf("%s (%s)", racTitle, group.RacikanType)
+			}
+			medicineName = racTitle
+		} else if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanName != "" {
 			medicineName = item.RacikanName
 		} else if item.Medicine != nil {
 			medicineName = item.Medicine.Name
@@ -641,7 +731,14 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 
 		qty := item.Quantity
 		unit := item.Unit
-		if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanQty > 0 {
+		if group.IsRacikan {
+			if group.RacikanQty > 0 {
+				qty = group.RacikanQty
+			}
+			if group.RacikanUnit != "" {
+				unit = group.RacikanUnit
+			}
+		} else if item.ItemType == models.MedicineOrderItemTypeRacikan && item.RacikanQty > 0 {
 			qty = item.RacikanQty
 			if item.RacikanUnit != "" {
 				unit = item.RacikanUnit
@@ -651,7 +748,30 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 
 		// Expired Date (ED)
 		edStr := "-"
-		if item.MedicineBatch != nil && !item.MedicineBatch.ExpiryDate.IsZero() {
+		if group.IsRacikan {
+			var earliestED *time.Time
+			for _, comp := range group.Components {
+				var compED *time.Time
+				if comp.MedicineBatch != nil && !comp.MedicineBatch.ExpiryDate.IsZero() {
+					t := comp.MedicineBatch.ExpiryDate
+					compED = &t
+				} else if comp.MedicineID > 0 {
+					var batch models.MedicineBatch
+					if err := database.DB.Where("medicine_id = ? AND remaining_qty > 0 AND expiry_date >= ?", comp.MedicineID, time.Now()).Order("expiry_date ASC").First(&batch).Error; err == nil {
+						t := batch.ExpiryDate
+						compED = &t
+					}
+				}
+				if compED != nil {
+					if earliestED == nil || compED.Before(*earliestED) {
+						earliestED = compED
+					}
+				}
+			}
+			if earliestED != nil {
+				edStr = earliestED.Format("02/01/2006")
+			}
+		} else if item.MedicineBatch != nil && !item.MedicineBatch.ExpiryDate.IsZero() {
 			edStr = item.MedicineBatch.ExpiryDate.Format("02/01/2006")
 		} else if item.MedicineID > 0 {
 			var batch models.MedicineBatch
@@ -663,7 +783,11 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		}
 
 		// Aturan Pakai / Signa (clean & deduplicated)
-		instructions := formatMedicineSigna(item.Dosage, item.Frequency, item.Instructions, medicineName)
+		dosageForSigna := item.Dosage
+		if group.IsRacikan {
+			dosageForSigna = ""
+		}
+		instructions := formatMedicineSigna(dosageForSigna, item.Frequency, item.Instructions, medicineName)
 
 		textX := marginL + 2.5
 
@@ -715,12 +839,16 @@ func generateMedicineLabelPDFImpl(items []models.MedicineOrderItem, patientName,
 		pdf.CellFormat(32, 3.5, edStr, "", 1, "L", false, 0, "")
 
 		// Separator line before Aturan Pakai
-		contentY += 4.0
+		lineY := contentY + 3.2
+		if lineY > 37.5 {
+			lineY = 37.5
+		}
+		contentY = lineY
 		pdf.SetLineWidth(0.15)
 		pdf.Line(marginL+2.0, contentY, marginL+contentWidth-2.0, contentY)
 
 		// Row 5: Aturan Pakai -> Signa
-		contentY += 1.0
+		contentY += 0.8
 		pdf.SetFont("Arial", "B", 7.5)
 		pdf.SetXY(textX, contentY)
 		pdf.CellFormat(21, 4.0, "Aturan Pakai", "", 0, "L", false, 0, "")
