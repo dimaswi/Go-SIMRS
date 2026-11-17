@@ -847,7 +847,7 @@ export default function VisitsIndex() {
           </div>
         }
       />
-      <div className="border-b border-border bg-muted/15 px-4 py-2 flex items-center justify-between">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5 flex items-center justify-between">
         <div className="flex min-w-0 overflow-x-auto gap-1.5">
           {availableTabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -859,21 +859,21 @@ export default function VisitsIndex() {
                 type="button"
                 onClick={() => handleVisitTabChange(tab.key)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors border",
+                  "flex items-center gap-2 rounded-none px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors border",
                   isActive
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                    ? "bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white"
+                    : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white",
                 )}
               >
                 {tab.label}
                 <Badge
                   className={cn(
-                    "h-4 min-w-4 flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold border-none transition-colors",
+                    "h-4 min-w-4 flex items-center justify-center rounded-none px-1.5 font-mono text-[10px] font-bold border-none transition-colors",
                     isActive
-                      ? "bg-background text-foreground hover:bg-background"
+                      ? "bg-white/20 text-white dark:bg-neutral-900/20 dark:text-neutral-900"
                       : tabCount > 0
                         ? "bg-red-600 text-white hover:bg-red-600"
-                        : "bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/20"
+                        : "bg-neutral-200/70 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
                   )}
                 >
                   {tabCount}
@@ -883,8 +883,8 @@ export default function VisitsIndex() {
           })}
         </div>
         {hasActiveFilters && (
-          <div className="text-[10px] bg-green-100 text-green-600 font-medium whitespace-nowrap ml-4 flex items-center gap-1.5 border border-border px-2 py-1 rounded-md bg-background">
-            <span className="h-1.5 w-1.5 bg-green-600 rounded-full" />
+          <div className="text-[10px] bg-green-100 text-green-700 font-semibold uppercase tracking-wider whitespace-nowrap ml-4 flex items-center gap-1.5 border border-green-300 px-2 py-1 rounded-none">
+            <span className="h-1.5 w-1.5 bg-green-600 rounded-none" />
             Filter aktif
           </div>
         )}
@@ -1080,26 +1080,20 @@ export default function VisitsIndex() {
           </div>
         </div>
       )}
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Kunjungan
+      <PageContent noPadding className="relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <div className="p-3 sm:p-4 relative">
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-b-md">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            )}
-            <DataTable
-              columns={columns}
-              data={visits}
-              searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
-              pageSize={10}
-              tableId={`visits-${activeTab}`}
-            />
-          </div>
-        </div>
+        )}
+        <DataTable
+          columns={columns}
+          data={visits}
+          searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
+          pageSize={10}
+          tableId={`visits-${activeTab}`}
+          hideRowCount
+        />
       </PageContent>
 
       <AlertDialog

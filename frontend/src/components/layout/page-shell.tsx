@@ -1,11 +1,9 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { type LucideIcon, ArrowLeft } from "lucide-react"
-
-const PAGE_SHELL_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace'
+import { type LucideIcon, ArrowLeft, LayoutGrid } from "lucide-react"
 
 // ── PageShell ──────────────────────────────────────────────────────────────
-// Wrapper utama setiap halaman. Menggantikan <div className="flex flex-1 flex-col px-4">
+// Wrapper utama setiap halaman dengan Unified Single Card Container ala Go-Akuntansi
 interface PageShellProps {
   children: React.ReactNode
   className?: string
@@ -13,15 +11,16 @@ interface PageShellProps {
 
 export function PageShell({ children, className }: PageShellProps) {
   return (
-    <div className={cn("relative flex flex-1 min-h-0 flex-col overflow-auto bg-muted/20", className)}>
-      <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:28px_28px]" />
-      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+    <div className={cn("akuntansi-page-shell flex flex-1 min-h-0 flex-col overflow-auto bg-white dark:bg-neutral-950 p-3 sm:p-4", className)}>
+      <div className="w-full max-w-full border border-neutral-200 dark:border-neutral-800 rounded-none bg-white dark:bg-neutral-950 shadow-none flex flex-col">
+        {children}
+      </div>
     </div>
   )
 }
 
 // ── PageHeader ─────────────────────────────────────────────────────────────
-// Zona judul + deskripsi + badge count + slot aksi (tombol)
+// Header Bar pada Unified Card Container: Kembali + Icon Kotak Hitam + Judul & Subtitle di Kiri, Aksi di Kanan
 interface PageHeaderProps {
   title: string
   description?: React.ReactNode
@@ -30,13 +29,14 @@ interface PageHeaderProps {
   actions?: React.ReactNode
   className?: string
   onBack?: () => void | Promise<void>
-  // Slot untuk konten tambahan di bawah title row (misal: tabs)
   children?: React.ReactNode
   badges?: React.ReactNode
 }
 
 export function PageHeader({
   title,
+  description,
+  count,
   icon: Icon,
   actions,
   className,
@@ -44,51 +44,55 @@ export function PageHeader({
   children,
   badges,
 }: PageHeaderProps) {
-  return (
-    <div className={cn("sticky top-0 z-20 border-b border-border/70 bg-background/95 backdrop-blur", className)}>
-      <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex min-w-0 items-center gap-3.5">
-              {onBack && (
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="flex shrink-0 items-center justify-center border border-border/70 bg-background p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-              )}
-              {Icon && (
-                <div className="flex-shrink-0">
-                  <Icon className="h-7 w-7 text-primary/80" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground break-words">
-                    {title}
-                  </h1>
-                  {badges && (
-                    <div className="flex items-center gap-2">
-                      {badges}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+  const DisplayIcon = Icon || LayoutGrid
 
-          {actions && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-[45%] lg:justify-end">
-              {actions}
-            </div>
+  return (
+    <div className={cn("border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950", className)}>
+      <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-neutral-950">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-8 w-8 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-none flex items-center justify-center shrink-0 transition-colors"
+              title="Kembali"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
           )}
+          <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center font-bold text-sm shrink-0">
+            <DisplayIcon className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-sm font-bold uppercase tracking-tight text-neutral-900 dark:text-white break-words">
+                {title}
+              </h1>
+              {badges && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {badges}
+                </div>
+              )}
+            </div>
+            {(description || count !== undefined) && (
+              <div className="text-xs text-neutral-500 font-mono flex flex-wrap items-center gap-1.5 mt-0.5">
+                {count !== undefined && <span>Total: {count.toLocaleString("id-ID")} Data</span>}
+                {count !== undefined && description && <span>•</span>}
+                {description && <span className="truncate">{description}</span>}
+              </div>
+            )}
+          </div>
         </div>
+
+        {actions && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {actions}
+          </div>
+        )}
       </div>
 
       {children && (
-        <div className="bg-background px-4 pb-0 pt-3 md:px-6">
+        <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5">
           {children}
         </div>
       )}
@@ -97,8 +101,7 @@ export function PageHeader({
 }
 
 // ── PageToolbar ────────────────────────────────────────────────────────────
-// Zona search + filter + secondary actions
-// Muncul di antara PageHeader dan PageContent
+// Shaded Filter Strip di bawah Header Bar
 interface PageToolbarProps {
   children: React.ReactNode
   className?: string
@@ -108,7 +111,7 @@ export function PageToolbar({ children, className }: PageToolbarProps) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur md:px-6",
+        "flex flex-wrap items-center gap-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5",
         className
       )}
     >
@@ -118,7 +121,6 @@ export function PageToolbar({ children, className }: PageToolbarProps) {
 }
 
 // ── FilterBar ──────────────────────────────────────────────────────────────
-// Strip filter dengan pill buttons — menggantikan pattern Tabs pada halaman list.
 interface FilterBarProps {
   children: React.ReactNode
   className?: string
@@ -126,14 +128,13 @@ interface FilterBarProps {
 
 export function FilterBar({ children, className }: FilterBarProps) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 border-border/70 bg-background/90 backdrop-blur", className)}>
+    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {children}
     </div>
   )
 }
 
 // ── FilterPill ─────────────────────────────────────────────────────────────
-// Tombol pill aktif/nonaktif — menggantikan TabsTrigger.
 interface FilterPillProps {
   active: boolean
   onClick: () => void
@@ -148,20 +149,21 @@ export function FilterPill({ active, onClick, children, count, className }: Filt
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-none transition-colors focus-visible:outline-none",
         active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border/70 bg-background text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+          ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+          : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white",
         className
       )}
-      style={{ fontFamily: PAGE_SHELL_MONO_FAMILY }}
     >
       {children}
       {count !== undefined && (
         <span
           className={cn(
-            "inline-flex h-[18px] min-w-[18px] items-center justify-center px-1 text-[10px] font-semibold tabular-nums",
-            active ? "bg-background/20 text-background" : "border border-border/70 bg-background text-foreground"
+            "inline-flex h-[18px] min-w-[18px] items-center justify-center px-1 font-mono text-[10px] font-bold tabular-nums rounded-none",
+            active
+              ? "bg-white/20 text-white dark:bg-neutral-900/20 dark:text-neutral-900"
+              : "border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
           )}
         >
           {count.toLocaleString("id-ID")}
@@ -175,7 +177,6 @@ export function FilterPill({ active, onClick, children, count, className }: Filt
 interface PageContentProps {
   children: React.ReactNode
   className?: string
-  // Jika true, tidak ada px-6 (untuk konten yang butuh full-width)
   noPadding?: boolean
 }
 
@@ -183,8 +184,8 @@ export function PageContent({ children, className, noPadding }: PageContentProps
   return (
     <div
       className={cn(
-        "flex flex-col flex-1 min-h-0",
-        !noPadding && "px-4 pb-4 pt-4 md:px-6",
+        "akuntansi-page-content flex flex-col flex-1 min-h-0",
+        !noPadding && "p-3 sm:p-4",
         className
       )}
     >

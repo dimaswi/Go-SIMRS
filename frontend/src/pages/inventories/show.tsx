@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,6 @@ import {
   Loader2,
   Pencil,
   Package,
-  ArrowLeft,
   Plus,
   Trash2,
   ArrowUpCircle,
@@ -133,13 +132,13 @@ function SectionPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+        <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
-    </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
@@ -333,12 +332,9 @@ export default function InventoryShow() {
         title="Detail Inventaris"
         description="Tinjau master inventaris, item fisik, dan riwayat transaksi dalam satu halaman yang lebih ringkas."
         icon={Package}
+        onBack={() => navigate("/inventories")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/inventories")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             {hasPermission("inventories.update") && (
               <Button variant="outline" size="sm" onClick={() => navigate(`/inventories/${id}/edit`)}>
                 <Pencil className="h-4 w-4" />

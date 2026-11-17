@@ -1,14 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, ArrowUpDown } from "lucide-react";
+import { Eye, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import type { NutritionMenu } from "@/lib/api/nutrition";
 import { nutritionCategoryLabels, nutritionCategoryColors } from "@/lib/api/nutrition";
 
@@ -103,34 +96,43 @@ export function createNutritionMenuColumns(options: ColumnOptions): ColumnDef<Nu
     },
     {
       id: "actions",
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
         const menu = row.original;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" />
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+              onClick={() => onView(menu.id)}
+              title="Lihat Detail"
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            {hasEditPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                onClick={() => onEdit(menu.id)}
+                title="Edit"
+              >
+                <Pencil className="size-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onView(menu.id)}>
-                <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-              </DropdownMenuItem>
-              {hasEditPermission && (
-                <DropdownMenuItem onClick={() => onEdit(menu.id)}>
-                  <Pencil className="mr-2 h-4 w-4" /> Edit
-                </DropdownMenuItem>
-              )}
-              {hasDeletePermission && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onDelete(menu.id)} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" /> Hapus
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {hasDeletePermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                onClick={() => onDelete(menu.id)}
+                title="Hapus"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         );
       },
     },

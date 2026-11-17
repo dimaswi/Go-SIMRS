@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
@@ -54,6 +55,7 @@ const getTodayString = (): string => {
 };
 
 export default function ScheduledRegistrationsPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<ScheduledRegistration[]>([]);
@@ -503,30 +505,32 @@ export default function ScheduledRegistrationsPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={CalendarClock}
         title="Jadwal Kontrol Pasien"
         description="Daftar jadwal kontrol dan kunjungan ulang pasien"
         count={registrations.length}
+        onBack={() => navigate("/registrations")}
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-8 w-40 text-xs"
+              className="h-8 w-40 rounded-none border-neutral-200 dark:border-neutral-800 text-xs"
             />
             <Button
               variant="outline"
               size="sm"
               onClick={() => setSelectedDate("")}
-              className="h-8 text-xs"
+              className="h-8 rounded-none text-xs"
             >
               Semua Data
             </Button>
             <Select value={selectedRoom} onValueChange={setSelectedRoom}>
-              <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectTrigger className="h-8 w-[180px] rounded-none border-neutral-200 dark:border-neutral-800 text-xs">
                 <SelectValue placeholder="Semua Ruangan" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-none">
                 <SelectItem value="all">Semua Ruangan</SelectItem>
                 {rooms.map((room) => (
                   <SelectItem key={room.id} value={room.id.toString()}>
@@ -536,10 +540,10 @@ export default function ScheduledRegistrationsPage() {
               </SelectContent>
             </Select>
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectTrigger className="h-8 w-[140px] rounded-none border-neutral-200 dark:border-neutral-800 text-xs">
                 <SelectValue placeholder="Semua Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-none">
                 <SelectItem value="all">Semua Status</SelectItem>
                 <SelectItem value="scheduled">Terjadwal</SelectItem>
                 <SelectItem value="no_show">Tidak Datang</SelectItem>
@@ -548,7 +552,7 @@ export default function ScheduledRegistrationsPage() {
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-none"
               onClick={loadData}
             >
               <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -557,27 +561,20 @@ export default function ScheduledRegistrationsPage() {
         }
       />
 
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Pasien
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={registrations}
-                searchPlaceholder="Cari nama pasien, No. RM..."
-                pageSize={10}
-                tableId="scheduled-registrations"
-              />
-            )}
-          </div>
-        </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={registrations}
+            searchPlaceholder="Cari nama pasien, No. RM..."
+            pageSize={10}
+            tableId="scheduled-registrations"
+          />
+        )}
       </PageContent>
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog

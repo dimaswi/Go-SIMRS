@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
-import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { PageShell, PageHeader, PageContent, PageToolbar } from "@/components/layout/page-shell";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -34,13 +32,8 @@ import {
   Eye,
   FileText,
   Search,
-  SlidersHorizontal,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 interface SyncLog {
@@ -62,7 +55,6 @@ interface SyncLog {
 }
 
 export default function SatuSehatLogsPage() {
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -71,7 +63,6 @@ export default function SatuSehatLogsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
 
   // Filters
-  const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [methodFilter, setMethodFilter] = useState<string>("all");
   const [searchEndpoint, setSearchEndpoint] = useState("");
@@ -266,124 +257,104 @@ export default function SatuSehatLogsPage() {
     <PageShell>
       <PageHeader
         title="Log Request SatuSehat"
+        description="Pantau seluruh request integrasi ke platform SatuSehat Kemenkes"
         icon={FileText}
-        onBack={() => navigate(-1)}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
-              {loading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" className="rounded-none h-8 px-3 text-xs font-semibold shadow-none" onClick={loadLogs} disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Refresh
+          </Button>
         }
       />
-      <PageContent>
-        <div className="rounded-lg border bg-card p-4 space-y-4">
-
-          {/* Stats Bar */}
-          <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-xs text-muted-foreground">Total Request</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{stats.success}</p>
-              <p className="text-xs text-muted-foreground">Sukses</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
-              <p className="text-xs text-muted-foreground">Gagal</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.avgDuration}ms</p>
-              <p className="text-xs text-muted-foreground">Rata-rata Durasi</p>
-            </div>
+      <PageContent noPadding className="space-y-0">
+        <div className="grid grid-cols-2 xl:grid-cols-4 border-b border-neutral-200 dark:border-neutral-800 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200 dark:divide-neutral-800">
+          <div className="bg-white dark:bg-neutral-950 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Total Request</p>
+            <div className="mt-1 font-mono text-lg font-bold leading-none text-neutral-900 dark:text-white">{stats.total}</div>
+            <p className="mt-1 font-mono text-[11px] text-neutral-500">Semua request yang tercatat</p>
           </div>
-
-          {/* Filter */}
-          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-            <CollapsibleContent>
-              <div className="p-4 border rounded-lg mt-2 flex flex-wrap items-end gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs">Status</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua</SelectItem>
-                      <SelectItem value="success">Sukses</SelectItem>
-                      <SelectItem value="failed">Gagal</SelectItem>
-                      <SelectItem value="timeout">Timeout</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Method</Label>
-                  <Select value={methodFilter} onValueChange={setMethodFilter}>
-                    <SelectTrigger className="w-[100px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua</SelectItem>
-                      <SelectItem value="GET">GET</SelectItem>
-                      <SelectItem value="POST">POST</SelectItem>
-                      <SelectItem value="PUT">PUT</SelectItem>
-                      <SelectItem value="DELETE">DELETE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Cari Endpoint</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="/Encounter, /Patient..."
-                      value={searchEndpoint}
-                      onChange={(e) => setSearchEndpoint(e.target.value)}
-                      className="w-[200px] h-9"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Limit</Label>
-                  <Select value={limit} onValueChange={(v) => { setLimit(v); }}>
-                    <SelectTrigger className="w-[100px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                      <SelectItem value="200">200</SelectItem>
-                      <SelectItem value="500">500</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button variant="outline" size="sm" className="h-9" onClick={loadLogs}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Terapkan
-                </Button>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <DataTable
-            columns={columns}
-            data={filteredLogs}
-            pageSize={15}
-            tableId="satusehat-logs"
-            showSearch={false}
-          />
-
-          {/* Log Detail Dialog */}
+          <div className="bg-white dark:bg-neutral-950 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Sukses</p>
+            <div className="mt-1 font-mono text-lg font-bold leading-none text-green-600">{stats.success}</div>
+            <p className="mt-1 font-mono text-[11px] text-neutral-500">Request dengan respons berhasil</p>
+          </div>
+          <div className="bg-white dark:bg-neutral-950 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Gagal</p>
+            <div className="mt-1 font-mono text-lg font-bold leading-none text-red-600">{stats.failed}</div>
+            <p className="mt-1 font-mono text-[11px] text-neutral-500">Request yang perlu ditinjau</p>
+          </div>
+          <div className="bg-white dark:bg-neutral-950 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Rata-rata Durasi</p>
+            <div className="mt-1 font-mono text-lg font-bold leading-none text-neutral-900 dark:text-white">{stats.avgDuration}ms</div>
+            <p className="mt-1 font-mono text-[11px] text-neutral-500">Respons rata-rata dari API</p>
+          </div>
         </div>
+
+        <PageToolbar className="justify-between">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cari endpoint..."
+                value={searchEndpoint}
+                onChange={(e) => setSearchEndpoint(e.target.value)}
+                className="pl-8 h-8 rounded-none text-xs bg-white dark:bg-neutral-950"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[125px] h-8 rounded-none text-xs bg-white dark:bg-neutral-950">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none">
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="success">Sukses</SelectItem>
+                <SelectItem value="failed">Gagal</SelectItem>
+                <SelectItem value="timeout">Timeout</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-[100px] h-8 rounded-none text-xs bg-white dark:bg-neutral-950">
+                <SelectValue placeholder="Method" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none">
+                <SelectItem value="all">Method</SelectItem>
+                <SelectItem value="GET">GET</SelectItem>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="DELETE">DELETE</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={limit} onValueChange={(v) => { setLimit(v); }}>
+              <SelectTrigger className="w-[85px] h-8 rounded-none text-xs bg-white dark:bg-neutral-950">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-none">
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-8 rounded-none text-xs px-3 bg-white dark:bg-neutral-950 shadow-none" onClick={loadLogs}>
+              <Search className="h-3.5 w-3.5 mr-1.5" />
+              Terapkan
+            </Button>
+          </div>
+        </PageToolbar>
+
+        <DataTable
+          columns={columns}
+          data={filteredLogs}
+          pageSize={15}
+          tableId="satusehat-logs"
+          showSearch={false}
+        />
       </PageContent>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>

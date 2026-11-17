@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
@@ -21,7 +21,7 @@ import type { ClinicalPackage, ClinicalPackageInput } from '@/lib/api/clinical-p
 import { medicinesApi, type Medicine } from '@/lib/api/medicines';
 import { proceduresApi, type Procedure } from '@/lib/api/procedures';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 
 interface ProcedureFormItem {
   procedure_id: number;
@@ -278,24 +278,25 @@ export function ClinicalPackageForm({
       <PageHeader
         title={title}
         description="Susun paket tindakan medis dan obat standar yang siap ditugaskan ke ruangan"
+        onBack={() => navigate('/clinical-packages')}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" asChild className="h-9 w-9">
-              <Link to="/clinical-packages">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button type="submit" form="package-form" disabled={saving} className="h-9">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <Button
+              type="submit"
+              form="package-form"
+              disabled={saving}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
               {submitLabel}
             </Button>
           </div>
         }
       />
       <PageContent>
-        {/* Kontainer Utama Bersih (Single Border Layout Standar SIMRS) */}
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
+        <section className="space-y-4">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center justify-between">
             <span>DATA PAKET TINDAKAN</span>
             <div className="flex items-center gap-3">
               <span className="text-[10px] tracking-normal text-muted-foreground uppercase">Status:</span>
@@ -306,7 +307,7 @@ export function ClinicalPackageForm({
             </div>
           </div>
 
-          <div className="p-4 sm:p-6">
+          <div>
             <form id="package-form" onSubmit={handleSubmit} className="space-y-6 [&_input]:h-9 [&_[role=combobox]]:h-9">
               {/* Bagian 1: Informasi Dasar */}
               <div className="space-y-4">
@@ -606,7 +607,7 @@ export function ClinicalPackageForm({
               </div>
             </form>
           </div>
-        </div>
+        </section>
       </PageContent>
     </PageShell>
   );

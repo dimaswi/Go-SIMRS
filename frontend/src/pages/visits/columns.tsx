@@ -101,7 +101,7 @@ const getStatusBadge = (status: string) => {
     cancelled: { variant: "destructive", label: "Dibatalkan" },
   };
   const config = variants[status] || { variant: "secondary", label: status };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  return <Badge variant={config.variant} className="rounded-none">{config.label}</Badge>;
 };
 
 const getQueueStatusBadge = (status: string) => {
@@ -114,7 +114,7 @@ const getQueueStatusBadge = (status: string) => {
     cancelled: { variant: "destructive", label: "Dibatalkan" },
   };
   const config = variants[status] || { variant: "secondary", label: status };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  return <Badge variant={config.variant} className="rounded-none">{config.label}</Badge>;
 };
 
 // Cek apakah ini kunjungan order atau kunjungan normal
@@ -126,21 +126,21 @@ const getVisitCategoryBadge = (visit: Visit) => {
 
   if (visit.visit_type === "lab" || serviceType === "penunjang_medis" && roomType.includes("laboratorium")) {
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+      <Badge variant="outline" className="rounded-none bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
         Order Laboratorium
       </Badge>
     );
   }
   if (visit.visit_type === "radiology" || serviceType === "penunjang_medis" && roomType === "radiologi") {
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+      <Badge variant="outline" className="rounded-none bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
         Order Radiologi
       </Badge>
     );
   }
   if (visit.visit_type === "pharmacy" || serviceType === "farmasi") {
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+      <Badge variant="outline" className="rounded-none bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
         Order Farmasi
       </Badge>
     );
@@ -157,7 +157,7 @@ const getVisitCategoryBadge = (visit: Visit) => {
       surgery: "Order Operasi",
     };
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+      <Badge variant="outline" className="rounded-none bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
         {orderLabels[visit.visit_type] || "Order"}
       </Badge>
     );
@@ -165,28 +165,28 @@ const getVisitCategoryBadge = (visit: Visit) => {
 
   if (serviceType === "rawat_inap" || visit.visit_type === "inpatient") {
     return (
-      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
+      <Badge className="rounded-none bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
         Rawat Inap
       </Badge>
     );
   }
   if (serviceType === "gawat_darurat" || visit.visit_type === "emergency") {
     return (
-      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs">
+      <Badge className="rounded-none bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs">
         UGD
       </Badge>
     );
   }
   if (visit.visit_type === "surgery" || visit.room?.room_type === "ok") {
     return (
-      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">
+      <Badge className="rounded-none bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">
         Operasi
       </Badge>
     );
   }
 
   return (
-    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+    <Badge className="rounded-none bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
       Rawat Jalan
     </Badge>
   );

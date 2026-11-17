@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { masterDataApi, type MasterDataCategory } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ChevronRight, Plus, Database } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, ChevronRight, Plus, Database, Search } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
+import { PageShell, PageHeader, PageToolbar, PageContent } from '@/components/layout/page-shell';
 
 export default function MasterDataPage() {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export default function MasterDataPage() {
   const { hasPermission } = usePermission();
   const [categories, setCategories] = useState<MasterDataCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setPageTitle('Master Data');
@@ -58,6 +59,13 @@ export default function MasterDataPage() {
     return iconMap[code] || { color: 'bg-gray-100 text-gray-700' };
   };
 
+  const totalRecords = categories.reduce((sum, c) => sum + (c.count || 0), 0);
+  const filteredCategories = categories.filter((c) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${c.name} ${c.description || ''} ${c.code}`.toLowerCase().includes(q);
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -67,60 +75,79 @@ export default function MasterDataPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">Referensi Data</h1>
-            <p className="text-sm text-muted-foreground">Kelola data referensi untuk aplikasi SIMRS</p>
-          </div>
-          {hasPermission('master_data.create') && (
-            <Button onClick={() => navigate('/master-data/create')} size="sm">
-              <Plus className="mr-2 h-4 w-4" />
+    <PageShell>
+      <PageHeader
+        icon={Database}
+        title="Referensi Data"
+        description="Kelola data referensi untuk aplikasi SIMRS"
+        actions={
+          hasPermission('master_data.create') ? (
+            <Button onClick={() => navigate('/master-data/create')} size="sm" className="h-8 text-xs">
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
               Tambah Data
             </Button>
-          )}
+          ) : undefined
+        }
+      />
+      <PageToolbar className="justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari kategori referensi..."
+            className="h-8 pl-8 text-xs bg-background"
+          />
         </div>
-        <div className="rounded-lg border p-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {categories.map((category) => {
-                const { color } = getCategoryIcon(category.code);
-                return (
-                  <Card 
-                    key={category.code} 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => navigate(`/master-data/category/${category.code}`)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${color}`}>
-                            <Database className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="font-medium">{category.name}</h3>
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {category.description}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">{category.count}</Badge>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-            {categories.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                Belum ada kategori master data.
-              </div>
-            )}
+        <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <span>
+            <span className="font-bold text-foreground">{filteredCategories.length}</span> Kategori
+          </span>
+          <span className="h-3 w-px bg-border" />
+          <span>
+            <span className="font-bold text-foreground">{totalRecords.toLocaleString('id-ID')}</span> Data
+          </span>
         </div>
-      </div>
-    </div>
+      </PageToolbar>
+      <PageContent noPadding>
+        {filteredCategories.length === 0 ? (
+          <div className="flex min-h-[200px] flex-col items-center justify-center text-center">
+            <Database className="mb-2 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-xs text-muted-foreground">
+              {categories.length === 0 ? 'Belum ada kategori master data.' : 'Tidak ada kategori yang sesuai pencarian.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-px bg-border md:grid-cols-2 xl:grid-cols-3">
+            {filteredCategories.map((category) => {
+              const { color } = getCategoryIcon(category.code);
+              return (
+                <button
+                  type="button"
+                  key={category.code}
+                  onClick={() => navigate(`/master-data/category/${category.code}`)}
+                  className="group relative flex items-center gap-3 bg-background px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40"
+                >
+                  <span className="absolute inset-y-0 left-0 w-0.5 bg-transparent transition-colors group-hover:bg-primary" />
+                  <div className={`flex size-9 shrink-0 items-center justify-center ${color}`}>
+                    <Database className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-semibold leading-tight">{category.name}</h3>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{category.description}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="inline-flex h-5 min-w-[28px] items-center justify-center border border-border bg-muted/50 px-1.5 font-mono text-[11px] font-bold tabular-nums">
+                      {category.count}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

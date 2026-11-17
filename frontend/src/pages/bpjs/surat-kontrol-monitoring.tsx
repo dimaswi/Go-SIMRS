@@ -35,10 +35,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -49,6 +45,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
+  Calendar,
   Loader2,
   RefreshCw,
   Search,
@@ -56,7 +53,6 @@ import {
   Pencil,
   Trash2,
   FileText,
-  SlidersHorizontal,
   X,
   Eye,
   Save,
@@ -71,7 +67,9 @@ import procedureOrdersApi from "@/lib/api/procedure-orders";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
+import { BPJSPageFrame } from "./shared-page-chrome";
+import { PageToolbar } from "@/components/layout/page-shell";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   active: { label: "Aktif", className: "bg-green-50 text-green-700 border-green-200" },
@@ -84,7 +82,6 @@ export default function SuratKontrolMonitoringPage() {
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<SuratKontrolLocal[]>([]);
-  const [filterOpen, setFilterOpen] = useState(false);
 
   // Filters
   const today = format(new Date(), "yyyy-MM-dd");
@@ -550,104 +547,112 @@ export default function SuratKontrolMonitoringPage() {
 
   return (
     <BPJSPageFrame
+      icon={Calendar}
       title="SKDP"
-      description=""
+      description="Monitoring dan pengelolaan Surat Kontrol / SKDP BPJS"
+      noPadding
+      className="space-y-0"
       actions={
-        <>
-          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            <span className="ml-2">Refresh</span>
-          </Button>
-          <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
-        </>
+        <Button variant="outline" size="sm" className="rounded-none h-8 px-3 text-xs font-semibold shadow-none" onClick={loadData} disabled={loading}>
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          <span className="ml-1.5">Refresh</span>
+        </Button>
       }
     >
-      <BPJSSectionPanel title="Daftar Surat Kontrol">
-        <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-          <CollapsibleContent>
-            <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Tanggal Terbit (Dari)</Label>
-                <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Tanggal Terbit (Sampai)</Label>
-                <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Tanggal Kontrol (Dari)</Label>
-                <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Tanggal Kontrol (Sampai)</Label>
-                <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[140px] h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="active">Aktif</SelectItem>
-                    <SelectItem value="used">Digunakan</SelectItem>
-                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Cari (No. Kartu / Nama)</Label>
-                <Input
-                  placeholder="Cari..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleSearch()}
-                  className="h-9 w-48"
-                />
-              </div>
-              <Button onClick={handleSearch} disabled={loading} size="sm" className="h-9">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                Cari
-              </Button>
-              <Button variant="outline" size="sm" className="h-9" onClick={handleReset}>
-                <X className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <div className="flex items-center justify-between">
-        </div>
-
-        {loading ? (
-          <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
-            <div className="text-center">
-              <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
-            </div>
-          </div>
-        ) : list.length === 0 ? (
-          <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
-            <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm font-medium text-muted-foreground">Tidak ada data Surat Kontrol</p>
-            <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
-          </div>
-        ) : (
-          <div className="bg-background">
-            <DataTable
-              columns={columns}
-              data={list}
-              showSearch={false}
-              pageSize={10}
+      <PageToolbar className="justify-between">
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[220px]">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cari no. kartu atau nama..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
+              className="h-8 pl-8 rounded-none text-xs bg-white dark:bg-neutral-950"
             />
           </div>
-        )}
-      </BPJSSectionPanel>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px] h-8 rounded-none text-xs bg-white dark:bg-neutral-950">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-none">
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="used">Digunakan</SelectItem>
+              <SelectItem value="cancelled">Dibatalkan</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 rounded-none text-xs bg-white dark:bg-neutral-950 gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Periode Tanggal</span>
+                {(tglTerbitFrom || tglTerbitTo || tglKontrolFrom || tglKontrolTo) && (
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px] rounded-none">Aktif</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 rounded-none p-3 space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wider border-b pb-1.5">Filter Tanggal</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Terbit Dari</Label>
+                  <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-8 rounded-none text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Terbit Sampai</Label>
+                  <Input type="date" value={tglTerbitTo} onChange={e => setTglTerbitTo(e.target.value)} className="h-8 rounded-none text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Kontrol Dari</Label>
+                  <Input type="date" value={tglKontrolFrom} onChange={e => setTglKontrolFrom(e.target.value)} className="h-8 rounded-none text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Kontrol Sampai</Label>
+                  <Input type="date" value={tglKontrolTo} onChange={e => setTglKontrolTo(e.target.value)} className="h-8 rounded-none text-xs" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-1.5 pt-2 border-t">
+                <Button variant="ghost" size="sm" className="h-7 rounded-none text-xs" onClick={handleReset}>Reset</Button>
+                <Button size="sm" className="h-7 rounded-none text-xs" onClick={handleSearch}>Terapkan</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Button onClick={handleSearch} disabled={loading} size="sm" className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 h-8 rounded-none text-xs px-3 shadow-none">
+            {loading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Search className="mr-1.5 h-3.5 w-3.5" />}
+            Cari
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 rounded-none text-xs px-2.5 bg-white dark:bg-neutral-950 shadow-none" onClick={handleReset} title="Reset Filter">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </PageToolbar>
+
+      {loading ? (
+        <div className="flex min-h-[220px] items-center justify-center bg-white dark:bg-neutral-950">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="mt-2 text-xs text-muted-foreground">Memuat data...</p>
+          </div>
+        </div>
+      ) : list.length === 0 ? (
+        <div className="flex min-h-[220px] flex-col items-center justify-center bg-white dark:bg-neutral-950 text-center">
+          <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">Tidak ada data Surat Kontrol</p>
+          <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={list}
+          showSearch={false}
+          pageSize={10}
+        />
+      )}
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -768,53 +773,74 @@ export default function SuratKontrolMonitoringPage() {
 
       {/* Edit Sheet */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="sm:max-w-[80vw] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-purple-600" />
-              {isEditingSIMRS ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}
-            </SheetTitle>
-          </SheetHeader>
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <div className="flex flex-col border-b px-6 py-2.5">
+            <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+              <div className="space-y-0.5 text-left">
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="flex items-center gap-2 text-base font-bold leading-tight">
+                    <Pencil className="h-4 w-4 text-purple-600" />
+                    {isEditingSIMRS ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}
+                  </SheetTitle>
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {isEditingSIMRS ? "SIMRS" : "BPJS"}
+                  </Badge>
+                </div>
+                {editingItem && (
+                  <p className="text-xs text-muted-foreground">
+                    {editingItem.nama || "-"} • {editingItem.no_kartu}
+                  </p>
+                )}
+              </div>
+            </SheetHeader>
+          </div>
 
           {editingItem && (
-            <div className="space-y-6 py-4">
-              {/* Info peserta (read-only) */}
-              <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <div className="flex-1 overflow-y-auto divide-y divide-border/70">
+              {/* Info peserta (flat) */}
+              <div className="px-6 py-3 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Data Peserta
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
                   <div>
-                    <span className="text-muted-foreground text-xs">No. Surat Kontrol</span>
-                    <p className="font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. Surat Kontrol</span>
+                    <p className="mt-0.5 font-mono font-semibold text-purple-700">{editingItem.no_surat_kontrol}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground text-xs">Nama</span>
-                    <p className="font-medium">{editingItem.nama || "-"}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Nama</span>
+                    <p className="mt-0.5 font-medium text-foreground">{editingItem.nama || "-"}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground text-xs">No. Kartu</span>
-                    <p className="font-mono text-xs">{editingItem.no_kartu}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. Kartu</span>
+                    <p className="mt-0.5 font-mono font-medium text-foreground">{editingItem.no_kartu}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground text-xs">No. SEP</span>
-                    <p className="font-mono text-xs">{editingItem.no_sep}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. SEP</span>
+                    <p className="mt-0.5 font-mono font-medium text-foreground">{editingItem.no_sep}</p>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-muted-foreground text-xs">Diagnosa</span>
-                    <p className="text-xs">{editingItem.nama_diagnosa || "-"}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Diagnosa</span>
+                    <p className="mt-0.5 font-medium text-foreground">{editingItem.nama_diagnosa || "-"}</p>
                   </div>
                   {editingItem.is_prb && (
                     <div className="col-span-2">
-                      <span className="text-muted-foreground text-xs">Program PRB</span>
-                      <p className="text-xs font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Program PRB</span>
+                      <p className="mt-0.5 font-medium text-blue-700">{editingItem.nama_status_prb || editingItem.kd_status_prb || "-"}</p>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Editable fields */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Tanggal Rencana Kontrol *</Label>
+              <div className="px-6 py-3 space-y-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Informasi Surat Kontrol
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
+                    Tanggal Rencana Kontrol <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     type="date"
                     value={editForm.tgl_rencana_kontrol}
@@ -822,57 +848,61 @@ export default function SuratKontrolMonitoringPage() {
                       setEditForm(prev => ({ ...prev, tgl_rencana_kontrol: e.target.value }));
                       if (editForm.kode_poli) searchDokter(editForm.kode_poli, e.target.value);
                     }}
-                    className="h-9"
+                    className="h-8 w-full text-xs rounded-md"
                   />
                 </div>
 
                 {!isEditingSIMRS && (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">
+                        Poli Tujuan <span className="text-destructive">*</span>
+                      </Label>
                       <Combobox
                         options={poliOptions.map(p => ({ value: p.kode, label: p.nama }))}
                         value={editForm.kode_poli}
                         onValueChange={handlePoliChange}
                         onSearchChange={handlePoliSearchChange}
                         placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
-                        className="h-9"
+                        className="h-8 text-xs"
                       />
                       {editForm.nama_poli && (
-                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+                        <p className="text-[11px] text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Dokter DPJP *</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">
+                        Dokter DPJP <span className="text-destructive">*</span>
+                      </Label>
                       <Combobox
                         options={dokterOptions.map(d => ({ value: d.kode, label: d.nama }))}
                         value={editForm.kode_dokter}
                         onValueChange={handleDokterChange}
                         placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
-                        className="h-9"
+                        className="h-8 text-xs"
                       />
                       {editForm.nama_dokter && (
-                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
+                        <p className="text-[11px] text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
                       )}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          <SheetFooter className="pt-4 flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)} disabled={saving}>
+          <SheetFooter className="border-t px-6 py-3 sm:justify-end gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditOpen(false)} disabled={saving}>
               Batal
             </Button>
-            <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <Button size="sm" className="h-8 text-xs" onClick={handleSaveEdit} disabled={saving}>
+              {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
               {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
             </Button>
           </SheetFooter>
         </SheetContent>
-      </Sheet >
+      </Sheet>
     </BPJSPageFrame >
   );
 }

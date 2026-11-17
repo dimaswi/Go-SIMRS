@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, ReceiptText, Trash2 } from "lucide-react";
+import { Loader2, Plus, ReceiptText, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -229,13 +229,16 @@ export default function NutritionInvoiceEdit() {
         title="Edit Faktur Bahan Gizi"
         description="Perbarui data faktur pembelian bahan gizi beserta item bahan."
         icon={ReceiptText}
+        onBack={() => navigate("/nutrition/invoices")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/invoices")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
-            <Button type="submit" form="nutrition-invoice-edit-form" size="sm" disabled={loading}>
+            <Button
+              type="submit"
+              form="nutrition-invoice-edit-form"
+              size="sm"
+              disabled={loading}
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Perubahan
             </Button>

@@ -20,7 +20,6 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form";
-import { ArrowLeft } from "lucide-react";
 import { useEffect } from "react";
 
 const counterSchema = z.object({
@@ -78,23 +77,14 @@ export default function CounterCreate() {
       <PageHeader
         title="Informasi Loket"
         description="Masukkan detail informasi loket baru"
-        actions={
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        }
+        onBack={() => navigate("/counters")}
       />
       <PageContent>
-      <div className="border border-border/70 bg-background">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <section className="space-y-4">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
           DATA LOKET
         </div>
-        <div className="p-3 sm:p-4">
+        <div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 [&_input]:h-9">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -206,7 +196,7 @@ export default function CounterCreate() {
             </form>
           </Form>
         </div>
-      </div>
+      </section>
       </PageContent>
     </PageShell>
   );

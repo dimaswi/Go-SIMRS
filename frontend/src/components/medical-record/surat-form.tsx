@@ -90,6 +90,7 @@ type LetterType =
 interface SuratFormProps {
   visitId: number;
   readOnly?: boolean;
+  initialType?: LetterType | null;
 }
 
 interface LetterTypeOption {
@@ -149,10 +150,16 @@ const letterTypes: LetterTypeOption[] = [
 // MAIN COMPONENT
 // ============================================================
 
-export function SuratForm({ visitId, readOnly = false }: SuratFormProps) {
-  const [selectedType, setSelectedType] = useState<LetterType | null>(null);
+export function SuratForm({ visitId, readOnly = false, initialType = null }: SuratFormProps) {
+  const [selectedType, setSelectedType] = useState<LetterType | null>(initialType);
   const [letterCounts, setLetterCounts] = useState<Record<string, number>>({});
   const [loadingCounts, setLoadingCounts] = useState(true);
+
+  useEffect(() => {
+    if (initialType) {
+      setSelectedType(initialType);
+    }
+  }, [initialType]);
 
   // Load counts for all letter types
   const loadCounts = useCallback(async () => {

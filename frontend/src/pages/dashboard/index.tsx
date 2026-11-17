@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -51,10 +52,8 @@ import { usePermission } from '@/hooks/usePermission';
 import { DASHBOARD_PERMISSION_GROUPS, DASHBOARD_WORKSPACES, type DashboardPermissionKey } from './config';
 
 const CHART_COLORS = ['#0f766e', '#b45309', '#1d4ed8', '#b91c1c', '#52525b', '#15803d'];
-const FLAT_CARD_CLASS = 'rounded-none border-border/70 shadow-none';
-const FLAT_PANEL_CLASS = 'rounded-none border border-border/70 bg-background';
-const FLAT_TINTED_PANEL_CLASS = 'rounded-none border border-border/70';
-const DASHBOARD_FONT_FAMILY = '"IBM Plex Sans", "Segoe UI", sans-serif';
+const FLAT_PANEL_CLASS = 'rounded-none border border-neutral-200 dark:border-neutral-800 bg-background';
+const FLAT_TINTED_PANEL_CLASS = 'rounded-none border border-neutral-200 dark:border-neutral-800';
 const DASHBOARD_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
 
 interface MetricCardConfig {
@@ -136,7 +135,7 @@ const getPaymentMethodLabel = (method: string): string => {
 };
 
 function DashboardShellCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <Card className={cn(FLAT_CARD_CLASS, className)}>{children}</Card>;
+  return <div className={cn("rounded-none border-0 bg-transparent shadow-none", className)}>{children}</div>;
 }
 
 function SectionBlock({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -169,19 +168,19 @@ function DashboardPanel({
   contentClassName?: string;
 }) {
   return (
-    <DashboardShellCard className={cn('overflow-hidden bg-background/95 backdrop-blur', className)}>
-      <CardHeader className="border-b border-border/70 bg-muted/10 px-4 py-3 sm:px-5">
+    <section className={cn('space-y-4', className)}>
+      <CardHeader className="border-b border-neutral-200 dark:border-neutral-800 px-0 py-2.5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{eyebrow}</div>
-            <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-wider">{title}</CardTitle>
             {description && <CardDescription className="text-xs uppercase tracking-[0.16em]">{description}</CardDescription>}
           </div>
           {action}
         </div>
       </CardHeader>
-      <CardContent className={cn('p-4 sm:p-5', contentClassName)}>{children}</CardContent>
-    </DashboardShellCard>
+      <CardContent className={cn('p-0 space-y-4', contentClassName)}>{children}</CardContent>
+    </section>
   );
 }
 
@@ -828,83 +827,74 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-auto bg-muted/20" style={{ fontFamily: DASHBOARD_FONT_FAMILY }}>
-      <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:28px_28px]" />
+    <PageShell>
+      <PageHeader
+        icon={LayoutGrid}
+        title="DASHBOARD EKSEKUTIF MANAJEMEN RUMAH SAKIT (SIMRS)"
+        description={`${currentDateLabel} • Kunjungan, kapasitas bed, billing, farmasi, dan tindakan dalam satu board operasional`}
+        actions={
+          <Button variant="outline" size="sm" className="h-8 rounded-none text-xs" onClick={() => loadDashboardData(true)} disabled={refreshing}>
+            <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', refreshing && 'animate-spin')} />
+            Refresh
+          </Button>
+        }
+      />
 
-      <div className="relative flex flex-1 flex-col gap-4 p-3 md:p-5">
-        <DashboardShellCard className="overflow-hidden bg-background/95 backdrop-blur">
-          <div className="grid gap-px bg-border/70 xl:grid-cols-[minmax(0,1.25fr)_360px]">
-            <div className="bg-background p-5 md:p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.26em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
-                    <span className="border border-border/70 px-2 py-1 text-foreground">SIMRS Board</span>
-                    <span>{currentDateLabel}</span>
-                  </div>
-                  <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Pusat Operasi Harian</h1>
-                    <p className="max-w-2xl text-sm text-muted-foreground">
-                      Kunjungan, kapasitas bed, billing, farmasi, dan tindakan dalam satu board operasional.
-                    </p>
-                  </div>
-                </div>
-
-                <Button variant="outline" size="sm" className="rounded-none self-start" onClick={() => loadDashboardData(true)} disabled={refreshing}>
-                  <RefreshCw className={cn('mr-2 h-4 w-4', refreshing && 'animate-spin')} />
-                  Refresh
-                </Button>
-              </div>
-
-              <div className="mt-6 grid gap-px bg-border/70 sm:grid-cols-3">
-                {quickStats.map((item) => (
-                  <div key={item.label} className="bg-background px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{item.label}</div>
-                    <div className="mt-2 text-lg font-semibold leading-tight">{item.value}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-px bg-border/70 sm:grid-cols-3 xl:grid-cols-1">
-              <div className="bg-background px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Last Sync</div>
-                <div className="mt-2 text-2xl font-semibold">{lastUpdatedLabel}</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">data dashboard terakhir</div>
-              </div>
-              <div className="bg-background px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Throughput</div>
-                <div className="mt-2 text-2xl font-semibold">{completionRate.toFixed(0)}%</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">visit selesai hari ini</div>
-              </div>
-              <div className="bg-background px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Service Load</div>
-                <div className="mt-2 text-2xl font-semibold">{formatNumber(serviceTotal)}</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">rawat jalan, inap, IGD</div>
-              </div>
-            </div>
+      {/* KPI Strip ala Go-Akuntansi */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
+        {quickStats.map((item) => (
+          <div key={item.label} className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">{item.label}</div>
+            <div className="mt-1 text-base font-bold leading-tight text-neutral-900 dark:text-white">{item.value}</div>
+            <div className="mt-0.5 text-[11px] font-mono text-neutral-500">{item.detail}</div>
           </div>
-        </DashboardShellCard>
+        ))}
+        <div className="px-4 py-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Last Sync</div>
+          <div className="mt-1 text-base font-bold leading-tight text-neutral-900 dark:text-white">{lastUpdatedLabel}</div>
+          <div className="mt-0.5 text-[11px] font-mono text-neutral-500">data terakhir</div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Throughput</div>
+          <div className="mt-1 text-base font-bold leading-tight text-neutral-900 dark:text-white">{completionRate.toFixed(0)}%</div>
+          <div className="mt-0.5 text-[11px] font-mono text-neutral-500">visit selesai</div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Service Load</div>
+          <div className="mt-1 text-base font-bold leading-tight text-neutral-900 dark:text-white">{formatNumber(serviceTotal)}</div>
+          <div className="mt-0.5 text-[11px] font-mono text-neutral-500">rajal, ranap, IGD</div>
+        </div>
+      </div>
 
+      <PageContent className="space-y-6">
         {visibleMetricCards.length > 0 && (
           <SectionBlock title="Snapshot" description="angka utama sesuai permission aktif">
-            <div className="grid gap-px bg-border/70 sm:grid-cols-2 xl:grid-cols-4">
-              {visibleMetricCards.map((card) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 border-t border-l border-neutral-200 dark:border-neutral-800 [&>*]:border-r [&>*]:border-b [&>*]:border-neutral-200 dark:[&>*]:border-neutral-800 bg-white dark:bg-neutral-950">
+              {visibleMetricCards.map((card, idx) => {
                 const Icon = card.icon;
+                const spanTwoOnXl = idx === visibleMetricCards.length - 1 && visibleMetricCards.length % 4 === 3;
+                const spanTwoOnSm = idx === visibleMetricCards.length - 1 && visibleMetricCards.length % 2 === 1;
 
                 return (
-                  <div key={card.key} className="bg-background px-4 py-4">
+                  <div
+                    key={card.key}
+                    className={cn(
+                      'bg-background px-4 py-4 min-w-0',
+                      spanTwoOnSm && 'sm:col-span-2',
+                      spanTwoOnXl ? 'xl:col-span-2' : 'xl:col-span-1',
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{card.title}</div>
-                        <div className="mt-3 text-3xl font-semibold leading-none tracking-tight">{card.value}</div>
+                        <div className="mt-2.5 text-2xl xl:text-3xl font-mono font-bold leading-none tracking-tight break-words">{card.value}</div>
                       </div>
-                      <div className={cn('flex h-11 w-11 items-center justify-center border border-border/70', card.tintClass)}>
-                        <Icon className={cn('h-5 w-5', card.iconClass)} />
+                      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-neutral-200 dark:border-neutral-800', card.tintClass)}>
+                        <Icon className={cn('h-4 w-4', card.iconClass)} />
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {typeof card.trend === 'number' && (
                         <span className={cn('inline-flex items-center gap-1 font-medium', card.trend >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
                           {card.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
@@ -920,12 +910,13 @@ export default function DashboardPage() {
           </SectionBlock>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px] xl:grid-cols-[minmax(0,1.35fr)_360px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_340px] xl:grid-cols-[minmax(0,1.35fr)_380px] lg:divide-x lg:divide-neutral-200 dark:lg:divide-neutral-800">
           {showFrontOffice && (
             <DashboardPanel
               eyebrow="Traffic"
               title="Pergerakan Pasien"
               description="registrasi dan ritme layanan"
+              className="lg:pr-6"
               action={
                 <Select value={chartPeriod} onValueChange={(value) => setChartPeriod(value as 'week' | 'month' | 'year')}>
                   <SelectTrigger className="h-9 w-[124px] rounded-none border-border/70 text-xs">
@@ -981,7 +972,7 @@ export default function DashboardPage() {
             </DashboardPanel>
           )}
 
-          <DashboardPanel eyebrow="Command" title="Prioritas Hari Ini" description="item yang perlu ditutup lebih dulu">
+          <DashboardPanel eyebrow="Command" title="Prioritas Hari Ini" description="item yang perlu ditutup lebih dulu" className="lg:pl-6">
             {commandRows.length > 0 ? (
               <div className="space-y-3">
                 {commandRows.map((item) => {
@@ -1011,7 +1002,7 @@ export default function DashboardPage() {
           </DashboardPanel>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-2">
           {showFrontOffice && (
             <DashboardPanel eyebrow="Mix" title="Komposisi Kunjungan" description="jenis layanan yang paling aktif">
               {sortedVisitTypeData.length > 0 ? (
@@ -1140,8 +1131,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <DashboardPanel eyebrow="Workspace" title="Akses Kerja" description="jalur masuk modul harian">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:divide-x lg:divide-neutral-200 dark:lg:divide-neutral-800">
+          <DashboardPanel eyebrow="Workspace" title="Akses Kerja" description="jalur masuk modul harian" className="lg:pr-6">
             {visibleWorkspaces.length > 0 ? (
               <div className="space-y-2">
                 {visibleWorkspaces.slice(0, 8).map((workspace) => {
@@ -1182,7 +1173,7 @@ export default function DashboardPage() {
             )}
           </DashboardPanel>
 
-          <DashboardPanel eyebrow="Access" title="Peta Permission" description="modul dan permission aktif">
+          <DashboardPanel eyebrow="Access" title="Peta Permission" description="modul dan permission aktif" className="lg:pl-6">
             <div className="grid gap-px bg-border/70 sm:grid-cols-3">
               <div className="bg-background px-4 py-4">
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
@@ -1255,7 +1246,7 @@ export default function DashboardPage() {
             )}
           </div>
         </SectionBlock>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, ReceiptText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -77,31 +77,29 @@ export default function NutritionInvoicesPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={ReceiptText}
         title="Input Faktur Bahan Gizi"
         description="Pencatatan faktur pembelian bahan gizi berdasarkan master bahan tanpa pengaruh stok."
         count={items.length}
         actions={(
-          <Button onClick={() => navigate("/nutrition/invoices/create")} size="sm">
-            <Plus className="h-4 w-4" />
+          <Button
+            onClick={() => navigate("/nutrition/invoices/create")}
+            size="sm"
+            className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+          >
+            <Plus className="h-3.5 w-3.5" />
             Input Faktur
           </Button>
         )}
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Faktur Bahan
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
-              columns={columns}
-              data={items}
-              searchPlaceholder="Cari berdasarkan kode internal, nomor faktur, atau supplier..."
-              pageSize={10}
-              tableId="nutrition-invoices"
-            />
-          </div>
-        </div>
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={items}
+          searchPlaceholder="Cari berdasarkan kode internal, nomor faktur, atau supplier..."
+          pageSize={10}
+          tableId="nutrition-invoices"
+        />
       </PageContent>
       <ConfirmDialog
         open={deleteDialogOpen}

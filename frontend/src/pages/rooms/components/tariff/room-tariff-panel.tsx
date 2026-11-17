@@ -145,26 +145,24 @@ export function RoomTariffPanel({
   }
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden">
+    <div className="min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <DollarSign className="h-5 w-5 text-primary" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold">Tarif Ruangan</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tarif Ruangan</h2>
             <p className="text-xs text-muted-foreground">
-              Tetapkan tarif per kelas pasien untuk ruangan ini sekaligus
+              Tetapkan tarif per kelas pasien untuk ruangan ini
             </p>
           </div>
         </div>
         {hasPermission("rooms.update") && (
-          <Button onClick={handleSave} disabled={saving} size="sm">
+          <Button onClick={handleSave} disabled={saving} size="sm" className="h-8 text-xs">
             {saving ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
             ) : (
-              <Save className="h-4 w-4 mr-1" />
+              <Save className="h-3.5 w-3.5 mr-1.5" />
             )}
             Simpan Semua Tarif
           </Button>
@@ -172,57 +170,55 @@ export function RoomTariffPanel({
       </div>
 
       {/* Grid */}
-      <div className="space-y-4">
+      <div>
         {patientClasses.length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground border rounded-lg">
+          <div className="text-center py-8 text-xs text-muted-foreground">
             Tidak ada data kelas pasien
           </div>
         ) : (
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold min-w-[120px] sticky left-0 bg-muted/50">
-                    Kelas Pasien
+          <Table className="text-xs">
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="font-medium text-[10px] uppercase tracking-wider text-muted-foreground min-w-[140px]">
+                  Kelas Pasien
+                </TableHead>
+                {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
+                  <TableHead key={comp.key} className="text-center text-[10px] uppercase tracking-wider text-muted-foreground min-w-[110px]">
+                    {comp.label}
                   </TableHead>
-                  {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
-                    <TableHead key={comp.key} className="text-center min-w-[120px]">
-                      {comp.label}
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-center min-w-[130px] font-semibold bg-muted/50">
-                    Total
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {patientClasses.map((pc: any) => (
-                  <TableRow key={pc.code}>
-                    <TableCell className="font-medium sticky left-0 bg-background">
-                      {pc.name}
-                    </TableCell>
-                    {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
-                      <TableCell key={comp.key} className="p-1">
-                        <Input
-                          type="number"
-                          className="h-8 text-right text-sm"
-                          value={getTariffValue(pc.code, comp.key) || ""}
-                          onChange={(e) =>
-                            updateTariff(pc.code, comp.key, Number(e.target.value) || 0)
-                          }
-                          placeholder="0"
-                          disabled={!hasPermission("rooms.update")}
-                        />
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right font-semibold bg-muted/30">
-                      {formatCurrency(calculateRowTotal(pc.code))}
-                    </TableCell>
-                  </TableRow>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+                <TableHead className="text-right text-[10px] uppercase tracking-wider text-muted-foreground min-w-[120px] font-semibold bg-muted/40">
+                  Total
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {patientClasses.map((pc: any) => (
+                <TableRow key={pc.code}>
+                  <TableCell className="font-medium">
+                    {pc.name}
+                  </TableCell>
+                  {ROOM_TARIFF_COMPONENTS.map((comp: any) => (
+                    <TableCell key={comp.key} className="p-1.5">
+                      <Input
+                        type="number"
+                        className="h-8 text-right text-xs"
+                        value={getTariffValue(pc.code, comp.key) || ""}
+                        onChange={(e) =>
+                          updateTariff(pc.code, comp.key, Number(e.target.value) || 0)
+                        }
+                        placeholder="0"
+                        disabled={!hasPermission("rooms.update")}
+                      />
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right font-semibold bg-muted/20">
+                    {formatCurrency(calculateRowTotal(pc.code))}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
     </div>

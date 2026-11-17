@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, ReceiptText, Trash2 } from "lucide-react";
+import { Loader2, Plus, ReceiptText, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -193,12 +193,9 @@ export default function NutritionInvoiceCreate() {
         title="Input Faktur Bahan Gizi"
         description="Catat faktur pembelian bahan gizi untuk kebutuhan laporan pemakaian dan administrasi pembelian unit."
         icon={ReceiptText}
+        onBack={() => navigate("/nutrition/invoices")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/invoices")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="nutrition-invoice-create-form" size="sm" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Faktur

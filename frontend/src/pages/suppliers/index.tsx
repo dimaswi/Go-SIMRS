@@ -17,7 +17,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, Plus, Search, X } from "lucide-react";
+import { Building2, Loader2, Plus, Search, X } from "lucide-react";
 
 type SupplierStatusFilter = "active" | "inactive" | "all";
 
@@ -152,69 +152,67 @@ export default function SuppliersIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={Building2}
         title="Master Supplier"
         description="Kelola data supplier untuk pembelian barang dan obat"
         count={suppliers.length}
         actions={
           hasPermission("suppliers.create") ? (
-            <Button onClick={() => navigate("/suppliers/create")} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate("/suppliers/create")}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Tambah Supplier
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Supplier
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
-              columns={columns}
-              data={suppliers}
-              showSearch={false}
-              pageSize={10}
-              tableId="suppliers"
-              searchSlot={
-                <>
-                  <div className="relative w-full max-w-[280px] min-w-0">
-                    <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Cari supplier berdasarkan kode atau nama..."
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      className="h-7 w-full bg-background pl-7 pr-12 text-xs"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery("")}
-                        className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        aria-label="Hapus pencarian"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                    {isRefreshing && (
-                      <Loader2 className="pointer-events-none absolute right-7 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted-foreground" />
-                    )}
-                  </div>
-                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as SupplierStatusFilter)}>
-                    <SelectTrigger className="h-7 w-[150px] bg-background text-xs">
-                      <SelectValue placeholder="Status supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Hanya aktif</SelectItem>
-                      <SelectItem value="all">Semua status</SelectItem>
-                      <SelectItem value="inactive">Hanya nonaktif</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </>
-              }
-            />
-          </div>
-        </div>
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={suppliers}
+          showSearch={false}
+          pageSize={10}
+          tableId="suppliers"
+          searchSlot={
+            <>
+              <div className="relative w-full max-w-[280px] min-w-0">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari supplier berdasarkan kode atau nama..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-7 w-full bg-background pl-7 pr-12 text-xs rounded-none"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Hapus pencarian"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+                {isRefreshing && (
+                  <Loader2 className="pointer-events-none absolute right-7 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as SupplierStatusFilter)}>
+                <SelectTrigger className="h-7 w-[150px] bg-background text-xs rounded-none">
+                  <SelectValue placeholder="Status supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Hanya aktif</SelectItem>
+                  <SelectItem value="all">Semua status</SelectItem>
+                  <SelectItem value="inactive">Hanya nonaktif</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
+        />
       </PageContent>
 
       <ConfirmDialog

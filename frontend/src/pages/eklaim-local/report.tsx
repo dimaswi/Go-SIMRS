@@ -420,21 +420,24 @@ export default function EklaimReportPage() {
         </DialogContent>
       </Dialog>
 
-      <PageContent noPadding className="px-4 pb-4 pt-3">
-        {data.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-4 border border-border/70 bg-background px-4 py-3 text-sm">
-            <span className="text-muted-foreground">
-              Total Klaim: <span className="font-medium text-foreground">{data.length}</span>
-            </span>
-            <span className="text-muted-foreground">
-              Total Tarif INACBG: <span className="font-mono font-medium text-foreground">{formatCurrency(totalINACBG)}</span>
-            </span>
-            <span className="text-muted-foreground">
-              Total Tarif RS: <span className="font-mono font-medium text-foreground">{formatCurrency(totalRS)}</span>
-            </span>
+      {data.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Total Klaim</div>
+            <div className="mt-1 text-lg font-bold text-foreground">{data.length}</div>
           </div>
-        )}
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Total Tarif INACBG</div>
+            <div className="mt-1 text-lg font-mono font-bold text-foreground">{formatCurrency(totalINACBG)}</div>
+          </div>
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Total Tarif RS</div>
+            <div className="mt-1 text-lg font-mono font-bold text-foreground">{formatCurrency(totalRS)}</div>
+          </div>
+        </div>
+      )}
 
+      <PageContent>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

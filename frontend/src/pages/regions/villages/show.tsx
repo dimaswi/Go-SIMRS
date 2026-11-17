@@ -6,10 +6,10 @@ import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import { 
   Loader2, 
-  ArrowLeft,
   Home,
   Pencil
 } from 'lucide-react';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 export default function VillageShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -57,68 +57,55 @@ export default function VillageShowPage() {
   const province = regency?.province;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Detail Info */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (district) {
-                navigate(`/regions/districts/${district.id}`);
-              } else {
-                navigate('/regions');
-              }
-            }}
+    <PageShell>
+      <PageHeader
+        icon={Home}
+        title={village.name}
+        description="Detail lengkap desa/kelurahan"
+        onBack={() => {
+          if (district) {
+            navigate(`/regions/districts/${district.id}`);
+          } else {
+            navigate('/regions');
+          }
+        }}
+        actions={
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/regions/villages/${id}/edit`)}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
           </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <Home className="h-5 w-5" />
-              {village.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Detail lengkap desa/kelurahan
-            </p>
+        }
+      />
+      <PageContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Nama Desa/Kelurahan</p>
+              <p className="font-medium">{village.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Kode Kemendagri</p>
+              <p className="font-mono font-medium">{village.id}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Alamat Lengkap</p>
+              <p className="font-medium">
+                {village.name}, {district?.name}, {regency?.name}, {province?.name}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Kode Kecamatan</p>
+              <p className="font-mono font-medium">{village.district_id}</p>
+            </div>
           </div>
         </div>
-        <Button 
-          variant="outline"
-          size="sm"
-          onClick={() => navigate(`/regions/villages/${id}/edit`)}
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </Button>
-      </div>
-      <div className="rounded-lg border p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Nama Desa/Kelurahan</p>
-                <p className="font-medium">{village.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Kode Kemendagri</p>
-                <p className="font-mono font-medium">{village.id}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Alamat Lengkap</p>
-                <p className="font-medium">
-                  {village.name}, {district?.name}, {regency?.name}, {province?.name}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Kode Kecamatan</p>
-                <p className="font-mono font-medium">{village.district_id}</p>
-              </div>
-            </div>
-          </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

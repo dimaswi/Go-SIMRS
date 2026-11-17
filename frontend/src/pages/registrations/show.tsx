@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
-  ArrowLeft,
   User,
   Smartphone,
   CheckCircle,
@@ -123,21 +122,21 @@ function FlatSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-border/70 bg-background">
-      <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
         <div className="flex items-start justify-between gap-3">
           <div>
             {eyebrow && (
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
                 {eyebrow}
               </div>
             )}
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</h2>
           </div>
           {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }
@@ -521,15 +520,16 @@ export default function RegistrationShow() {
         title={formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
         description={`No. RM ${registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} | No. Pendaftaran ${registration.registration_number}`}
         icon={User}
+        onBack={() => navigate("/registrations")}
         badges={
           <>
             {bpjsQueue && (
-              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+              <Badge variant="outline" className="rounded-none border-green-200 bg-green-50 text-green-700">
                 <Smartphone className="mr-1 h-3 w-3" />
                 MJKN
               </Badge>
             )}
-            <Badge variant={getStatusVariant(registration.status) as any}>
+            <Badge variant={getStatusVariant(registration.status) as any} className="rounded-none">
               {registrationStatusLabels[registration.status]}
             </Badge>
           </>
@@ -539,18 +539,7 @@ export default function RegistrationShow() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={() => window.history.back()}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Kembali</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleOpenEditPayment}>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={handleOpenEditPayment}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -558,13 +547,11 @@ export default function RegistrationShow() {
               </Tooltip>
             </TooltipProvider>
 
-
-
             {registration.visit && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" onClick={() => setInformedConsentOpen(true)}>
+                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={() => setInformedConsentOpen(true)}>
                       <FileText className="h-4 w-4 text-blue-600" />
                     </Button>
                   </TooltipTrigger>
@@ -575,12 +562,12 @@ export default function RegistrationShow() {
           </div>
         }
       >
-        <div className="flex flex-wrap gap-2 pb-3">
-          <Badge variant="outline">{paymentMethodLabels[registration.payment_method]}</Badge>
-          <Badge variant="outline">{registrationTypeLabels[registration.registration_type]}</Badge>
-          {registration.destination_room?.name && <Badge variant="outline">{registration.destination_room.name}</Badge>}
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="rounded-none">{paymentMethodLabels[registration.payment_method]}</Badge>
+          <Badge variant="outline" className="rounded-none">{registrationTypeLabels[registration.registration_type]}</Badge>
+          {registration.destination_room?.name && <Badge variant="outline" className="rounded-none">{registration.destination_room.name}</Badge>}
           {registration.visit?.room_queue?.queue_number && (
-            <Badge variant="outline" className="font-mono">Antrian {registration.visit.room_queue.queue_number}</Badge>
+            <Badge variant="outline" className="rounded-none font-mono">Antrian {registration.visit.room_queue.queue_number}</Badge>
           )}
         </div>
       </PageHeader>

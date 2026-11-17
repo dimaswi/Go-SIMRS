@@ -65,7 +65,6 @@ import {
   X,
 
   FolderOpen,
-  ArrowLeft,
   Briefcase,
   Dna,
   Fingerprint,
@@ -1243,30 +1242,37 @@ export default function PatientSearchShow() {
   if (!patient) return null;
 
   return (
-    <PageShell className="h-screen flex flex-col overflow-hidden">
+    <PageShell>
       <div className="flex-none">
         <PageHeader
+          icon={User}
           title="Profil & Rekam Medis"
           description={`${patient.nama_lengkap} • No. RM: ${patient.no_rm}`}
+          onBack={handleBack}
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleBack} className="h-8">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Kembali
-              </Button>
-              <Separator orientation="vertical" className="h-5 mx-1" />
-              <Button variant="outline" size="sm" onClick={() => navigate(`/patients/${patient.id}/edit`)} className="h-8 text-yellow-600 border-yellow-200 hover:bg-yellow-50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/patients/${patient.id}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
                 <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
               </Button>
               {patient.status === "Aktif" && (
                 <>
-                  <Button size="sm" onClick={() => setRegistrationSheetOpen(true)} className="h-8">
-                    <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Daftar Baru
+                  <Button
+                    size="sm"
+                    onClick={() => setRegistrationSheetOpen(true)}
+                    className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Daftar Baru
                   </Button>
                   <Button
                     type="button"
                     size="icon"
                     variant="outline"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-none shadow-none"
                     onClick={handleLaunchFingerprint}
                     disabled={launchingFingerprint}
                     title="Buka aplikasi sidik jari BPJS"
@@ -1285,12 +1291,12 @@ export default function PatientSearchShow() {
         />
       </div>
 
-      <PageContent className="flex-1 overflow-hidden pb-4">
-        <div className="grid grid-cols-12 gap-6 h-full">
+      <PageContent>
+        <div className="grid grid-cols-12 gap-6 items-start">
           {/* Sidebar Info */}
-          <div className="col-span-12 lg:col-span-3 h-full overflow-hidden flex flex-col">
-            <div className="rounded-none border bg-card shadow-sm overflow-hidden flex flex-col max-h-full">
-              <div className="h-32 flex-none bg-muted/30 relative flex items-center justify-center">
+          <div className="col-span-12 lg:col-span-3 lg:border-r lg:border-neutral-200 dark:lg:border-neutral-800 lg:pr-6 flex flex-col">
+            <div className="flex flex-col">
+              <div className="h-32 flex-none bg-muted/30 relative flex items-center justify-center border border-neutral-200 dark:border-neutral-800">
                 {patient.foto ? (
                   <img src={`/${patient.foto}`} alt={patient.nama_lengkap} className="w-full h-full object-cover" />
                 ) : (
@@ -1300,7 +1306,7 @@ export default function PatientSearchShow() {
                   {patient.status}
                 </Badge>
               </div>
-              <div className="p-4 space-y-3 overflow-y-auto custom-scrollbar">
+              <div className="pt-4 space-y-3">
                 <div className="space-y-0.5">
                   <h2 className="font-bold text-base leading-tight truncate">{patient.nama_lengkap}</h2>
                   <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{patient.nik || "TIDAK ADA NIK"}</p>

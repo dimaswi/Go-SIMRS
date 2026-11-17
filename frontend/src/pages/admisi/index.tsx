@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { PageShell, PageHeader, FilterBar, FilterPill, PageContent } from "@/components/layout/page-shell";
+import { PageShell, PageHeader, PageToolbar, FilterBar, FilterPill, PageContent } from "@/components/layout/page-shell";
 
 export default function AdmissionRequestsIndexPage() {
   const { toast } = useToast();
@@ -245,41 +245,43 @@ export default function AdmissionRequestsIndexPage() {
         description="Kelola permintaan rawat inap dari unit rawat jalan dan IGD"
         count={requests.length}
         actions={
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchRequests}>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={fetchRequests}>
             <RefreshCcw className="h-4 w-4" />
           </Button>
         }
       />
-      <FilterBar>
-        <FilterPill active={selectedStatus === "all"} onClick={() => setSelectedStatus("all")}>
-          Semua
-        </FilterPill>
-        <FilterPill
-          active={selectedStatus === "pending"}
-          onClick={() => setSelectedStatus("pending")}
-        >
-          <Clock className="h-3 w-3" /> Menunggu
-        </FilterPill>
-        <FilterPill
-          active={selectedStatus === "approved"}
-          onClick={() => setSelectedStatus("approved")}
-        >
-          <CheckCircle className="h-3 w-3" /> Disetujui
-        </FilterPill>
-        <FilterPill
-          active={selectedStatus === "rejected"}
-          onClick={() => setSelectedStatus("rejected")}
-        >
-          <XCircle className="h-3 w-3" /> Ditolak
-        </FilterPill>
-        <FilterPill
-          active={selectedStatus === "cancelled"}
-          onClick={() => setSelectedStatus("cancelled")}
-        >
-          Dibatalkan
-        </FilterPill>
-      </FilterBar>
-      <PageContent>
+      <PageToolbar>
+        <FilterBar>
+          <FilterPill active={selectedStatus === "all"} onClick={() => setSelectedStatus("all")}>
+            Semua
+          </FilterPill>
+          <FilterPill
+            active={selectedStatus === "pending"}
+            onClick={() => setSelectedStatus("pending")}
+          >
+            <Clock className="h-3 w-3" /> Menunggu
+          </FilterPill>
+          <FilterPill
+            active={selectedStatus === "approved"}
+            onClick={() => setSelectedStatus("approved")}
+          >
+            <CheckCircle className="h-3 w-3" /> Disetujui
+          </FilterPill>
+          <FilterPill
+            active={selectedStatus === "rejected"}
+            onClick={() => setSelectedStatus("rejected")}
+          >
+            <XCircle className="h-3 w-3" /> Ditolak
+          </FilterPill>
+          <FilterPill
+            active={selectedStatus === "cancelled"}
+            onClick={() => setSelectedStatus("cancelled")}
+          >
+            Dibatalkan
+          </FilterPill>
+        </FilterBar>
+      </PageToolbar>
+      <PageContent noPadding>
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -291,6 +293,7 @@ export default function AdmissionRequestsIndexPage() {
             searchPlaceholder="Cari no. request, nama pasien..."
             pageSize={10}
             tableId="admission-requests"
+            hideRowCount
           />
         )}
       </PageContent>

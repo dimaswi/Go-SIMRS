@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,6 @@ import {
   CheckCheck,
   Pill,
   Package,
-  ArrowLeft,
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,25 +56,23 @@ function SectionPanel({
   contentClassName?: string;
 }) {
   return (
-    <div className={cn("border border-border/70 bg-background/95", className)}>
-      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
+    <section className={cn("space-y-4", className)}>
+      <div className={cn("border-b border-neutral-200 dark:border-neutral-800 pb-2.5", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-1.5">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
+          <div className="flex items-start gap-2.5">
+            <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
               {description ? (
-                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
               ) : null}
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className={cn("p-2.5 sm:p-3", contentClassName)}>{children}</div>
-    </div>
+      <div className={cn("space-y-4", contentClassName)}>{children}</div>
+    </section>
   );
 }
 
@@ -305,8 +302,10 @@ export default function PurchaseReceive() {
     return (
       <PageShell>
         <PageHeader
+          icon={PackageCheck}
           title="Terima Barang"
           description="Catat item yang sudah datang dan lengkapi informasi batch bila diperlukan."
+          onBack={() => navigate(`/purchases/${id}`)}
         />
         <PageContent className="flex-none pb-8">
           <div className="space-y-4">
@@ -335,22 +334,18 @@ export default function PurchaseReceive() {
     : "Catat item yang datang dan selesaikan sisa penerimaan per item.";
 
   return (
-    <PageShell className="lg:overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={PackageCheck}
         title={receivePageTitle}
         description={receivePageDescription}
-        actions={
-          <Button variant="outline" size="sm" onClick={() => navigate(`/purchases/${id}`)}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate(`/purchases/${id}`)}
       />
-      <PageContent className="min-h-0 overflow-hidden pb-3">
+      <PageContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,390px)_minmax(0,1fr)]">
-            <div className="min-h-0 overflow-hidden">
-              <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6 items-start [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+            <div className="space-y-6">
+              <div className="flex flex-col gap-6">
                 <SectionPanel
                   icon={PackageCheck}
                   title="Informasi Pembelian"
@@ -457,14 +452,11 @@ export default function PurchaseReceive() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col overflow-hidden">
+            <div className="flex flex-col lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800 lg:pl-6">
               <SectionPanel
                 icon={Package}
                 title="Daftar Item"
                 description={`Kelola penerimaan ${totalItems} item dari pembelian ini dalam tabel detail yang ringkas.`}
-                className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                headerClassName="px-2.5 py-2 sm:px-3"
-                contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
                 actions={
                     <div className="flex items-center gap-1.5">
                       <Badge variant="outline" className="h-5 px-2 text-[10px]">
@@ -478,8 +470,8 @@ export default function PurchaseReceive() {
                     </div>
                   }
               >
-                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
-                  <ScrollArea className="h-full">
+                <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 bg-background">
+                  <ScrollArea className="max-h-[560px]">
                     <table className="w-full table-fixed border-collapse text-sm">
                       <thead className="sticky top-0 z-10 bg-background">
                         <tr className="bg-muted/20">

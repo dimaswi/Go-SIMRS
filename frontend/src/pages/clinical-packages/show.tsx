@@ -3,12 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { clinicalPackagesApi, type ClinicalPackage } from '@/lib/api/clinical-packages';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { ArrowLeft, Loader2, Pencil, Pill, Stethoscope } from 'lucide-react';
+import { Loader2, Pencil, Pill, Stethoscope } from 'lucide-react';
 
 const PROCEDURE_TYPE_LABELS: Record<string, string> = {
   consultation: 'Konsultasi',
@@ -59,25 +58,26 @@ export default function ClinicalPackagesShow() {
       <PageHeader
         title={pkg.name}
         description={pkg.code}
+        onBack={() => navigate('/clinical-packages')}
+        badges={
+          <Badge variant={pkg.is_active ? 'default' : 'secondary'}>{pkg.is_active ? 'Aktif' : 'Nonaktif'}</Badge>
+        }
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate(`/clinical-packages/${id}/edit`)}>
-              <Pencil className="mr-2 h-4 w-4" /> Edit
+            <Button
+              size="sm"
+              onClick={() => navigate(`/clinical-packages/${id}/edit`)}
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Pencil className="size-3.5" /> Edit
             </Button>
           </div>
         }
-      >
-        <div className="pb-4">
-          <Badge variant={pkg.is_active ? 'default' : 'secondary'}>{pkg.is_active ? 'Aktif' : 'Nonaktif'}</Badge>
-        </div>
-      </PageHeader>
+      />
 
-      <PageContent>
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/70">
+      <PageContent className="space-y-8">
+      <section className="space-y-4">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -86,54 +86,56 @@ export default function ClinicalPackagesShow() {
                 <Badge variant="outline">{pkg.medicine_items?.length || 0} obat</Badge>
                 <Badge variant="outline">Qty obat {totalMedicineQuantity}</Badge>
               </div>
-              <CardTitle className="text-xl">{pkg.name}</CardTitle>
-              <CardDescription className="font-mono">{pkg.code}</CardDescription>
+              <h2 className="text-xl font-bold">{pkg.name}</h2>
+              <p className="text-xs font-mono text-muted-foreground">{pkg.code}</p>
             </div>
-            <div className="grid grid-cols-2 gap-3 min-w-[260px]">
-              <div className="rounded-lg border bg-background px-4 py-3">
+            <div className="grid grid-cols-2 divide-x divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800 min-w-[260px] bg-neutral-50/40 dark:bg-neutral-900/30">
+              <div className="px-4 py-2.5">
                 <p className="text-xs text-muted-foreground">Tindakan</p>
-                <p className="text-2xl font-semibold">{pkg.procedure_items?.length || 0}</p>
+                <p className="text-xl font-semibold">{pkg.procedure_items?.length || 0}</p>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
+              <div className="px-4 py-2.5">
                 <p className="text-xs text-muted-foreground">Obat</p>
-                <p className="text-2xl font-semibold">{pkg.medicine_items?.length || 0}</p>
+                <p className="text-xl font-semibold">{pkg.medicine_items?.length || 0}</p>
               </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {pkg.description ? (
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Deskripsi</p>
-              <p className="text-sm text-muted-foreground">{pkg.description}</p>
-            </div>
-          ) : null}
-          {pkg.notes ? (
-            <>
-              <Separator />
+        </div>
+        {(pkg.description || pkg.notes) && (
+          <div className="space-y-4">
+            {pkg.description ? (
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Catatan Paket</p>
-                <p className="text-sm text-muted-foreground">{pkg.notes}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Deskripsi</p>
+                <p className="text-sm text-muted-foreground">{pkg.description}</p>
               </div>
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
+            ) : null}
+            {pkg.notes ? (
+              <>
+                {pkg.description && <Separator />}
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Catatan Paket</p>
+                  <p className="text-sm text-muted-foreground">{pkg.notes}</p>
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
+      </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="overflow-hidden border-sky-200/70">
-          <CardHeader className="bg-sky-50/70">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Stethoscope className="h-4 w-4" />
+      <div className="grid gap-8 xl:grid-cols-2">
+        <section className="space-y-4">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+              <Stethoscope className="h-4 w-4 text-neutral-500" />
               Tindakan Paket
-            </CardTitle>
-            <CardDescription>{pkg.procedure_items?.length || 0} tindakan terkonfigurasi dalam paket ini.</CardDescription>
-          </CardHeader>
-          <CardContent>
+            </h3>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{pkg.procedure_items?.length || 0} tindakan terkonfigurasi dalam paket ini.</p>
+          </div>
+          <div>
             {pkg.procedure_items && pkg.procedure_items.length > 0 ? (
-              <div className="space-y-3">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
                 {pkg.procedure_items.map((item, index) => (
-                  <div key={item.id} className="rounded-xl border bg-background p-4 space-y-2">
+                  <div key={item.id} className="py-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">#{index + 1}</Badge>
                       <Badge variant="outline" className="font-mono">{item.procedure?.code || '-'}</Badge>
@@ -150,22 +152,22 @@ export default function ClinicalPackagesShow() {
             ) : (
               <p className="text-sm text-muted-foreground">Tidak ada tindakan.</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="overflow-hidden border-emerald-200/70">
-          <CardHeader className="bg-emerald-50/70">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Pill className="h-4 w-4" />
+        <section className="space-y-4">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+              <Pill className="h-4 w-4 text-neutral-500" />
               Obat Paket
-            </CardTitle>
-            <CardDescription>{pkg.medicine_items?.length || 0} obat terkonfigurasi dalam paket ini.</CardDescription>
-          </CardHeader>
-          <CardContent>
+            </h3>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{pkg.medicine_items?.length || 0} obat terkonfigurasi dalam paket ini.</p>
+          </div>
+          <div>
             {pkg.medicine_items && pkg.medicine_items.length > 0 ? (
-              <div className="space-y-3">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
                 {pkg.medicine_items.map((item, index) => (
-                  <div key={item.id} className="rounded-xl border bg-background p-4 space-y-2">
+                  <div key={item.id} className="py-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">#{index + 1}</Badge>
                       <Badge variant="outline" className="font-mono">{item.medicine?.code || '-'}</Badge>
@@ -185,8 +187,8 @@ export default function ClinicalPackagesShow() {
             ) : (
               <p className="text-sm text-muted-foreground">Tidak ada obat.</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
       </PageContent>
     </PageShell>

@@ -1,13 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { Eye, CheckCircle, MoreHorizontal, Pencil, Trash2, Building2, CalendarDays, Package2 } from "lucide-react";
+import { Eye, CheckCircle, Pencil, Trash2, Building2, CalendarDays, Package2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { type StockOpname } from "@/lib/api/stock-requests";
 
 interface CreateColumnsOptions {
@@ -115,7 +109,7 @@ export function createStockOpnameColumns({
     },
     {
       id: "actions",
-      header: "Aksi",
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
         const opname = row.original;
         const isDraft = opname.status === "draft";
@@ -126,38 +120,50 @@ export function createStockOpnameColumns({
           (opname.status === "draft" || opname.status === "in_progress");
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/80">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+              onClick={() => onView(opname.id)}
+              title="Lihat Detail"
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            {canComplete && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-none border border-emerald-200 text-emerald-600 bg-emerald-50/20 hover:bg-emerald-100/50 size-7 p-0 shadow-none"
+                onClick={() => onComplete(opname.id)}
+                title="Selesaikan"
+              >
+                <CheckCircle className="size-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onView(opname.id)}>
-                <Eye className="mr-2 h-4 w-4" />
-                Lihat Detail
-              </DropdownMenuItem>
-              {canEdit && (
-                <DropdownMenuItem onClick={() => onEdit(opname.id)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-              )}
-              {canComplete && (
-                <DropdownMenuItem onClick={() => onComplete(opname.id)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Selesaikan
-                </DropdownMenuItem>
-              )}
-              {canDelete && (
-                <DropdownMenuItem onClick={() => onDelete(opname.id)} className="text-red-600">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                onClick={() => onEdit(opname.id)}
+                title="Edit"
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                onClick={() => onDelete(opname.id)}
+                title="Hapus"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         );
       },
     },

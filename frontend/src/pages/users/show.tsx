@@ -10,7 +10,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { usersApi } from "@/lib/api";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Clock3, Pencil, Shield, Trash2, User } from "lucide-react";
+import { Clock3, Pencil, Shield, Trash2, User } from "lucide-react";
 
 function DetailField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -114,24 +114,32 @@ export default function UserShow() {
         title={user.full_name}
         description={`@${user.username} · ${user.role?.name || "Tanpa role"}`}
         icon={User}
+        onBack={() => navigate("/users")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate("/users")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
-            <Badge variant={user.is_active ? "default" : "secondary"} className="h-9 rounded-none px-3">
+            <Badge variant={user.is_active ? "default" : "secondary"} className="h-8 rounded-none px-3 text-xs">
               {user.is_active ? "Aktif" : "Tidak Aktif"}
             </Badge>
             {hasPermission("users.update") ? (
-              <Button type="button" variant="outline" onClick={() => navigate(`/users/${id}/edit`)}>
-                <Pencil className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(`/users/${id}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit
               </Button>
             ) : null}
             {hasPermission("users.delete") ? (
-              <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Hapus
               </Button>
             ) : null}

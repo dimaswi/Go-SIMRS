@@ -357,29 +357,22 @@ export default function ListSEPPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar SEP
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={data}
-                searchPlaceholder="Cari No. SEP, nama pasien, kode..."
-                pageSize={20}
-                tableId="eklaim-local-list"
-                showSearch={true}
-                showPagination={true}
-              />
-            )}
-          </div>
-        </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari No. SEP, nama pasien, kode..."
+            pageSize={20}
+            tableId="eklaim-local-list"
+            showSearch={true}
+            showPagination={true}
+          />
+        )}
       </PageContent>
     </PageShell>
   );

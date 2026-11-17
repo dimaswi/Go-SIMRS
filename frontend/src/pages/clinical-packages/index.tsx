@@ -66,18 +66,17 @@ export default function ClinicalPackagesIndex() {
         description="Kelola paket tindakan dan obat standar yang dapat ditugaskan ke ruangan"
         count={packages.length}
         actions={
-          <Button size="sm" onClick={() => navigate('/clinical-packages/create')}>
-            <Plus className="h-4 w-4" /> Tambah Paket Tindakan
+          <Button
+            size="sm"
+            onClick={() => navigate('/clinical-packages/create')}
+            className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+          >
+            <Plus className="size-3.5" /> Tambah Paket Tindakan
           </Button>
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Paket Tindakan
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={createClinicalPackageColumns({
             onView: (id) => navigate(`/clinical-packages/${id}`),
             onEdit: (id) => navigate(`/clinical-packages/${id}/edit`),
@@ -91,8 +90,6 @@ export default function ClinicalPackagesIndex() {
           pageSize={10}
           tableId="clinical-packages"
         />
-          </div>
-        </div>
       </PageContent>
 
       <ConfirmDialog

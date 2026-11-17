@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -226,6 +225,7 @@ export default function SignaturePINSetupPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={ShieldCheck}
         title={mode === "setup" ? "Atur PIN Tanda Tangan" : "Ubah PIN Tanda Tangan"}
         description={mode === "setup"
           ? "PIN 6 digit ini akan digunakan untuk menandatangani dokumen secara digital"
@@ -235,14 +235,14 @@ export default function SignaturePINSetupPage() {
       />
 
       <PageContent>
-        <Card className="w-full border-0 shadow-none bg-transparent sm:bg-card sm:border sm:shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
+        <section className="w-full max-w-xl space-y-6">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+              <ShieldCheck className="h-4 w-4 text-primary" />
               {mode === "setup" ? "Setup PIN" : "Ubah PIN"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+            </h3>
+          </div>
+          <div className="space-y-6">
             {mode === "setup" ? (
               <>
                 {/* Password verification */}
@@ -257,13 +257,14 @@ export default function SignaturePINSetupPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Masukkan password akun Anda"
+                      className="rounded-none"
                       disabled={loading}
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-0 top-0 h-full"
+                      className="absolute right-0 top-0 h-full rounded-none"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -277,23 +278,33 @@ export default function SignaturePINSetupPage() {
                 {/* Confirm PIN */}
                 {renderPinInputs(confirmPin, setConfirmPin, confirmPinRefs, "Konfirmasi PIN")}
 
-                <Button
-                  onClick={handleSetup}
-                  disabled={loading || pin.some(d => !d) || confirmPin.some(d => !d) || !password}
-                  className="w-full"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      Simpan PIN
-                    </>
-                  )}
-                </Button>
+                <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                    className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleSetup}
+                    disabled={loading || pin.some(d => !d) || confirmPin.some(d => !d) || !password}
+                    className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                        Simpan PIN
+                      </>
+                    )}
+                  </Button>
+                </div>
               </>
             ) : (
               <>
@@ -306,23 +317,33 @@ export default function SignaturePINSetupPage() {
                 {/* Confirm New PIN */}
                 {renderPinInputs(confirmNewPin, setConfirmNewPin, confirmNewPinRefs, "Konfirmasi PIN Baru")}
 
-                <Button
-                  onClick={handleChange}
-                  disabled={loading || oldPin.some(d => !d) || newPin.some(d => !d) || confirmNewPin.some(d => !d)}
-                  className="w-full"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      Ubah PIN
-                    </>
-                  )}
-                </Button>
+                <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                    className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleChange}
+                    disabled={loading || oldPin.some(d => !d) || newPin.some(d => !d) || confirmNewPin.some(d => !d)}
+                    className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                        Ubah PIN
+                      </>
+                    )}
+                  </Button>
+                </div>
               </>
             )}
 
@@ -344,8 +365,8 @@ export default function SignaturePINSetupPage() {
                 Belum punya PIN? Atur PIN baru
               </Button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </PageContent>
     </PageShell>
   );

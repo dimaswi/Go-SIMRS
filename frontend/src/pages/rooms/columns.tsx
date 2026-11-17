@@ -1,13 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, BedDouble, Calendar, ArrowUpDown, ListOrdered, Monitor } from "lucide-react";
+import { Eye, Pencil, Trash2, BedDouble, Calendar, ArrowUpDown, ListOrdered, Monitor } from "lucide-react";
 import type { Room } from "@/lib/api";
 
 interface ColumnOptions {
@@ -233,49 +227,63 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
         const room = row.original;
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+          <div className="flex items-center gap-1.5">
+            {hasViewPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+                onClick={() => onView(room.id)}
+                title="Lihat"
+              >
+                <Eye className="size-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {hasViewPermission && (
-                <DropdownMenuItem onClick={() => onView(room.id)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Lihat
-                </DropdownMenuItem>
-              )}
-              {hasViewPermission && (
-                <DropdownMenuItem onClick={() => onViewQueue(room.id)}>
-                  <ListOrdered className="mr-2 h-4 w-4" />
-                  Kelola Antrian
-                </DropdownMenuItem>
-              )}
-              {hasViewPermission && room.has_bed && (
-                <DropdownMenuItem onClick={() => onViewMonitoring(room.id)}>
-                  <Monitor className="mr-2 h-4 w-4" />
-                  Monitoring Bed
-                </DropdownMenuItem>
-              )}
-              {hasEditPermission && (
-                <DropdownMenuItem onClick={() => onEdit(room.id)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-              )}
-              {hasDeletePermission && (
-                <DropdownMenuItem
-                  onClick={() => onDelete(room.id)}
-                  className="text-red-600"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {hasViewPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-sky-200 text-sky-600 bg-sky-50/20 hover:bg-sky-100/50 hover:text-sky-700 p-0 shadow-none"
+                onClick={() => onViewQueue(room.id)}
+                title="Kelola Antrian"
+              >
+                <ListOrdered className="size-3.5" />
+              </Button>
+            )}
+            {hasViewPermission && room.has_bed && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-emerald-200 text-emerald-600 bg-emerald-50/20 hover:bg-emerald-100/50 hover:text-emerald-700 p-0 shadow-none"
+                onClick={() => onViewMonitoring(room.id)}
+                title="Monitoring Bed"
+              >
+                <Monitor className="size-3.5" />
+              </Button>
+            )}
+            {hasEditPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                onClick={() => onEdit(room.id)}
+                title="Edit"
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            )}
+            {hasDeletePermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                onClick={() => onDelete(room.id)}
+                title="Hapus"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         );
       },
     },

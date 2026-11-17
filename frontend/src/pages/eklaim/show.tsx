@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +44,7 @@ import { id as localeId } from 'date-fns/locale';
 
 export default function EKlaimShow() {
   const { id } = useParams();
-  //const navigate = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(true);
@@ -492,79 +493,72 @@ export default function EKlaimShow() {
   const procedures = claim.procedures || [];
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
       {/* Header */}
-      <div>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
-                  <ArrowLeft className="h-4 w-4" />
+      <PageHeader
+        icon={FileCheck}
+        title={`E-Klaim: ${claim.no_sep || 'Draft'}`}
+        description={`No. Kartu BPJS: ${claim.no_kartu} • ${jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}`}
+        onBack={() => navigate('/eklaim')}
+        badges={
+          <Badge className={`rounded-none ${eklaimStateColors[claim.state] || ''}`}>
+            {eklaimStateLabels[claim.state] || claim.state}
+          </Badge>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {availableActions.map((action) => (
+              action.confirm ? (
+                <AlertDialog key={action.key}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant={action.variant} size="sm" className="h-8 rounded-none text-xs" disabled={actionLoading === action.key}>
+                      {actionLoading === action.key ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        action.icon
+                      )}
+                      {action.label}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Konfirmasi</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Apakah Anda yakin ingin melakukan {action.label}? Tindakan ini tidak dapat dibatalkan.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Batal</AlertDialogCancel>
+                      <AlertDialogAction onClick={action.onClick}>
+                        Ya, Lanjutkan
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button
+                  key={action.key}
+                  variant={action.variant}
+                  size="sm"
+                  className="h-8 rounded-none text-xs"
+                  onClick={action.onClick}
+                  disabled={actionLoading === action.key}
+                >
+                  {actionLoading === action.key ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    action.icon
+                  )}
+                  {action.label}
                 </Button>
-                <h1 className="text-lg font-semibold flex items-center gap-2">
-                  <FileCheck className="h-5 w-5" />
-                  E-Klaim: {claim.no_sep || 'Draft'}
-                </h1>
-                <Badge className={eklaimStateColors[claim.state] || ''}>
-                  {eklaimStateLabels[claim.state] || claim.state}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                No. Kartu BPJS: {claim.no_kartu} &bull; {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
-              </p>
-            </div>
-            
-            <div className="flex gap-2">
-              {availableActions.map((action) => (
-                action.confirm ? (
-                  <AlertDialog key={action.key}>
-                    <AlertDialogTrigger asChild>
-                      <Button variant={action.variant} disabled={actionLoading === action.key}>
-                        {actionLoading === action.key ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          action.icon
-                        )}
-                        {action.label}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Konfirmasi</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Apakah Anda yakin ingin melakukan {action.label}? Tindakan ini tidak dapat dibatalkan.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={action.onClick}>
-                          Ya, Lanjutkan
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
-                  <Button
-                    key={action.key}
-                    variant={action.variant}
-                    onClick={action.onClick}
-                    disabled={actionLoading === action.key}
-                  >
-                    {actionLoading === action.key ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      action.icon
-                    )}
-                    {action.label}
-                  </Button>
-                )
-              ))}
-            </div>
+              )
+            ))}
           </div>
-        </div>
-        
-        <div className="rounded-lg border p-6">
+        }
+      />
+
+      <PageContent className="space-y-6">
+        <div className="rounded-none border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-950">
           {/* Patient Info Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
@@ -589,48 +583,47 @@ export default function EKlaimShow() {
           
           {/* Tariff Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950">
+            <div className="p-4 rounded-none border border-neutral-200 dark:border-neutral-800 bg-orange-50 dark:bg-orange-950">
               <Label className="text-xs text-muted-foreground">iDRG Code</Label>
               <p className="font-mono font-bold text-lg">{claim.idrg_code || '-'}</p>
               <p className="text-sm text-orange-600">{formatCurrency(claim.idrg_tarif)}</p>
             </div>
-            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950">
+            <div className="p-4 rounded-none border border-neutral-200 dark:border-neutral-800 bg-blue-50 dark:bg-blue-950">
               <Label className="text-xs text-muted-foreground">INA-CBG Code</Label>
               <p className="font-mono font-bold text-lg">{claim.inacbg_code || '-'}</p>
               <p className="text-sm text-blue-600">{formatCurrency(claim.inacbg_tarif)}</p>
             </div>
-            <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950">
+            <div className="p-4 rounded-none border border-neutral-200 dark:border-neutral-800 bg-green-50 dark:bg-green-950">
               <Label className="text-xs text-muted-foreground">Tarif Verifikasi</Label>
               <p className="font-mono font-bold text-lg">{formatCurrency(claim.tarif_verifikasi)}</p>
             </div>
-            <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950">
+            <div className="p-4 rounded-none border border-neutral-200 dark:border-neutral-800 bg-purple-50 dark:bg-purple-950">
               <Label className="text-xs text-muted-foreground">Total Tarif RS</Label>
               <p className="font-mono font-bold text-lg">{formatCurrency(claim.total_tarif_rs)}</p>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs for Details */}
-      <Tabs defaultValue="diagnoses" variant="inline">
-        <TabsList>
-          <TabsTrigger value="diagnoses" className="gap-2">
-            <Stethoscope className="h-4 w-4" />
-            Diagnoses ({diagnoses.length})
-          </TabsTrigger>
-          <TabsTrigger value="procedures" className="gap-2">
-            <Clipboard className="h-4 w-4" />
-            Procedures ({procedures.length})
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2">
-            <History className="h-4 w-4" />
-            Riwayat
-          </TabsTrigger>
-        </TabsList>
+        {/* Tabs for Details */}
+        <Tabs defaultValue="diagnoses" variant="inline">
+          <TabsList className="rounded-none border border-neutral-200 dark:border-neutral-800">
+            <TabsTrigger value="diagnoses" className="gap-2 rounded-none">
+              <Stethoscope className="h-4 w-4" />
+              Diagnoses ({diagnoses.length})
+            </TabsTrigger>
+            <TabsTrigger value="procedures" className="gap-2 rounded-none">
+              <Clipboard className="h-4 w-4" />
+              Procedures ({procedures.length})
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2 rounded-none">
+              <History className="h-4 w-4" />
+              Riwayat
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Diagnoses Tab */}
-        <TabsContent value="diagnoses">
-          <div className="rounded-lg border">
+          {/* Diagnoses Tab */}
+          <TabsContent value="diagnoses">
+            <div className="rounded-none border border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -756,7 +749,7 @@ export default function EKlaimShow() {
 
         {/* Procedures Tab */}
         <TabsContent value="procedures">
-          <div className="rounded-lg border">
+          <div className="rounded-none border border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -881,7 +874,7 @@ export default function EKlaimShow() {
 
         {/* History Tab */}
         <TabsContent value="history">
-          <div className="rounded-lg border">
+          <div className="rounded-none border border-neutral-200 dark:border-neutral-800">
             <div className="px-6 py-4">
               <h3 className="text-sm font-medium">Riwayat Perubahan</h3>
               <p className="text-sm text-muted-foreground">Log aktivitas dan perubahan status klaim</p>
@@ -895,9 +888,9 @@ export default function EKlaimShow() {
               ) : (
                 <div className="space-y-4">
                   {logs.map((log) => (
-                    <div key={log.id} className="flex gap-4 p-3 rounded-lg border">
+                    <div key={log.id} className="flex gap-4 p-3 rounded-none border border-neutral-200 dark:border-neutral-800">
                       <div className="flex-shrink-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        <div className={`w-10 h-10 rounded-none flex items-center justify-center ${
                           log.is_error ? 'bg-red-100 dark:bg-red-900' : 'bg-primary/10'
                         }`}>
                           <History className={`h-5 w-5 ${log.is_error ? 'text-red-600' : 'text-primary'}`} />
@@ -908,11 +901,11 @@ export default function EKlaimShow() {
                           <span className="font-medium">{log.action}</span>
                           {log.from_state && log.to_state && (
                             <>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="rounded-none text-xs">
                                 {eklaimStateLabels[log.from_state as EKlaimState] || log.from_state}
                               </Badge>
                               <span className="text-muted-foreground">&rarr;</span>
-                              <Badge className={`text-xs ${eklaimStateColors[log.to_state as EKlaimState] || ''}`}>
+                              <Badge className={`rounded-none text-xs ${eklaimStateColors[log.to_state as EKlaimState] || ''}`}>
                                 {eklaimStateLabels[log.to_state as EKlaimState] || log.to_state}
                               </Badge>
                             </>
@@ -934,6 +927,7 @@ export default function EKlaimShow() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

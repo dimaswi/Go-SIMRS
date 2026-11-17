@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { permissionsApi } from "@/lib/api";
 import { setPageTitle } from "@/lib/page-title";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Check, ChevronsUpDown, FileText, Loader2, Lock, Package, Tag } from "lucide-react";
+import { Check, ChevronsUpDown, FileText, Loader2, Lock, Package, Tag } from "lucide-react";
 
 const moduleOptions = [
   "User Management",
@@ -140,16 +140,12 @@ export default function PermissionCreate() {
         title="Tambah Permission"
         description="Susun konteks modul, kategori, dan aksi agar permission baru langsung konsisten dengan penamaan akses yang berlaku."
         icon={Lock}
-        actions={
-          <Button type="button" variant="outline" onClick={() => navigate("/permissions")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate("/permissions")}
       />
 
-      <PageContent className="flex-none space-y-6 pb-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <PageContent noPadding>
+        <form onSubmit={handleSubmit}>
+          <div className="p-4 sm:p-5 space-y-6">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
             <SectionPanel
               icon={Package}
@@ -310,13 +306,23 @@ export default function PermissionCreate() {
               </div>
             </SectionPanel>
           </div>
+          </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/permissions")}>
+          <div className="px-4 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/permissions")}
+              className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
+            >
               Batal
             </Button>
-            <Button type="submit" disabled={loading} className="min-w-28">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+            >
+              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
               Simpan Permission
             </Button>
           </div>

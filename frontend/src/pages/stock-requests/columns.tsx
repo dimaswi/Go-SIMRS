@@ -1,15 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, CheckCircle, XCircle, Package, Pill, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Package, Pill, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
 import {
   type StockRequest,
   stockRequestStatusLabels,
@@ -163,53 +155,65 @@ export function createStockRequestColumns(options: ColumnOptions): ColumnDef<Sto
     },
     {
       id: "actions",
-      header: "Aksi",
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
         const request = row.original;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+              onClick={() => onView(request.id)}
+              title="Lihat Detail"
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            {request.status === "pending" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-none border border-emerald-200 text-emerald-600 bg-emerald-50/20 hover:bg-emerald-100/50 size-7 p-0 shadow-none"
+                  onClick={() => onApprove(request.id)}
+                  title="Proses Persetujuan"
+                >
+                  <CheckCircle className="size-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                  onClick={() => onCancel(request.id)}
+                  title="Batalkan"
+                >
+                  <XCircle className="size-3.5" />
+                </Button>
+              </>
+            )}
+            {request.status === "draft" && hasEditPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                onClick={() => onEdit(request.id)}
+                title="Edit"
+              >
+                <Pencil className="size-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onView(request.id)}>
-                <Eye className="mr-2 h-4 w-4" />
-                Lihat Detail
-              </DropdownMenuItem>
-              {request.status === "draft" && hasEditPermission && (
-                <DropdownMenuItem onClick={() => onEdit(request.id)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-              )}
-              {request.status === "pending" && (
-                <>
-                  <DropdownMenuItem onClick={() => onApprove(request.id)}>
-                    <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
-                    Proses Persetujuan
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onCancel(request.id)}
-                    className="text-red-600"
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Batalkan
-                  </DropdownMenuItem>
-                </>
-              )}
-              {request.status === "draft" && hasDeletePermission && (
-                <DropdownMenuItem onClick={() => onDelete(request.id)} className="text-red-600">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {request.status === "draft" && hasDeletePermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                onClick={() => onDelete(request.id)}
+                title="Hapus"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         );
       },
     },

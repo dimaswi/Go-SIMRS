@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";
+import { ClipboardList, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, FilterBar, FilterPill, PageContent } from "@/components/layout/page-shell";
 
@@ -151,48 +151,43 @@ export default function StockRequestsIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={ClipboardList}
         title="Permintaan Stok"
         description="Kelola permintaan barang dan obat antar ruangan"
         count={displayData.length}
         actions={
           hasPermission("stock_requests.create") ? (
-            <Button onClick={() => navigate("/stock-requests/create")} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate("/stock-requests/create")}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Buat Permintaan
             </Button>
           ) : undefined
         }
-      />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {activeView === "all" && "Daftar Permintaan Stok"}
-            {activeView === "my" && "Permintaan Saya"}
-            {activeView === "pending" && "Perlu Persetujuan"}
-          </div>
-          <div className="p-3 sm:p-4">
-            <FilterBar>
-              <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={requests.length}>
-                Semua
-              </FilterPill>
-              <FilterPill active={activeView === "my"} onClick={() => setActiveView("my")} count={myRequests.length}>
-                Permintaan Saya
-              </FilterPill>
-              <FilterPill active={activeView === "pending"} onClick={() => setActiveView("pending")} count={pendingApprovals.length}>
-                Perlu Persetujuan
-              </FilterPill>
-            </FilterBar>
-            <div className="mt-4">
-              <DataTable
-                columns={columns}
-                data={displayData}
-                searchPlaceholder="Cari nomor permintaan..."
-                pageSize={10}
-                tableId={tableId}
-              />
-            </div>
-          </div>
-        </div>
+      >
+        <FilterBar>
+          <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={requests.length}>
+            Semua
+          </FilterPill>
+          <FilterPill active={activeView === "my"} onClick={() => setActiveView("my")} count={myRequests.length}>
+            Permintaan Saya
+          </FilterPill>
+          <FilterPill active={activeView === "pending"} onClick={() => setActiveView("pending")} count={pendingApprovals.length}>
+            Perlu Persetujuan
+          </FilterPill>
+        </FilterBar>
+      </PageHeader>
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={displayData}
+          searchPlaceholder="Cari nomor permintaan..."
+          pageSize={10}
+          tableId={tableId}
+        />
         <ConfirmDialog
           open={deleteId !== null}
           onOpenChange={(open) => {

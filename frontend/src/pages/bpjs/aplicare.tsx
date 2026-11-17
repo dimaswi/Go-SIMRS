@@ -191,16 +191,17 @@ export default function AplicarePage() {
 
   return (
     <BPJSPageFrame
+      icon={BedDouble}
       title="Aplicare"
       description="Kelola ketersediaan tempat tidur BPJS dengan ringkasan yang padat dan area data yang tetap lega."
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={loadBedData} disabled={bedLoading}>
-            {bedLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          <Button variant="outline" size="sm" onClick={loadBedData} disabled={bedLoading} className="rounded-none h-8 px-3 text-xs font-semibold shadow-none">
+            {bedLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
             Refresh
           </Button>
-          <Button size="sm" onClick={openAssignDialog}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button size="sm" onClick={openAssignDialog} className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold shadow-none">
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
             Daftarkan Ruangan
           </Button>
         </>
@@ -222,20 +223,20 @@ export default function AplicarePage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 border-t border-l border-neutral-200 dark:border-neutral-800 [&>*]:border-r [&>*]:border-b [&>*]:border-neutral-200 dark:[&>*]:border-neutral-800">
                 {bedData.map((item) => {
                   const occupiedBeds = item.kapasitas - item.tersedia;
                   return (
                     <div
                       key={`${item.koderuang}-${item.kodekelas}`}
-                      className="relative flex flex-col rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5"
+                      className="relative flex flex-col bg-white dark:bg-neutral-950 text-card-foreground overflow-hidden"
                     >
                       {/* Ticket Header */}
-                      <div className="flex items-start justify-between p-4 bg-muted/30 border-b border-dashed border-border/70">
+                      <div className="flex items-start justify-between p-4 bg-neutral-50/70 dark:bg-neutral-900/40 border-b border-neutral-200 dark:border-neutral-800">
                         <div className="space-y-1 min-w-0 pr-2">
-                          <h3 className="font-semibold text-lg leading-tight tracking-tight text-foreground truncate" title={item.namaruang}>{item.namaruang}</h3>
+                          <h3 className="font-semibold text-sm leading-tight tracking-tight text-foreground truncate" title={item.namaruang}>{item.namaruang}</h3>
                           <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                            Kode: <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border/50">{item.koderuang}</span>
+                            Kode: <span className="font-mono bg-background px-1.5 py-0.5 border border-neutral-200 dark:border-neutral-800">{item.koderuang}</span>
                           </div>
                         </div>
                         <div className="shrink-0">{getKelasBadge(item.kodekelas)}</div>
@@ -244,8 +245,8 @@ export default function AplicarePage() {
                       {/* Ticket Body: Seat Map */}
                       <div className="p-4 flex-1">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="font-medium text-sm">Denah Bed</div>
-                          <div className="text-xs font-semibold bg-muted px-2 py-1 rounded-full">Kapasitas: {item.kapasitas}</div>
+                          <div className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Denah Bed</div>
+                          <div className="text-xs font-mono font-semibold bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5">Kapasitas: {item.kapasitas}</div>
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">

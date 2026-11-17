@@ -10,7 +10,6 @@ import { employeesApi, regionsApi, masterDataApi, type MasterData } from "@/lib/
 import type { Province, Regency, District, Village } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft,
   Loader2,
   User,
   MapPin,
@@ -273,28 +272,19 @@ export default function EmployeeCreate() {
         title="Tambah Pegawai Baru"
         description="Masukkan data pegawai rumah sakit"
         icon={User}
-        actions={
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        }
+        onBack={() => navigate("/employees")}
       />
-      <PageContent>
-        <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
+      <PageContent noPadding>
+        <form onSubmit={handleSubmit} className="[&_label]:tracking-[0.01em] [&_input]:h-8 [&_[role=combobox]]:h-8">
+          <div className="p-3 sm:p-4 space-y-5">
           {/* Personal Information */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <User className="h-3 w-3" />
               Data Pribadi
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div className="space-y-2">
                   <Label htmlFor="nik" className="text-xs font-medium">
                     NIK <span className="text-destructive">*</span>
@@ -338,7 +328,7 @@ export default function EmployeeCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 mt-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Tempat Lahir
@@ -392,7 +382,7 @@ export default function EmployeeCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 mt-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Status Perkawinan
@@ -447,13 +437,13 @@ export default function EmployeeCreate() {
           </div>
 
           {/* Address Information */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <MapPin className="h-3 w-3" />
               Alamat
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Provinsi
@@ -497,7 +487,7 @@ export default function EmployeeCreate() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Kecamatan
@@ -538,7 +528,7 @@ export default function EmployeeCreate() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 mt-5">
                 <div className="md:col-span-3 space-y-2">
                   <Label htmlFor="alamat" className="text-xs font-medium">
                     Alamat Lengkap (Jalan, RT/RW, No.)
@@ -568,13 +558,13 @@ export default function EmployeeCreate() {
           </div>
 
           {/* Employment Information */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Briefcase className="h-3 w-3" />
               Data Kepegawaian
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Tipe Karyawan <span className="text-destructive">*</span>
@@ -624,7 +614,7 @@ export default function EmployeeCreate() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-5">
                 <div className="space-y-2">
                   <Label htmlFor="jabatan" className="text-xs font-medium">
                     Jabatan
@@ -659,13 +649,13 @@ export default function EmployeeCreate() {
 
           {/* Medical Staff License Information */}
           {isMedicalStaff && (
-            <div className="border border-border/70 bg-background">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <div className="space-y-4">
+              <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                 <Stethoscope className="h-3 w-3" />
                 Surat Izin Praktik
               </div>
-              <div className="p-3 sm:p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   <div className="space-y-2">
                     <Label htmlFor="no_str" className="text-xs font-medium">
                       No. STR
@@ -703,7 +693,7 @@ export default function EmployeeCreate() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-5">
                   <div className="space-y-2">
                     <Label htmlFor="no_sip" className="text-xs font-medium">
                       No. SIP
@@ -746,13 +736,13 @@ export default function EmployeeCreate() {
           )}
 
           {/* Education */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <GraduationCap className="h-3 w-3" />
               Pendidikan
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
                     Pendidikan Terakhir
@@ -797,13 +787,13 @@ export default function EmployeeCreate() {
           </div>
 
           {/* Bank Information */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Building2 className="h-3 w-3" />
               Informasi Bank
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div className="space-y-2">
                   <Label htmlFor="nama_bank" className="text-xs font-medium">
                     Nama Bank
@@ -846,13 +836,13 @@ export default function EmployeeCreate() {
           </div>
 
           {/* Emergency Contact */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Heart className="h-3 w-3" />
               Kontak Darurat
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div className="space-y-2">
                   <Label htmlFor="nama_kontak_darurat" className="text-xs font-medium">
                     Nama Kontak
@@ -893,19 +883,23 @@ export default function EmployeeCreate() {
               </div>
             </div>
           </div>
+          </div>
 
-        {/* Sticky Footer */}
-        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
+        <div className="px-4 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate("/employees")}
-            className="h-9"
+            className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
           >
             Batal
           </Button>
-          <Button type="submit" disabled={loading} className="h-9 min-w-28">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+          >
+            {loading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
             Simpan
           </Button>
         </div>

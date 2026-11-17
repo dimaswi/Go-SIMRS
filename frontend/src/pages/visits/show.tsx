@@ -124,6 +124,7 @@ export default function VisitShow() {
   const [visit, setVisit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("");
+  const [suratInitialType, setSuratInitialType] = useState<"death-certificate" | null>(null);
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set());
   const [isEmergency, setIsEmergency] = useState(false);
   const [isPharmacy, setIsPharmacy] = useState(false);
@@ -1845,7 +1846,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <SuratForm key={`surat-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <SuratForm key={`surat-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} initialType={suratInitialType} />;
 
       case "document-preview":
         if (!hasPermission("medical_records.cppt")) {
@@ -1873,7 +1874,18 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <DispositionForm visitId={visit.id} isEmergency={isEmergency} readOnly={isPatientDischarged} onSave={handleVisitUpdate} />;
+        return (
+          <DispositionForm
+            visitId={visit.id}
+            isEmergency={isEmergency}
+            readOnly={isPatientDischarged}
+            onSave={handleVisitUpdate}
+            onNavigateToDeathCertificate={() => {
+              setSuratInitialType("death-certificate");
+              handleTabChange("surat");
+            }}
+          />
+        );
 
       // Pharmacy tabs - ONLY for pharmacy visits
       case "prescription-edit":

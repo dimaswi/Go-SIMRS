@@ -18,7 +18,6 @@ import {
   User,
   FileText,
   AlertTriangle,
-  ArrowLeft,
   Truck,
 } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
@@ -57,23 +56,21 @@ function SectionPanel({
   contentClassName?: string;
 }) {
   return (
-    <div className={cn("border border-border/70 bg-background/95 shadow-sm", className)}>
-      <div className={cn("border-b border-border/70 bg-muted/20 px-4 py-3", headerClassName)}>
+    <section className={cn("space-y-4", className)}>
+      <div className={cn("border-b border-neutral-200 dark:border-neutral-800 pb-2.5", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-2">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
+          <div className="flex items-start gap-2.5">
+            <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+              <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className={cn("p-3 sm:p-4", contentClassName)}>{children}</div>
-    </div>
+      <div className={cn("space-y-4", contentClassName)}>{children}</div>
+    </section>
   );
 }
 
@@ -171,27 +168,24 @@ export default function DistributionShow() {
         title="Detail Distribusi"
         description="Lihat rute distribusi, pihak yang terlibat, dan item yang telah dikirim atau diterima dari satu tampilan yang lebih ringkas."
         icon={Truck}
+        onBack={() => navigate('/distributions')}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/distributions')}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
-            {canReceive && (
+          canReceive ? (
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setReceiveDialogOpen(true)}>
                 <CheckCircle className="h-4 w-4" />
                 Terima Distribusi
               </Button>
-            )}
-          </div>
+            </div>
+          ) : undefined
         }
       >
       </PageHeader>
 
-      <PageContent className="min-h-0 overflow-hidden pb-3">
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-          <div className="min-h-0 overflow-hidden">
-            <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+      <PageContent>
+        <div className="grid gap-6 items-start lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)]">
+          <div>
+            <div className="flex flex-col gap-6">
               <SectionPanel icon={Truck} title="Informasi Distribusi" description="Ringkasan nomor distribusi, jalur ruangan, tanggal kirim, dan referensi permintaan.">
                 <div className="grid gap-2 border border-border/70 bg-muted/10 px-3 py-3 text-sm sm:grid-cols-2">
                   <div className="sm:col-span-2">
@@ -265,18 +259,15 @@ export default function DistributionShow() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex flex-col lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800 lg:pl-6">
             <SectionPanel
               icon={Package}
               title="Daftar Item"
               description={`Rincian ${distribution.items?.length || 0} item yang ikut dalam distribusi ini.`}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
               actions={<span className="text-xs text-muted-foreground">{distribution.items?.length || 0} item total</span>}
             >
-              <div className="min-h-0 flex-1 overflow-hidden border border-border/80 bg-background">
-                <ScrollArea className="h-full">
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 bg-background">
+                <ScrollArea className="max-h-[560px]">
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">

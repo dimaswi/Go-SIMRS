@@ -95,6 +95,55 @@
 }
 
 @layer components {
+  /* Enterprise Unified Card Layout ala Go-Akuntansi (berlaku khusus di dalam PageShell, tidak menyentuh Rekam Medis atau Login) */
+  .akuntansi-page-shell input,
+  .akuntansi-page-shell textarea,
+  .akuntansi-page-shell select,
+  .akuntansi-page-shell button,
+  .akuntansi-page-shell [role="combobox"],
+  .akuntansi-page-shell [data-slot="badge"],
+  .akuntansi-page-shell .rounded-md,
+  .akuntansi-page-shell .rounded-lg,
+  .akuntansi-page-shell .rounded-xl {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .akuntansi-page-shell input:not([type="checkbox"]):not([type="radio"]),
+  .akuntansi-page-shell textarea,
+  .akuntansi-page-shell select,
+  .akuntansi-page-shell [role="combobox"] {
+    border-color: rgb(229 229 229);
+  }
+
+  .dark .akuntansi-page-shell input:not([type="checkbox"]):not([type="radio"]),
+  .dark .akuntansi-page-shell textarea,
+  .dark .akuntansi-page-shell select,
+  .dark .akuntansi-page-shell [role="combobox"] {
+    border-color: rgb(38 38 38);
+  }
+
+  /* Flush DataTable di dalam PageContent agar menyatu sebagai Unified Single Card Container seperti Go-Akuntansi */
+  .akuntansi-page-content:has(> .akuntansi-datatable) {
+    padding: 0 !important;
+  }
+
+  .akuntansi-page-content:has(> div > div > .akuntansi-datatable) {
+    padding: 0 !important;
+  }
+
+  .akuntansi-page-content > div:has(> div > .akuntansi-datatable) {
+    border: 0 !important;
+  }
+
+  .akuntansi-page-content > div:has(> div > .akuntansi-datatable) > div:first-child:not(:has(.akuntansi-datatable)) {
+    display: none;
+  }
+
+  .akuntansi-page-content > div:has(> div > .akuntansi-datatable) > div:has(> .akuntansi-datatable) {
+    padding: 0 !important;
+  }
+
   .medical-record-workspace {
     font-family: "IBM Plex Sans", "Plus Jakarta Sans", "Segoe UI", "Arial", sans-serif;
   }

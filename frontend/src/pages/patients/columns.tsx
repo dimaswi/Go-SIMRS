@@ -2,15 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Patient } from "@/lib/api";
 import { formatPatientName } from "@/lib/print-utils";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, ArrowUpDown, CheckCircle, XCircle, Smartphone, Mars, Venus } from "lucide-react";
+import { Eye, Pencil, Trash2, ArrowUpDown, CheckCircle, XCircle, Smartphone, Mars, Venus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -221,42 +213,40 @@ export const createPatientColumns = ({
   },
   {
     id: "actions",
-    header: () => <div className="text-center">Aksi</div>,
+    header: () => <div className="text-right">Aksi</div>,
     cell: ({ row }) => (
-      <div className="flex justify-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onView(row.original)}>
-              <Eye className="mr-2 h-4 w-4" />
-              Lihat Detail
-            </DropdownMenuItem>
-            {canEdit && (
-              <DropdownMenuItem onClick={() => onEdit(row.original)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            {canDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onDelete(row.original)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex items-center justify-end gap-1.5">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+          title="Lihat Detail"
+          onClick={() => onView(row.original)}
+        >
+          <Eye className="size-3.5" />
+        </Button>
+        {canEdit && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+            title="Edit"
+            onClick={() => onEdit(row.original)}
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+        )}
+        {canDelete && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+            title="Hapus"
+            onClick={() => onDelete(row.original)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
       </div>
     ),
   },

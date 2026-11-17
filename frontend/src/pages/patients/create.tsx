@@ -23,7 +23,6 @@ import type {
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Save,
   User,
@@ -700,29 +699,20 @@ export default function PatientCreate() {
             title="Registrasi Pasien Baru"
             description="Isi data pasien sesuai dengan standar Kemenkes RI"
             icon={User}
+            onBack={() => window.history.back()}
             actions={
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => window.history.back()}
-                  className="h-9 w-9"
-                  tabIndex={-1}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowShortcuts(true)}
-                  className="text-muted-foreground"
+                  className="text-muted-foreground rounded-none h-8 px-3 text-xs"
                   tabIndex={-1}
                 >
-                  <Keyboard className="h-4 w-4 mr-2" />
+                  <Keyboard className="h-3.5 w-3.5 mr-1.5" />
                   <span className="hidden sm:inline">Shortcuts</span>
-                  <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded text-xs font-mono hidden sm:inline">
+                  <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded-none text-xs font-mono hidden sm:inline">
                     F1
                   </kbd>
                 </Button>
@@ -730,9 +720,7 @@ export default function PatientCreate() {
             }
           />
 
-          <PageContent>
-
-
+          <PageContent noPadding>
             <form
               ref={formRef}
               onSubmit={(e) => {
@@ -740,16 +728,16 @@ export default function PatientCreate() {
                 handleSubmit();
               }}
             >
-              <div className="mx-auto w-full max-w-full flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
+              <div className="p-3 sm:p-4 space-y-5 [&_label]:tracking-[0.01em] [&_input]:h-8 [&_[role=combobox]]:h-8">
                 {/* Section: Identitas */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <User className="h-3 w-3" />
                     DATA IDENTITAS
                   </div>
-                  <div className="p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      <div className="space-y-2">
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      <div className="space-y-1">
                         <Label htmlFor="nik" className="text-xs font-medium">
                           NIK
                         </Label>
@@ -817,7 +805,7 @@ export default function PatientCreate() {
                         )}
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="nama_lengkap" className="text-xs font-medium">
                           Nama Lengkap *
                         </Label>
@@ -835,7 +823,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="nama_panggilan"
                           className="text-xs font-medium"
@@ -857,7 +845,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Jenis Kelamin *</Label>
                         <Combobox
                           options={genderOptions}
@@ -876,7 +864,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Tempat Lahir *</Label>
                         <Combobox
                           options={regenciesOptions}
@@ -891,7 +879,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Tanggal Lahir *</Label>
                         <Input
                           type="date"
@@ -960,7 +948,7 @@ export default function PatientCreate() {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Golongan Darah</Label>
                         <Combobox
                           options={bloodTypeOptions}
@@ -974,7 +962,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Rhesus</Label>
                         <Combobox
                           options={rhesusOptions}
@@ -988,7 +976,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Agama *</Label>
                         <Combobox
                           options={religionOptions}
@@ -1002,7 +990,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Status Perkawinan
                         </Label>
@@ -1018,7 +1006,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Pendidikan Terakhir
                         </Label>
@@ -1034,7 +1022,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Pekerjaan</Label>
                         <Combobox
                           options={occupationOptions}
@@ -1048,7 +1036,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="kewarganegaraan"
                           className="text-xs font-medium"
@@ -1070,7 +1058,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="suku" className="text-xs font-medium">
                           Suku / Etnis
                         </Label>
@@ -1086,7 +1074,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="bahasa" className="text-xs font-medium">
                           Bahasa yang Dikuasai
                         </Label>
@@ -1106,13 +1094,13 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Alamat KTP */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <MapPin className="h-3 w-3" />
                     ALAMAT KTP
                   </div>
                   <div className="p-3 sm:p-4 space-y-4">
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <Label htmlFor="alamat_ktp" className="text-xs font-medium">
                         Alamat Lengkap *
                       </Label>
@@ -1129,7 +1117,7 @@ export default function PatientCreate() {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="rt_ktp" className="text-xs font-medium">
                           RT *
                         </Label>
@@ -1145,7 +1133,7 @@ export default function PatientCreate() {
                           tabIndex={22}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="rw_ktp" className="text-xs font-medium">
                           RW *
                         </Label>
@@ -1161,7 +1149,7 @@ export default function PatientCreate() {
                           tabIndex={23}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Provinsi *</Label>
                         <Combobox
                           options={provinceOptions}
@@ -1173,7 +1161,7 @@ export default function PatientCreate() {
                           tabIndex={24}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Kota/Kabupaten *
                         </Label>
@@ -1190,7 +1178,7 @@ export default function PatientCreate() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Kecamatan *</Label>
                         <Combobox
                           options={districtKTPOptions}
@@ -1203,7 +1191,7 @@ export default function PatientCreate() {
                           tabIndex={26}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Kelurahan/Desa *
                         </Label>
@@ -1220,7 +1208,7 @@ export default function PatientCreate() {
                           tabIndex={27}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="kode_pos_ktp"
                           className="text-xs font-medium"
@@ -1247,7 +1235,7 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Alamat Domisili */}
-                <div className="border border-border/70 bg-background">
+                <div className="space-y-3">
                   <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <MapPin className="h-3 w-3" />
@@ -1270,7 +1258,7 @@ export default function PatientCreate() {
                     </div>
                   </div>
                   <div className="p-3 sm:p-4 space-y-4">
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <Label
                         htmlFor="alamat_domisili"
                         className="text-xs font-medium"
@@ -1294,7 +1282,7 @@ export default function PatientCreate() {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="rt_domisili"
                           className="text-xs font-medium"
@@ -1317,7 +1305,7 @@ export default function PatientCreate() {
                           tabIndex={30}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="rw_domisili"
                           className="text-xs font-medium"
@@ -1340,7 +1328,7 @@ export default function PatientCreate() {
                           tabIndex={31}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Provinsi</Label>
                         <Combobox
                           options={provinceOptions}
@@ -1353,7 +1341,7 @@ export default function PatientCreate() {
                           tabIndex={32}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Kota/Kabupaten
                         </Label>
@@ -1371,7 +1359,7 @@ export default function PatientCreate() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">Kecamatan</Label>
                         <Combobox
                           options={districtDomisiliOptions}
@@ -1384,7 +1372,7 @@ export default function PatientCreate() {
                           tabIndex={34}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Kelurahan/Desa
                         </Label>
@@ -1401,7 +1389,7 @@ export default function PatientCreate() {
                           tabIndex={35}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="kode_pos_domisili"
                           className="text-xs font-medium"
@@ -1429,14 +1417,14 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Kontak */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <Phone className="h-3 w-3" />
                     DATA KONTAK
                   </div>
-                  <div className="p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                      <div className="space-y-2">
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                      <div className="space-y-1">
                         <Label htmlFor="no_telepon" className="text-xs font-medium">
                           Nomor Telepon Rumah
                         </Label>
@@ -1452,7 +1440,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="no_hp" className="text-xs font-medium">
                           Nomor HP *
                         </Label>
@@ -1469,7 +1457,7 @@ export default function PatientCreate() {
                         <p className="text-[10px] text-destructive mt-1">Wajib diisi minimal 1</p>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="no_hp_alternatif"
                           className="text-xs font-medium"
@@ -1491,7 +1479,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="email" className="text-xs font-medium">
                           Email
                         </Label>
@@ -1512,14 +1500,14 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Keluarga */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <Users className="h-3 w-3" />
                     DATA PENANGGUNG JAWAB
                   </div>
-                  <div className="p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      <div className="space-y-2">
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="nama_penanggung_jawab"
                           className="text-xs font-medium"
@@ -1542,7 +1530,7 @@ export default function PatientCreate() {
                         <p className="text-[10px] text-destructive mt-1">Wajib diisi</p>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Hubungan dengan Pasien *
                         </Label>
@@ -1562,7 +1550,7 @@ export default function PatientCreate() {
                         <p className="text-[10px] text-destructive mt-1">Wajib diisi</p>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="nik_penanggung_jawab"
                           className="text-xs font-medium"
@@ -1585,7 +1573,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="telepon_penanggung_jawab"
                           className="text-xs font-medium"
@@ -1636,10 +1624,10 @@ export default function PatientCreate() {
                         DATA ORANG TUA (UNTUK PASIEN ANAK)
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <h5 className="text-xs font-semibold">Data Ayah</h5>
                           <div className="grid grid-cols-1 gap-4">
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label
                                 htmlFor="nama_ayah"
                                 className="text-xs font-medium"
@@ -1660,7 +1648,7 @@ export default function PatientCreate() {
                                 tabIndex={46}
                               />
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label
                                 htmlFor="nik_ayah"
                                 className="text-xs font-medium"
@@ -1682,7 +1670,7 @@ export default function PatientCreate() {
                                 tabIndex={47}
                               />
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label className="text-xs font-medium">
                                 Pekerjaan Ayah
                               </Label>
@@ -1700,10 +1688,10 @@ export default function PatientCreate() {
                           </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <h5 className="text-xs font-semibold">Data Ibu</h5>
                           <div className="grid grid-cols-1 gap-4">
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label
                                 htmlFor="nama_ibu"
                                 className="text-xs font-medium"
@@ -1724,7 +1712,7 @@ export default function PatientCreate() {
                                 tabIndex={49}
                               />
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label
                                 htmlFor="nik_ibu"
                                 className="text-xs font-medium"
@@ -1746,7 +1734,7 @@ export default function PatientCreate() {
                                 tabIndex={50}
                               />
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label className="text-xs font-medium">
                                 Pekerjaan Ibu
                               </Label>
@@ -1769,14 +1757,14 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Jaminan */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <Shield className="h-3 w-3" />
                     DATA JAMINAN/PEMBAYARAN
                   </div>
-                  <div className="p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      <div className="space-y-2">
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      <div className="space-y-1">
                         <Label className="text-xs font-medium">
                           Jenis Jaminan/Pembayaran
                         </Label>
@@ -1795,7 +1783,7 @@ export default function PatientCreate() {
                       {(formData.jenis_jaminan === "BPJS" ||
                         formData.jenis_jaminan === "JKN") && (
                           <>
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label htmlFor="no_bpjs" className="text-xs font-medium">
                                 Nomor BPJS
                               </Label>
@@ -1812,7 +1800,7 @@ export default function PatientCreate() {
                               />
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label className="text-xs font-medium">Kelas BPJS</Label>
                               <Combobox
                                 options={bpjsClassOptions}
@@ -1826,7 +1814,7 @@ export default function PatientCreate() {
                               />
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               <Label
                                 htmlFor="faskes_tingkat_1"
                                 className="text-xs font-medium"
@@ -1852,7 +1840,7 @@ export default function PatientCreate() {
 
                       {formData.jenis_jaminan === "Asuransi Swasta" && (
                         <>
-                          <div className="space-y-2">
+                          <div className="space-y-1">
                             <Label
                               htmlFor="nama_asuransi"
                               className="text-xs font-medium"
@@ -1874,7 +1862,7 @@ export default function PatientCreate() {
                             />
                           </div>
 
-                          <div className="space-y-2">
+                          <div className="space-y-1">
                             <Label
                               htmlFor="no_polis_asuransi"
                               className="text-xs font-medium"
@@ -1896,7 +1884,7 @@ export default function PatientCreate() {
                             />
                           </div>
 
-                          <div className="space-y-2">
+                          <div className="space-y-1">
                             <Label className="text-xs font-medium">
                               Masa Berlaku
                             </Label>
@@ -1917,14 +1905,14 @@ export default function PatientCreate() {
                 </div>
 
                 {/* Section: Medis */}
-                <div className="border border-border/70 bg-background">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                     <Heart className="h-3 w-3" />
                     RIWAYAT MEDIS
                   </div>
-                  <div className="p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="space-y-2">
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
                         <Label htmlFor="alergi_obat" className="text-xs font-medium">
                           Alergi Obat
                         </Label>
@@ -1940,7 +1928,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="alergi_makanan"
                           className="text-xs font-medium"
@@ -1962,7 +1950,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="alergi_lainnya"
                           className="text-xs font-medium"
@@ -1984,7 +1972,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="penyakit_kronis"
                           className="text-xs font-medium"
@@ -2006,7 +1994,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="riwayat_operasi"
                           className="text-xs font-medium"
@@ -2028,7 +2016,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="obat_rutin" className="text-xs font-medium">
                           Obat yang Sedang Dikonsumsi
                         </Label>
@@ -2044,7 +2032,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label htmlFor="disabilitas" className="text-xs font-medium">
                           Disabilitas
                         </Label>
@@ -2060,7 +2048,7 @@ export default function PatientCreate() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="catatan_khusus"
                           className="text-xs font-medium"
@@ -2084,56 +2072,32 @@ export default function PatientCreate() {
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Action Buttons */}
-                <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
-                  <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-4">
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
-                        Ctrl+S
-                      </kbd>
-                      <span>Simpan</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
-                        Esc
-                      </kbd>
-                      <span>Batal</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
-                        Tab
-                      </kbd>
-                      <span>Pindah Field</span>
-                    </span>
-                  </div>
+              <div className="px-4 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate("/patients")}
+                  className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
+                  tabIndex={-1}
+                >
+                  Batal (ESC)
+                </Button>
 
-                  <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => navigate("/patients")}
-                      className="h-9"
-                      tabIndex={-1}
-                    >
-                      Batal (ESC)
-                    </Button>
-
-                    <Button
-                      type="submit"
-                      disabled={loading}
-                      className="h-9 min-w-32"
-                      tabIndex={64}
-                    >
-                      {loading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                      )}
-                      Simpan Pasien
-                    </Button>
-                  </div>
-                </div>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+                  tabIndex={64}
+                >
+                  {loading ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Simpan Pasien
+                </Button>
               </div>
             </form>
           </PageContent>

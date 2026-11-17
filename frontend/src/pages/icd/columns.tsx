@@ -1,12 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Eye, Pencil, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { ICD10, ICD9CM } from "@/lib/api/icd";
 
@@ -106,34 +100,39 @@ export const createColumns = ({
     id: "actions",
     header: "Aksi",
     cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+          onClick={() => onView(row.original.code)}
+          title="Lihat"
+        >
+          <Eye className="size-3.5" />
+        </Button>
+        {canUpdate && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+            onClick={() => onEdit(row.original.id)}
+            title="Edit"
+          >
+            <Pencil className="size-3.5" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onView(row.original.code)}>
-            <Eye className="mr-2 h-4 w-4" />
-            Lihat
-          </DropdownMenuItem>
-          {canUpdate && (
-            <DropdownMenuItem onClick={() => onEdit(row.original.id)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          )}
-          {canDelete && (
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => onDelete(row.original.id)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Hapus
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        )}
+        {canDelete && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+            onClick={() => onDelete(row.original.id)}
+            title="Hapus"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
+      </div>
     ),
   },
 ];

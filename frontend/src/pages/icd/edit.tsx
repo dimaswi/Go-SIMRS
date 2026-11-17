@@ -20,8 +20,9 @@ import { Switch } from "@/components/ui/switch";
 import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Stethoscope, Syringe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 type ICDType = "icd10" | "icd9cm";
 
@@ -180,30 +181,20 @@ export default function ICDEditPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            Edit {isICD10 ? "ICD-10" : "ICD-9-CM"}
-            <Badge variant="outline" className="font-mono">
-              {originalCode}
-            </Badge>
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Perbarui informasi kode {isICD10 ? "diagnosis" : "prosedur"}
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <Form {...form}>
+    <PageShell>
+      <PageHeader
+        icon={isICD10 ? Stethoscope : Syringe}
+        title={`Edit ${isICD10 ? "ICD-10" : "ICD-9-CM"}`}
+        badges={
+          <Badge variant="outline" className="font-mono">
+            {originalCode}
+          </Badge>
+        }
+        description={`Perbarui informasi kode ${isICD10 ? "diagnosis" : "prosedur"}`}
+        onBack={() => navigate(`/icd?type=${type}`)}
+      />
+      <PageContent>
+        <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Basic Information */}
                 <div className="space-y-4">
@@ -442,7 +433,7 @@ export default function ICDEditPage() {
                 </div>
               </form>
             </Form>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

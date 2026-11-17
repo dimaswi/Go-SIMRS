@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,6 @@ import {
   Building,
   AlertTriangle,
   FileText,
-  ArrowLeft,
   CheckCheck,
   User,
   Calendar,
@@ -68,23 +67,21 @@ function SectionPanel({
   contentClassName?: string;
 }) {
   return (
-    <div className={cn("border border-border/70 bg-background/95", className)}>
-      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
+    <section className={cn("space-y-4", className)}>
+      <div className={cn("border-b border-neutral-200 dark:border-neutral-800 pb-2.5", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-1.5">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
+          <div className="flex items-start gap-2.5">
+            <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+              {description ? <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p> : null}
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className={cn("space-y-3 p-2.5 sm:p-3", contentClassName)}>{children}</div>
-    </div>
+      <div className={cn("space-y-3", contentClassName)}>{children}</div>
+    </section>
   );
 }
 
@@ -316,16 +313,14 @@ export default function StockRequestApprove() {
   const approvalStageLabel = request.status === "partial" ? "Persetujuan Lanjutan" : "Persetujuan Awal";
 
   return (
-    <PageShell className="lg:overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={CheckCheck}
         title="Proses Persetujuan"
         description="Nilai stok tersedia, tentukan jumlah yang disetujui, lalu selesaikan approval dengan catatan yang jelas."
+        onBack={() => navigate(`/stock-requests/${id}`)}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}`)}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
             <Button variant="destructive" size="sm" onClick={() => setRejectDialogOpen(true)}>
               <XCircle className="mr-2 h-4 w-4" />
               Tolak
@@ -339,10 +334,10 @@ export default function StockRequestApprove() {
         }
       />
 
-      <PageContent className="min-h-0 overflow-hidden pb-3">
-        <div className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[minmax(320px,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]">
-          <div className="min-h-0 overflow-hidden">
-            <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+      <PageContent>
+        <div className="grid gap-6 items-start [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div>
+            <div className="flex flex-col gap-6">
               <SectionPanel
                 icon={CheckCheck}
                 title="Informasi Permintaan"
@@ -467,14 +462,11 @@ export default function StockRequestApprove() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex flex-col lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800 lg:pl-6">
             <SectionPanel
               icon={request.request_type === "inventory" ? Package : Pill}
               title="Daftar Item"
               description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda."
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
               actions={
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" onClick={handleApproveAll}>
@@ -486,8 +478,8 @@ export default function StockRequestApprove() {
                 </div>
               }
             >
-              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
-                <ScrollArea className="h-full">
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 bg-background">
+                <ScrollArea className="max-h-[560px]">
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">

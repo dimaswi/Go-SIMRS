@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PageShell, PageHeader, PageToolbar, PageContent } from "@/components/layout/page-shell";
 import { roomsApi, masterDataApi, type Room, type MasterData } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
@@ -95,155 +96,148 @@ export default function BedMonitoringIndex() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] p-4 md:p-6 overflow-hidden">
-      <div className="flex items-center gap-4 shrink-0 mb-4">
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <BedDouble className="h-5 w-5" />
-            Monitoring Bed
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pilih ruangan untuk melihat status bed secara real-time
-          </p>
+    <PageShell>
+      <PageHeader
+        icon={BedDouble}
+        title="Monitoring Bed"
+        description="Pilih ruangan untuk melihat status bed secara real-time"
+        count={filteredRooms.length}
+      />
+      <PageToolbar>
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-neutral-400" />
+          <Input
+            placeholder="Cari ruangan..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 h-8 text-xs rounded-none border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-none"
+          />
         </div>
-      </div>
-      <div className="rounded-lg border flex-1 flex flex-col min-h-0 overflow-hidden p-4">
-            {/* Search */}
-            <div className="mb-4 shrink-0">
-              <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cari ruangan..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9"
-                />
-              </div>
-            </div>
+      </PageToolbar>
+      <PageContent>
+        {/* Room Grid */}
+        {filteredRooms.length === 0 ? (
+          <div className="text-center py-8 flex-1 flex flex-col items-center justify-center">
+            <BedDouble className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground text-sm">
+              {searchQuery
+                ? "Tidak ada ruangan yang sesuai dengan pencarian"
+                : "Tidak ada ruangan dengan bed yang tersedia"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {filteredRooms.map((room) => {
+              const occupancy = getOccupancy(room);
+              const totalBeds = room.total_beds || 0;
+              const availableBeds = room.available_beds || 0;
+              const occupiedBeds = totalBeds - availableBeds;
 
-            {/* Room Grid */}
-            {filteredRooms.length === 0 ? (
-              <div className="text-center py-8 flex-1 flex flex-col items-center justify-center">
-                <BedDouble className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground text-sm">
-                  {searchQuery
-                    ? "Tidak ada ruangan yang sesuai dengan pencarian"
-                    : "Tidak ada ruangan dengan bed yang tersedia"}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto flex-1 pr-1">
-                {filteredRooms.map((room) => {
-                  const occupancy = getOccupancy(room);
-                  const totalBeds = room.total_beds || 0;
-                  const availableBeds = room.available_beds || 0;
-                  const occupiedBeds = totalBeds - availableBeds;
-
-                  return (
-                    <Card
-                      key={room.id}
-                      className="group transition-all cursor-pointer border-2 hover:border-primary/50"
-                      onClick={() => navigate(`/bed-monitoring/${room.id}`)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className="bg-primary/10 p-2 rounded-lg">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-sm line-clamp-1">
-                                {room.name}
-                              </h3>
-                              <p className="text-xs text-muted-foreground">
-                                {room.code}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`/display/bed-monitoring/${room.id}`, "_blank");
-                            }}
-                            title="Buka tampilan publik"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
+              return (
+                <Card
+                  key={room.id}
+                  className="group transition-all cursor-pointer rounded-none border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white shadow-none"
+                  onClick={() => navigate(`/bed-monitoring/${room.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                          <Building2 className="size-4" />
                         </div>
-
-                        {/* Room Info */}
-                        <div className="space-y-2 mb-3">
-                          <div className="flex items-center gap-2 text-xs">
-                            <Badge variant="secondary" className="text-xs">
-                              {getMasterDataName("room_type", room.room_type)}
-                            </Badge>
-                            {room.room_class && (
-                              <Badge variant="outline" className="text-xs">
-                                {getMasterDataName("room_class", room.room_class)}
-                              </Badge>
-                            )}
-                          </div>
+                        <div>
+                          <h3 className="font-semibold text-sm line-clamp-1">
+                            {room.name}
+                          </h3>
+                          <p className="text-xs font-mono text-muted-foreground">
+                            {room.code}
+                          </p>
                         </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-none opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/display/bed-monitoring/${room.id}`, "_blank");
+                        }}
+                        title="Buka tampilan publik"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
 
-                        {/* Bed Stats */}
-                        <div className="bg-muted/50 rounded-lg p-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-1 text-xs md:text-sm">
-                              <BedDouble className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
-                              <span className="font-medium">{totalBeds} Bed</span>
-                            </div>
-                            <span
-                              className={cn(
-                                "text-xs md:text-sm font-bold",
-                                getOccupancyColor(occupancy)
-                              )}
-                            >
-                              {occupancy}%
-                            </span>
-                          </div>
+                    {/* Room Info */}
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center gap-2 text-xs">
+                        <Badge variant="secondary" className="text-xs rounded-none">
+                          {getMasterDataName("room_type", room.room_type)}
+                        </Badge>
+                        {room.room_class && (
+                          <Badge variant="outline" className="text-xs rounded-none">
+                            {getMasterDataName("room_class", room.room_class)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
 
-                          {/* Progress Bar */}
-                          <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1.5">
-                            <div
-                              className={cn(
-                                "h-1.5 rounded-full transition-all",
-                                occupancy >= 90
-                                  ? "bg-red-500"
-                                  : occupancy >= 70
-                                  ? "bg-amber-500"
-                                  : "bg-emerald-500"
-                              )}
-                              style={{ width: `${occupancy}%` }}
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <span>Terisi: {occupiedBeds}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              <span>Tersedia: {availableBeds}</span>
-                            </div>
-                          </div>
+                    {/* Bed Stats */}
+                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1 text-xs md:text-sm">
+                          <BedDouble className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+                          <span className="font-medium font-mono">{totalBeds} Bed</span>
                         </div>
+                        <span
+                          className={cn(
+                            "text-xs md:text-sm font-bold font-mono",
+                            getOccupancyColor(occupancy)
+                          )}
+                        >
+                          {occupancy}%
+                        </span>
+                      </div>
 
-                        {/* Action hint */}
-                        <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] md:text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                          <Monitor className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                          <span>Klik untuk monitoring</span>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-neutral-200 dark:bg-neutral-800 h-1.5 mb-1.5">
+                        <div
+                          className={cn(
+                            "h-1.5 transition-all",
+                            occupancy >= 90
+                              ? "bg-red-500"
+                              : occupancy >= 70
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                          )}
+                          style={{ width: `${occupancy}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] md:text-xs font-mono text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 bg-blue-500" />
+                          <span>Terisi: {occupiedBeds}</span>
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-      </div>
-    </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 bg-emerald-500" />
+                          <span>Tersedia: {availableBeds}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action hint */}
+                    <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] md:text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                      <Monitor className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                      <span>Klik untuk monitoring</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

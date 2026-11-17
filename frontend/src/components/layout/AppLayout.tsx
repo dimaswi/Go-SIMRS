@@ -31,15 +31,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <BreadcrumbProvider>
-    <SidebarProvider open={open} onOpenChange={handleOpenChange}>
-      <AppSidebar />
-      <SidebarInset>
-        <AppHeader />
-        <div id="app-main-scroll-container" className="flex flex-col flex-1 overflow-auto">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+      <SidebarProvider open={open} onOpenChange={handleOpenChange}>
+        <AppSidebar />
+        <SidebarInset className="overflow-x-hidden flex flex-col min-h-screen bg-background">
+          <AppHeader />
+          <div id="app-main-scroll-container" className="flex flex-col flex-1 overflow-y-auto bg-white dark:bg-neutral-950">
+            {children}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     </BreadcrumbProvider>
   );
 }

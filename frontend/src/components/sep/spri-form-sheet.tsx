@@ -10,14 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
@@ -318,52 +312,79 @@ export function SPRIFormSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-        <div className="flex flex-col border-b px-4 py-2">
-          <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
-            <div className="space-y-1 text-left">
+      <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+        <div className="flex flex-col border-b px-6 py-2.5">
+          <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+            <div className="space-y-0.5 text-left">
               <div className="flex items-center gap-2">
-                <h4 className="text-xl font-bold">Form SPRI Rawat Inap</h4>
-                <Badge variant="outline">SPRI</Badge>
-                <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}>
+                <h4 className="text-base font-bold leading-tight">Form SPRI Rawat Inap</h4>
+                <Badge variant="outline" className="h-5 text-[10px]">SPRI</Badge>
+                <Badge
+                  variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}
+                  className="h-5 text-[10px]"
+                >
                   {loadingPeserta ? "Mengecek..." : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
                 </Badge>
               </div>
-              <p className="text-muted-foreground">{patient.nama_lengkap} • {patient.no_rm}</p>
+              <p className="text-xs text-muted-foreground">{patient.nama_lengkap} • {patient.no_rm}</p>
             </div>
 
             {canAssignExisting && (
-              <Select value={entryMode} onValueChange={(val: any) => setEntryMode(val)}>
-                <SelectTrigger className="h-8 w-[130px] text-xs bg-muted/50 border-border/70">
-                  <SelectValue placeholder="Mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="form" className="text-xs">Form SPRI</SelectItem>
-                  <SelectItem value="search" className="text-xs">Cari Data</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="inline-flex items-center rounded-md border border-border/60 bg-muted p-0.5">
+                {(
+                  [
+                    { value: "form", label: "Form SPRI" },
+                    { value: "search", label: "Cari Data" },
+                  ] as const
+                ).map((opt) => {
+                  const active = entryMode === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEntryMode(opt.value)}
+                      className={cn(
+                        "h-7 rounded-sm px-2.5 text-xs font-medium transition-colors",
+                        active
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </SheetHeader>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="px-4 space-y-4">
+          <div className="divide-y divide-border/70">
             {entryMode === "form" && activeSEP && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Info SEP Aktif</h4>
-                <div className="grid grid-cols-2 gap-y-2 text-sm bg-muted/50 p-4 rounded-md">
-                  <div className="text-muted-foreground">No. SEP</div>
-                  <div className="font-medium">{activeSEP.no_sep}</div>
-                  <div className="text-muted-foreground">Poli Asal</div>
-                  <div className="font-medium">{activeSEP.nama_poli || activeSEP.kode_poli || "-"}</div>
+              <div className="px-6 py-4 space-y-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Info SEP Aktif
+                </div>
+                <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">No. SEP</div>
+                    <div className="mt-0.5 font-mono font-medium text-foreground">{activeSEP.no_sep}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Poli Asal</div>
+                    <div className="mt-0.5 font-medium text-foreground">
+                      {activeSEP.nama_poli || activeSEP.kode_poli || "-"}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
             {canAssignExisting && entryMode === "search" && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nomor SPRI</Label>
+              <div className="px-6 py-4 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Nomor SPRI</Label>
                   <div className="flex gap-2">
                     <Input
                       value={searchNoSPRI}
@@ -372,6 +393,7 @@ export function SPRIFormSheet({
                         if (searchSPRIError) setSearchSPRIError("");
                       }}
                       placeholder="Masukkan nomor SPRI"
+                      className="h-8 text-xs rounded-md"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -382,109 +404,122 @@ export function SPRIFormSheet({
                     <Button
                       type="button"
                       variant="secondary"
+                      size="sm"
+                      className="h-8 px-3 text-xs"
                       onClick={handleSearchSPRI}
                       disabled={searchingSPRI || !searchNoSPRI.trim()}
                     >
-                      {searchingSPRI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      {searchingSPRI ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
                   {searchSPRIError && (
-                    <p className="text-sm text-destructive">{searchSPRIError}</p>
+                    <p className="text-xs text-destructive">{searchSPRIError}</p>
                   )}
                 </div>
 
                 {searchedSPRI && (
-                  <div className="space-y-4 p-4 border rounded-md">
-                    <div className="grid grid-cols-2 gap-y-2 text-sm">
-                      <div className="text-muted-foreground">No. SPRI</div>
-                      <div className="font-medium">{searchedSPRI.noSuratKontrol}</div>
-                      <div className="text-muted-foreground">Tanggal Perintah</div>
-                      <div className="font-medium">{searchedSPRI.tglRencanaKontrol}</div>
-                      <div className="text-muted-foreground">Poli</div>
-                      <div className="font-medium">{searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-"}</div>
-                      <div className="text-muted-foreground">Dokter</div>
-                      <div className="font-medium">{searchedSPRI.dokter?.nama || "-"}</div>
+                  <div className="border-t border-border/60 pt-3 space-y-3">
+                    <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">No. SPRI</div>
+                        <div className="mt-0.5 font-mono font-medium text-foreground">{searchedSPRI.noSuratKontrol}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Tanggal Perintah</div>
+                        <div className="mt-0.5 font-medium text-foreground">{searchedSPRI.tglRencanaKontrol}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Poli</div>
+                        <div className="mt-0.5 font-medium text-foreground">
+                          {searchedSPRI.poli?.nama || searchedSPRI.namaPoliTujuan || "-"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Dokter</div>
+                        <div className="mt-0.5 font-medium text-foreground">{searchedSPRI.dokter?.nama || "-"}</div>
+                      </div>
                     </div>
-                    <Button
-                      type="button"
-                      className="w-full"
-                      onClick={handleAssignSPRI}
-                      disabled={assigningSPRI}
-                    >
-                      {assigningSPRI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                      Assign SPRI
-                    </Button>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={handleAssignSPRI}
+                        disabled={assigningSPRI}
+                      >
+                        {assigningSPRI ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+                        Assign SPRI
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
             )}
 
             {entryMode === "form" && (
-              <div className="space-y-4 mb-6">
-                <div className="flex justify-between items-end border-b pb-2 mb-4">
-                  <h4 className="font-semibold text-lg">Informasi SPRI</h4>
+              <div className="px-6 py-3 space-y-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Informasi SPRI
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="space-y-1.5 lg:col-span-1">
-                    <Label className="text-sm font-medium">Tgl Perintah Inap *</Label>
-                    <Input
-                      type="date"
-                      value={tglRencanaKontrol}
-                      onChange={(e) => {
-                        setTglRencanaKontrol(e.target.value);
-                        setKodeDokter("");
-                        setNamaDokter("");
-                      }}
-                      min={getMinDate()}
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <PoliDokterSelector
-                    kodePoli={kodePoli}
-                    namaPoli={namaPoli}
-                    kodeDokter={kodeDokter}
-                    namaDokter={namaDokter}
-                    tglRencanaKontrol={tglRencanaKontrol}
-                    onPoliChange={(kode, nama) => {
-                      setKodePoli(kode);
-                      setNamaPoli(nama);
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
+                    Tgl Perintah Inap <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    type="date"
+                    value={tglRencanaKontrol}
+                    onChange={(e) => {
+                      setTglRencanaKontrol(e.target.value);
                       setKodeDokter("");
                       setNamaDokter("");
                     }}
-                    onDokterChange={(kode, nama) => {
-                      setKodeDokter(kode);
-                      setNamaDokter(nama);
-                    }}
-                    searchPoliBPJS={handleSearchPoli}
-                    searchDokterBPJS={handleSearchDokter}
-                    poliModalTitle="Cari Poli"
-                    dokterModalTitle="Cari Dokter"
-                    poliFieldLabel="Poli Rawat Inap"
-                    dokterFieldLabel="Dokter Rawat Inap"
-                    poliInputPlaceholder="Pilih poli rawat inap"
-                    dokterInputPlaceholder="Pilih dokter rawat inap"
-                    dokterInputPlaceholderDisabled="Pilih poli & tanggal perintah dulu"
-                    dokterHint="Pilih poli dan tanggal perintah rawat inap terlebih dahulu untuk mencari dokter"
-                    poliBPJSMinSearch={3}
-                    dokterBPJSMinSearch={1}
-                    compact={true}
+                    min={getMinDate()}
+                    className="h-8 w-full text-xs rounded-md"
                   />
                 </div>
 
+                <PoliDokterSelector
+                  kodePoli={kodePoli}
+                  namaPoli={namaPoli}
+                  kodeDokter={kodeDokter}
+                  namaDokter={namaDokter}
+                  tglRencanaKontrol={tglRencanaKontrol}
+                  onPoliChange={(kode, nama) => {
+                    setKodePoli(kode);
+                    setNamaPoli(nama);
+                    setKodeDokter("");
+                    setNamaDokter("");
+                  }}
+                  onDokterChange={(kode, nama) => {
+                    setKodeDokter(kode);
+                    setNamaDokter(nama);
+                  }}
+                  searchPoliBPJS={handleSearchPoli}
+                  searchDokterBPJS={handleSearchDokter}
+                  poliModalTitle="Cari Poli"
+                  dokterModalTitle="Cari Dokter"
+                  poliFieldLabel="Poli Rawat Inap"
+                  dokterFieldLabel="Dokter Rawat Inap"
+                  poliInputPlaceholder="Pilih poli rawat inap"
+                  dokterInputPlaceholder="Pilih dokter rawat inap"
+                  dokterInputPlaceholderDisabled="Pilih poli & tanggal perintah dulu"
+                  dokterHint="Pilih poli dan tanggal perintah rawat inap terlebih dahulu untuk mencari dokter"
+                  poliBPJSMinSearch={3}
+                  dokterBPJSMinSearch={1}
+                  compact={true}
+                />
+
                 {tglRencanaKontrol && kodePoli && kodeDokter && (
-                  <div className="bg-muted/50 p-4 rounded-md space-y-2 text-sm mt-4">
-                    <p className="font-medium flex items-center gap-2">
-                      <FileCheck className="h-4 w-4" />
-                      Ringkasan
+                  <div className="border-l-2 border-emerald-500 bg-emerald-50/40 px-3 py-2 text-xs space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5 text-foreground">
+                      <FileCheck className="h-3.5 w-3.5 text-emerald-600" />
+                      Ringkasan SPRI
                     </p>
-                    <div className="grid grid-cols-1 gap-1 text-muted-foreground">
-                      <span>Tanggal: <span className="text-foreground">{tglRencanaKontrol}</span></span>
-                      <span>Poli: <span className="text-foreground">{namaPoli || kodePoli}</span></span>
-                      <span>Dokter: <span className="text-foreground">{namaDokter || kodeDokter}</span></span>
+                    <div className="grid grid-cols-1 gap-1 md:grid-cols-3 text-muted-foreground">
+                      <span>Tanggal: <span className="text-foreground font-medium">{tglRencanaKontrol}</span></span>
+                      <span>Poli: <span className="text-foreground font-medium">{namaPoli || kodePoli}</span></span>
+                      <span>Dokter: <span className="text-foreground font-medium">{namaDokter || kodeDokter}</span></span>
                     </div>
                   </div>
                 )}
@@ -493,15 +528,17 @@ export function SPRIFormSheet({
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-4 border-t sm:justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <SheetFooter className="px-6 py-3 border-t sm:justify-end gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
             Batal
           </Button>
           <Button
+            size="sm"
+            className="h-8 text-xs"
             onClick={handleSubmitSPRI}
             disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || entryMode === "search"}
           >
-            {loadingSubmit && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {loadingSubmit && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
             Buat SPRI
           </Button>
         </SheetFooter>

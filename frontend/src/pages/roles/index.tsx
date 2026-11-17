@@ -10,7 +10,7 @@ import { rolesApi, type Role } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Shield } from 'lucide-react';
 
 export default function RolesPage() {
   const navigate = useNavigate();
@@ -99,33 +99,31 @@ export default function RolesPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={Shield}
         title="Roles"
         description="Manage roles and permissions"
         count={roles.length}
         actions={
           hasPermission('roles.create') ? (
-            <Button onClick={() => navigate('/roles/create')} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate('/roles/create')}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Add Role
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-    Daftar Roles
-  </div>
-  <div className="p-3 sm:p-4">
-    <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={roles}
           searchPlaceholder="Search roles by name or description..."
           pageSize={10}
           tableId="roles"
         />
-  </div>
-</div>
       </PageContent>
 
       <ConfirmDialog

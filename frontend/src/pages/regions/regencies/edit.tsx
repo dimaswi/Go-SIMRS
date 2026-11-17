@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { regionsApi, type Regency } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Building2 } from 'lucide-react';
+import { Loader2, Building2 } from 'lucide-react';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 export default function RegencyEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -83,70 +84,56 @@ export default function RegencyEditPage() {
   if (!regency) return null;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="max-w-2xl space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Edit Kabupaten/Kota
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Edit data {regency.name}
-            </p>
+    <PageShell>
+      <PageHeader
+        icon={Building2}
+        title="Edit Kabupaten/Kota"
+        description={`Edit data ${regency.name}`}
+        onBack={() => navigate(`/regions/regencies/${id}`)}
+      />
+      <PageContent>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
+          <div className="space-y-2">
+            <Label>Provinsi</Label>
+            <Input
+              value={regency.province?.name || '-'}
+              disabled
+              className="bg-muted"
+            />
           </div>
-        </div>
-        <div className="rounded-lg border p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Provinsi</Label>
-              <Input
-                value={regency.province?.name || '-'}
-                disabled
-                className="bg-muted"
-              />
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="id">Kode Kabupaten/Kota</Label>
-              <Input
-                id="id"
-                value={regency.id}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">Kode tidak dapat diubah</p>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="id">Kode Kabupaten/Kota</Label>
+            <Input
+              id="id"
+              value={regency.id}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">Kode tidak dapat diubah</p>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Nama Kabupaten/Kota</Label>
-              <Input
-                id="name"
-                placeholder="Nama Kabupaten/Kota"
-                value={name}
-                onChange={(e) => setName(e.target.value.toUpperCase())}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">Nama Kabupaten/Kota</Label>
+            <Input
+              id="name"
+              placeholder="Nama Kabupaten/Kota"
+              value={name}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
+            />
+          </div>
 
-            <div className="flex gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => navigate(`/regions/regencies/${id}`)}>
-                Batal
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simpan
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+          <div className="flex gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => navigate(`/regions/regencies/${id}`)}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </div>
+        </form>
+      </PageContent>
+    </PageShell>
   );
 }

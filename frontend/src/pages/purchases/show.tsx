@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Building2,
   Calendar,
   CreditCard,
@@ -244,8 +243,10 @@ export default function PurchaseShow() {
     return (
       <PageShell>
         <PageHeader
+          icon={Building2}
           title="Detail Pembelian"
           description="Lihat status, supplier, dan progres penerimaan item pembelian."
+          onBack={() => navigate("/purchases")}
         />
         <PageContent className="flex-none pb-8">
           <div className="space-y-4">
@@ -318,25 +319,20 @@ export default function PurchaseShow() {
   );
 
   return (
-    <PageShell className="lg:overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={Building2}
         title={purchase.purchase_number}
-        actions={
-          <Button size="sm" variant="outline" onClick={() => navigate("/purchases")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        description={purchase.supplier?.name || purchase.supplier_name || "Detail pembelian supplier"}
+        onBack={() => navigate("/purchases")}
       />
-      <PageContent className="min-h-0 overflow-hidden pb-2.5">
-        <div className="grid min-h-0 flex-1 gap-2.5 [&_input]:h-8 lg:grid-cols-[minmax(320px,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,400px)_minmax(0,1fr)]">
-          <div className="min-h-0 overflow-hidden">
+      <PageContent>
+        <div className="grid gap-6 items-start [&_input]:h-8 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div>
             <SectionPanel
               icon={Building2}
               title="Ringkasan Pembelian"
-              className="flex h-full flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-2.5 py-2 sm:px-3"
+              contentClassName="space-y-4"
               actions={
                 canRecordPayment ? (
                   <Button size="sm" onClick={openPaymentDialog}>
@@ -500,16 +496,13 @@ export default function PurchaseShow() {
             </SectionPanel>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex flex-col lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800 lg:pl-6">
             <SectionPanel
               icon={PackageCheck}
               title="Daftar Item"
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-0 py-0"
             >
-              <div className="min-h-0 flex-1 overflow-hidden rounded-b-md">
-                <ScrollArea className="h-full">
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800">
+                <ScrollArea className="max-h-[560px]">
                   <table className="w-full table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 bg-background">
                       <tr className="bg-muted/20">

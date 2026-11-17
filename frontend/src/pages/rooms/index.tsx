@@ -11,7 +11,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, DoorOpen } from 'lucide-react';
 
 export default function RoomsPage() {
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export default function RoomsPage() {
 
   const confirmDelete = async () => {
     if (!roomToDelete) return;
-    
+
     try {
       await roomsApi.delete(roomToDelete);
       toast({
@@ -136,6 +136,7 @@ export default function RoomsPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={DoorOpen}
         title="Ruangan"
         description="Kelola data ruangan rumah sakit"
         count={rooms.length}
@@ -148,21 +149,14 @@ export default function RoomsPage() {
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Ruangan
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={rooms}
           searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
           pageSize={10}
           tableId="rooms"
         />
-          </div>
-        </div>
       </PageContent>
 
       <ConfirmDialog

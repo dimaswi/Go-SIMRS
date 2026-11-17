@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Loader2, Plus } from "lucide-react";
+import { CreditCard, Loader2, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
@@ -107,39 +107,42 @@ export default function PurchasesIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={ShoppingCart}
         title="Pembelian"
         description="Kelola pembelian barang dan obat dari supplier"
         count={purchases.length}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/purchases/payables")} size="sm">
-              <CreditCard className="h-4 w-4" />
+            <Button
+              variant="outline"
+              onClick={() => navigate("/purchases/payables")}
+              size="sm"
+              className="rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
               Hutang Supplier
             </Button>
             {hasPermission("purchases.create") ? (
-              <Button onClick={() => navigate("/purchases/create")} size="sm">
-                <Plus className="h-4 w-4" />
+              <Button
+                onClick={() => navigate("/purchases/create")}
+                size="sm"
+                className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+              >
+                <Plus className="h-3.5 w-3.5" />
                 Buat Pembelian
               </Button>
             ) : undefined}
           </div>
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-    Daftar Pembelian
-  </div>
-  <div className="p-3 sm:p-4">
-    <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={purchases}
           searchPlaceholder="Cari nomor pembelian atau supplier..."
           pageSize={10}
           tableId="purchases"
         />
-  </div>
-</div>
       </PageContent>
 
       <ConfirmDialog

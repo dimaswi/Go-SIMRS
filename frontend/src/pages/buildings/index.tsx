@@ -167,18 +167,23 @@ export default function BuildingsPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Gedung"
+        title="Master Gedung"
         description="Kelola data gedung rumah sakit untuk Floor Plan"
         count={buildings.length}
+        icon={Building2}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/floor-plan")}>
-              <LayoutGrid className="h-4 w-4" />
+            <Button variant="outline" size="sm" className="h-8 rounded-none border-neutral-200 dark:border-neutral-800 text-xs shadow-none" onClick={() => navigate("/floor-plan")}>
+              <LayoutGrid className="size-3.5 mr-1.5" />
               Floor Plan
             </Button>
             {hasPermission("rooms.create") && (
-              <Button size="sm" onClick={openCreate}>
-                <Plus className="h-4 w-4" />
+              <Button
+                size="sm"
+                onClick={openCreate}
+                className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+              >
+                <Plus className="size-3.5" />
                 Tambah Gedung
               </Button>
             )}

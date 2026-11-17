@@ -9,7 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, UtensilsCrossed } from 'lucide-react';
 
 export default function NutritionMenusPage() {
   const navigate = useNavigate();
@@ -84,31 +84,29 @@ export default function NutritionMenusPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={UtensilsCrossed}
         title="Master Menu Makanan"
         description="Kelola data menu makanan untuk layanan gizi"
         count={menus.length}
         actions={
-          <Button onClick={() => navigate('/nutrition/menus/create')} size="sm">
-            <Plus className="h-4 w-4" />
+          <Button
+            onClick={() => navigate('/nutrition/menus/create')}
+            size="sm"
+            className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+          >
+            <Plus className="h-3.5 w-3.5" />
             Tambah Menu
           </Button>
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-    Daftar Menu Makanan
-  </div>
-  <div className="p-3 sm:p-4">
-    <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={menus}
           searchPlaceholder="Cari menu berdasarkan kode atau nama..."
           pageSize={10}
           tableId="nutrition-menus"
         />
-  </div>
-</div>
       </PageContent>
       <ConfirmDialog
         open={deleteDialogOpen}

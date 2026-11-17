@@ -24,18 +24,16 @@ export function SectionPanel({
   contentClassName,
 }: SectionPanelProps) {
   return (
-    <section className={cn("overflow-hidden border border-border/70 bg-background/95 shadow-sm", className)}>
-      <div className={cn("border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5", headerClassName)}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
+    <section className={cn("space-y-4", className)}>
+      <div className={cn("border-b border-neutral-200 dark:border-neutral-800 pb-2.5", headerClassName)}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
             {Icon ? (
-              <div className="mt-0.5 border border-border/70 bg-background p-2">
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <Icon className="size-4 text-neutral-500 dark:text-neutral-400 shrink-0" />
             ) : null}
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+              {description ? <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p> : null}
             </div>
           </div>
 
@@ -43,7 +41,7 @@ export function SectionPanel({
         </div>
       </div>
 
-      <div className={cn("p-4 sm:p-5", contentClassName)}>{children}</div>
+      <div className={cn("space-y-4", contentClassName)}>{children}</div>
     </section>
   );
 }

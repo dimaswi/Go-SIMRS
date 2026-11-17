@@ -46,7 +46,7 @@ export function createQueueColumns(options: ColumnOptions): ColumnDef<Queue>[] {
       accessorKey: "queue_type",
       header: "Jenis",
       cell: ({ row }) => (
-        <Badge className={typeColors[row.original.queue_type]}>
+        <Badge className={`rounded-none ${typeColors[row.original.queue_type]}`}>
           {queueTypeLabels[row.original.queue_type]}
         </Badge>
       ),
@@ -67,7 +67,7 @@ export function createQueueColumns(options: ColumnOptions): ColumnDef<Queue>[] {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge className={statusColors[row.original.status]}>
+        <Badge className={`rounded-none ${statusColors[row.original.status]}`}>
           {queueStatusLabels[row.original.status]}
         </Badge>
       ),

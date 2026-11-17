@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Loader2, Package, Plus, ShoppingCart } from "lucide-react";
+import { Building2, Loader2, Package, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -240,7 +240,9 @@ export default function PurchaseCreate() {
     return (
       <PageShell>
         <PageHeader
+          icon={ShoppingCart}
           title="Buat Pembelian"
+          onBack={() => navigate("/purchases")}
         />
         <PageContent className="flex-none pb-8">
           <div className="flex items-center justify-center py-16">
@@ -252,25 +254,35 @@ export default function PurchaseCreate() {
   }
 
   return (
-    <PageShell className="lg:overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={ShoppingCart}
         title="Buat Pembelian"
+        description="Buat pesanan pembelian barang atau obat ke supplier"
+        onBack={() => navigate("/purchases")}
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate("/purchases")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => navigate("/purchases")}>
+              Batal
+            </Button>
+            <Button size="sm" onClick={onSubmit} disabled={submitting}>
+              {submitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ShoppingCart className="mr-2 h-4 w-4" />
+              )}
+              {submitting ? "Menyimpan..." : "Buat Pembelian"}
+            </Button>
+          </div>
         }
       />
-      <PageContent className="min-h-0 overflow-hidden pb-3">
-        <div className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:tracking-[0.08em] [&_label]:uppercase [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[minmax(330px,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(340px,400px)_minmax(0,1fr)]">
-          <div className="min-h-0 overflow-hidden">
+      <PageContent>
+        <div className="grid gap-6 items-start [&_label]:text-[10px] [&_label]:tracking-[0.08em] [&_label]:uppercase [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div>
             <SectionPanel
               icon={Building2}
               title="Detail Pembelian"
-              className="flex h-full flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col gap-3 px-2.5 py-2.5 sm:px-3"
+              contentClassName="space-y-4"
               actions={
                 <Button
                   type="button"
@@ -429,19 +441,16 @@ export default function PurchaseCreate() {
             </SectionPanel>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex flex-col lg:border-l lg:border-neutral-200 dark:lg:border-neutral-800 lg:pl-6">
             <SectionPanel
               icon={Package}
               title="Daftar Item"
               actions={
-                <Button variant="ghost" size="sm" onClick={() => setPickerOpen(true)} className="h-6 px-2 text-[10px]">
+                <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)} className="h-7 px-2.5 text-xs rounded-none">
                   <Plus className="mr-1 h-3 w-3" />
                   Pilih Item
                 </Button>
               }
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-              headerClassName="px-2.5 py-2 sm:px-3"
-              contentClassName="flex min-h-0 flex-1 flex-col px-2.5 py-2.5 sm:px-3"
             >
               <SelectedItemsTable
                 items={selectedItems}
@@ -455,23 +464,9 @@ export default function PurchaseCreate() {
                 showExpiry={true}
                 enforceStockLimit={false}
                 emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
-                className="flex min-h-0 flex-1 flex-col"
-                scrollAreaClassName="min-h-0 h-full flex-1"
+                className="flex flex-col"
+                scrollAreaClassName="max-h-[520px]"
               />
-
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/70 pt-2.5">
-                <Button type="button" size="sm" variant="outline" onClick={() => navigate("/purchases")}>
-                  Batal
-                </Button>
-                <Button size="sm" onClick={onSubmit} disabled={submitting}>
-                  {submitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                  )}
-                  {submitting ? "Menyimpan..." : "Buat Pembelian"}
-                </Button>
-              </div>
             </SectionPanel>
           </div>
         </div>

@@ -12,7 +12,7 @@ import {
   distributionsApi,
   type StockDistribution,
 } from "@/lib/api/stock-requests";
-import { Loader2, Package, Pill, Truck, ArrowLeft } from "lucide-react";
+import { Loader2, Package, Pill, Truck } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 interface EditItem {
@@ -40,20 +40,18 @@ function SectionPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="flex items-start gap-2.5">
+          <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
           </div>
         </div>
       </div>
-      <div className="p-3 sm:p-4 space-y-4">{children}</div>
-    </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
@@ -193,12 +191,9 @@ export default function DistributionEdit() {
         title="Edit Distribusi"
         description="Sesuaikan jumlah, batch, dan catatan distribusi selama pengiriman belum selesai diproses."
         icon={Truck}
+        onBack={() => navigate(`/distributions/${id}`)}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/distributions/${id}`)}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button size="sm" onClick={handleSubmit} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Perubahan

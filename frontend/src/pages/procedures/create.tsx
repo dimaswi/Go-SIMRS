@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Loader2, RefreshCw } from "lucide-react";
+import { Save, Loader2, RefreshCw } from "lucide-react";
 
 interface MasterDataState {
   procedure_service_type: MasterData[];
@@ -198,20 +198,14 @@ export default function ProcedureCreate() {
       <PageHeader
         title="Tambah Tindakan"
         description="Tambah tindakan medis baru dengan tarif per kelas pasien"
-        actions={
-          <Button variant="outline" size="icon" asChild className="h-9 w-9">
-            <Link to="/procedures">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-        }
+        onBack={() => navigate("/procedures")}
       />
       <PageContent>
-      <div className="border border-border/70 bg-background">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="space-y-4">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
           DATA TINDAKAN
         </div>
-        <div className="p-3 sm:p-4">
+        <div>
           <form onSubmit={handleSubmit} className="space-y-6 [&_input]:h-9 [&_[role=combobox]]:h-9">
             {/* Basic Information */}
             <div className="space-y-4">

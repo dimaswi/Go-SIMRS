@@ -21,7 +21,7 @@ import { setPageTitle } from "@/lib/page-title";
 import { patientsApi, roomsApi, registrationApi, api } from "@/lib/api";
 import { schedulesApi } from "@/lib/api/rooms";
 import type { Patient, Room, RoomStaff, Registration } from "@/lib/api";
-import { ArrowLeft, Loader2, UserPlus, User, Search, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, UserPlus, User, Search, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { formatPatientName } from "@/lib/print-utils";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
@@ -40,21 +40,21 @@ function FlatPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className={`border border-border/70 bg-background ${className || ""}`.trim()}>
-      <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
+    <section className={`space-y-4 ${className || ""}`.trim()}>
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
         <div className="flex items-start justify-between gap-3">
           <div>
             {eyebrow && (
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
                 {eyebrow}
               </div>
             )}
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</h2>
           </div>
           {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }
@@ -465,18 +465,11 @@ export default function RegistrationCreate() {
         }
         count={step === "search" ? searchResults.length : undefined}
         icon={UserPlus}
+        onBack={() => (step === "registration" ? setStep("search") : navigate("/registrations"))}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => (step === "registration" ? setStep("search") : window.history.back())}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              {step === "registration" ? "Kembali ke Pencarian" : "Kembali"}
-            </Button>
-            <Button onClick={() => navigate("/patients/create")} size="sm">
-              <UserPlus className="h-4 w-4" />
+            <Button onClick={() => navigate("/patients/create")} size="sm" className="h-8 rounded-none text-xs">
+              <UserPlus className="mr-1.5 h-3.5 w-3.5" />
               Pasien Baru
             </Button>
           </div>
@@ -607,8 +600,8 @@ export default function RegistrationCreate() {
                 </div>
               ) : searchResults.length > 0 ? (
                 <div className="overflow-auto rounded-md border border-border shadow-sm">
-                  <Table 
-                    containerClassName="border-none rounded-none shadow-none" 
+                  <Table
+                    containerClassName="border-none rounded-none shadow-none"
                     className="border-collapse [&_th]:border-r-0 [&_td]:border-r-0 [&_tr+tr_td]:border-t-0 [&_tr]:border-b [&_tr:last-child]:border-b-0"
                   >
                     <TableHeader className="bg-muted/50">

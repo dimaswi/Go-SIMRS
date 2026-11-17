@@ -49,6 +49,7 @@ import { BPJSControlSection } from "@/components/medical-record/bpjs-control-sec
 import { BedSelectionModal } from "@/components/medical-record/bed-selection-modal";
 import { useToast } from "@/hooks/use-toast";
 import { icd10Api } from "@/lib/api/icd";
+import { medicalRecordsApi, type DeathCertificate } from "@/lib/api/medical-records";
 import { ppkApi } from "@/lib/api/ppk";
 import {
   vclaimApi,
@@ -159,6 +160,7 @@ interface DispositionSheetShellProps {
     no_rm: string;
   } | null;
   headerAction?: ReactNode;
+  bodyClassName?: string;
 }
 
 function DispositionSheetShell({
@@ -170,18 +172,19 @@ function DispositionSheetShell({
   children,
   patientData,
   headerAction,
+  bodyClassName,
 }: DispositionSheetShellProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-        <div className="flex flex-col border-b px-4 py-1.5">
+      <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+        <div className="flex flex-col border-b px-4 py-2">
           <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
-            <div className="space-y-1 text-left">
+            <div className="space-y-0.5 text-left">
               <div className="flex items-center gap-2">
-                <h4 className="text-xl font-bold">{title}</h4>
-                <Badge variant="outline">{metaLabel}</Badge>
+                <h4 className="text-base font-bold leading-tight">{title}</h4>
+                <Badge variant="outline" className="text-[10px] h-5">{metaLabel}</Badge>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {patientData ? `${patientData.nama_lengkap} • RM ${patientData.no_rm}` : "Data Pasien Tidak Tersedia"}
               </p>
             </div>
@@ -190,12 +193,12 @@ function DispositionSheetShell({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="px-4 pt-3 pb-6">
-            <div className={DISPOSITION_BODY_CLASS}>{children}</div>
+          <div className="px-4 pt-2 pb-4">
+            <div className={bodyClassName ?? DISPOSITION_BODY_CLASS}>{children}</div>
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-4 border-t sm:justify-end gap-2">{footer}</SheetFooter>
+        <SheetFooter className="px-4 py-3 border-t sm:justify-end gap-2">{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
   );
@@ -336,6 +339,77 @@ interface DischargeDrawerProps {
   setKontrolType: (type: "none" | "simrs" | "bpjs") => void;
 }
 
+interface FollowUpDoctorSelectorProps {
+  label: string;
+  loadingDoctors: boolean;
+  roomClosed: boolean;
+  availableDoctors: AvailableDoctor[];
+  selectedDoctorId?: number;
+  hasRoomSelected: boolean;
+  isDisabled: boolean;
+  onSelectDoctor: (doctorId: number) => void;
+  columnsClassName?: string;
+}
+
+function FollowUpDoctorSelector({
+  label,
+  loadingDoctors,
+  roomClosed,
+  availableDoctors,
+  selectedDoctorId,
+  hasRoomSelected,
+  isDisabled,
+  onSelectDoctor,
+  columnsClassName = "grid-cols-1 sm:grid-cols-2 md:grid-cols-4",
+}: FollowUpDoctorSelectorProps) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium">
+        {label} <span className="text-destructive">*</span>
+      </Label>
+      {loadingDoctors ? (
+        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Memuat jadwal dokter...</span>
+        </div>
+      ) : roomClosed ? (
+        <div className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          Poli tutup pada tanggal ini.
+        </div>
+      ) : availableDoctors.length === 0 ? (
+        <div className="border-b border-dashed border-border/70 py-2.5 text-xs text-muted-foreground">
+          {hasRoomSelected ? "Tidak ada dokter yang praktik." : "Pilih poli tujuan untuk melihat jadwal dokter."}
+        </div>
+      ) : (
+        <div className={cn("grid gap-2", columnsClassName)}>
+          {availableDoctors.map((doctor) => {
+            const isSelected = selectedDoctorId === doctor.employee_id;
+            return (
+              <button
+                key={doctor.employee_id}
+                type="button"
+                onClick={() => onSelectDoctor(doctor.employee_id)}
+                disabled={isDisabled}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-left transition-colors",
+                  isSelected
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-border/70 bg-background hover:bg-muted/40"
+                )}
+              >
+                <div className="text-xs font-medium leading-tight">{doctor.employee_name}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                  {doctor.start_time} - {doctor.end_time}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DischargeDrawer({
   open,
   onOpenChange,
@@ -368,14 +442,13 @@ export function DischargeDrawer({
   // Show SIMRS follow-up form after BPJS Surat Kontrol is created
   const showBPJSFollowUpSync = !isAPS && kontrolType === "bpjs" && !!suratKontrolResult;
 
-
   const footer = (
-    <div className="flex w-full justify-end gap-3">
-      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+    <div className="flex w-full justify-end gap-2">
+      <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs">
         Batal
       </Button>
-      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
-        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+      <Button size="sm" onClick={onSubmit} disabled={saving || isDisabled} className="h-8 text-xs">
+        {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
         Simpan & Pulangkan
       </Button>
     </div>
@@ -395,52 +468,46 @@ export function DischargeDrawer({
       icon={formData.disposition_type === "pulang" ? Home : ExternalLink}
       metaLabel={formData.disposition_type === "pulang" ? "DISCHARGE" : "APS"}
       railTitle={formData.disposition_type === "pulang" ? "Checklist Pemulangan" : "Checklist APS"}
-      railDescription={formData.disposition_type === "pulang"
-        ? "Pendekatan baru drawer ini memisahkan keputusan kontrol, kondisi keluar, dan edukasi pasien dalam satu workbench yang tetap memakai field yang sama."
-        : "APS tetap memakai field yang sama, tetapi fokus workbench diarahkan ke dokumentasi kondisi keluar dan edukasi pasien."}
-      railPoints={formData.disposition_type === "pulang"
-        ? [
-          "Tentukan dulu apakah pasien butuh kontrol, lalu pilih jalur SIMRS atau BPJS sesuai kesiapan data.",
-          "Pastikan kondisi keluar terpilih agar ringkasan pemulangan tidak ambigu saat ditinjau ulang.",
-          "Lengkapi instruksi pasien dan obat pulang dengan bahasa operasional, bukan singkatan internal.",
-        ]
-        : [
-          "Dokumentasikan bahwa pasien pulang atas permintaan sendiri pada mode APS ini.",
-          "Tentukan kondisi keluar dengan jelas sebelum instruksi pasien diisi.",
-          "Gunakan instruksi pemulangan untuk menuliskan risiko, edukasi, dan tindak lanjut yang diberikan.",
-        ]}
-      railStatus={!isAPS && kontrolType === "bpjs" ? (
-        <BPJSStatePanel
-          tone={patientNoBpjs ? "success" : "danger"}
-          title={patientNoBpjs ? "Jalur BPJS aktif" : "Data BPJS belum siap"}
-          description={patientNoBpjs ? "Pastikan SEP aktif dan surat kontrol BPJS dibuat sebelum menutup drawer." : "Nomor BPJS belum tersedia, sehingga mode BPJS tidak bisa dijalankan dari drawer ini."}
-        />
-      ) : undefined}
+      railDescription=""
+      railPoints={[]}
       footer={footer}
       patientData={patientData}
+      bodyClassName="mx-auto flex w-full max-w-[1320px] flex-col divide-y divide-border/70"
       headerAction={
         !isAPS && (
-          <div className="flex flex-col items-end gap-1 w-[260px]">
-            <Combobox
-              options={[
-                { value: "none", label: "Tanpa Kontrol" },
-                { value: "simrs", label: "Kontrol SIMRS" },
-                { value: "bpjs", label: "Kontrol BPJS & Sinkronisasi" },
-              ]}
-              value={kontrolType}
-              onValueChange={(val) => {
-                if (val === "bpjs" && !patientNoBpjs) {
-                  return; // prevent if no BPJS
-                }
-                setKontrolType((val as "none" | "simrs" | "bpjs") || "none");
-              }}
-              placeholder="Pilih mode kontrol..."
-              disabled={isDisabled}
-            />
+          <div className="flex flex-col items-end gap-1">
+            <div className="inline-flex items-center rounded-md border border-border/60 bg-muted p-0.5">
+              {(
+                [
+                  { value: "none", label: "Tanpa Kontrol" },
+                  { value: "simrs", label: "Kontrol SIMRS" },
+                  { value: "bpjs", label: "Kontrol BPJS" },
+                ] as const
+              ).map((opt) => {
+                const active = kontrolType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setKontrolType(opt.value)}
+                    disabled={isDisabled}
+                    className={cn(
+                      "h-7 rounded-sm px-2.5 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                      isDisabled && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
             {!patientNoBpjs && kontrolType === "none" && (
-              <p className="text-[10px] text-amber-600 font-medium leading-none">
+              <span className="text-[10px] font-medium text-amber-600 leading-none">
                 * Pasien tidak memiliki No. BPJS
-              </p>
+              </span>
             )}
           </div>
         )
@@ -448,308 +515,254 @@ export function DischargeDrawer({
     >
       {/* BPJS Control Section & SIMRS Sync */}
       {showBPJSKontrol && (
-        <>
+        <div className="py-4 first:pt-1 space-y-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Kontrol BPJS &amp; Sinkronisasi
+          </div>
+
           {patientNoBpjs && activeSEP && patientData ? (
-            <DispositionSection eyebrow="Bridging" title="Kontrol BPJS & Sinkronisasi">
-              <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
-                <div>
-                  <BPJSControlSection
-                    dispositionType={formData.disposition_type as "pulang" | "aps"}
-                    activeSEP={activeSEP}
-                    patient={patientData}
-                    visitId={visitId}
-                    isDisabled={isDisabled}
-                    existingSuratKontrol={suratKontrolResult}
-                    onSuratKontrolCreated={(skData) => setSuratKontrolResult(skData)}
-                    onSuratKontrolCleared={() => setSuratKontrolResult(null)}
-                    className="rounded-none border border-emerald-200 bg-emerald-50/40 p-4 space-y-4 h-full"
-                  />
-                </div>
+            <div className="space-y-4">
+              <BPJSControlSection
+                dispositionType={formData.disposition_type as "pulang" | "aps"}
+                activeSEP={activeSEP}
+                patient={patientData}
+                visitId={visitId}
+                isDisabled={isDisabled}
+                existingSuratKontrol={suratKontrolResult}
+                onSuratKontrolCreated={(skData) => setSuratKontrolResult(skData)}
+                onSuratKontrolCleared={() => setSuratKontrolResult(null)}
+                className="space-y-3"
+              />
 
-                {/* SIMRS Follow Up Form - shown after BPJS Surat Kontrol is created */}
-                {showBPJSFollowUpSync && (
-                  <div className="rounded-none border border-blue-200 bg-blue-50/40 p-4 space-y-4 h-full">
-                    <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                      <div className="flex items-center gap-2 text-blue-700">
-                        <Calendar className="h-4 w-4" />
-                        <span className="font-semibold text-sm">Sinkronisasi SIMRS</span>
-                      </div>
-                      <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 uppercase tracking-widest">WAJIB</span>
+              {/* SIMRS Follow Up Form - shown after BPJS Surat Kontrol is created */}
+              {showBPJSFollowUpSync && (
+                <div className="border-t border-border/60 pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Sinkronisasi SIMRS</span>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-sm">
-                          Tgl Kontrol (BPJS)
-                        </Label>
-                        <Input
-                          type="date"
-                          value={suratKontrolResult?.tglRencanaKontrol || formData.follow_up_date}
-                          className="h-10 bg-muted"
-                          disabled
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="follow_up_room_id_bpjs_sync" className="text-sm">
-                          Poli Tujuan <span className="text-destructive">*</span>
-                        </Label>
-                        <Combobox
-                          options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
-                          value={formData.follow_up_room_id?.toString() || ""}
-                          onValueChange={(value) => {
-                            onFormChange("follow_up_room_id", value ? parseInt(value) : undefined);
-                            onFormChange("follow_up_doctor_id", undefined);
-                            if (suratKontrolResult?.tglRencanaKontrol) {
-                              onFormChange("follow_up_date", suratKontrolResult.tglRencanaKontrol);
-                            }
-                          }}
-                          placeholder="Pilih poli..."
-                          searchPlaceholder="Cari poli..."
-                          emptyText="Poli tidak ditemukan"
-                          disabled={isDisabled}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm">Pilih Dokter SIMRS <span className="text-destructive">*</span></Label>
-                      {loadingDoctors ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border border-border/50 bg-muted/20">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Memuat...</span>
-                        </div>
-                      ) : roomClosed ? (
-                        <Alert variant="destructive" className="bg-red-50 p-3">
-                          <AlertDescription className="text-sm">Poli tutup pada tanggal ini.</AlertDescription>
-                        </Alert>
-                      ) : availableDoctors.length === 0 ? (
-                        <div className="p-4 border-2 border-dashed border-muted text-center text-sm text-muted-foreground bg-muted/10">
-                          {formData.follow_up_room_id ? "Tidak ada dokter yang praktik." : "Pilih poli tujuan untuk melihat jadwal."}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1">
-                          {availableDoctors.map((doctor) => (
-                            <button
-                              key={doctor.employee_id}
-                              type="button"
-                              onClick={() => onFormChange("follow_up_doctor_id", doctor.employee_id)}
-                              disabled={isDisabled}
-                              className={cn(
-                                "p-3 rounded-none border-2 text-left transition-all",
-                                formData.follow_up_doctor_id === doctor.employee_id
-                                  ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                  : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                              )}
-                            >
-                              <div className="font-medium text-sm leading-tight">{doctor.employee_name}</div>
-                              <div className="text-[10px] text-muted-foreground mt-1">
-                                {doctor.start_time} - {doctor.end_time}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <Badge variant="outline" className="h-5 text-[10px] border-blue-300 text-blue-700">
+                      Wajib
+                    </Badge>
                   </div>
-                )}
-              </div>
-            </DispositionSection>
-          ) : (
-            <Alert className="bg-amber-50 border-amber-200">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-700">Tidak Dapat Membuat Surat Kontrol BPJS</AlertTitle>
-              <AlertDescription className="text-amber-600">
-                {!patientNoBpjs ? (
-                  <p>Pasien tidak memiliki nomor BPJS. Silakan pilih "Kontrol SIMRS" atau lengkapi data BPJS.</p>
-                ) : !activeSEP ? (
-                  <p>Pasien belum memiliki SEP aktif untuk kunjungan ini.</p>
-                ) : (
-                  <p>Data pasien tidak lengkap.</p>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-        </>
-      )}
 
-      {/* Follow Up Form */}
-      {showFollowUpFields && (
-        <DispositionSection eyebrow="Jadwal" title="Kontrol SIMRS">
-          <div className="flex flex-col gap-4">
-            {/* Top row: 3 columns */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="follow_up_date_drawer" className="text-sm">
-                  Tanggal Kontrol <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="follow_up_date_drawer"
-                  type="date"
-                  value={formData.follow_up_date}
-                  onChange={(e) => onFormChange("follow_up_date", e.target.value)}
-                  className="h-10 bg-background"
-                  min={new Date().toISOString().split('T')[0]}
-                  disabled={isDisabled}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="follow_up_room_id_drawer" className="text-sm">
-                  Poli Tujuan <span className="text-destructive">*</span>
-                </Label>
-                <Combobox
-                  options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
-                  value={formData.follow_up_room_id?.toString() || ""}
-                  onValueChange={(value) => {
-                    onFormChange("follow_up_room_id", value ? parseInt(value) : undefined);
-                    onFormChange("follow_up_doctor_id", undefined);
-                  }}
-                  placeholder="Pilih poli..."
-                  searchPlaceholder="Cari poli..."
-                  emptyText="Poli tidak ditemukan"
-                  disabled={isDisabled}
-                />
-              </div>
-            </div>
-
-            {/* Doctor Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm">Pilih Dokter <span className="text-destructive">*</span></Label>
-              {loadingDoctors ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border border-border/50 bg-muted/20">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Memuat jadwal dokter...</span>
-                </div>
-              ) : roomClosed ? (
-                <Alert variant="destructive" className="bg-red-50 p-3">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>Poli tutup pada tanggal ini.</AlertDescription>
-                </Alert>
-              ) : availableDoctors.length === 0 ? (
-                <div className="p-4 border-2 border-dashed border-muted text-center text-sm text-muted-foreground bg-muted/10">
-                  {formData.follow_up_room_id ? "Tidak ada dokter yang praktik." : "Pilih poli tujuan untuk melihat jadwal dokter."}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                  {availableDoctors.map((doctor) => (
-                    <button
-                      key={doctor.employee_id}
-                      type="button"
-                      onClick={() => onFormChange("follow_up_doctor_id", doctor.employee_id)}
-                      disabled={isDisabled}
-                      className={cn(
-                        "p-3 rounded-none border-2 text-left transition-all",
-                        formData.follow_up_doctor_id === doctor.employee_id
-                          ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                          : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                      )}
-                    >
-                      <div className="font-medium text-sm leading-tight">{doctor.employee_name}</div>
-                      <div className="text-[10px] text-muted-foreground mt-1">
-                        {doctor.start_time} - {doctor.end_time}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Bottom row: Instruction & QR */}
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="follow_up_instruction_drawer" className="text-sm">Instruksi Kontrol</Label>
-                <Textarea
-                  id="follow_up_instruction_drawer"
-                  placeholder="Rencana pemeriksaan/tindakan saat kontrol..."
-                  value={formData.follow_up_instruction}
-                  onChange={(e) => onFormChange("follow_up_instruction", e.target.value)}
-                  className={cn(DISPOSITION_TEXTAREA_CLASS, "min-h-[80px]")}
-                  disabled={isDisabled}
-                />
-              </div>
-
-              {followUpRegData && (
-                <div className="space-y-2">
-                  <Label className="text-sm">Jadwal Kontrol Terdaftar</Label>
-                  <Alert className="bg-blue-50 border-blue-300 p-3 flex items-center gap-3">
-                    <div className="flex-shrink-0">
-                      <CheckInQRCode
-                        registrationId={followUpRegData.id}
-                        registrationNumber={followUpRegData.registration_number}
-                        patientName={followUpRegData.patient_name || "Pasien"}
-                        scheduledDate={followUpRegData.scheduled_date}
-                        roomName={followUpRegData.room_name}
-                        doctorName={followUpRegData.doctor_name}
-                        queueNumber={followUpRegData.queue_number}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">
+                        Tgl Kontrol (BPJS)
+                      </Label>
+                      <Input
+                        type="date"
+                        value={suratKontrolResult?.tglRencanaKontrol || formData.follow_up_date}
+                        className="h-8 text-xs bg-muted rounded-md"
+                        disabled
                       />
                     </div>
-                    <div className="text-sm space-y-0.5 text-blue-800">
-                      <p className="font-bold">{followUpRegData.registration_number}</p>
-                      {followUpRegData.scheduled_date && (
-                        <p>{new Date(followUpRegData.scheduled_date).toLocaleDateString("id-ID")}</p>
-                      )}
-                      {followUpRegData.room_name && <p className="text-xs opacity-80">{followUpRegData.room_name}</p>}
+                    <div className="space-y-1">
+                      <Label htmlFor="follow_up_room_id_bpjs_sync" className="text-xs font-medium">
+                        Poli Tujuan <span className="text-destructive">*</span>
+                      </Label>
+                      <Combobox
+                        options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
+                        value={formData.follow_up_room_id?.toString() || ""}
+                        onValueChange={(value) => {
+                          onFormChange("follow_up_room_id", value ? parseInt(value) : undefined);
+                          onFormChange("follow_up_doctor_id", undefined);
+                          if (suratKontrolResult?.tglRencanaKontrol) {
+                            onFormChange("follow_up_date", suratKontrolResult.tglRencanaKontrol);
+                          }
+                        }}
+                        placeholder="Pilih poli..."
+                        searchPlaceholder="Cari poli..."
+                        emptyText="Poli tidak ditemukan"
+                        disabled={isDisabled}
+                        className="h-8 text-xs rounded-md"
+                      />
                     </div>
-                  </Alert>
+                  </div>
+
+                  <FollowUpDoctorSelector
+                    label="Pilih Dokter SIMRS"
+                    loadingDoctors={loadingDoctors}
+                    roomClosed={roomClosed}
+                    availableDoctors={availableDoctors}
+                    selectedDoctorId={formData.follow_up_doctor_id}
+                    hasRoomSelected={!!formData.follow_up_room_id}
+                    isDisabled={isDisabled}
+                    onSelectDoctor={(id) => onFormChange("follow_up_doctor_id", id)}
+                    columnsClassName="grid-cols-1 sm:grid-cols-2 md:grid-cols-4"
+                  />
                 </div>
               )}
             </div>
+          ) : (
+            <div className="flex items-start gap-2.5 border-l-2 border-amber-500 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-semibold">Tidak Dapat Membuat Surat Kontrol BPJS</div>
+                <p>
+                  {!patientNoBpjs
+                    ? 'Pasien tidak memiliki nomor BPJS. Silakan pilih "Kontrol SIMRS" atau lengkapi data BPJS.'
+                    : !activeSEP
+                    ? "Pasien belum memiliki SEP aktif untuk kunjungan ini."
+                    : "Data pasien tidak lengkap."}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Follow Up Form (Kontrol SIMRS) */}
+      {showFollowUpFields && (
+        <div className="py-3 first:pt-1 space-y-2.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Kontrol SIMRS
           </div>
-        </DispositionSection>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="follow_up_date_drawer" className="text-xs font-medium">
+                Tanggal Kontrol <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="follow_up_date_drawer"
+                type="date"
+                value={formData.follow_up_date}
+                onChange={(e) => onFormChange("follow_up_date", e.target.value)}
+                className="h-8 text-xs bg-background rounded-md"
+                min={new Date().toISOString().split("T")[0]}
+                disabled={isDisabled}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="follow_up_room_id_drawer" className="text-xs font-medium">
+                Poli Tujuan <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
+                value={formData.follow_up_room_id?.toString() || ""}
+                onValueChange={(value) => {
+                  onFormChange("follow_up_room_id", value ? parseInt(value) : undefined);
+                  onFormChange("follow_up_doctor_id", undefined);
+                }}
+                placeholder="Pilih poli..."
+                searchPlaceholder="Cari poli..."
+                emptyText="Poli tidak ditemukan"
+                disabled={isDisabled}
+                className="h-8 text-xs rounded-md"
+              />
+            </div>
+          </div>
+
+          <FollowUpDoctorSelector
+            label="Pilih Dokter"
+            loadingDoctors={loadingDoctors}
+            roomClosed={roomClosed}
+            availableDoctors={availableDoctors}
+            selectedDoctorId={formData.follow_up_doctor_id}
+            hasRoomSelected={!!formData.follow_up_room_id}
+            isDisabled={isDisabled}
+            onSelectDoctor={(id) => onFormChange("follow_up_doctor_id", id)}
+          />
+
+          <div className="space-y-1">
+            <Label htmlFor="follow_up_instruction_drawer" className="text-xs font-medium">
+              Instruksi Kontrol
+            </Label>
+            <Textarea
+              id="follow_up_instruction_drawer"
+              placeholder="Rencana pemeriksaan/tindakan saat kontrol..."
+              value={formData.follow_up_instruction}
+              onChange={(e) => onFormChange("follow_up_instruction", e.target.value)}
+              className="min-h-[64px] resize-y text-xs rounded-md"
+              disabled={isDisabled}
+            />
+          </div>
+
+          {followUpRegData && (
+            <div className="border-t border-border/60 pt-2.5 space-y-1">
+              <Label className="text-xs font-medium">Jadwal Kontrol Terdaftar</Label>
+              <div className="flex items-center gap-3 border-l-2 border-blue-500 bg-blue-50/50 px-3 py-2">
+                <div className="flex-shrink-0">
+                  <CheckInQRCode
+                    registrationId={followUpRegData.id}
+                    registrationNumber={followUpRegData.registration_number}
+                    patientName={followUpRegData.patient_name || "Pasien"}
+                    scheduledDate={followUpRegData.scheduled_date}
+                    roomName={followUpRegData.room_name}
+                    doctorName={followUpRegData.doctor_name}
+                    queueNumber={followUpRegData.queue_number}
+                  />
+                </div>
+                <div className="text-xs space-y-0.5 text-blue-900">
+                  <p className="font-semibold">{followUpRegData.registration_number}</p>
+                  {followUpRegData.scheduled_date && (
+                    <p>{new Date(followUpRegData.scheduled_date).toLocaleDateString("id-ID")}</p>
+                  )}
+                  {followUpRegData.room_name && <p className="text-muted-foreground">{followUpRegData.room_name}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Discharge Condition & Instructions */}
-      <DispositionSection
-        eyebrow="Status & Edukasi"
-        title="Kondisi & Edukasi Pasien"
-      >
-        <div className="flex flex-col gap-4">
-          {showDischargeCondition && (
-            <div className="space-y-2">
-              <Label className="text-sm">
-                Kondisi Pasien Saat Pulang
-              </Label>
-              <Combobox
-                options={dischargeConditionOptions}
-                value={formData.discharge_condition}
-                onValueChange={(value) => onFormChange("discharge_condition", value)}
-                placeholder="Pilih kondisi keluar..."
-                searchPlaceholder="Cari kondisi..."
-                emptyText="Kondisi tidak ditemukan"
-                disabled={isDisabled}
-                className={BPJS_FIELD_CLASS}
-              />
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="discharge_instruction_drawer" className="text-sm">
-                Instruksi untuk Pasien
-              </Label>
-              <Textarea
-                id="discharge_instruction_drawer"
-                placeholder="Instruksi yang harus diikuti pasien setelah pulang..."
-                value={formData.discharge_instruction}
-                onChange={(e) => onFormChange("discharge_instruction", e.target.value)}
-                className={cn(DISPOSITION_TEXTAREA_CLASS, "min-h-[80px]")}
-                disabled={isDisabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="discharge_medication_drawer" className="text-sm">
-                Obat Pulang
-              </Label>
-              <Textarea
-                id="discharge_medication_drawer"
-                placeholder="Daftar obat yang dibawa pulang beserta aturan pakai..."
-                value={formData.discharge_medication}
-                onChange={(e) => onFormChange("discharge_medication", e.target.value)}
-                className={cn(DISPOSITION_TEXTAREA_CLASS, "min-h-[80px]")}
-                disabled={isDisabled}
-              />
-            </div>
+      <div className="py-3 first:pt-1 last:pb-1 space-y-2.5">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Kondisi &amp; Edukasi Pasien
+        </div>
+
+        {showDischargeCondition && (
+          <div className="space-y-1">
+            <Label className="text-xs font-medium">
+              Kondisi Pasien Saat Pulang
+            </Label>
+            <Combobox
+              options={dischargeConditionOptions}
+              value={formData.discharge_condition}
+              onValueChange={(value) => onFormChange("discharge_condition", value)}
+              placeholder="Pilih kondisi keluar..."
+              searchPlaceholder="Cari kondisi..."
+              emptyText="Kondisi tidak ditemukan"
+              disabled={isDisabled}
+              className="h-8 text-xs rounded-md"
+            />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="discharge_instruction_drawer" className="text-xs font-medium">
+              Instruksi untuk Pasien
+            </Label>
+            <Textarea
+              id="discharge_instruction_drawer"
+              placeholder="Instruksi yang harus diikuti pasien setelah pulang..."
+              value={formData.discharge_instruction}
+              onChange={(e) => onFormChange("discharge_instruction", e.target.value)}
+              className="min-h-[72px] resize-y text-xs rounded-md"
+              disabled={isDisabled}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="discharge_medication_drawer" className="text-xs font-medium">
+              Obat Pulang
+            </Label>
+            <Textarea
+              id="discharge_medication_drawer"
+              placeholder="Daftar obat yang dibawa pulang beserta aturan pakai..."
+              value={formData.discharge_medication}
+              onChange={(e) => onFormChange("discharge_medication", e.target.value)}
+              className="min-h-[72px] resize-y text-xs rounded-md"
+              disabled={isDisabled}
+            />
           </div>
         </div>
-      </DispositionSection>
+      </div>
     </DispositionSheetShell>
   );
 }
@@ -1548,12 +1561,12 @@ export function ReferralDrawer({
   };
 
   const footer = (
-    <div className="flex w-full justify-end gap-3">
-      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+    <div className="flex w-full justify-end gap-2">
+      <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs">
         Batal
       </Button>
-      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
-        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+      <Button size="sm" onClick={onSubmit} disabled={saving || isDisabled} className="h-8 text-xs">
+        {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
         Simpan Rujukan
       </Button>
     </div>
@@ -1570,45 +1583,52 @@ export function ReferralDrawer({
         icon={Ambulance}
         metaLabel="RUJUK"
         railTitle="Checklist Rujukan"
-        railDescription="Pendekatan drawer diubah menjadi meja kerja rujukan: mode dipilih di awal, lalu field rujukan yang sama tetap digunakan di panel kanan."
-        railPoints={[
-          "Tentukan lebih dulu mode rujukan agar petugas tidak mencampur alur manual dengan bridging BPJS.",
-          "Lengkapi tujuan, diagnosis, dan alasan rujukan dengan istilah yang siap dibaca fasilitas tujuan.",
-          "Untuk BPJS, simpan rujukan bridging dulu sebelum menutup disposisi pasien pulang.",
-        ]}
-        railStatus={referralMode !== "manual" ? (
-          <BPJSStatePanel
-            tone="success"
-            title="Mode bridging aktif"
-            description="Pastikan nomor SEP, PPK, diagnosis, dan tipe rujukan sudah terisi sebelum menyimpan."
-          />
-        ) : undefined}
+        railDescription=""
+        railPoints={[]}
         footer={footer}
         patientData={patientData}
+        bodyClassName="mx-auto flex w-full max-w-[1320px] flex-col divide-y divide-border/70"
         headerAction={
-          <div className="flex flex-col items-end gap-1 w-[260px]">
-            <Combobox
-              options={[
+          <div className="inline-flex items-center rounded-md border border-border/60 bg-muted p-0.5">
+            {(
+              [
                 { value: "manual", label: "Manual SIMRS" },
                 { value: "bpjs_v1", label: "BPJS V1" },
                 { value: "bpjs_v2", label: "BPJS V2" },
                 { value: "bpjs_khusus", label: "BPJS Khusus" },
-              ]}
-              value={referralMode}
-              onValueChange={(val) => onFormChange("referral_mode", val || "manual")}
-              placeholder="Pilih mode rujukan..."
-              disabled={isDisabled}
-            />
+              ] as const
+            ).map((opt) => {
+              const active = referralMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onFormChange("referral_mode", opt.value)}
+                  disabled={isDisabled}
+                  className={cn(
+                    "h-7 rounded-sm px-2.5 text-xs font-medium transition-colors",
+                    active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                    isDisabled && "cursor-not-allowed opacity-50"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         }
       >
         {referralMode === "manual" && (
-          <DispositionSection eyebrow="Manual" title="Rujukan SIMRS" >
-            <div className="flex flex-col gap-4">
-              {/* Top Row: Basic Facility Details */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2">
-                  <Label className="text-sm">
+          <>
+            <div className="py-3 first:pt-1 space-y-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Rujukan SIMRS
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
                     Fasilitas Tujuan <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -1616,19 +1636,21 @@ export function ReferralDrawer({
                     value={formData.referral_facility}
                     onChange={(e) => onFormChange("referral_facility", e.target.value)}
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Spesialis Tujuan</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Spesialis Tujuan</Label>
                   <Input
                     placeholder="Contoh: Sp.PD, Sp.JP, Sp.B, dll"
                     value={formData.referral_specialist}
                     onChange={(e) => onFormChange("referral_specialist", e.target.value)}
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Urgensi Rujukan</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Urgensi Rujukan</Label>
                   <Combobox
                     options={[
                       { value: "cito", label: "CITO" },
@@ -1641,129 +1663,150 @@ export function ReferralDrawer({
                     searchPlaceholder="Cari..."
                     emptyText="Tidak ditemukan"
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
-                <div className="space-y-2 lg:col-span-2">
-                  <Label className="text-sm">Alamat Fasilitas</Label>
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs font-medium">Alamat Fasilitas</Label>
                   <Input
                     placeholder="Alamat lengkap fasilitas tujuan"
                     value={formData.referral_address}
                     onChange={(e) => onFormChange("referral_address", e.target.value)}
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Telepon Fasilitas</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Telepon Fasilitas</Label>
                   <Input
                     placeholder="Nomor telepon fasilitas"
                     value={formData.referral_phone}
                     onChange={(e) => onFormChange("referral_phone", e.target.value)}
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Bottom Row: Clinical Details */}
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm">
+            <div className="py-3 last:pb-1 space-y-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Ringkasan Klinis
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
                     Alasan Rujukan <span className="text-destructive">*</span>
                   </Label>
                   <Textarea
                     placeholder="Alasan pasien dirujuk ke fasilitas lain..."
                     value={formData.referral_reason}
                     onChange={(e) => onFormChange("referral_reason", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
+                    className="min-h-[68px] resize-y text-xs rounded-md"
                     disabled={isDisabled}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Diagnosis / Ringkasan Klinis</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Diagnosis / Ringkasan Klinis</Label>
                   <Textarea
                     placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
                     value={formData.referral_diagnosis}
                     onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
+                    className="min-h-[68px] resize-y text-xs rounded-md"
                     disabled={isDisabled}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Terapi yang Sudah Diberikan</Label>
                   <Textarea
                     placeholder="Terapi dan tindakan yang sudah dilakukan..."
                     value={formData.referral_therapy}
                     onChange={(e) => onFormChange("referral_therapy", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
+                    className="min-h-[68px] resize-y text-xs rounded-md"
                     disabled={isDisabled}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Hasil Pemeriksaan Penunjang</Label>
                   <Textarea
                     placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
                     value={formData.referral_lab_result}
                     onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
+                    className="min-h-[68px] resize-y text-xs rounded-md"
                     disabled={isDisabled}
                   />
                 </div>
-                <div className="space-y-2 lg:col-span-2">
-                  <Label className="text-sm">Catatan Tambahan untuk RS Tujuan</Label>
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs font-medium">Catatan Tambahan untuk RS Tujuan</Label>
                   <Textarea
                     placeholder="Catatan tambahan yang perlu diketahui RS tujuan..."
                     value={formData.referral_notes}
                     onChange={(e) => onFormChange("referral_notes", e.target.value)}
-                    className={DISPOSITION_TEXTAREA_CLASS}
+                    className="min-h-[60px] resize-y text-xs rounded-md"
                     disabled={isDisabled}
                   />
                 </div>
               </div>
             </div>
-          </DispositionSection>
+          </>
         )}
 
         {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2") && (
-          <DispositionSection
-            eyebrow="Bridging"
-            title={`Rujukan BPJS ${referralMode === "bpjs_v1" ? "V1" : "V2"}`}
-            action={<span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-none uppercase tracking-widest">{referralMode === "bpjs_v1" ? "RUjukan V.1" : "Rujukan V.2"}</span>}
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Nomor SEP</Label>
+          <div className="py-3 first:pt-1 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Rujukan BPJS {referralMode === "bpjs_v1" ? "V1" : "V2"}
+              </div>
+              <Badge variant="outline" className="h-5 text-[10px]">
+                {referralMode === "bpjs_v1" ? "V1" : "V2"}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Nomor SEP</Label>
                 <Input
                   value={formData.referral_no_sep || activeSEP?.no_sep || ""}
                   onChange={(e) => onFormChange("referral_no_sep", e.target.value)}
                   disabled={isDisabled}
                   placeholder="Nomor SEP"
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Nomor Rujukan</Label>
-                <Input value={formData.referral_no_rujukan || ""} onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)} disabled={isDisabled} placeholder="Terisi setelah create" />
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Nomor Rujukan</Label>
+                <Input
+                  value={formData.referral_no_rujukan || ""}
+                  onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)}
+                  disabled={isDisabled}
+                  placeholder="Terisi setelah create"
+                  className="h-8 text-xs rounded-md"
+                />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Tanggal Rujukan</Label>
+              <div className={cn("space-y-1", referralMode !== "bpjs_v2" && "md:col-span-2")}>
+                <Label className="text-xs font-medium">Tanggal Rujukan</Label>
                 <Input
                   type="date"
                   value={formData.referral_tgl_rujukan || ""}
                   onChange={(e) => onFormChange("referral_tgl_rujukan", e.target.value)}
                   disabled={isDisabled}
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
               {referralMode === "bpjs_v2" && (
-                <div className="space-y-2 lg:col-span-2">
-                  <Label className="text-sm">Tgl Rencana Kunjungan</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Tgl Rencana Kunjungan</Label>
                   <Input
                     type="date"
                     value={formData.referral_tgl_rencana_kunjungan || ""}
                     onChange={(e) => onFormChange("referral_tgl_rencana_kunjungan", e.target.value)}
                     disabled={isDisabled}
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
               )}
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Tingkat Faskes Tujuan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Tingkat Faskes Tujuan</Label>
                 <Combobox
                   options={[
                     { value: "1", label: "Faskes Tingkat 1 (Puskesmas/Klinik)" },
@@ -1772,50 +1815,51 @@ export function ReferralDrawer({
                   value={formData.referral_faskes || "2"}
                   onValueChange={(value) => {
                     onFormChange("referral_faskes", value);
-                    // Reset selected PPK when faskes level changes
                     onFormChange("referral_ppk_code", "");
                     onFormChange("referral_facility", "");
                   }}
                   placeholder="Pilih tingkat faskes"
                   disabled={isDisabled}
-                  className={BPJS_FIELD_CLASS}
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm">PPK Dirujuk</Label>
+                  <Label className="text-xs font-medium">PPK Dirujuk</Label>
                   {!isDisabled && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs"
+                      className="h-5 px-1.5 text-[11px]"
                       onClick={() => setPpkDialogOpen(true)}
                     >
-                      <Plus className="h-3 w-3 mr-1" />
+                      <Plus className="h-3 w-3 mr-0.5" />
                       PPK Baru
                     </Button>
                   )}
                 </div>
                 <div className="relative w-full">
                   <Input
-                    value={formData.referral_facility 
-                      ? `${formData.referral_ppk_code || ""} - ${formData.referral_facility}` 
-                      : (formData.referral_ppk_code || "")}
+                    value={
+                      formData.referral_facility
+                        ? `${formData.referral_ppk_code || ""} - ${formData.referral_facility}`
+                        : formData.referral_ppk_code || ""
+                    }
                     readOnly
                     disabled={isDisabled}
                     placeholder={`Pilih dari master BPJS (Faskes ${formData.referral_faskes || "2"})`}
-                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", isDisabled ? "bg-muted" : "bg-muted/20")}
+                    className={cn("h-8 pr-8 text-xs rounded-md cursor-pointer", isDisabled ? "bg-muted" : "bg-background")}
                     onClick={() => {
                       if (!isDisabled) setPpkSearchModalOpen(true);
                     }}
                   />
-                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute right-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
 
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Jenis Pelayanan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Jenis Pelayanan</Label>
                 <Combobox
                   options={[{ value: "1", label: "Rawat Inap" }, { value: "2", label: "Rawat Jalan" }]}
                   value={formData.referral_jns_pelayanan || "2"}
@@ -1824,11 +1868,11 @@ export function ReferralDrawer({
                   searchPlaceholder="Cari..."
                   emptyText="Tidak ada opsi"
                   disabled={isDisabled}
-                  className={BPJS_FIELD_CLASS}
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Tipe Rujukan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Tipe Rujukan</Label>
                 <Combobox
                   options={[{ value: "0", label: "Penuh" }, { value: "1", label: "Partial" }, { value: "2", label: "Rujuk Balik" }]}
                   value={formData.referral_tipe_rujukan || "0"}
@@ -1837,171 +1881,206 @@ export function ReferralDrawer({
                   searchPlaceholder="Cari..."
                   emptyText="Tidak ada opsi"
                   disabled={isDisabled}
-                  className={BPJS_FIELD_CLASS}
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
 
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Kode Diagnosa Rujukan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Kode Diagnosa Rujukan</Label>
                 <div className="relative w-full">
                   <Input
-                    value={selectedDiagnosaNama
-                      ? `${formData.referral_diag_code || ""} - ${selectedDiagnosaNama}`
-                      : (formData.referral_diag_code || "")}
+                    value={
+                      selectedDiagnosaNama
+                        ? `${formData.referral_diag_code || ""} - ${selectedDiagnosaNama}`
+                        : formData.referral_diag_code || ""
+                    }
                     readOnly
                     disabled={isDisabled}
                     placeholder="Pilih kode diagnosa dari master SIMRS"
-                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", isDisabled ? "bg-muted" : "bg-muted/20")}
+                    className={cn("h-8 pr-8 text-xs rounded-md cursor-pointer", isDisabled ? "bg-muted" : "bg-background")}
                     onClick={() => {
                       if (!isDisabled) setDiagnosaModalOpen(true);
                     }}
                   />
-                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute right-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Kode Poli Rujukan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Kode Poli Rujukan</Label>
                 <div className="relative w-full">
                   <Input
-                    value={selectedPoliNama
-                      ? `${formData.referral_poli_code || ""} - ${selectedPoliNama}`
-                      : (formData.referral_poli_code || "")}
+                    value={
+                      selectedPoliNama
+                        ? `${formData.referral_poli_code || ""} - ${selectedPoliNama}`
+                        : formData.referral_poli_code || ""
+                    }
                     readOnly
                     disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
                     placeholder={formData.referral_tipe_rujukan === "2" ? "Kosong untuk tipe 2" : "Pilih dari list spesialistik BPJS"}
-                    className={cn("h-10 pr-10 cursor-pointer border-border/70 rounded-md", (isDisabled || formData.referral_tipe_rujukan === "2") ? "bg-muted" : "bg-muted/20")}
+                    className={cn(
+                      "h-8 pr-8 text-xs rounded-md cursor-pointer",
+                      isDisabled || formData.referral_tipe_rujukan === "2" ? "bg-muted" : "bg-background"
+                    )}
                     onClick={() => {
                       if (!(isDisabled || formData.referral_tipe_rujukan === "2")) setPoliModalOpen(true);
                     }}
                   />
-                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute right-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Catatan Rujukan</Label>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs font-medium">Catatan Rujukan</Label>
                 <Textarea
                   value={formData.referral_reason}
                   onChange={(e) => onFormChange("referral_reason", e.target.value)}
-                  className={DISPOSITION_TEXTAREA_CLASS}
+                  className="min-h-[60px] resize-y text-xs rounded-md"
                   placeholder="Catatan klinis rujukan"
                   disabled={isDisabled}
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border/50">
-              <Button type="button" variant="destructive" className="rounded-none" onClick={deleteReferral} disabled={isDisabled || bpjsSubmitting || !formData.referral_no_rujukan}>
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={deleteReferral}
+                disabled={isDisabled || bpjsSubmitting || !formData.referral_no_rujukan}
+              >
                 Hapus Rujukan BPJS
               </Button>
-              <Button type="button" className="rounded-none" onClick={createOrUpdateBPJSReferral} disabled={isDisabled || bpjsSubmitting}>
-                {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={createOrUpdateBPJSReferral}
+                disabled={isDisabled || bpjsSubmitting}
+              >
+                {bpjsSubmitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
                 {formData.referral_no_rujukan ? "Update Rujukan BPJS" : "Buat Rujukan BPJS"}
               </Button>
             </div>
-          </DispositionSection>
+          </div>
         )}
 
         {referralMode === "bpjs_khusus" && (
-          <DispositionSection
-            eyebrow="Bridging"
-            title="Rujukan Khusus BPJS"
-            action={<span className="text-xs font-semibold bg-purple-600 text-white px-2 py-0.5 rounded-none uppercase tracking-widest">Khusus</span>}
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Nomor Rujukan Dasar</Label>
+          <div className="py-3 first:pt-1 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Rujukan Khusus BPJS
+              </div>
+              <Badge variant="outline" className="h-5 text-[10px]">Khusus</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Nomor Rujukan Dasar</Label>
                 <Input
                   value={formData.referral_no_rujukan || ""}
                   onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)}
                   disabled={isDisabled}
                   placeholder="No rujukan dari V1/V2"
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Kode Diagnosis Khusus</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Kode Diagnosis Khusus</Label>
                 <Input
                   value={formData.referral_khusus_diagnosa_codes || ""}
                   onChange={(e) => onFormChange("referral_khusus_diagnosa_codes", e.target.value)}
                   disabled={isDisabled}
                   placeholder="Pisahkan dengan koma, contoh: primer;Z49.1,sekunder;I10"
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">Kode Prosedur Khusus</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Kode Prosedur Khusus</Label>
                 <Input
                   value={formData.referral_khusus_procedure_codes || ""}
                   onChange={(e) => onFormChange("referral_khusus_procedure_codes", e.target.value)}
                   disabled={isDisabled}
                   placeholder="Pisahkan dengan koma, contoh: 95.04,89.12"
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label className="text-sm">ID Rujukan Khusus</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">ID Rujukan Khusus</Label>
                 <Input
                   value={formData.referral_khusus_id || bpjsReferral?.khusus_id_rujukan || ""}
                   onChange={(e) => onFormChange("referral_khusus_id", e.target.value)}
                   disabled={isDisabled}
                   placeholder="Terisi setelah create jika tersedia"
+                  className="h-8 text-xs rounded-md"
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border/50 mt-4">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
               <Button
                 type="button"
                 variant="destructive"
-                className="rounded-none"
+                size="sm"
+                className="h-8 text-xs"
                 onClick={deleteRujukanKhusus}
                 disabled={isDisabled || bpjsSubmitting || !formData.referral_khusus_id || !formData.referral_no_rujukan}
               >
                 Hapus Rujukan Khusus
               </Button>
-              <Button type="button" className="rounded-none" onClick={createRujukanKhusus} disabled={isDisabled || bpjsSubmitting}>
-                {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={createRujukanKhusus}
+                disabled={isDisabled || bpjsSubmitting}
+              >
+                {bpjsSubmitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
                 Buat Rujukan Khusus
               </Button>
             </div>
-          </DispositionSection>
+          </div>
         )}
 
-        {(referralMode !== "manual") && (
-          <DispositionSection eyebrow="Clinical" title="Ringkasan Klinis Rujukan">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2 md:col-span-2 lg:col-span-4">
-                <Label className="text-sm">Ringkasan Klinis</Label>
+        {referralMode !== "manual" && (
+          <div className="py-3 last:pb-1 space-y-2.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Ringkasan Klinis Rujukan
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs font-medium">Ringkasan Klinis</Label>
                 <Textarea
                   placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
                   value={formData.referral_diagnosis}
                   onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
-                  className={DISPOSITION_TEXTAREA_CLASS}
+                  className="min-h-[68px] resize-y text-xs rounded-md"
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2 lg:col-span-2">
-                <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Terapi yang Sudah Diberikan</Label>
                 <Textarea
                   placeholder="Terapi dan tindakan yang sudah dilakukan..."
                   value={formData.referral_therapy}
                   onChange={(e) => onFormChange("referral_therapy", e.target.value)}
-                  className={DISPOSITION_TEXTAREA_CLASS}
+                  className="min-h-[68px] resize-y text-xs rounded-md"
                   disabled={isDisabled}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2 lg:col-span-2">
-                <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Hasil Pemeriksaan Penunjang</Label>
                 <Textarea
                   placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
                   value={formData.referral_lab_result}
                   onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
-                  className={DISPOSITION_TEXTAREA_CLASS}
+                  className="min-h-[68px] resize-y text-xs rounded-md"
                   disabled={isDisabled}
                 />
               </div>
             </div>
-          </DispositionSection>
+          </div>
         )}
       </DispositionSheetShell>
 
@@ -2111,6 +2190,40 @@ interface DeathDrawerProps {
   onSubmit: () => void;
   saving: boolean;
   isDisabled: boolean;
+  visitId?: number;
+  patientData?: {
+    nama_lengkap: string;
+    no_rm: string;
+  } | null;
+  onNavigateToDeathCertificate?: () => void;
+}
+
+function formatDeathDateTimeLocal(raw?: string): string {
+  if (!raw) return "";
+  // Already YYYY-MM-DDTHH:mm
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw.slice(0, 16);
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+function buildDeathCauseFromCert(cert: DeathCertificate): string {
+  const parts: string[] = [];
+  if (cert.primary_cause_name) {
+    parts.push(cert.primary_cause_code ? `${cert.primary_cause_name} (${cert.primary_cause_code})` : cert.primary_cause_name);
+  } else if (cert.primary_cause_code) {
+    parts.push(cert.primary_cause_code);
+  }
+  if (cert.underlying_cause_name) {
+    parts.push(`Penyebab dasar: ${cert.underlying_cause_name}${cert.underlying_cause_code ? ` (${cert.underlying_cause_code})` : ""}`);
+  }
+  if (parts.length === 0 && cert.notes) {
+    parts.push(cert.notes);
+  }
+  return parts.join(" — ");
 }
 
 export function DeathDrawer({
@@ -2121,16 +2234,78 @@ export function DeathDrawer({
   onSubmit,
   saving,
   isDisabled,
+  visitId,
+  patientData,
+  onNavigateToDeathCertificate,
 }: DeathDrawerProps) {
+  const [loadingCert, setLoadingCert] = useState(false);
+  const [deathCert, setDeathCert] = useState<DeathCertificate | null>(null);
+
+  useEffect(() => {
+    if (!open || !visitId) {
+      return;
+    }
+    let cancelled = false;
+    setLoadingCert(true);
+    medicalRecordsApi
+      .getDeathCertificates(visitId)
+      .then((res) => {
+        if (cancelled) return;
+        const certs = res.data || [];
+        if (certs.length > 0) {
+          const latest = certs[0];
+          setDeathCert(latest);
+          const formattedTime = formatDeathDateTimeLocal(latest.death_datetime);
+          if (formattedTime) {
+            onFormChange("death_time", formattedTime);
+          }
+          const causeText = buildDeathCauseFromCert(latest);
+          if (causeText) {
+            onFormChange("death_cause", causeText);
+          }
+        } else {
+          setDeathCert(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDeathCert(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCert(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, visitId]);
+
+  const handleGoToDeathCertificate = () => {
+    onOpenChange(false);
+    onNavigateToDeathCertificate?.();
+  };
+
+  const missingDeathCert = Boolean(visitId) && !loadingCert && !deathCert;
+
   const footer = (
-    <div className="flex w-full justify-end gap-3">
-      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+    <div className="flex w-full justify-end gap-2">
+      <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs">
         Batal
       </Button>
-      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
-        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-        Simpan
-      </Button>
+      {missingDeathCert && onNavigateToDeathCertificate ? (
+        <Button size="sm" onClick={handleGoToDeathCertificate} className="h-8 text-xs">
+          <FileText className="mr-1.5 h-3.5 w-3.5" />
+          Buat Surat Kematian
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          onClick={onSubmit}
+          disabled={saving || isDisabled || loadingCert || missingDeathCert}
+          className="h-8 text-xs"
+        >
+          {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+          Simpan
+        </Button>
+      )}
     </div>
   );
 
@@ -2144,42 +2319,109 @@ export function DeathDrawer({
       icon={FileText}
       metaLabel="DEATH"
       railTitle="Checklist Kematian"
-      railDescription="Field tetap dipertahankan, tetapi drawer dibuat lebih fokus dengan rel panduan untuk memastikan pencatatan awal tidak terlewat."
-      railPoints={[
-        "Isi waktu kematian terlebih dahulu agar kronologi kunjungan tetap konsisten.",
-        "Tuliskan sebab kematian klinis secara ringkas namun dapat dipahami tim berikutnya.",
-        "Lanjutkan detail formal pada tab surat kematian setelah drawer ini disimpan.",
-      ]}
+      railDescription=""
+      railPoints={[]}
       footer={footer}
+      patientData={patientData}
+      bodyClassName="mx-auto flex w-full max-w-[1320px] flex-col divide-y divide-border/70"
     >
-      <Alert className="border-muted-foreground/20 bg-muted/30">
-        <AlertDescription className="text-sm text-muted-foreground">
-          Untuk detail lengkap surat kematian (penyebab ICD-10, saksi, dll), silakan buka tab <strong>"Surat Kematian"</strong> di menu sebelah kiri.
-        </AlertDescription>
-      </Alert>
-      <DispositionSection eyebrow="Catatan Awal" title="Data Kematian Dasar" >
-        <div className="flex flex-col gap-4">
-          <div className="space-y-2 max-w-sm">
-            <Label className="text-sm">Waktu Kematian</Label>
+      {/* Status Surat Kematian */}
+      <div className="py-3 first:pt-1 space-y-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Surat Keterangan Kematian
+        </div>
+
+        {loadingCert ? (
+          <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span>Memeriksa surat keterangan kematian...</span>
+          </div>
+        ) : deathCert ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-emerald-500 bg-emerald-50/40 px-3 py-2 text-xs">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 font-semibold text-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Surat Kematian Tersedia — Data Diisi Otomatis</span>
+                {deathCert.certificate_number && (
+                  <Badge variant="outline" className="h-5 font-mono text-[10px]">
+                    {deathCert.certificate_number}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-muted-foreground">
+                Waktu dan penyebab kematian telah diisi dari Surat Kematian.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                const formattedTime = formatDeathDateTimeLocal(deathCert.death_datetime);
+                if (formattedTime) onFormChange("death_time", formattedTime);
+                const causeText = buildDeathCauseFromCert(deathCert);
+                if (causeText) onFormChange("death_cause", causeText);
+              }}
+              disabled={isDisabled}
+            >
+              Terapkan Ulang
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50/60 px-3 py-2.5 text-xs text-amber-900">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-semibold">Surat Keterangan Kematian Belum Dibuat</div>
+                <p className="text-amber-800">
+                  Silakan buat Surat Keterangan Kematian terlebih dahulu di tab <strong>Surat Kematian</strong> agar waktu dan penyebab kematian terisi otomatis.
+                </p>
+              </div>
+            </div>
+            {onNavigateToDeathCertificate && (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs shrink-0"
+                onClick={handleGoToDeathCertificate}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" />
+                Buat Surat Kematian
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Data Kematian Dasar */}
+      <div className="py-3 last:pb-1 space-y-2.5">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Data Kematian Dasar
+        </div>
+        <div className="space-y-2.5">
+          <div className="space-y-1">
+            <Label className="text-xs font-medium">Waktu Kematian</Label>
             <Input
               type="datetime-local"
               value={formData.death_time}
               onChange={(e) => onFormChange("death_time", e.target.value)}
-              disabled={isDisabled}
+              disabled={isDisabled || missingDeathCert}
+              className="h-8 text-xs rounded-md"
             />
           </div>
-          <div className="space-y-2">
-            <Label className="text-sm">Penyebab Kematian</Label>
+          <div className="space-y-1">
+            <Label className="text-xs font-medium">Penyebab Kematian</Label>
             <Textarea
               placeholder="Penyebab kematian pasien..."
               value={formData.death_cause}
               onChange={(e) => onFormChange("death_cause", e.target.value)}
-              className={DISPOSITION_TEXTAREA_CLASS}
-              disabled={isDisabled}
+              className="min-h-[80px] resize-y text-xs rounded-md"
+              disabled={isDisabled || missingDeathCert}
             />
           </div>
         </div>
-      </DispositionSection>
+      </div>
     </DispositionSheetShell>
   );
 }

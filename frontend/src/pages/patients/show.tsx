@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
 import {
-  ArrowLeft,
   Loader2,
   Pencil,
   Trash2,
@@ -198,16 +197,33 @@ export default function PatientShow() {
         title={formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}
         description={`No. RM: ${patient.no_rm} • ${patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • ${calculateAge(patient.tanggal_lahir)}`}
         icon={User}
+        onBack={() => window.history.back()}
+        badges={
+          <>
+            {patient.registration_source === 'mjkn' && (
+              <Badge variant="outline" className="rounded-none bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
+                <Smartphone className="h-3 w-3" />
+                Mobile JKN
+              </Badge>
+            )}
+            {patient.is_final ? (
+              <Badge variant="default" className="rounded-none bg-green-600">
+                <CheckCircle className="mr-1 h-3 w-3" />
+                Final
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="rounded-none">
+                <XCircle className="mr-1 h-3 w-3" />
+                Belum Final
+              </Badge>
+            )}
+            <Badge variant={getStatusVariant(patient.status)} className="rounded-none">
+              {patient.status}
+            </Badge>
+          </>
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.history.back()}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
             {/* Tombol Finalisasi */}
             {!patient.is_final && hasPermission('patients.finalize') && (
               <Button
@@ -215,11 +231,12 @@ export default function PatientShow() {
                 size="sm"
                 onClick={handleFinalize}
                 disabled={finalizing}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
                 {finalizing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <CheckCircle className="mr-2 h-4 w-4" />
+                  <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Finalisasi
               </Button>
@@ -231,11 +248,12 @@ export default function PatientShow() {
                 size="sm"
                 onClick={handleUnfinalize}
                 disabled={unfinalizing}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
                 {unfinalizing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <XCircle className="mr-2 h-4 w-4" />
+                  <XCircle className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Buka Finalisasi
               </Button>
@@ -245,8 +263,9 @@ export default function PatientShow() {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(`/patients/${patientId}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
-                <Pencil className="mr-2 h-4 w-4" />
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit
               </Button>
             )}
@@ -256,47 +275,25 @@ export default function PatientShow() {
                 size="sm"
                 onClick={handleDelete}
                 disabled={deleting}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
                 {deleting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Hapus
               </Button>
             )}
           </div>
         }
-      >
-        <div className="flex items-center gap-2 pb-4">
-          {patient.registration_source === 'mjkn' && (
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
-              <Smartphone className="h-3 w-3" />
-              Mobile JKN
-            </Badge>
-          )}
-          {patient.is_final ? (
-            <Badge variant="default" className="bg-green-600">
-              <CheckCircle className="mr-1 h-3 w-3" />
-              Final
-            </Badge>
-          ) : (
-            <Badge variant="secondary">
-              <XCircle className="mr-1 h-3 w-3" />
-              Belum Final
-            </Badge>
-          )}
-          <Badge variant={getStatusVariant(patient.status)}>
-            {patient.status}
-          </Badge>
-        </div>
-      </PageHeader>
+      />
 
       <PageContent>
         <div className="mx-auto w-full max-w-full flex-1 space-y-6 pb-6">
           {/* Identitas Pasien */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <User className="h-3 w-3" />
               IDENTITAS PASIEN
             </div>
@@ -355,12 +352,12 @@ export default function PatientShow() {
           </div>
 
           {/* Alamat */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <MapPin className="h-3 w-3" />
               ALAMAT
             </div>
-            <div className="p-3 sm:p-4">
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="text-xs font-semibold mb-3">Alamat KTP</h4>
@@ -391,8 +388,8 @@ export default function PatientShow() {
           </div>
 
           {/* Kontak */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Phone className="h-3 w-3" />
               KONTAK
             </div>
@@ -419,8 +416,8 @@ export default function PatientShow() {
           </div>
 
           {/* Penanggung Jawab */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Users className="h-3 w-3" />
               PENANGGUNG JAWAB
             </div>
@@ -447,8 +444,8 @@ export default function PatientShow() {
           </div>
 
           {/* Jaminan */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Shield className="h-3 w-3" />
               JAMINAN KESEHATAN
             </div>
@@ -497,8 +494,8 @@ export default function PatientShow() {
           </div>
 
           {/* Riwayat Medis */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-3">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Heart className="h-3 w-3" />
               RIWAYAT MEDIS PENTING
             </div>
@@ -541,7 +538,7 @@ export default function PatientShow() {
           </div>
 
           {/* Informasi Sistem */}
-          <div className="border border-border/70 bg-background">
+          <div className="space-y-3">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               INFORMASI SISTEM
             </div>

@@ -197,22 +197,29 @@ export default function PPKIndexPage() {
     },
     {
       id: 'actions',
-      header: 'Aksi',
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-1.5">
           {canUpdate && (
-            <Button variant="outline" size="sm" onClick={() => openEdit(row.original)}>
-              <Pencil className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+              title="Edit"
+              onClick={() => openEdit(row.original)}
+            >
+              <Pencil className="size-3.5" />
             </Button>
           )}
           {canDelete && (
             <Button
               variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive"
+              size="icon"
+              className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+              title="Hapus"
               onClick={() => setDeleteId(row.original.id)}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="size-3.5" />
             </Button>
           )}
         </div>
@@ -236,33 +243,30 @@ export default function PPKIndexPage() {
         count={rows.length}
         actions={
           canCreate ? (
-            <Button onClick={openCreate} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={openCreate}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="size-3.5" />
               Tambah PPK
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar PPK
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
-              tableId="master-ppk"
-              columns={columns}
-              data={rows}
-              searchPlaceholder="Cari kode/nama PPK..."
-              searchSlot={
-                <div className="flex items-center gap-2 pl-2">
-                  <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
-                  <Switch checked={showInactive} onCheckedChange={setShowInactive} />
-                </div>
-              }
-            />
-          </div>
-        </div>
+      <PageContent noPadding>
+        <DataTable
+          tableId="master-ppk"
+          columns={columns}
+          data={rows}
+          searchPlaceholder="Cari kode/nama PPK..."
+          searchSlot={
+            <div className="flex items-center gap-2 pl-2">
+              <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
+              <Switch checked={showInactive} onCheckedChange={setShowInactive} />
+            </div>
+          }
+        />
       </PageContent>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

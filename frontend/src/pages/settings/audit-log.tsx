@@ -21,13 +21,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { usersApi, signatureApi, DOCUMENT_TYPE_LABELS, type SignatureLog, type MedicalRecordEditLog } from "@/lib/api";
 import { resolveBackendFileUrl } from "@/lib/api/client";
-import { Loader2, ShieldCheck, FileEdit, SlidersHorizontal, RefreshCw, ArrowLeft } from "lucide-react";
+import { Loader2, ShieldCheck, FileEdit, SlidersHorizontal, RefreshCw } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useNavigate } from "react-router-dom";
 import { Label } from "@/components/ui/label";
@@ -182,64 +183,58 @@ export default function AuditLogPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={ShieldCheck}
         title="Audit Log Sistem"
         description="Pantau riwayat aktivitas tanda tangan digital dan perubahan data rekam medis"
+        onBack={() => navigate(-1)}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-8">
-              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-              Kembali
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleSearch} className="h-8">
+            <Button variant="outline" size="sm" onClick={handleSearch} className="rounded-none h-8 px-3 text-xs font-semibold shadow-none">
               <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", (signatureLoading || editLoading) && "animate-spin")} />
               Refresh
             </Button>
-            <Button
-              variant={filterOpen ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterOpen(!filterOpen)}
-              className="h-8"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-              Filter
-              {hasActiveFilters && (
-                <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary">
-                  !
-                </span>
-              )}
-            </Button>
-          </div>
-        }
-      />
-
-      <PageContent>
-        <div className="space-y-4">
-          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-            <CollapsibleContent>
-              <div className="rounded-lg border bg-card p-4 shadow-sm mb-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">Dari Tanggal</Label>
-                    <Input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="h-8 w-40 text-xs"
-                    />
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={hasActiveFilters ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+                  Filter
+                  {hasActiveFilters && (
+                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-none bg-primary-foreground text-[10px] text-primary">
+                      !
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[340px] p-4">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Dari Tanggal</Label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Sampai Tanggal</Label>
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">Sampai Tanggal</Label>
-                    <Input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="h-8 w-40 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">User</Label>
+                    <Label className="text-[10px] uppercase text-muted-foreground">User</Label>
                     <Select value={selectedUserId || "all"} onValueChange={(v) => setSelectedUserId(v === "all" ? "" : v)}>
-                      <SelectTrigger className="h-8 w-48 text-xs">
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Semua User" />
                       </SelectTrigger>
                       <SelectContent>
@@ -254,9 +249,9 @@ export default function AuditLogPage() {
                   </div>
                   {activeTab === "signature" && (
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground ml-1">Dokumen</Label>
+                      <Label className="text-[10px] uppercase text-muted-foreground">Dokumen</Label>
                       <Select value={signatureDocType || "all"} onValueChange={(v) => setSignatureDocType(v === "all" ? "" : v)}>
-                        <SelectTrigger className="h-8 w-48 text-xs">
+                        <SelectTrigger className="h-8 text-xs">
                           <SelectValue placeholder="Jenis Dokumen" />
                         </SelectTrigger>
                         <SelectContent>
@@ -270,9 +265,9 @@ export default function AuditLogPage() {
                   )}
                   {activeTab === "edit" && (
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground ml-1">Record</Label>
+                      <Label className="text-[10px] uppercase text-muted-foreground">Record</Label>
                       <Select value={recordType || "all"} onValueChange={(v) => setRecordType(v === "all" ? "" : v)}>
-                        <SelectTrigger className="h-8 w-48 text-xs">
+                        <SelectTrigger className="h-8 text-xs">
                           <SelectValue placeholder="Jenis Record" />
                         </SelectTrigger>
                         <SelectContent>
@@ -284,36 +279,40 @@ export default function AuditLogPage() {
                       </Select>
                     </div>
                   )}
-                  <div className="flex items-end gap-2 pt-5">
-                    <Button size="sm" onClick={handleSearch} className="h-8 text-xs px-4">
-                      Terapkan
-                    </Button>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t">
                     <Button variant="ghost" size="sm" onClick={handleReset} className="h-8 text-xs">
                       Reset
                     </Button>
+                    <Button size="sm" onClick={() => { handleSearch(); setFilterOpen(false); }} className="h-8 text-xs px-4">
+                      Terapkan
+                    </Button>
                   </div>
                 </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+              </PopoverContent>
+            </Popover>
+          </div>
+        }
+      />
 
+      <PageContent noPadding>
+        <div>
           <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
-            <div className="bg-card rounded-xl border shadow-sm p-1 inline-flex mb-4">
-              <TabsList className="bg-transparent h-8">
-                <TabsTrigger value="signature" className="h-7 text-xs gap-2">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2">
+              <TabsList className="bg-transparent h-8 rounded-none p-0 gap-1">
+                <TabsTrigger value="signature" className="h-7 text-xs gap-2 rounded-none px-3">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Log Tanda Tangan
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted">{signatureTotal}</Badge>
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted rounded-none">{signatureTotal}</Badge>
                 </TabsTrigger>
-                <TabsTrigger value="edit" className="h-7 text-xs gap-2">
+                <TabsTrigger value="edit" className="h-7 text-xs gap-2 rounded-none px-3">
                   <FileEdit className="h-3.5 w-3.5" />
                   Perubahan Rekam Medis
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted">{editTotal}</Badge>
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted rounded-none">{editTotal}</Badge>
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+            <div>
               <TabsContent value="signature" className="m-0 border-0">
                 {signatureLoading ? (
                   <div className="flex flex-col items-center justify-center py-20">

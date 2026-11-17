@@ -8,7 +8,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
-  ArrowLeft,
   Loader2,
   Pencil,
   Trash2,
@@ -144,24 +143,22 @@ export default function EmployeeShow() {
         title={employee.nama_lengkap}
         description={`${employee.nip || employee.nik} • ${getMasterDataName('employee_type', employee.tipe_karyawan)}`}
         icon={User}
+        onBack={() => navigate('/employees')}
+        badges={
+          <Badge variant={employee.is_active ? "default" : "secondary"} className="rounded-none">
+            {employee.is_active ? 'Aktif' : 'Tidak Aktif'}
+          </Badge>
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.history.back()}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
             {hasPermission('users.create') && !employee.user && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setUserModalOpen(true)}
-                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
               >
-                <Lock className="mr-2 h-4 w-4" />
+                <Lock className="mr-1.5 h-3.5 w-3.5" />
                 Buat Akun
               </Button>
             )}
@@ -170,8 +167,9 @@ export default function EmployeeShow() {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(`/employees/${id}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
-                <Pencil className="mr-2 h-4 w-4" />
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit
               </Button>
             )}
@@ -181,35 +179,30 @@ export default function EmployeeShow() {
                 size="sm"
                 onClick={handleDelete}
                 disabled={deleting}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
               >
                 {deleting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Hapus
               </Button>
             )}
           </div>
         }
-      >
-        <div className="pb-4">
-          <Badge variant={employee.is_active ? "default" : "secondary"}>
-            {employee.is_active ? 'Aktif' : 'Tidak Aktif'}
-          </Badge>
-        </div>
-      </PageHeader>
+      />
 
       <PageContent>
         <div className="mx-auto w-full max-w-full flex-1 space-y-6 pb-6">
           {/* Data Pribadi */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <User className="h-3 w-3" />
               DATA PRIBADI
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Nama Lengkap</label>
                   <p className="font-medium text-sm">{employee.nama_lengkap}</p>
@@ -245,13 +238,13 @@ export default function EmployeeShow() {
           </div>
 
           {/* Kontak & Alamat */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Phone className="h-3 w-3" />
               KONTAK & ALAMAT
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">No. Telepon</label>
                   <p className="font-medium text-sm">{employee.no_telepon || '-'}</p>
@@ -278,13 +271,13 @@ export default function EmployeeShow() {
           </div>
 
           {/* Data Kepegawaian */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Briefcase className="h-3 w-3" />
               DATA KEPEGAWAIAN
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Tipe Karyawan</label>
                   <p className="font-medium text-sm">{getMasterDataName('employee_type', employee.tipe_karyawan)}</p>
@@ -322,13 +315,13 @@ export default function EmployeeShow() {
 
           {/* Surat Izin Praktik (Medical Staff) */}
           {isMedicalStaff && (
-            <div className="border border-border/70 bg-background">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <div className="space-y-4">
+              <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                 <Stethoscope className="h-3 w-3" />
                 SURAT IZIN PRAKTIK
               </div>
-              <div className="p-3 sm:p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   <div>
                     <label className="text-xs text-muted-foreground">No. STR</label>
                     <p className="font-medium text-sm">{employee.no_str || '-'}</p>
@@ -359,13 +352,13 @@ export default function EmployeeShow() {
           )}
 
           {/* Pendidikan */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <GraduationCap className="h-3 w-3" />
               PENDIDIKAN
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Pendidikan Terakhir</label>
                   <p className="font-medium text-sm">{getMasterDataName('education_level', employee.pendidikan_terakhir)}</p>
@@ -383,13 +376,13 @@ export default function EmployeeShow() {
           </div>
 
           {/* Informasi Bank */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Building2 className="h-3 w-3" />
               INFORMASI BANK
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Nama Bank</label>
                   <p className="font-medium text-sm">{getMasterDataName('bank', employee.nama_bank)}</p>
@@ -407,13 +400,13 @@ export default function EmployeeShow() {
           </div>
 
           {/* Kontak Darurat */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               <Heart className="h-3 w-3" />
               KONTAK DARURAT
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Nama</label>
                   <p className="font-medium text-sm">{employee.nama_kontak_darurat || '-'}</p>
@@ -431,12 +424,12 @@ export default function EmployeeShow() {
           </div>
 
           {/* Informasi Sistem */}
-          <div className="border border-border/70 bg-background">
+          <div className="space-y-4">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               INFORMASI SISTEM
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
                   <label className="text-xs text-muted-foreground">Dibuat</label>
                   <p className="font-medium text-sm">{formatDate(employee.created_at)}</p>

@@ -21,7 +21,7 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { usePermission } from "@/hooks/usePermission";
 
@@ -145,36 +145,27 @@ export default function CounterEdit() {
       <PageHeader
         title="Edit Loket"
         description="Perbarui informasi loket"
+        onBack={() => navigate("/counters")}
         actions={
-          <div className="flex items-center gap-2">
+          hasPermission("counters.delete") ? (
             <Button
-              variant="outline"
-              size="icon"
-              onClick={() => window.history.back()}
-              className="h-9 w-9"
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <Trash2 className="mr-2 h-4 w-4" />
+              Hapus
             </Button>
-            {hasPermission("counters.delete") && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Hapus
-              </Button>
-            )}
-          </div>
+          ) : undefined
         }
       />
       <PageContent>
-      <div className="border border-border/70 bg-background">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <section className="space-y-4">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
           DATA LOKET
         </div>
-        <div className="p-3 sm:p-4">
+        <div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 [&_input]:h-9">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -286,7 +277,7 @@ export default function CounterEdit() {
             </form>
           </Form>
         </div>
-      </div>
+      </section>
       </PageContent>
 
       <ConfirmDialog

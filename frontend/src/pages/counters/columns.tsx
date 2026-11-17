@@ -88,37 +88,37 @@ export function createCounterColumns(options: ColumnOptions): ColumnDef<Counter>
         const hasDeletePermission = hasPermission("counters.delete");
 
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {hasViewPermission && (
               <Link to={`/counters/${counter.id}`}>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
-                  className="h-8 w-8"
+                  className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
                 >
-                  <Eye className="h-4 w-4" />
+                  <Eye className="size-3.5" />
                 </Button>
               </Link>
             )}
             {hasUpdatePermission && (
               <Link to={`/counters/${counter.id}/edit`}>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
-                  className="h-8 w-8"
+                  className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="size-3.5" />
                 </Button>
               </Link>
             )}
             {hasDeletePermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => options.onDelete(counter.id)}
-                className="h-8 w-8 text-destructive hover:text-destructive"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-3.5" />
               </Button>
             )}
           </div>

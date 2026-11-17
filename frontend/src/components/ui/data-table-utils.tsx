@@ -3,22 +3,15 @@ import type { ColumnDef } from "@tanstack/react-table";
 export function createSelectColumn<TData>(): ColumnDef<TData> {
   return {
     id: "select",
-    header: ({ table }) => (
-      <input
-        type="checkbox"
-        checked={table.getIsAllPageRowsSelected()}
-        onChange={table.getToggleAllPageRowsSelectedHandler()}
-        className="cursor-pointer"
-      />
-    ),
-    cell: ({ row }) => (
-      <input
-        type="checkbox"
-        checked={row.getIsSelected()}
-        onChange={row.getToggleSelectedHandler()}
-        className="cursor-pointer"
-      />
-    ),
+    header: () => <div className="text-center w-10">No</div>,
+    cell: ({ row, table }) => {
+      const { pageIndex, pageSize } = table.getState().pagination;
+      return (
+        <div className="text-center font-mono text-xs text-neutral-500 w-10">
+          {pageIndex * pageSize + row.index + 1}
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   };

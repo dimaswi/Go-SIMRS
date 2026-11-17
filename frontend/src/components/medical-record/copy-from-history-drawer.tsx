@@ -198,11 +198,11 @@ const renderDetailRows = (rows: Array<{ label: string; value: string }>) => {
   }
 
   return (
-    <div className="divide-y divide-border/40">
+    <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
       {rows.map((row) => (
-        <div key={row.label} className="grid grid-cols-[145px_minmax(0,1fr)] gap-3 py-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground truncate">{row.label}</p>
-          <p className="text-xs leading-5 text-foreground break-words">{row.value}</p>
+        <div key={row.label} className="space-y-0.5">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{row.label}</p>
+          <p className="text-xs leading-relaxed text-foreground break-words">{row.value}</p>
         </div>
       ))}
     </div>
@@ -675,23 +675,24 @@ export function CopyFromHistoryDrawer({
     }
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {vitalSigns.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tanda Vital</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="border-b border-border/50 pb-2.5 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Tanda Vital</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4 lg:grid-cols-6">
               {vitalSigns.map((item) => (
-                <span key={item.label} className="inline-flex items-center rounded-md border border-border/70 bg-muted/30 px-2 py-0.5 text-[11px] text-foreground">
-                  <span className="text-muted-foreground mr-1">{item.label}:</span>{item.value}
-                </span>
+                <div key={item.label} className="text-xs">
+                  <span className="text-muted-foreground">{item.label}: </span>
+                  <span className="font-medium text-foreground">{item.value}</span>
+                </div>
               ))}
             </div>
           </div>
         )}
         {renderDetailRows(bodyParts as Array<{ label: string; value: string }>)}
         {supporting.length > 0 && (
-          <div className="pt-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Pemeriksaan Penunjang</p>
+          <div className="border-t border-border/50 pt-2 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Pemeriksaan Penunjang</p>
             {renderDetailRows(supporting)}
           </div>
         )}
@@ -792,7 +793,7 @@ export function CopyFromHistoryDrawer({
             <Button
               variant={isCopied ? "default" : "outline"}
               size="sm"
-              className={cn("h-5 text-[10px] gap-1 px-1.5", isCopied && "bg-green-600 hover:bg-green-600")}
+              className={cn("h-7 text-xs gap-1 px-2.5", isCopied && "bg-green-600 hover:bg-green-600")}
               onClick={() => handleCopy(section, data, visitId)}
               disabled={isCopied}
             >
@@ -817,48 +818,44 @@ export function CopyFromHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[80vw] sm:max-w-[80vw] p-0">
-        <SheetHeader className="px-3 py-2.5 border-b bg-muted/30">
-          <div>
-            <SheetTitle className="text-sm font-semibold flex items-center gap-2">
-              <Copy className="h-3.5 w-3.5" />
+      <SheetContent side="right" className="flex h-full w-screen max-w-[100vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+        <SheetHeader className="border-b px-6 py-2.5 pr-10">
+          <div className="space-y-0.5 text-left">
+            <SheetTitle className="flex items-center gap-2 text-base font-bold leading-tight">
+              <Copy className="h-4 w-4 text-muted-foreground" />
               Salin dari Riwayat Kunjungan
             </SheetTitle>
             {patientName && (
-              <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <User className="h-3 w-3" />
                 {patientName}
               </p>
             )}
-            <p className="text-[10px] text-muted-foreground mt-1 leading-4">
-              Pilih kunjungan lama, lalu klik &quot;Salin&quot; pada bagian yang ingin disalin ke kunjungan aktif
-            </p>
           </div>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-100px)] [&_[data-radix-scroll-area-scrollbar]]:hidden">
+        <ScrollArea className="flex-1 [&_[data-radix-scroll-area-scrollbar]]:hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : visits.length === 0 ? (
-            <div className="text-center py-12 text-sm text-muted-foreground">
+            <div className="text-center py-12 text-xs text-muted-foreground">
               Tidak ada riwayat kunjungan sebelumnya
             </div>
           ) : (
-            <div className="p-2">
-              <div className="border overflow-x-auto bg-background">
-                <table className="w-full min-w-[760px] text-xs">
-                  <thead className="bg-muted/30 border-b">
-                    <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      <th className="text-left font-medium px-2 py-2 w-[120px]">Tanggal</th>
-                      <th className="text-left font-medium px-2 py-2 w-[110px]">Jenis</th>
-                      <th className="text-left font-medium px-2 py-2">Unit / Dokter</th>
-                      <th className="text-left font-medium px-2 py-2 w-[90px]">Status</th>
-                      <th className="text-left font-medium px-2 py-2 w-[90px]">Ringkasan</th>
-                      <th className="text-right font-medium px-2 py-2 w-[60px]">Aksi</th>
-                    </tr>
-                  </thead>
+            <div className="overflow-x-auto bg-background">
+              <table className="w-full min-w-[760px] text-xs">
+                <thead className="border-b bg-muted/20">
+                  <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left font-medium px-4 py-2 w-[130px]">Tanggal</th>
+                    <th className="text-left font-medium px-3 py-2 w-[110px]">Jenis</th>
+                    <th className="text-left font-medium px-3 py-2">Unit / Dokter</th>
+                    <th className="text-left font-medium px-3 py-2 w-[90px]">Status</th>
+                    <th className="text-left font-medium px-3 py-2 w-[90px]">Ringkasan</th>
+                    <th className="text-right font-medium px-4 py-2 w-[60px]">Aksi</th>
+                  </tr>
+                </thead>
                   <tbody>
                     {registrationGroups.flatMap((group) =>
                       group.visits.map((visit) => {
@@ -973,7 +970,6 @@ export function CopyFromHistoryDrawer({
                   </tbody>
                 </table>
               </div>
-            </div>
           )}
         </ScrollArea>
       </SheetContent>

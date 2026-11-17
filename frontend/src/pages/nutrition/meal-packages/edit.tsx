@@ -17,7 +17,7 @@ import {
   type NutritionPackage,
 } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Trash2, UtensilsCrossed, Flame, Search } from "lucide-react";
+import { Loader2, Plus, Trash2, UtensilsCrossed, Flame, Search } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -267,12 +267,9 @@ export default function NutritionMealPackageEdit() {
         title="Edit Paket Makanan"
         description="Perbarui komposisi paket makanan, jadwal saji, diet, dan total nutrisi agar tetap konsisten dengan kebutuhan operasional gizi."
         icon={UtensilsCrossed}
+        onBack={() => navigate("/nutrition/meal-packages")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/meal-packages")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="nutrition-package-edit-form" size="sm" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Perubahan

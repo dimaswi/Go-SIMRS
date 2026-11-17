@@ -26,21 +26,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 function getStoredPageIndex(tableId: string): number {
@@ -115,13 +100,15 @@ interface DataTableProps<TData, TValue> {
   globalFilterValue?: string;
   onGlobalFilterValueChange?: (value: string) => void;
   searchSlot?: React.ReactNode;
+  toolbarRight?: React.ReactNode;
+  hideRowCount?: boolean;
   className?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = "Cari data...",
   showPagination = true,
   showSearch = true,
   pageSize: defaultPageSize = 10,
@@ -134,6 +121,8 @@ export function DataTable<TData, TValue>({
   globalFilterValue: controlledGlobalFilter,
   onGlobalFilterValueChange,
   searchSlot,
+  toolbarRight,
+  hideRowCount = false,
   className,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
@@ -232,7 +221,6 @@ export function DataTable<TData, TValue>({
       if (!filterValue) return true;
       const q = filterValue.toLowerCase().trim();
       if (!q) return true;
-      // Recursively flatten all string values from the row's original data
       const extractStrings = (obj: unknown): string => {
         if (obj === null || obj === undefined) return "";
         if (typeof obj === "string") return obj.toLowerCase();
@@ -267,181 +255,199 @@ export function DataTable<TData, TValue>({
     }
   }, [handlePageChange, maxPage, pageIndex]);
 
+  const currentRowsCount = table.getRowModel().rows.length;
+  const fromRow = filteredCount === 0 ? 0 : pageIndex * pageSize + 1;
+  const toRow = filteredCount === 0 ? 0 : Math.min(fromRow + currentRowsCount - 1, filteredCount);
+
   return (
-    <div className={cn("flex w-full flex-col", className)}>
-      {(showSearch || searchSlot) && (
-        <div className="flex flex-wrap items-center gap-1.5 py-2">
-          {showSearch && (
-            <div className="relative w-full max-w-[240px] min-w-0">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder={searchPlaceholder}
-                value={effectiveGlobalFilter}
-                onChange={(event) => handleSearchChange(event.target.value)}
-                className="h-7 w-full bg-background pl-7 pr-7 text-xs"
-              />
-              {effectiveGlobalFilter && (
-                <button
-                  type="button"
-                  onClick={() => handleSearchChange("")}
-                  className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Hapus pencarian"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          )}
+    <div className={cn("akuntansi-datatable flex w-full flex-col bg-white dark:bg-neutral-950", className)}>
+      {/* 1. Shaded Filter & Search Strip (ala Go-Akuntansi) */}
+      {(showSearch || searchSlot || toolbarRight) && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            {showSearch && (
+              <div className="relative w-full sm:w-72 min-w-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+                <Input
+                  placeholder={searchPlaceholder}
+                  value={effectiveGlobalFilter}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  className="h-8 w-full rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 pl-8 pr-7 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 shadow-none focus-visible:ring-1 focus-visible:ring-neutral-400"
+                />
+                {effectiveGlobalFilter && (
+                  <button
+                    type="button"
+                    onClick={() => handleSearchChange("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    aria-label="Hapus pencarian"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
 
-          {searchSlot}
+            {searchSlot}
+          </div>
 
-          <span className="ml-auto whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
-            {filteredCount.toLocaleString("id-ID")}
-            {filteredCount !== totalCount && (
-              <span className="text-muted-foreground/60">
-                {" "}
-                / {totalCount.toLocaleString("id-ID")}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {toolbarRight}
+            {!hideRowCount && (
+              <span className="whitespace-nowrap font-mono text-xs tabular-nums text-neutral-500">
+                {filteredCount.toLocaleString("id-ID")}
+                {filteredCount !== totalCount && (
+                  <span className="text-neutral-400">
+                    {" "}
+                    / {totalCount.toLocaleString("id-ID")}
+                  </span>
+                )}{" "}
+                baris
               </span>
-            )}{" "}
-            baris
-          </span>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="rounded-md border-b">
-        <div className="relative max-h-[calc(100dvh-400px)] overflow-y-auto">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className="sticky top-0 z-20 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-
-            <TableBody>
-              {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => {
-                  const subRowRenderer = (meta as Record<string, unknown>)
-                    ?.renderSubRow as
-                    | ((data: TData) => React.ReactNode)
-                    | undefined;
-                  return (
-                    <React.Fragment key={row.id}>
-                      <TableRow data-state={row.getIsSelected() && "selected"}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      {subRowRenderer && subRowRenderer(row.original)}
-                    </React.Fragment>
-                  );
-                })
-              ) : (
-                <TableRow className="even:bg-transparent odd:bg-transparent hover:bg-transparent">
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-32 text-center text-sm text-muted-foreground"
+      {/* 2. Enterprise Flat Table (ala Go-Akuntansi) */}
+      <div className="w-full overflow-x-auto">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr
+                key={headerGroup.id}
+                className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/75 dark:bg-neutral-900/75 text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider"
+              >
+                {headerGroup.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 whitespace-nowrap align-middle [&_button]:h-auto [&_button]:p-0 [&_button]:font-bold [&_button]:uppercase [&_button]:tracking-wider [&_button]:text-xs [&_button]:text-neutral-700 dark:[&_button]:text-neutral-300 [&_button]:hover:bg-transparent"
                   >
-                    Tidak ada data yang ditemukan.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+
+          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            {table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => {
+                const subRowRenderer = (meta as Record<string, unknown>)
+                  ?.renderSubRow as
+                  | ((data: TData) => React.ReactNode)
+                  | undefined;
+                return (
+                  <React.Fragment key={row.id}>
+                    <tr
+                      data-state={row.getIsSelected() && "selected"}
+                      className="hover:bg-neutral-50/70 dark:hover:bg-neutral-900/50 transition-colors"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="py-2.5 px-3 text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 align-middle"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                    {subRowRenderer && subRowRenderer(row.original)}
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="py-12 text-center font-mono text-xs italic text-neutral-400"
+                >
+                  Tidak ada data yang sesuai kriteria pencarian.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
+      {/* 3. Card Footer Pagination Bar (ala Go-Akuntansi) */}
       {showPagination && (
-        <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 bg-background py-1.5 px-2 rounded-md">
-          <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
-              Baris/hal
-            </span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => handlePageSizeChange(Number(value))}
+        <div className="p-3 px-4 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-neutral-600 dark:text-neutral-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Baris per halaman:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="h-7 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-2 text-xs text-neutral-900 dark:text-neutral-100 rounded-none shadow-none cursor-pointer outline-none"
             >
-              <SelectTrigger className="h-7 w-[70px] bg-background text-[11px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {[10, 20, 30, 50, 100].map((size) => (
-                  <SelectItem
-                    key={size}
-                    value={String(size)}
-                    className="text-[11px]"
-                  >
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {[10, 20, 30, 50, 100].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span className="font-mono text-neutral-400 ml-1">
+              Menampilkan {fromRow} - {toRow} dari {filteredCount.toLocaleString("id-ID")} data
+            </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-0.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => handlePageChange(0)}
-                disabled={pageIndex <= 0}
-              >
-                <span className="sr-only">Halaman pertama</span>
-                <ChevronsLeft className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => handlePageChange(pageIndex - 1)}
-                disabled={pageIndex <= 0}
-              >
-                <span className="sr-only">Halaman sebelumnya</span>
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-              <span className="whitespace-nowrap px-1.5 text-[11px] tabular-nums text-muted-foreground">
-                {Math.min(pageIndex + 1, totalPages)} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => handlePageChange(pageIndex + 1)}
-                disabled={pageIndex >= maxPage}
-              >
-                <span className="sr-only">Halaman berikutnya</span>
-                <ChevronRight className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => handlePageChange(maxPage)}
-                disabled={pageIndex >= maxPage}
-              >
-                <span className="sr-only">Halaman terakhir</span>
-                <ChevronsRight className="h-3 w-3" />
-              </Button>
-            </div>
+          <div className="flex items-center gap-1 font-mono self-end sm:self-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 shadow-none disabled:opacity-40"
+              onClick={() => handlePageChange(0)}
+              disabled={pageIndex <= 0}
+              title="Halaman Pertama"
+            >
+              <ChevronsLeft className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 shadow-none disabled:opacity-40"
+              onClick={() => handlePageChange(pageIndex - 1)}
+              disabled={pageIndex <= 0}
+              title="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="size-3.5" />
+            </Button>
+
+            <span className="px-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+              Hal {Math.min(pageIndex + 1, totalPages)} dari {totalPages}
+            </span>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 shadow-none disabled:opacity-40"
+              onClick={() => handlePageChange(pageIndex + 1)}
+              disabled={pageIndex >= maxPage}
+              title="Halaman Selanjutnya"
+            >
+              <ChevronRight className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 shadow-none disabled:opacity-40"
+              onClick={() => handlePageChange(maxPage)}
+              disabled={pageIndex >= maxPage}
+              title="Halaman Terakhir"
+            >
+              <ChevronsRight className="size-3.5" />
+            </Button>
           </div>
         </div>
       )}

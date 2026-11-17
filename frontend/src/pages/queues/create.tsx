@@ -23,9 +23,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { queueApi, queueTypeLabels } from "@/lib/api/queue";
 import { counterApi, type Counter } from "@/lib/api/counters";
-import { ArrowLeft, Loader2, Ticket } from "lucide-react";
+import { Loader2, Ticket } from "lucide-react";
 
 const formSchema = z.object({
   queue_type: z.enum(["general", "bpjs"]),
@@ -104,27 +105,15 @@ export default function QueueCreate() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Ticket className="h-5 w-5" />
-            Ambil Nomor Antrean
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pilih jenis layanan dan loket pendaftaran
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6 max-w-2xl mx-auto w-full">
+    <PageShell>
+      <PageHeader
+        icon={Ticket}
+        title="Ambil Nomor Antrean"
+        description="Pilih jenis layanan dan loket pendaftaran"
+        onBack={() => navigate("/queues")}
+      />
+      <PageContent>
+        <div className="rounded-none border border-neutral-200 dark:border-neutral-800 p-6 max-w-2xl mx-auto w-full bg-white dark:bg-neutral-950">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -138,11 +127,11 @@ export default function QueueCreate() {
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger className="text-lg h-12">
+                        <SelectTrigger className="text-lg h-12 rounded-none">
                           <SelectValue placeholder="Pilih jenis layanan" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="rounded-none">
                         <SelectItem value="general" className="text-lg py-3">
                           {queueTypeLabels.general} (A)
                         </SelectItem>
@@ -163,7 +152,7 @@ export default function QueueCreate() {
                   <FormItem>
                     <FormLabel>Loket Pendaftaran</FormLabel>
                     {loading ? (
-                      <div className="flex items-center justify-center h-12 border rounded-md">
+                      <div className="flex items-center justify-center h-12 border border-neutral-200 dark:border-neutral-800 rounded-none">
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         <span className="text-sm text-muted-foreground">Memuat loket...</span>
                       </div>
@@ -173,11 +162,11 @@ export default function QueueCreate() {
                         value={field.value.toString()}
                       >
                         <FormControl>
-                          <SelectTrigger className="text-lg h-12">
+                          <SelectTrigger className="text-lg h-12 rounded-none">
                             <SelectValue placeholder="Pilih loket" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent className="rounded-none">
                           {counters.map((counter) => (
                             <SelectItem
                               key={counter.id}
@@ -204,7 +193,7 @@ export default function QueueCreate() {
                     <FormControl>
                       <Textarea
                         placeholder="Catatan tambahan..."
-                        className="resize-none"
+                        className="resize-none rounded-none"
                         rows={3}
                         {...field}
                       />
@@ -218,12 +207,13 @@ export default function QueueCreate() {
                 <Button
                   type="button"
                   variant="outline"
+                  className="rounded-none"
                   onClick={() => navigate("/queues")}
                   disabled={submitting}
                 >
                   Batal
                 </Button>
-                <Button type="submit" disabled={submitting} size="lg">
+                <Button type="submit" disabled={submitting} size="lg" className="rounded-none">
                   {submitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
@@ -233,7 +223,8 @@ export default function QueueCreate() {
               </div>
             </form>
           </Form>
-      </div>
-    </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

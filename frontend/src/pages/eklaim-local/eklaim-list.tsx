@@ -397,37 +397,30 @@ export default function EklaimListPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Klaim E-Klaim Lokal
-          </div>
-          <div className="relative p-3 sm:p-4">
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
-                <div className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  Memuat data klaim...
-                </div>
-              </div>
-            )}
-            <div className={loading ? "pointer-events-none" : undefined}>
-              <DataTable
-                columns={columns}
-                data={data}
-                searchPlaceholder="Cari No. SEP, pasien, no. BPJS, kode..."
-                pageSize={20}
-                tableId="eklaim-local-list"
-                showSearch={true}
-                showPagination={true}
-                globalFilterValue={searchTerm}
-                onGlobalFilterValueChange={(value) => {
-                  setSearchTerm(value);
-                  setPage(1);
-                }}
-              />
+      <PageContent className="relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 rounded-none border border-neutral-200 dark:border-neutral-800 bg-background px-3 py-2 text-sm text-muted-foreground shadow-none">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              Memuat data klaim...
             </div>
           </div>
+        )}
+        <div className={loading ? "pointer-events-none" : undefined}>
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari No. SEP, pasien, no. BPJS, kode..."
+            pageSize={20}
+            tableId="eklaim-local-list"
+            showSearch={true}
+            showPagination={true}
+            globalFilterValue={searchTerm}
+            onGlobalFilterValueChange={(value) => {
+              setSearchTerm(value);
+              setPage(1);
+            }}
+          />
         </div>
       </PageContent>
     </PageShell>

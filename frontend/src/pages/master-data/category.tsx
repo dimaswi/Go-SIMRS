@@ -7,10 +7,11 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Plus, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Database } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 // Category name mapping
 const CATEGORY_NAMES: Record<string, string> = {
@@ -140,30 +141,31 @@ export default function CategoryListPage() {
       id: 'actions',
       header: 'Aksi',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {hasPermission('master_data.update') && (
             <Button 
               variant="outline" 
-              size="sm"
+              size="icon"
+              className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
               onClick={(e) => {
                 e.stopPropagation();
                 handleEdit(row.original.id);
               }}
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil className="size-3.5" />
             </Button>
           )}
           {hasPermission('master_data.delete') && (
             <Button 
               variant="outline" 
-              size="sm"
-              className="text-destructive hover:text-destructive"
+              size="icon"
+              className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDelete(row.original.id);
               }}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="size-3.5" />
             </Button>
           )}
         </div>
@@ -181,18 +183,14 @@ export default function CategoryListPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <h1 className="text-lg font-semibold">{categoryName}</h1>
-              <p className="text-sm text-muted-foreground">Kelola data {categoryName.toLowerCase()}</p>
-            </div>
-          </div>
+    <PageShell>
+      <PageHeader
+        icon={Database}
+        title={categoryName}
+        description={`Kelola data ${categoryName.toLowerCase()}`}
+        count={data.length}
+        onBack={() => navigate('/master-data')}
+        actions={
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Switch
@@ -208,17 +206,17 @@ export default function CategoryListPage() {
               </Button>
             )}
           </div>
-        </div>
-        <div className="rounded-lg border p-6">
-            <DataTable
-              columns={columns}
-              data={data}
-              searchPlaceholder={`Cari ${categoryName.toLowerCase()}...`}
-              pageSize={10}
-              tableId={`master_data_${category}`}
-            />
-        </div>
-      </div>
+        }
+      />
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={data}
+          searchPlaceholder={`Cari ${categoryName.toLowerCase()}...`}
+          pageSize={10}
+          tableId={`master_data_${category}`}
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -230,6 +228,6 @@ export default function CategoryListPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

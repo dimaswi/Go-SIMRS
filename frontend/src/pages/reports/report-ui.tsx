@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowUpRight, Database, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export const REPORT_FONT_FAMILY = '"IBM Plex Sans", "Segoe UI", sans-serif';
+export const REPORT_FONT_FAMILY = '"Inter", "Segoe UI", sans-serif';
 export const REPORT_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
-const REPORT_FLAT_CARD_CLASS = "rounded-none border-border/70 shadow-none";
+const REPORT_FLAT_CARD_CLASS = "rounded-none border-0 bg-transparent shadow-none";
 
 export function ReportShellCard({
   children,
@@ -15,7 +15,7 @@ export function ReportShellCard({
   children: ReactNode;
   className?: string;
 }) {
-  return <Card className={cn(REPORT_FLAT_CARD_CLASS, className)}>{children}</Card>;
+  return <div className={cn(REPORT_FLAT_CARD_CLASS, className)}>{children}</div>;
 }
 
 export function ReportAuditBanner({
@@ -30,60 +30,56 @@ export function ReportAuditBanner({
   const Icon = status === "verified" ? ShieldCheck : AlertTriangle;
 
   return (
-    <ReportShellCard className="overflow-hidden bg-background/95">
-      <div className="grid gap-px bg-border/70 lg:grid-cols-[minmax(0,1.15fr)_280px]">
-        <div className="bg-background px-4 py-4 sm:px-5">
+    <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+      <div className="grid divide-y lg:divide-y-0 lg:divide-x divide-neutral-200 dark:divide-neutral-800 lg:grid-cols-[minmax(0,1.15fr)_280px]">
+        <div className="bg-white dark:bg-neutral-950 py-1 pr-4">
           <div className="flex items-start gap-3">
             <div
               className={cn(
-                "mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center border border-border/70",
-                status === "verified" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
+                "mt-0.5 flex size-8 shrink-0 items-center justify-center border",
+                status === "verified"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  : "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="size-4" />
             </div>
 
-            <div className="min-w-0 space-y-2">
+            <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <div
-                  className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground"
-                  style={{ fontFamily: REPORT_MONO_FAMILY }}
-                >
+                <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
                   Report Command
                 </div>
                 <Badge
                   variant="outline"
                   className={cn(
-                    "rounded-none",
+                    "rounded-none text-[11px] font-semibold px-1.5 py-0",
                     status === "verified"
-                      ? "border-emerald-300 bg-transparent text-emerald-700"
-                      : "border-amber-300 bg-transparent text-amber-700",
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                      : "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
                   )}
                 >
                   {status === "verified" ? "Terverifikasi" : "Perlu Audit"}
                 </Badge>
               </div>
-              <div className="text-lg font-semibold tracking-tight">{title}</div>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+              <div className="text-sm font-bold uppercase tracking-tight text-neutral-900 dark:text-white">{title}</div>
+              <p className="max-w-3xl text-xs font-mono text-neutral-500">{description}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center border-l-0 bg-muted/10 px-4 py-4 sm:px-5 lg:border-l lg:border-border/70">
-          <div className="space-y-2">
-            <div
-              className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground"
-              style={{ fontFamily: REPORT_MONO_FAMILY }}
-            >
+        <div className="flex items-center bg-neutral-50/50 dark:bg-neutral-900/30 px-4 py-2.5">
+          <div className="space-y-1">
+            <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
               Fokus Validasi
             </div>
-            <div className="text-sm font-medium text-foreground">
+            <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
               {status === "verified" ? "Angka siap dipakai lintas modul" : "Bandingkan tabel, chart, dan output operasional"}
             </div>
           </div>
         </div>
       </div>
-    </ReportShellCard>
+    </div>
   );
 }
 
@@ -93,17 +89,14 @@ export function ReportKpiGrid({
   items: { label: string; value: string; hint: string }[];
 }) {
   return (
-    <div className="grid gap-px bg-border/70 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid border-y border-neutral-200 dark:border-neutral-800 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 md:grid-cols-2 xl:grid-cols-4 bg-neutral-50/40 dark:bg-neutral-900/30">
       {items.map((item) => (
-        <div key={item.label} className="bg-background px-4 py-4 sm:px-5">
-          <div
-            className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground"
-            style={{ fontFamily: REPORT_MONO_FAMILY }}
-          >
+        <div key={item.label} className="p-3.5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
             {item.label}
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{item.value}</div>
-          <div className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">{item.hint}</div>
+          <div className="mt-1 font-mono text-lg font-bold tracking-tight text-neutral-900 dark:text-white">{item.value}</div>
+          <div className="mt-0.5 font-mono text-xs text-neutral-500">{item.hint}</div>
         </div>
       ))}
     </div>
@@ -116,31 +109,28 @@ export function ReportInsightStrip({
   items: { label: string; value: string }[];
 }) {
   return (
-    <ReportShellCard className="overflow-hidden bg-background">
-      <div className="grid gap-px bg-border/70 md:grid-cols-3">
+    <div className="border-y border-neutral-200 dark:border-neutral-800">
+      <div className="grid divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 md:grid-cols-3">
         {items.map((item) => (
-          <div key={item.label} className="bg-background px-4 py-4 sm:px-5">
+          <div key={item.label} className="bg-white dark:bg-neutral-950 p-3.5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center border border-border/70 bg-muted/20">
-                  <Database className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-start gap-2.5">
+                <div className="flex size-8 items-center justify-center border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+                  <Database className="size-4 text-neutral-600 dark:text-neutral-400" />
                 </div>
                 <div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground"
-                    style={{ fontFamily: REPORT_MONO_FAMILY }}
-                  >
+                  <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
                     {item.label}
                   </div>
-                  <div className="mt-2 text-base font-semibold text-foreground">{item.value}</div>
+                  <div className="mt-1 font-mono text-sm font-bold text-neutral-900 dark:text-white">{item.value}</div>
                 </div>
               </div>
-              <ArrowUpRight className="mt-1 h-4 w-4 text-muted-foreground" />
+              <ArrowUpRight className="mt-1 size-4 text-neutral-400" />
             </div>
           </div>
         ))}
       </div>
-    </ReportShellCard>
+    </div>
   );
 }
 
@@ -162,19 +152,16 @@ export function ReportPanel({
   contentClassName?: string;
 }) {
   return (
-    <ReportShellCard className={cn("overflow-hidden bg-background/95", className)}>
-      <CardHeader className="border-b border-border/70 bg-muted/10 px-4 py-3 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <div
-              className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground"
-              style={{ fontFamily: REPORT_MONO_FAMILY }}
-            >
+    <section className={cn("space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4", className)}>
+      <CardHeader className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {eyebrow}
             </div>
-            <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</CardTitle>
             {description ? (
-              <CardDescription className="text-xs uppercase tracking-[0.16em]">
+              <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
                 {description}
               </CardDescription>
             ) : null}
@@ -182,7 +169,7 @@ export function ReportPanel({
           {action}
         </div>
       </CardHeader>
-      <CardContent className={cn("p-4 sm:p-5", contentClassName)}>{children}</CardContent>
-    </ReportShellCard>
+      <CardContent className={cn("px-4 py-0 space-y-4", contentClassName)}>{children}</CardContent>
+    </section>
   );
 }

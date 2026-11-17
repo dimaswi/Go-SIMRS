@@ -380,7 +380,7 @@ export default function AllEklaimLogsPage() {
         </DialogContent>
       </Dialog>
 
-      <PageContent noPadding className="px-4 pb-4 pt-3">
+      <PageContent>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -398,10 +398,10 @@ export default function AllEklaimLogsPage() {
               <div className="flex items-center space-x-2">
                 <p className="text-sm text-muted-foreground">Baris per halaman</p>
                 <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
-                  <SelectTrigger className="h-8 w-[70px]">
+                  <SelectTrigger className="h-8 w-[70px] rounded-none">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent side="top">
+                  <SelectContent side="top" className="rounded-none">
                     {[10, 20, 30, 50, 100].map((size) => (
                       <SelectItem key={size} value={String(size)}>{size}</SelectItem>
                     ))}
@@ -413,16 +413,16 @@ export default function AllEklaimLogsPage() {
                   Halaman {page} dari {Math.max(1, totalPages)}
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(1)} disabled={page <= 1}>
+                  <Button variant="outline" className="hidden h-8 w-8 rounded-none p-0 lg:flex" onClick={() => setPage(1)} disabled={page <= 1}>
                     <ChevronsLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                  <Button variant="outline" className="h-8 w-8 rounded-none p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                  <Button variant="outline" className="h-8 w-8 rounded-none p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
+                  <Button variant="outline" className="hidden h-8 w-8 rounded-none p-0 lg:flex" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
                     <ChevronsRight className="h-4 w-4" />
                   </Button>
                 </div>

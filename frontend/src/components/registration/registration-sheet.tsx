@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  BPJS_FIELD_CLASS,
   BPJS_FOOTER_CLASS,
   BPJSInfoGrid,
   BPJS_PANEL_CLASS,
@@ -54,7 +53,6 @@ import {
 } from "@/components/sep/bpjs-sheet-chrome";
 
 const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
-const REGISTRATION_LABEL_CLASS = "flex items-center gap-2 text-sm uppercase tracking-[0.14em]";
 
 interface RegistrationSheetProps {
   open: boolean;
@@ -1022,14 +1020,16 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <ScrollArea className="flex-1">
-              <div className="space-y-6 px-6 pb-6 pt-0">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
 
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
-                  <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-4 p-4 md:grid-cols-2`}>
+                <div className="px-6 py-4 space-y-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Detail Registrasi
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {/* Tipe Layanan */}
-                    <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tipe Layanan *</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Tipe Layanan *</Label>
                       <Combobox
                         options={[
                           { value: "rawat_jalan", label: "Rawat Jalan" },
@@ -1041,13 +1041,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                         value={selectedServiceType}
                         onValueChange={handleServiceTypeChange}
                         placeholder="Pilih tipe layanan"
-                        className={BPJS_FIELD_CLASS}
+                        className="h-9 text-xs"
                       />
                     </div>
 
                     {/* Ruangan Tujuan */}
-                    <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Ruangan Tujuan *</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Ruangan Tujuan *</Label>
                       <Combobox
                         options={filteredRooms.map(room => ({
                           value: room.id.toString(),
@@ -1058,13 +1058,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                         placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
                         disabled={!selectedServiceType}
                         loading={loadingRooms}
-                        className={BPJS_FIELD_CLASS}
+                        className="h-9 text-xs"
                       />
                     </div>
 
                     {/* Metode Pembayaran */}
-                    <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Metode Pembayaran *</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Metode Pembayaran *</Label>
                       <Combobox
                         options={[
                           { value: "cash", label: "Tunai" },
@@ -1074,13 +1074,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                         value={paymentMethod}
                         onValueChange={(value) => setPaymentMethod(value as any)}
                         placeholder="Pilih metode"
-                        className={BPJS_FIELD_CLASS}
+                        className="h-9 text-xs"
                       />
                     </div>
 
                     {/* Prioritas */}
-                    <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Prioritas</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Prioritas</Label>
                       <Combobox
                         options={[
                           { value: "normal", label: "Normal" },
@@ -1090,14 +1090,14 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                         value={priority}
                         onValueChange={(value) => setPriority(value as any)}
                         placeholder="Pilih prioritas"
-                        className={BPJS_FIELD_CLASS}
+                        className="h-9 text-xs"
                       />
                     </div>
 
                     {/* Dokter */}
                     {destinationRoomId && (
-                      <div className="space-y-2 md:col-span-2">
-                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label className="text-xs font-medium">Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
                         {roomStaff.length > 0 ? (
                           <Combobox
                             options={roomStaff.map(staff => ({
@@ -1107,13 +1107,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                             value={doctorId?.toString() || ""}
                             onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
                             placeholder="Pilih dokter"
-                            className={BPJS_FIELD_CLASS}
+                            className="h-9 text-xs"
                           />
                         ) : (
                           <Input
                             disabled
                             placeholder={doctorRequired ? "Tidak ada dokter di ruangan ini" : "Dokter tidak wajib untuk layanan ini"}
-                            className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
+                            className="h-9 bg-muted text-xs"
                           />
                         )}
                       </div>
@@ -1124,177 +1124,172 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
                 {/* Clinical Package & Procedures/Medicines Section */}
                 {destinationRoomId && (
-                  <div className={BPJS_SECTION_CLASS}>
-                    <BPJSSectionHeader eyebrow="Clinical Package" title="Paket Pemeriksaan & Layanan" />
-                    <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
-                      <ClinicalPackageSelector
-                        assignments={roomClinicalPackages}
-                        selectedPackageId={selectedClinicalPackageId}
-                        onValueChange={handleClinicalPackageChange}
-                        loading={loadingRoomItems}
-                      />
-
-                      {(loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
-                        <OrderRoomSelection
-                          loading={loadingRoomItems}
-                          procedures={availableRoomProcedures}
-                          selectedProcedures={selectedProcedures}
-                          onToggleProcedure={toggleProcedure}
-                          onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
-                          orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
-                          medicines={availableRoomMedicines}
-                          selectedMedicines={selectedMedicines}
-                          onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
-                          pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
-                          onAddMedicine={addMedicine}
-                          onUpdateMedicineQuantity={updateMedicineQuantity}
-                          onRemoveMedicine={removeMedicine}
-                        />
-                      )}
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Paket Pemeriksaan & Layanan
                     </div>
+                    <ClinicalPackageSelector
+                      assignments={roomClinicalPackages}
+                      selectedPackageId={selectedClinicalPackageId}
+                      onValueChange={handleClinicalPackageChange}
+                      loading={loadingRoomItems}
+                    />
+
+                    {(loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
+                      <OrderRoomSelection
+                        loading={loadingRoomItems}
+                        procedures={availableRoomProcedures}
+                        selectedProcedures={selectedProcedures}
+                        onToggleProcedure={toggleProcedure}
+                        onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
+                        orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
+                        medicines={availableRoomMedicines}
+                        selectedMedicines={selectedMedicines}
+                        onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
+                        pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
+                        onAddMedicine={addMedicine}
+                        onUpdateMedicineQuantity={updateMedicineQuantity}
+                        onRemoveMedicine={removeMedicine}
+                      />
+                    )}
                   </div>
                 )}
 
                 {/* BPJS Fields */}
                 {paymentMethod === "bpjs" && (
-                  <div className={BPJS_SECTION_CLASS}>
-                    <BPJSSectionHeader eyebrow="Payment" title="BPJS" />
-                    <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor BPJS *</Label>
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Pembayaran BPJS & SEP
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Nomor BPJS *</Label>
+                        <Input
+                          value={bpjsNumber}
+                          onChange={(e) => setBpjsNumber(e.target.value)}
+                          placeholder={patient?.no_bpjs || "Nomor BPJS"}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      {patient?.kelas_bpjs && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Kelas</Label>
                           <Input
-                            value={bpjsNumber}
-                            onChange={(e) => setBpjsNumber(e.target.value)}
-                            placeholder={patient?.no_bpjs || "Nomor BPJS"}
-                            className={`${BPJS_FIELD_CLASS} text-sm`}
+                            value={patient.kelas_bpjs}
+                            disabled
+                            className="h-9 bg-muted text-xs"
                           />
                         </div>
-                        {patient?.kelas_bpjs && (
-                          <div className="space-y-2">
-                            <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas</Label>
-                            <Input
-                              value={patient.kelas_bpjs}
-                              disabled
-                              className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
-                            />
-                          </div>
-                        )}
-                      </div>
+                      )}
+                    </div>
 
-                      {/* SEP Section */}
-                      <div className="rounded-none border border-border/70 bg-muted/10 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-foreground">SEP (Surat Eligibilitas Peserta)</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {sepNumber ? (
-                              <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                {sepNumber}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
-                                Belum Ada
-                              </Badge>
-                            )}
-
-                            {sepNumber && (
-                              <TooltipProvider>
-                                <div className="flex items-center gap-1">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-none"
-                                        onClick={handlePrintSEP}
-                                        disabled={printingSEP || deletingSEP || unlinkingSEP}
-                                      >
-                                        {printingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Cetak SEP</TooltipContent>
-                                  </Tooltip>
-
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-none"
-                                        onClick={() => setSepSheetOpen(true)}
-                                        disabled={!bpjsNumber}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Lihat / Edit SEP</TooltipContent>
-                                  </Tooltip>
-
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="destructive"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-none"
-                                        onClick={() => setDeleteSEPOpen(true)}
-                                        disabled={deletingSEP || unlinkingSEP}
-                                      >
-                                        {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Hapus SEP ke BPJS</TooltipContent>
-                                  </Tooltip>
-
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-none"
-                                        onClick={() => setUnlinkSEPOpen(true)}
-                                        disabled={deletingSEP || unlinkingSEP}
-                                      >
-                                        {unlinkingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink2 className="h-4 w-4" />}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Unlink SEP lokal</TooltipContent>
-                                  </Tooltip>
-                                </div>
-                              </TooltipProvider>
-                            )}
-                          </div>
+                    {/* SEP Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-neutral-200 dark:border-neutral-800 pt-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          <span className="text-xs font-semibold text-foreground">SEP (Surat Eligibilitas Peserta)</span>
+                          {sepNumber ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-[11px]">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              {sepNumber}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-orange-300 text-orange-600 text-[11px]">
+                              Belum Ada
+                            </Badge>
+                          )}
                         </div>
-
                         {sepNumber && sepData ? (
-                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                            <p>Poli: {sepData.poli?.nama || "-"}</p>
-                            <p>Dokter: {sepData.dokter?.nama || "-"}</p>
-                            <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+                          <div className="text-xs text-muted-foreground">
+                            Poli: {sepData.poli?.nama || "-"} · Dokter: {sepData.dokter?.nama || "-"} · Diagnosa: {sepData.diagnosa?.nama || "-"}
                           </div>
                         ) : (
-                          <p className="mt-2 text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             SEP wajib dibuat untuk pasien BPJS
                           </p>
                         )}
+                      </div>
 
-                        {!sepNumber && (
+                      <div className="flex items-center gap-1.5">
+                        {sepNumber ? (
+                          <TooltipProvider>
+                            <div className="flex items-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={handlePrintSEP}
+                                    disabled={printingSEP || deletingSEP || unlinkingSEP}
+                                  >
+                                    {printingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cetak SEP</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setSepSheetOpen(true)}
+                                    disabled={!bpjsNumber}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Lihat / Edit SEP</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setDeleteSEPOpen(true)}
+                                    disabled={deletingSEP || unlinkingSEP}
+                                  >
+                                    {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Hapus SEP ke BPJS</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setUnlinkSEPOpen(true)}
+                                    disabled={deletingSEP || unlinkingSEP}
+                                  >
+                                    {unlinkingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink2 className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Unlink SEP lokal</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
+                        ) : (
                           <Button
                             type="button"
                             variant="default"
                             size="sm"
-                            className="mt-3 w-full rounded-none"
+                            className="h-8 text-xs px-3"
                             onClick={() => setSepSheetOpen(true)}
                             disabled={!bpjsNumber}
                           >
-                            <FileText className="h-4 w-4 mr-2" />
+                            <FileText className="h-3.5 w-3.5 mr-1.5" />
                             Buat SEP
                           </Button>
                         )}
@@ -1305,25 +1300,27 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
                 {/* Insurance Fields */}
                 {paymentMethod === "insurance" && (
-                  <div className={BPJS_SECTION_CLASS}>
-                    <BPJSSectionHeader eyebrow="Payment" title="Asuransi" />
-                    <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-3 p-4 md:grid-cols-2`}>
-                      <div className="space-y-2">
-                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nama Asuransi *</Label>
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Pembayaran Asuransi
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Nama Asuransi *</Label>
                         <Input
                           value={insuranceName}
                           onChange={(e) => setInsuranceName(e.target.value)}
                           placeholder="Nama asuransi"
-                          className={`${BPJS_FIELD_CLASS} text-sm`}
+                          className="h-9 text-xs"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Polis *</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Nomor Polis *</Label>
                         <Input
                           value={insuranceNumber}
                           onChange={(e) => setInsuranceNumber(e.target.value)}
                           placeholder="Nomor polis"
-                          className={`${BPJS_FIELD_CLASS} text-sm`}
+                          className="h-9 text-xs"
                         />
                       </div>
                     </div>
@@ -1331,33 +1328,28 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                 )}
 
                 {/* Keluhan */}
-                <div className={BPJS_SECTION_CLASS}>
-                  <BPJSSectionHeader eyebrow="" title="" />
-                  <div className={`${BPJS_PANEL_CLASS} p-4`}>
-                    <div className="space-y-2">
-                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Keluhan (Opsional)</Label>
-                      <Textarea
-                        value={complaint}
-                        onChange={(e) => setComplaint(e.target.value)}
-                        placeholder="Keluhan pasien"
-                        rows={2}
-                        className="rounded-none border-border/70 bg-background text-sm shadow-none"
-                      />
-                    </div>
-                  </div>
+                <div className="px-6 py-4 space-y-1.5">
+                  <Label className="text-xs font-medium">Keluhan (Opsional)</Label>
+                  <Textarea
+                    value={complaint}
+                    onChange={(e) => setComplaint(e.target.value)}
+                    placeholder="Keluhan pasien"
+                    rows={2}
+                    className="text-xs"
+                  />
                 </div>
               </div>
             </ScrollArea>
 
             <SheetFooter className={BPJS_FOOTER_CLASS}>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+              <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 text-xs">
                 Batal
               </Button>
-              <Button type="submit" disabled={loading || loadingRooms} className="rounded-none">
+              <Button type="submit" size="sm" disabled={loading || loadingRooms} className="h-8 text-xs">
                 {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 Simpan Pendaftaran
               </Button>

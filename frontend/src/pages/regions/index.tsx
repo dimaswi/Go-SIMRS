@@ -10,7 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import { 
   Loader2, 
-  Plus
+  Plus,
+  MapPin
 } from 'lucide-react';
 
 export default function RegionsPage() {
@@ -58,6 +59,7 @@ export default function RegionsPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={MapPin}
         title="Daftar Provinsi"
         description="Data wilayah administratif Indonesia"
         count={provinces.length}
@@ -68,20 +70,13 @@ export default function RegionsPage() {
           </Button>
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Daftar Provinsi
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={provinces}
           searchPlaceholder="Cari provinsi..."
           tableId="regions"
         />
-          </div>
-        </div>
       </PageContent>
     </PageShell>
   );

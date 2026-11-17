@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBreadcrumb } from '@/contexts/breadcrumb-context';
@@ -11,6 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,7 +60,6 @@ import {
   RefreshCw,
   CreditCard,
   Printer,
-  ArrowLeft,
   Percent,
   Plus,
   Shield,
@@ -537,14 +543,6 @@ export default function BillingShow() {
   const patient = visit?.registration?.patient;
   const reg = visit?.registration;
 
-  const getPaymentIcon = (method?: string) => {
-    switch (method) {
-      case 'bpjs': return <Shield className="h-3.5 w-3.5" />;
-      case 'insurance': return <Heart className="h-3.5 w-3.5" />;
-      default: return <Banknote className="h-3.5 w-3.5" />;
-    }
-  };
-
   const getPaymentLabel = (method?: string) => {
     switch (method) {
       case 'bpjs': return 'BPJS';
@@ -705,86 +703,59 @@ export default function BillingShow() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <PageShell>
       {/* ========== HEADER ========== */}
-      <div className="sticky top-0 z-50 bg-background border-b flex-shrink-0">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => window.history.back()}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            {/* Patient info compact */}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm flex-shrink-0">
-                {patient?.nama_lengkap
-                  ? patient.nama_lengkap.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-                  : '?'}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-sm font-semibold truncate">{formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, undefined, patient?.tanggal_lahir) || '-'}</h1>
-                  <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{patient?.no_rm}</span>
-                  {billing && billingStatusBadge(billing.status)}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                  <span>{patient?.jenis_kelamin === 'L' ? 'Laki-laki' : patient?.jenis_kelamin === 'P' ? 'Perempuan' : '-'}</span>
-                  {patient?.tanggal_lahir && (
-                    <><span className="text-muted-foreground/30">&middot;</span><span>{calculateAge(patient.tanggal_lahir)}</span></>
-                  )}
-                  <span className="text-muted-foreground/30">&middot;</span>
-                  <span className="flex items-center gap-1">{getPaymentIcon(reg?.payment_method)} {getPaymentLabel(reg?.payment_method)}</span>
-                  <span className="text-muted-foreground/30">&middot;</span>
-                  <span>{visit.room?.name || '-'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action buttons */}
+      <PageHeader
+        icon={Receipt}
+        title={formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, undefined, patient?.tanggal_lahir) || '-'}
+        description={`${patient?.no_rm || '-'} • ${patient?.jenis_kelamin === 'L' ? 'Laki-laki' : patient?.jenis_kelamin === 'P' ? 'Perempuan' : '-'}${patient?.tanggal_lahir ? ` • ${calculateAge(patient.tanggal_lahir)}` : ''} • ${getPaymentLabel(reg?.payment_method)} • ${visit.room?.name || '-'}`}
+        onBack={() => navigate('/billing')}
+        badges={billing ? billingStatusBadge(billing.status) : undefined}
+        actions={
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {billing && (
               <>
-                <Button variant="outline" size="sm" onClick={() => setVisitsDialogOpen(true)}>
-                  <Stethoscope className="mr-1.5 h-4 w-4" />
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setVisitsDialogOpen(true)}>
+                  <Stethoscope className="mr-1.5 h-3.5 w-3.5" />
                   Kunjungan
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setPaymentHistoryDialogOpen(true)}>
-                  <Clock className="mr-1.5 h-4 w-4" />
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPaymentHistoryDialogOpen(true)}>
+                  <Clock className="mr-1.5 h-3.5 w-3.5" />
                   Riwayat
                 </Button>
               </>
             )}
             {!billing && hasPermission('billing.create') && (
-              <Button size="sm" onClick={handleGenerateBilling} disabled={generating}>
+              <Button size="sm" className="h-8 text-xs" onClick={handleGenerateBilling} disabled={generating}>
                 {generating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1.5 h-3.5 w-3.5" />}
                 Ambil Tagihan
               </Button>
             )}
             {billing && billing.status === 'draft' && hasPermission('billing.finalize') && (
-              <Button size="sm" onClick={handleFinalize} disabled={finalizing}>
-                {finalizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+              <Button size="sm" className="h-8 text-xs" onClick={handleFinalize} disabled={finalizing}>
+                {finalizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                 Finalisasi
               </Button>
             )}
             {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && billing.status !== 'draft' && hasPermission('billing.payment') && (
-              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleProcessPayment}>
-                <CreditCard className="h-4 w-4" />
+              <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={handleProcessPayment}>
+                <CreditCard className="h-3.5 w-3.5" />
                 Bayar
               </Button>
             )}
             {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.delete') && (
-              <Button variant="outline" size="sm" onClick={() => setCancelDialogOpen(true)}>
-                <XCircle className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCancelDialogOpen(true)}>
+                <XCircle className="h-3.5 w-3.5" />
               </Button>
             )}
             {billing && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={printing}>
+                  <Button variant="outline" size="sm" className="h-8 rounded-none text-xs" disabled={printing}>
                     {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-56 rounded-none">
                   <DropdownMenuItem onClick={() => handlePrintBilling('combined')} disabled={printing}>
                     <FileText className="mr-2 h-4 w-4" />
                     <div>
@@ -817,12 +788,12 @@ export default function BillingShow() {
               </DropdownMenu>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* ========== MAIN CONTENT ========== */}
-      <div className="flex-1 overflow-auto">
-        <div className="px-4 sm:px-6 py-6 space-y-6">
+      <PageContent className="space-y-6">
+        <div>
 
           {/* Loading billing state */}
           {loadingBilling && (
@@ -834,8 +805,8 @@ export default function BillingShow() {
 
           {/* No billing yet */}
           {!loadingBilling && !billing && (
-            <div className="rounded-xl border border-dashed p-8 text-center">
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+            <div className="rounded-none border border-dashed border-neutral-300 dark:border-neutral-800 p-8 text-center">
+              <div className="h-12 w-12 rounded-none bg-muted flex items-center justify-center mx-auto mb-3">
                 <Receipt className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium mb-1">Tagihan belum dibuat</p>
@@ -849,11 +820,11 @@ export default function BillingShow() {
           {!loadingBilling && billing && (
             <div className="flex flex-col xl:flex-row gap-6 items-start">
 
-              {/* RIGHT COLUMN: SUMMARY CARDS & PAYMENT HISTORY */}
-              <div className="w-full xl:w-[320px] 2xl:w-[380px] flex-shrink-0 flex flex-col gap-4 order-1 xl:order-2 xl:sticky xl:top-6">
+              {/* RIGHT COLUMN: SUMMARY & PAYMENT HISTORY */}
+              <div className="w-full xl:w-[320px] 2xl:w-[380px] flex-shrink-0 flex flex-col gap-6 order-1 xl:order-2 xl:sticky xl:top-6 xl:border-l xl:border-neutral-200 dark:xl:border-neutral-800 xl:pl-6">
 
-                {/* Patient Card */}
-                <div className="rounded-xl border bg-card p-4 space-y-3">
+                {/* Patient Info */}
+                <div className="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     <User className="h-3.5 w-3.5" /> Informasi Pasien
                   </div>
@@ -887,8 +858,8 @@ export default function BillingShow() {
                   </div>
                 </div>
 
-                {/* Payment Summary Card */}
-                <div className="rounded-xl border bg-card p-4 space-y-3">
+                {/* Payment Summary */}
+                <div className="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     <CircleDollarSign className="h-3.5 w-3.5" /> Ringkasan Pembayaran
                   </div>
@@ -927,7 +898,7 @@ export default function BillingShow() {
                     </div>
                     {/* Quick pay button inside card */}
                     {billing.status !== 'paid' && billing.status !== 'cancelled' && billing.status !== 'draft' && hasPermission('billing.payment') && (
-                      <Button className="w-full mt-2 bg-green-600 hover:bg-green-700" size="sm" onClick={handleProcessPayment}>
+                      <Button className="w-full mt-2 rounded-none bg-green-600 hover:bg-green-700" size="sm" onClick={handleProcessPayment}>
                         <CreditCard className="mr-2 h-4 w-4" />
                         Proses Pembayaran
                       </Button>
@@ -940,8 +911,8 @@ export default function BillingShow() {
               {/* LEFT COLUMN: DETAIL TAGIHAN */}
               <div className="w-full flex-1 order-2 xl:order-1 min-w-0">
                 {/* ===== BILLING ITEMS GROUPED BY VISIT ===== */}
-                <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-                  <div className="bg-muted/40 px-4 py-3 flex items-center justify-between">
+                <div className="overflow-hidden">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 flex items-center justify-between">
                     <h2 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       Detail Tagihan
@@ -1114,7 +1085,7 @@ export default function BillingShow() {
             </div>
           )}
         </div>
-      </div>
+      </PageContent>
 
       {/* ========== PAYMENT MODAL ========== */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
@@ -1388,53 +1359,72 @@ export default function BillingShow() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== KUNJUNGAN MODAL ===== */}
-      <Dialog open={visitsDialogOpen} onOpenChange={setVisitsDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0 border-0 shadow-2xl rounded-xl">
-          <DialogHeader className="px-6 py-5 border-b sticky top-0 z-10 bg-slate-50/90 backdrop-blur-md rounded-t-xl">
-            <DialogTitle className="flex items-center gap-4 text-xl font-extrabold tracking-tight text-slate-800">
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shadow-sm border border-primary/20">
-                <Stethoscope className="h-5 w-5 text-primary" />
+      {/* ===== KUNJUNGAN DRAWER ===== */}
+      <Sheet open={visitsDialogOpen} onOpenChange={setVisitsDialogOpen}>
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <div className="flex flex-col border-b px-6 py-2.5">
+            <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+              <div className="space-y-0.5 text-left">
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="flex items-center gap-2 text-base font-bold leading-tight">
+                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                    Riwayat Kunjungan
+                  </SheetTitle>
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {(allVisits.length === 0 && visit ? 1 : allVisits.length)} Kunjungan
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {patient?.nama_lengkap || '-'} • {patient?.no_rm || '-'}
+                  {billing?.billing_number ? ` • ${billing.billing_number}` : ''}
+                </p>
               </div>
-              <div className="flex flex-col gap-1 items-start">
-                <span>Riwayat Kunjungan</span>
-                <span className="text-xs font-medium text-muted-foreground font-sans tracking-normal">Detail seluruh kunjungan medis yang tercakup dalam tagihan ini</span>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="overflow-y-auto px-6 pb-6 flex-1 bg-white">
+            </SheetHeader>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-3">
             <DataTable
               columns={visitsColumns}
               data={allVisits.length <= 1 ? (allVisits.length === 0 && visit ? [visit] : allVisits) : allVisits}
               showSearch={true}
               showPagination={allVisits.length > 10}
+              hideRowCount
             />
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
-      {/* ===== RIWAYAT PEMBAYARAN MODAL ===== */}
-      <Dialog open={paymentHistoryDialogOpen} onOpenChange={setPaymentHistoryDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0 border-0 shadow-2xl rounded-xl">
-          <DialogHeader className="px-6 py-5 border-b sticky top-0 z-10 bg-emerald-50/90 backdrop-blur-md rounded-t-xl">
-            <DialogTitle className="flex items-center gap-4 text-xl font-extrabold tracking-tight text-slate-800">
-              <div className="h-11 w-11 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm border border-emerald-200">
-                <Banknote className="h-5 w-5 text-emerald-700" />
+      {/* ===== RIWAYAT PEMBAYARAN DRAWER ===== */}
+      <Sheet open={paymentHistoryDialogOpen} onOpenChange={setPaymentHistoryDialogOpen}>
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <div className="flex flex-col border-b px-6 py-2.5">
+            <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+              <div className="space-y-0.5 text-left">
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="flex items-center gap-2 text-base font-bold leading-tight">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    Riwayat Pembayaran
+                  </SheetTitle>
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {payments.length} Transaksi
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {patient?.nama_lengkap || '-'} • {patient?.no_rm || '-'}
+                  {billing?.billing_number ? ` • ${billing.billing_number}` : ''}
+                </p>
               </div>
-              <div className="flex flex-col gap-1 items-start">
-                <span>Riwayat Pembayaran</span>
-                <span className="text-xs font-medium text-emerald-700/70 font-sans tracking-normal">Rekapitulasi seluruh transaksi pembayaran untuk tagihan ini</span>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="overflow-y-auto px-6 pb-6 flex-1 bg-white">
+            </SheetHeader>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-3">
             {payments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Banknote className="h-8 w-8 text-muted-foreground/50" />
-                </div>
-                <h3 className="text-sm font-semibold">Belum ada transaksi</h3>
-                <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">Tagihan ini belum memiliki riwayat pembayaran sama sekali.</p>
+                <Banknote className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-xs font-medium text-foreground">Belum ada transaksi</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tagihan ini belum memiliki riwayat pembayaran.
+                </p>
               </div>
             ) : (
               <DataTable
@@ -1442,11 +1432,12 @@ export default function BillingShow() {
                 data={payments}
                 showSearch={true}
                 showPagination={payments.length > 10}
+                hideRowCount
               />
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </SheetContent>
+      </Sheet>
+    </PageShell>
   );
 }

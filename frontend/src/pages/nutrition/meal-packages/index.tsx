@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { nutritionMenuApi, nutritionPackageApi, type NutritionPackage } from "@/lib/api/nutrition";
 import { createNutritionPackageColumns } from "./columns";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, UtensilsCrossed } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function NutritionMealPackagesIndex() {
@@ -79,31 +79,29 @@ export default function NutritionMealPackagesIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={UtensilsCrossed}
         title="Master Paket Makanan"
         description="Kelola data paket makanan untuk layanan gizi"
         count={packages.length}
         actions={
-          <Button size="sm" onClick={() => navigate("/nutrition/meal-packages/create")}>
-            <Plus className="h-4 w-4" />
+          <Button
+            size="sm"
+            onClick={() => navigate("/nutrition/meal-packages/create")}
+            className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+          >
+            <Plus className="h-3.5 w-3.5" />
             Tambah Paket Makanan
           </Button>
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-    Daftar Paket Makanan
-  </div>
-  <div className="p-3 sm:p-4">
-    <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={packages}
           searchPlaceholder="Cari paket berdasarkan kode atau nama..."
           pageSize={10}
           tableId="nutrition-meal-packages"
         />
-  </div>
-</div>
       </PageContent>
 
       <ConfirmDialog

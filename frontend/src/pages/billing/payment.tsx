@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +18,6 @@ import { billingApi, type Billing } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import { 
-  ArrowLeft, 
   Loader2, 
   CreditCard,
   Banknote,
@@ -204,50 +204,42 @@ export default function BillingPayment() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">
-              Pembayaran - {billing.billing_number}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {billing.registration?.patient?.nama_lengkap} &bull; No. RM: {billing.registration?.patient?.no_rm}
-            </p>
-          </div>
+    <PageShell>
+      <PageHeader
+        icon={CreditCard}
+        title={`Pembayaran - ${billing.billing_number}`}
+        description={`${billing.registration?.patient?.nama_lengkap} • No. RM: ${billing.registration?.patient?.no_rm}`}
+        onBack={() => navigate(`/billing/${billing?.visit_id}`)}
+        badges={
+          <Badge className="rounded-none bg-yellow-500 text-black">
+            Sisa: {formatCurrency(billing.remaining_amount)}
+          </Badge>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Total Tagihan</p>
+          <p className="mt-1 text-xl font-bold">{formatCurrency(billing.final_amount)}</p>
         </div>
-        <Badge className="bg-yellow-500 text-black">
-          Sisa: {formatCurrency(billing.remaining_amount)}
-        </Badge>
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Terbayar</p>
+          <p className="mt-1 text-xl font-bold text-green-600">{formatCurrency(billing.paid_amount)}</p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Sisa</p>
+          <p className="mt-1 text-xl font-bold text-red-600">{formatCurrency(billing.remaining_amount)}</p>
+        </div>
       </div>
 
-      <div className="rounded-lg border p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Tagihan</p>
-              <p className="text-xl font-bold">{formatCurrency(billing.final_amount)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Terbayar</p>
-              <p className="text-xl font-bold text-green-600">{formatCurrency(billing.paid_amount)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Sisa</p>
-              <p className="text-xl font-bold text-red-600">{formatCurrency(billing.remaining_amount)}</p>
-            </div>
+      {/* Payment Form */}
+      <PageContent>
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Form Pembayaran</h3>
+            <p className="text-xs text-muted-foreground">Masukkan detail pembayaran</p>
           </div>
-      </div>
-
-      {/* Payment Form Card */}
-      <div className="rounded-lg border">
-        <div className="flex items-center gap-2 px-6 py-4">
-          <h3 className="text-sm font-medium">Form Pembayaran</h3>
-          <p className="text-sm text-muted-foreground">Masukkan detail pembayaran</p>
-        </div>
-        <div className="px-6 pb-6">
+          <div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Payment Method */}
@@ -439,10 +431,10 @@ export default function BillingPayment() {
 
             {/* Submit */}
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => navigate(`/billing/${billing?.visit_id}`)}>
+              <Button type="button" variant="outline" className="rounded-none" onClick={() => navigate(`/billing/${billing?.visit_id}`)}>
                 Batal
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" className="rounded-none" disabled={submitting}>
                 {submitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -453,7 +445,8 @@ export default function BillingPayment() {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+      </section>
+      </PageContent>
+    </PageShell>
   );
 }

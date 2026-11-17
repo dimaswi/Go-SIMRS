@@ -1,13 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, ArrowUpDown } from "lucide-react";
+import { Eye, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import type { Procedure } from "@/lib/api/procedures";
 import { getProcedureGroupLabel, getServiceTypeLabel, getProcedureTypeLabel } from "@/lib/api/procedures";
 
@@ -187,6 +181,7 @@ export function createProcedureColumns(options: ColumnOptions): ColumnDef<Proced
     },
     {
       id: "actions",
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
         const procedure = row.original;
 
@@ -195,37 +190,41 @@ export function createProcedureColumns(options: ColumnOptions): ColumnDef<Proced
         }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+          <div className="flex items-center justify-end gap-1.5">
+            {hasViewPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+                title="Lihat Detail"
+                onClick={() => onView(procedure.id)}
+              >
+                <Eye className="size-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {hasViewPermission && (
-                <DropdownMenuItem onClick={() => onView(procedure.id)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Lihat Detail
-                </DropdownMenuItem>
-              )}
-              {hasEditPermission && (
-                <DropdownMenuItem onClick={() => onEdit(procedure.id)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-              )}
-              {hasDeletePermission && (
-                <DropdownMenuItem
-                  onClick={() => onDelete(procedure.id)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {hasEditPermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                title="Edit"
+                onClick={() => onEdit(procedure.id)}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            )}
+            {hasDeletePermission && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                title="Hapus"
+                onClick={() => onDelete(procedure.id)}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         );
       },
     },

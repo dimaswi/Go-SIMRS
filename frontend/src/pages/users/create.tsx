@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { employeesApi, rolesApi, usersApi, type Employee } from "@/lib/api";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Loader2, Lock, Mail, Shield, User, Users } from "lucide-react";
+import { Loader2, Lock, Mail, Shield, User, Users } from "lucide-react";
 
 export default function UserCreate() {
   const navigate = useNavigate();
@@ -83,16 +83,12 @@ export default function UserCreate() {
         title="Tambah User"
         description="Susun akun baru untuk staf operasional, tentukan peran, lalu hubungkan ke data pegawai bila diperlukan."
         icon={User}
-        actions={
-          <Button type="button" variant="outline" onClick={() => navigate("/users")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate("/users")}
       />
 
-      <PageContent className="flex-none space-y-6 pb-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <PageContent noPadding>
+        <form onSubmit={handleSubmit}>
+          <div className="p-4 sm:p-5 space-y-6">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <SectionPanel
               icon={User}
@@ -227,13 +223,23 @@ export default function UserCreate() {
               </div>
             </SectionPanel>
           </div>
+          </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/users")}>
+          <div className="px-4 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/users")}
+              className="rounded-none h-8 px-4 text-xs font-medium shadow-none"
+            >
               Batal
             </Button>
-            <Button type="submit" disabled={loading} className="min-w-28">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+            >
+              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
               Simpan User
             </Button>
           </div>

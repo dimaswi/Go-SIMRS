@@ -177,8 +177,8 @@ export function PoliDokterSelector({
 
   // Switch row component
   const SwitchRow = ({ size = "default" }: { size?: "compact" | "default" }) => (
-    <div className={`flex items-center justify-between ${size === "compact" ? "mb-3" : "mb-4"}`}>
-      <div className="flex items-center gap-2">
+    <div className={`flex items-center ${size === "compact" ? "justify-start gap-2.5 mb-2" : "justify-between mb-4"}`}>
+      <div className="flex items-center gap-1.5">
         <Database className={size === "compact" ? "h-3.5 w-3.5 text-muted-foreground" : "h-4 w-4 text-muted-foreground"} />
         <Label
           htmlFor="use-mapping-switch"
@@ -198,18 +198,18 @@ export function PoliDokterSelector({
 
   // BPJS API fields (compact)
   const BpjsFieldsCompact = () => (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <div className="space-y-2 lg:col-span-2">
-        <Label className="text-sm font-medium flex items-center gap-1">
-          <Building2 className="h-3.5 w-3.5" />
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="space-y-1">
+        <Label className="text-xs font-medium flex items-center gap-1">
+          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
           Poli Tujuan
         </Label>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <Input
             value={namaPoli || kodePoli}
             placeholder="Pilih poli..."
             readOnly
-            className="h-9 flex-1"
+            className="h-8 text-xs flex-1"
           />
           <Button
             type="button"
@@ -217,23 +217,23 @@ export function PoliDokterSelector({
             size="icon"
             onClick={() => setPoliModalOpen(true)}
             disabled={disabled}
-            className="h-9 w-9 px-0"
+            className="h-8 w-8 px-0 shrink-0"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
-      <div className="space-y-2 lg:col-span-2">
-        <Label className="text-sm font-medium flex items-center gap-1">
-          <Stethoscope className="h-3.5 w-3.5" />
+      <div className="space-y-1">
+        <Label className="text-xs font-medium flex items-center gap-1">
+          <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" />
           Dokter
         </Label>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <Input
             value={namaDokter || kodeDokter}
             placeholder="Pilih dokter..."
             readOnly
-            className="h-9 flex-1"
+            className="h-8 text-xs flex-1"
           />
           <Button
             type="button"
@@ -241,13 +241,13 @@ export function PoliDokterSelector({
             size="icon"
             onClick={() => setDokterModalOpen(true)}
             disabled={disabled || !kodePoli}
-            className="h-9 w-9 px-0"
+            className="h-8 w-8 px-0 shrink-0"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-3.5 w-3.5" />
           </Button>
         </div>
         {!kodePoli && (
-          <p className="text-xs text-muted-foreground">Pilih poli terlebih dahulu</p>
+          <p className="text-[11px] text-muted-foreground">Pilih poli terlebih dahulu</p>
         )}
       </div>
     </div>
@@ -257,24 +257,24 @@ export function PoliDokterSelector({
   const MappingFieldsCompact = () => {
     if (loadingMappings) {
       return (
-        <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 py-3 justify-center text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Memuat data mapping...
         </div>
       );
     }
     if (poliMappings.length === 0) {
       return (
-        <div className="py-4 text-center text-sm text-muted-foreground">
+        <div className="py-3 text-center text-xs text-muted-foreground">
           Belum ada mapping poli. Silakan atur di menu BPJS &gt; Mapping.
         </div>
       );
     }
     return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-2 lg:col-span-2">
-          <Label className="text-sm flex items-center gap-1">
-            <Building2 className="h-3.5 w-3.5" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label className="text-xs font-medium flex items-center gap-1">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             Poli Tujuan
           </Label>
           <Combobox
@@ -286,11 +286,12 @@ export function PoliDokterSelector({
             emptyText="Poli tidak ditemukan"
             disabled={disabled}
             loading={loadingMappings}
+            className="h-8 text-xs"
           />
         </div>
-        <div className="space-y-2 lg:col-span-2">
-          <Label className="text-sm flex items-center gap-1">
-            <Stethoscope className="h-3.5 w-3.5" />
+        <div className="space-y-1">
+          <Label className="text-xs font-medium flex items-center gap-1">
+            <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" />
             Dokter
           </Label>
           <Combobox
@@ -301,9 +302,10 @@ export function PoliDokterSelector({
             searchPlaceholder="Ketik nama dokter..."
             emptyText="Dokter tidak ditemukan"
             disabled={disabled || !selectedPoliMappingId}
+            className="h-8 text-xs"
           />
           {!selectedPoliMappingId && (
-            <p className="text-xs text-muted-foreground">Pilih poli terlebih dahulu</p>
+            <p className="text-[11px] text-muted-foreground">Pilih poli terlebih dahulu</p>
           )}
         </div>
       </div>

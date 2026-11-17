@@ -1,11 +1,5 @@
-﻿import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 //import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -275,81 +269,82 @@ export default function BPJSAPITesterPage() {
 
   return (
     <BPJSPageFrame
+      icon={Send}
       title="API Tester BPJS"
       description="Uji request BPJS seperti Postman dengan header yang lebih ringkas dan area kerja yang tetap lapang."
       actions={
-        <Button variant="outline" size="sm" onClick={loadConfig}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button variant="outline" size="sm" className="rounded-none h-8 px-3 text-xs font-semibold shadow-none" onClick={loadConfig}>
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
           Reload Config
         </Button>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
         <BPJSSectionPanel title="Request Builder">
         <div className="space-y-6">
           {/* Config Info dari Database */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className="bg-slate-50 dark:bg-slate-900 border-dashed">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Database className="h-4 w-4" />
+          <div className="grid gap-6 md:grid-cols-2 md:divide-x md:divide-neutral-200 dark:md:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 pb-5">
+            <div className="space-y-3">
+              <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
+                  <Database className="h-3.5 w-3.5 text-neutral-500" />
                   Konfigurasi dari Database
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+                </h3>
+              </div>
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Environment:</span>
-                  <Badge variant={config?.environment === 'production' ? 'destructive' : 'secondary'}>
+                  <Badge variant={config?.environment === 'production' ? 'destructive' : 'secondary'} className="rounded-none">
                     {config?.environment || 'development'}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Cons ID:</span>
-                  <code className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">
+                  <code className="bg-muted px-2 py-0.5 text-xs">
                     {config?.cons_id || '(belum diisi)'}
                   </code>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">User Key:</span>
-                  <code className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">
+                  <code className="bg-muted px-2 py-0.5 text-xs">
                     {config?.user_key ? config.user_key.substring(0, 8) + '...' : '(belum diisi)'}
                   </code>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Secret Key:</span>
-                  <code className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">
+                  <code className="bg-muted px-2 py-0.5 text-xs">
                     {config?.secret_key ? '********' : '(belum diisi)'}
                   </code>
                 </div>
                 <Separator className="my-2" />
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Base URL Dev:</span>
-                  <code className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-xs max-w-[200px] truncate">
+                  <code className="bg-muted px-2 py-0.5 text-xs max-w-[200px] truncate">
                     {config?.base_url_dev || '(belum diisi)'}
                   </code>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Base URL Prod:</span>
-                  <code className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-xs max-w-[200px] truncate">
+                  <code className="bg-muted px-2 py-0.5 text-xs max-w-[200px] truncate">
                     {config?.base_url_prod || '(belum diisi)'}
                   </code>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="bg-blue-50 dark:bg-blue-950 border-dashed border-blue-200 dark:border-blue-800">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
+            <div className="space-y-3 md:pl-6">
+              <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
+                  <Eye className="h-3.5 w-3.5 text-neutral-500" />
                   Preview Request (Real-time)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+                </h3>
+              </div>
+              <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-muted-foreground text-xs">Full URL:</span>
                   <div className="flex items-center gap-2 mt-1">
-                    <code className="flex-1 bg-slate-950 text-slate-50 px-2 py-1 rounded text-xs break-all">
-                      <Badge className={cn("mr-2", method === "GET" ? "bg-blue-600" : "bg-green-600")}>
+                    <code className="flex-1 bg-slate-950 text-slate-50 px-2 py-1 text-xs break-all">
+                      <Badge className={cn("mr-2 rounded-none", method === "GET" ? "bg-blue-600" : "bg-green-600")}>
                         {method}
                       </Badge>
                       {fullURL || '(URL belum lengkap)'}
@@ -370,14 +365,14 @@ export default function BPJSAPITesterPage() {
 
                 <div>
                   <span className="text-muted-foreground text-xs">Headers yang akan dikirim:</span>
-                  <ScrollArea className="h-[100px] rounded border mt-1">
+                  <ScrollArea className="h-[100px] border mt-1">
                     <pre className="p-2 text-xs font-mono bg-slate-950 text-slate-50">
                       {JSON.stringify(previewHeaders, null, 2)}
                     </pre>
                   </ScrollArea>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           <Separator />
@@ -482,16 +477,16 @@ export default function BPJSAPITesterPage() {
       {/* Result */}
       {result && (
         <BPJSSectionPanel title="Hasil Pengujian">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 lg:divide-x lg:divide-neutral-200 dark:lg:divide-neutral-800">
           {/* Request Details */}
-          <Card>
-            <CardHeader className="py-3 border-b">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Send className="h-4 w-4" />
+          <div className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
+                <Send className="h-3.5 w-3.5 text-neutral-500" />
                 Request yang Dikirim
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
+              </h3>
+            </div>
+            <div className="space-y-4">
               {/* Config Info */}
               <div className="p-3 bg-muted/50 rounded-lg space-y-1 text-xs">
                 <div className="flex justify-between">
@@ -546,35 +541,35 @@ export default function BPJSAPITesterPage() {
               {result.request.body && (
                 <div>
                   <Label className="text-xs">Request Body</Label>
-                  <ScrollArea className="h-[100px] rounded border mt-1">
+                  <ScrollArea className="h-[100px] border mt-1">
                     <pre className="p-2 text-xs font-mono bg-slate-950 text-slate-50">
                       {formatJSON(result.request.body)}
                     </pre>
                   </ScrollArea>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Response Details */}
-          <Card>
-            <CardHeader className="py-3 border-b">
-              <CardTitle className="text-sm flex items-center gap-2">
+          <div className="space-y-4 lg:pl-6">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
                 {result.success ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-3.5 w-3.5 text-green-500" />
                 ) : (
-                  <XCircle className="h-4 w-4 text-red-500" />
+                  <XCircle className="h-3.5 w-3.5 text-red-500" />
                 )}
                 Response dari BPJS
-                <Badge variant={result.response.status_code >= 200 && result.response.status_code < 300 ? "outline" : "destructive"} className="ml-auto">
+                <Badge variant={result.response.status_code >= 200 && result.response.status_code < 300 ? "outline" : "destructive"} className="ml-auto rounded-none">
                   {result.response.status_code || 'N/A'}
                 </Badge>
-                <span className="text-xs text-muted-foreground font-normal">
+                <span className="text-xs text-muted-foreground font-mono font-normal">
                   {result.response.duration_ms}ms
                 </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
+              </h3>
+            </div>
+            <div className="space-y-4">
               {/* Error */}
               {result.error && (
                 <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
@@ -612,8 +607,8 @@ export default function BPJSAPITesterPage() {
                   </pre>
                 </ScrollArea>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
         </BPJSSectionPanel>
       )}

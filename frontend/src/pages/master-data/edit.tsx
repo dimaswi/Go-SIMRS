@@ -9,9 +9,10 @@ import { Switch } from '@/components/ui/switch';
 import { masterDataApi, type MasterData, type MasterDataRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Loader2, Save, Database } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { resolveBackendFileUrl } from '@/lib/api/client';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 // Category name mapping
 const CATEGORY_NAMES: Record<string, string> = {
@@ -247,25 +248,15 @@ export default function EditMasterDataPage() {
   const categoryName = data?.category ? CATEGORY_NAMES[data.category] || data.category : '';
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="grid gap-4">
-        <div className="flex items-center gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">Edit {categoryName}</h1>
-            <p className="text-sm text-muted-foreground">Perbarui data {categoryName.toLowerCase()}</p>
-          </div>
-        </div>
-        <div className="rounded-lg border p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
+    <PageShell>
+      <PageHeader
+        icon={Database}
+        title={`Edit ${categoryName}`}
+        description={`Perbarui data ${categoryName.toLowerCase()}`}
+        onBack={() => navigate(-1)}
+      />
+      <PageContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="category">Kategori</Label>
@@ -417,8 +408,7 @@ export default function EditMasterDataPage() {
                 </Button>
               </div>
             </form>
-        </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

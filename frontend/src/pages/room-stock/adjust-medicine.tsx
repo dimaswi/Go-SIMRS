@@ -27,7 +27,7 @@ import { PageShell, PageHeader, PageContent } from '@/components/layout/page-she
 import { roomMedicinesApi } from '@/lib/api/medicines';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
+import { Loader2, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
 
 const formSchema = z.object({
   adjustment_type: z.enum(['add', 'subtract', 'set']),
@@ -57,20 +57,18 @@ function SectionPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="flex items-start gap-2.5">
+          <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
           </div>
         </div>
       </div>
-      <div className="space-y-4 p-3 sm:p-4">{children}</div>
-    </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
@@ -178,7 +176,12 @@ export default function AdjustMedicineStockPage() {
   if (dataLoading) {
     return (
       <PageShell>
-        <PageHeader title="Sesuaikan Stok Obat" description="Tambahkan, kurangi, atau set ulang stok obat ruangan dengan ringkasan hasil akhirnya." />
+        <PageHeader
+          icon={RefreshCw}
+          title="Sesuaikan Stok Obat"
+          description="Tambahkan, kurangi, atau set ulang stok obat ruangan dengan ringkasan hasil akhirnya."
+          onBack={() => navigate(-1)}
+        />
         <PageContent className="flex-none pb-8">
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -197,14 +200,10 @@ export default function AdjustMedicineStockPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={RefreshCw}
         title="Sesuaikan Stok Obat"
         description="Tambah, kurangi, atau set stok baru dengan preview hasil akhir sebelum disimpan."
-        actions={
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate(-1)}
       />
       <PageContent className="flex-none pb-8">
         <div className="space-y-6">

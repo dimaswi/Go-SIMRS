@@ -28,30 +28,30 @@ const formatCurrency = (value: number) => {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "draft":
-      return <Badge variant="secondary">Draft</Badge>;
+      return <Badge variant="secondary" className="rounded-none">Draft</Badge>;
     case "pending":
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Pending</Badge>;
+      return <Badge variant="outline" className="rounded-none border-yellow-500 text-yellow-600">Pending</Badge>;
     case "partial":
-      return <Badge variant="outline" className="border-blue-500 text-blue-600">Sebagian</Badge>;
+      return <Badge variant="outline" className="rounded-none border-blue-500 text-blue-600">Sebagian</Badge>;
     case "paid":
-      return <Badge className="bg-green-500">Lunas</Badge>;
+      return <Badge className="rounded-none bg-green-500">Lunas</Badge>;
     case "cancelled":
-      return <Badge variant="destructive">Dibatalkan</Badge>;
+      return <Badge variant="destructive" className="rounded-none">Dibatalkan</Badge>;
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary" className="rounded-none">{status}</Badge>;
   }
 };
 
 const getPaymentMethodBadge = (method: string) => {
   switch (method) {
     case "cash":
-      return <Badge variant="outline">Cash</Badge>;
+      return <Badge variant="outline" className="rounded-none">Cash</Badge>;
     case "bpjs":
-      return <Badge className="bg-green-600">BPJS</Badge>;
+      return <Badge className="rounded-none bg-green-600">BPJS</Badge>;
     case "insurance":
-      return <Badge className="bg-blue-600">Asuransi</Badge>;
+      return <Badge className="rounded-none bg-blue-600">Asuransi</Badge>;
     default:
-      return <Badge variant="secondary">{method}</Badge>;
+      return <Badge variant="secondary" className="rounded-none">{method}</Badge>;
   }
 };
 

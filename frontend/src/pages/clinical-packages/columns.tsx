@@ -50,17 +50,35 @@ export function createClinicalPackageColumns({ onView, onEdit, onDelete }: Clini
     },
     {
       id: 'actions',
-      header: () => <div className="text-center">Aksi</div>,
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => (
-        <div className="flex justify-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => onView(row.original.id)}>
-            <Eye className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+            title="Lihat Detail"
+            onClick={() => onView(row.original.id)}
+          >
+            <Eye className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onEdit(row.original.id)}>
-            <Pencil className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+            title="Edit"
+            onClick={() => onEdit(row.original.id)}
+          >
+            <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => onDelete(row.original.id)}>
-            <Trash2 className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+            title="Hapus"
+            onClick={() => onDelete(row.original.id)}
+          >
+            <Trash2 className="size-3.5" />
           </Button>
         </div>
       ),

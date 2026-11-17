@@ -8,7 +8,7 @@ import { counterApi } from "@/lib/api/counters";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 
 export default function CounterShow() {
   const navigate = useNavigate();
@@ -103,16 +103,14 @@ export default function CounterShow() {
       <PageHeader
         title={`${counter.code} - ${counter.name}`}
         description={counter.description || "Tidak ada deskripsi"}
+        onBack={() => navigate("/counters")}
+        badges={
+          <Badge variant={counter.is_active ? "default" : "secondary"}>
+            {counter.is_active ? "Aktif" : "Tidak Aktif"}
+          </Badge>
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.history.back()}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
             {hasPermission("counters.update") && (
               <Button
                 variant="outline"
@@ -140,22 +138,16 @@ export default function CounterShow() {
             )}
           </div>
         }
-      >
-        <div className="pb-4">
-          <Badge variant={counter.is_active ? "default" : "secondary"}>
-            {counter.is_active ? "Aktif" : "Tidak Aktif"}
-          </Badge>
-        </div>
-      </PageHeader>
+      />
 
       <PageContent>
-        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
+        <div className="mx-auto w-full max-w-full flex-1 space-y-8">
           {/* Informasi Loket */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <section className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
               INFORMASI LOKET
             </div>
-            <div className="p-3 sm:p-4">
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
                   <label className="text-xs text-muted-foreground">Kode Loket</label>
@@ -187,14 +179,14 @@ export default function CounterShow() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Informasi Sistem */}
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <section className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
               INFORMASI SISTEM
             </div>
-            <div className="p-3 sm:p-4">
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
                   <label className="text-xs text-muted-foreground">ID Loket</label>
@@ -210,7 +202,7 @@ export default function CounterShow() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
       </PageContent>
 

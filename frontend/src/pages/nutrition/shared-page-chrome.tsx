@@ -6,16 +6,15 @@ import { UtensilsCrossed } from "lucide-react";
 export function NutritionSummaryCue({
   label,
   description,
-  tone,
 }: {
   label: string;
   description: string;
-  tone: string;
+  tone?: string;
 }) {
   return (
-    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-medium text-foreground">{description}</div>
+    <div className="border-l-2 border-neutral-900 dark:border-neutral-100 bg-neutral-50/60 dark:bg-neutral-900/40 px-3.5 py-2.5">
+      <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{label}</div>
+      <div className="mt-1 text-xs font-medium text-neutral-900 dark:text-neutral-100">{description}</div>
     </div>
   );
 }
@@ -32,19 +31,17 @@ export function NutritionSectionPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="flex items-center gap-2">
+          <Icon className="size-4 text-neutral-500 dark:text-neutral-400 shrink-0" />
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
           </div>
         </div>
       </div>
-      <div className="space-y-4 p-3 sm:p-4">{children}</div>
-    </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }

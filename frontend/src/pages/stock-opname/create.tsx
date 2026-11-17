@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { ArrowLeft, Building2, ClipboardList, Loader2, Package, Pill, RefreshCcw } from "lucide-react";
+import { Building2, ClipboardList, Loader2, Package, Pill, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -69,23 +69,21 @@ function SectionPanel({
   contentClassName?: string;
 }) {
   return (
-    <div className={cn("border border-border/70 bg-background/95", className)}>
-      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
+    <section className={cn("space-y-4", className)}>
+      <div className={cn("border-b border-neutral-200 dark:border-neutral-800 pb-2.5", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-1.5">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
+          <div className="flex items-start gap-2.5">
+            <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+              {description ? <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p> : null}
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className={cn("space-y-3 p-2.5 sm:p-3", contentClassName)}>{children}</div>
-    </div>
+      <div className={cn("space-y-3", contentClassName)}>{children}</div>
+    </section>
   );
 }
 
@@ -144,7 +142,7 @@ export default function StockOpnameCreate() {
   // Load room stock when room is selected
   const loadRoomStock = useCallback(async (roomId: number) => {
     if (!roomId) return;
-    
+
     setLoadingRoomStock(true);
     try {
       const response = await stockOpnameApi.getRoomStock(roomId);
@@ -244,22 +242,18 @@ export default function StockOpnameCreate() {
   const reviewedItems = watchItems.filter((item) => (item.actual_stock || 0) !== (item.system_stock || 0)).length;
 
   return (
-    <PageShell className="lg:overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={ClipboardList}
         title="Buat Stock Opname"
         description="Pilih ruangan, muat stok aktif, lalu catat hasil hitung fisik per item."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => navigate("/stock-opname")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate("/stock-opname")}
       />
-      <PageContent className="min-h-0 overflow-hidden pb-3">
+      <PageContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,390px)_minmax(0,1fr)]">
-            <div className="min-h-0 overflow-hidden">
-              <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6 items-start [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+            <div>
+              <div className="flex flex-col gap-6">
                 <SectionPanel
                   icon={Building2}
                   title="Informasi Opname"
@@ -356,142 +350,142 @@ export default function StockOpnameCreate() {
                   </Button>
                 ) : undefined}
               >
-              {loadingRoomStock ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : fields.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                  {watchRoomId > 0 ? (
-                    <>
-                      <Package className="mb-4 h-12 w-12" />
-                      <p>Tidak ada stok di ruangan ini</p>
-                      <p className="text-sm">Tambahkan inventaris atau obat ke ruangan terlebih dahulu</p>
-                    </>
-                  ) : (
-                    <>
-                      <ClipboardList className="mb-4 h-12 w-12" />
-                      <p>Pilih ruangan untuk memulai stock opname</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
-                    <ScrollArea className="h-full">
-                      <table className="w-full table-fixed border-collapse text-sm">
-                        <thead className="sticky top-0 z-10 bg-background">
-                          <tr className="bg-muted/20">
-                            <th className="h-9 w-[28%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
-                            <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
-                            <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok Sistem</th>
-                            <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok Fisik</th>
-                            <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Selisih</th>
-                            <th className="h-9 w-[10%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                        {fields.map((field, index) => {
-                          const stockItem = roomStock[index];
-                          const watchItem = form.watch(`items.${index}`);
-                          const difference =
-                            (watchItem?.actual_stock || 0) - (watchItem?.system_stock || 0);
-
-                          return (
-                            <tr
-                              key={field.id}
-                              className={
-                                difference === 0
-                                  ? "bg-emerald-50/30"
-                                  : difference > 0
-                                  ? "bg-blue-50/30"
-                                  : "bg-rose-50/30"
-                              }
-                            >
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
-                                <div className="space-y-0.5">
-                                  <p className="text-xs font-semibold leading-4 text-foreground">{stockItem?.name || "-"}</p>
-                                  <p className="font-mono text-[11px] leading-4 text-muted-foreground">{stockItem?.code || "-"}</p>
-                                  <p className="text-[11px] leading-4 text-muted-foreground">Satuan: {watchItem?.unit || stockItem?.unit || "-"}</p>
-                                </div>
-                              </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
-                                <Badge variant="outline" className="gap-1 text-[10px]">
-                                  {stockItem?.item_type === "inventory" ? (
-                                    <>
-                                      <Package className="h-3 w-3" />
-                                      Inventaris
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Pill className="h-3 w-3" />
-                                      Obat
-                                    </>
-                                  )}
-                                </Badge>
-                              </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
-                                <span className="font-medium text-foreground">{watchItem?.system_stock || 0}</span> {watchItem?.unit}
-                              </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
-                                <FormField
-                                  control={form.control}
-                                  name={`items.${index}.actual_stock`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          className="w-full max-w-[120px]"
-                                          {...field}
-                                          onChange={(e) =>
-                                            field.onChange(parseInt(e.target.value) || 0)
-                                          }
-                                        />
-                                      </FormControl>
-                                    </FormItem>
-                                  )}
-                                />
-                              </td>
-                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
-                                <div className="flex justify-start">
-                                  <Badge
-                                    variant="outline"
-                                    className={
-                                      difference === 0
-                                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                        : difference > 0
-                                        ? "border-blue-200 bg-blue-50 text-blue-700"
-                                        : "border-rose-200 bg-rose-50 text-rose-700"
-                                    }
-                                  >
-                                    {difference > 0 ? `+${difference}` : difference}
-                                  </Badge>
-                                </div>
-                              </td>
-                              <td className="border-b border-border/60 px-3 py-2.5 align-top">
-                                <FormField
-                                  control={form.control}
-                                  name={`items.${index}.notes`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <Input placeholder="Catatan" {...field} className="w-full" />
-                                      </FormControl>
-                                    </FormItem>
-                                  )}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        </tbody>
-                      </table>
-                    </ScrollArea>
+                {loadingRoomStock ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
-                </>
-              )}
+                ) : fields.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                    {watchRoomId > 0 ? (
+                      <>
+                        <Package className="mb-4 h-12 w-12" />
+                        <p>Tidak ada stok di ruangan ini</p>
+                        <p className="text-sm">Tambahkan inventaris atau obat ke ruangan terlebih dahulu</p>
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardList className="mb-4 h-12 w-12" />
+                        <p>Pilih ruangan untuk memulai stock opname</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 bg-background">
+                      <ScrollArea className="max-h-[560px]">
+                        <table className="w-full table-fixed border-collapse text-sm">
+                          <thead className="sticky top-0 z-10 bg-background">
+                            <tr className="bg-muted/20">
+                              <th className="h-9 w-[28%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                              <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
+                              <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok Sistem</th>
+                              <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok Fisik</th>
+                              <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Selisih</th>
+                              <th className="h-9 w-[10%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {fields.map((field, index) => {
+                              const stockItem = roomStock[index];
+                              const watchItem = form.watch(`items.${index}`);
+                              const difference =
+                                (watchItem?.actual_stock || 0) - (watchItem?.system_stock || 0);
+
+                              return (
+                                <tr
+                                  key={field.id}
+                                  className={
+                                    difference === 0
+                                      ? "bg-emerald-50/30"
+                                      : difference > 0
+                                        ? "bg-blue-50/30"
+                                        : "bg-rose-50/30"
+                                  }
+                                >
+                                  <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                    <div className="space-y-0.5">
+                                      <p className="text-xs font-semibold leading-4 text-foreground">{stockItem?.name || "-"}</p>
+                                      <p className="font-mono text-[11px] leading-4 text-muted-foreground">{stockItem?.code || "-"}</p>
+                                      <p className="text-[11px] leading-4 text-muted-foreground">Satuan: {watchItem?.unit || stockItem?.unit || "-"}</p>
+                                    </div>
+                                  </td>
+                                  <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                    <Badge variant="outline" className="gap-1 text-[10px]">
+                                      {stockItem?.item_type === "inventory" ? (
+                                        <>
+                                          <Package className="h-3 w-3" />
+                                          Inventaris
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Pill className="h-3 w-3" />
+                                          Obat
+                                        </>
+                                      )}
+                                    </Badge>
+                                  </td>
+                                  <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                                    <span className="font-medium text-foreground">{watchItem?.system_stock || 0}</span> {watchItem?.unit}
+                                  </td>
+                                  <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.actual_stock`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormControl>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              className="w-full max-w-[120px]"
+                                              {...field}
+                                              onChange={(e) =>
+                                                field.onChange(parseInt(e.target.value) || 0)
+                                              }
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </td>
+                                  <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                    <div className="flex justify-start">
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          difference === 0
+                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                            : difference > 0
+                                              ? "border-blue-200 bg-blue-50 text-blue-700"
+                                              : "border-rose-200 bg-rose-50 text-rose-700"
+                                        }
+                                      >
+                                        {difference > 0 ? `+${difference}` : difference}
+                                      </Badge>
+                                    </div>
+                                  </td>
+                                  <td className="border-b border-border/60 px-3 py-2.5 align-top">
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.notes`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormControl>
+                                            <Input placeholder="Catatan" {...field} className="w-full" />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </ScrollArea>
+                    </div>
+                  </>
+                )}
                 <div className="mt-2 flex shrink-0 items-center justify-end gap-2 border-t border-border/70 pt-2.5">
                   <Button
                     type="button"

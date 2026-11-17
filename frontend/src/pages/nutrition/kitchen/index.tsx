@@ -260,12 +260,11 @@ export default function KitchenDashboardPage() {
         title="Dashboard Dapur"
         description="Kelola pesanan makanan pasien rawat inap per ruangan."
         icon={ChefHat}
-        className="[&>div:first-child]:px-4 [&>div:first-child]:py-3 md:[&>div:first-child]:px-6 md:[&>div:first-child]:py-3"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 w-40" />
-            <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-40 rounded-none text-xs" />
+            <Button variant="outline" size="sm" className="rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none" onClick={loadData} disabled={loading}>
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Refresh
             </Button>
           </div>

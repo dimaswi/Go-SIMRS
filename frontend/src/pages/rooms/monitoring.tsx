@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,6 +38,7 @@ import { id as idLocale } from "date-fns/locale";
 
 export default function RoomMonitoring() {
   const { id: roomId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
@@ -250,42 +252,31 @@ export default function RoomMonitoring() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] p-3 md:p-4 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0 mb-3">
-        <div className="flex items-center gap-2 md:gap-4">
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-            <Link to="/bed-monitoring">
-              <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-base md:text-xl font-semibold flex items-center gap-2">
-              <Building2 className="h-4 w-4 md:h-5 md:w-5" />
-              {room.name}
-            </h1>
-            <p className="text-xs md:text-sm text-muted-foreground">
-              Monitoring Bed - {room.code}
-            </p>
+    <PageShell>
+      <PageHeader
+        icon={Building2}
+        title={room.name}
+        description={`Monitoring Bed - ${room.code}`}
+        onBack={() => navigate("/bed-monitoring")}
+        actions={
+          <div className="flex items-center gap-1 md:gap-2">
+            <Button variant="outline" size="sm" onClick={copyPublicUrl} className="hidden sm:flex h-8 text-xs">
+              <Copy className="h-3 w-3 mr-1" />
+              Salin URL
+            </Button>
+            <Button variant="outline" size="sm" onClick={openPublicUrl} className="h-8 text-xs">
+              <ExternalLink className="h-3 w-3 md:mr-1" />
+              <span className="hidden md:inline">Display</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadData} className="h-8 text-xs">
+              <RefreshCw className="h-3 w-3 md:mr-1" />
+              <span className="hidden md:inline">Refresh</span>
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-1 md:gap-2">
-          <Button variant="outline" size="sm" onClick={copyPublicUrl} className="hidden sm:flex h-8 text-xs">
-            <Copy className="h-3 w-3 mr-1" />
-            Salin URL
-          </Button>
-          <Button variant="outline" size="sm" onClick={openPublicUrl} className="h-8 text-xs">
-            <ExternalLink className="h-3 w-3 md:mr-1" />
-            <span className="hidden md:inline">Display</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={loadData} className="h-8 text-xs">
-            <RefreshCw className="h-3 w-3 md:mr-1" />
-            <span className="hidden md:inline">Refresh</span>
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-4 flex-1 min-h-0 overflow-hidden">
+        }
+      />
+      <PageContent>
+        <div className="grid gap-3 lg:grid-cols-4 flex-1 min-h-0 overflow-hidden">
         {/* Left Column - Statistics & Navigation */}
         <div className="rounded-lg border flex flex-col min-h-0 overflow-hidden">
           <div className="flex items-center gap-4 shrink-0 py-2 px-3">
@@ -636,6 +627,7 @@ export default function RoomMonitoring() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

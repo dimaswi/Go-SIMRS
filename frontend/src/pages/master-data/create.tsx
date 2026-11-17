@@ -8,9 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { masterDataApi, type MasterData, type MasterDataRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Save, RefreshCw } from 'lucide-react';
+import { Loader2, Save, RefreshCw, Database } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { resolveBackendFileUrl } from '@/lib/api/client';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 const generateMasterDataCode = (name: string) => {
   const cleaned = name
@@ -206,23 +207,14 @@ export default function CreateMasterDataPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Tambah Referensi Data</h1>
-          <p className="text-sm text-muted-foreground">Tambahkan data referensi baru</p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
+    <PageShell>
+      <PageHeader
+        icon={Database}
+        title="Tambah Referensi Data"
+        description="Tambahkan data referensi baru"
+        onBack={() => navigate(-1)}
+      />
+      <PageContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -391,7 +383,7 @@ export default function CreateMasterDataPage() {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

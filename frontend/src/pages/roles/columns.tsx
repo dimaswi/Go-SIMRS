@@ -108,37 +108,40 @@ export function createRoleColumns({
         const role = row.original
         
         return (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-1.5">
             {hasViewPermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+                title="View role"
                 onClick={() => onView(role.id)}
               >
-                <Eye className="h-4 w-4" />
+                <Eye className="size-3.5" />
                 <span className="sr-only">View role</span>
               </Button>
             )}
             {hasEditPermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                title="Edit role"
                 onClick={() => onEdit(role.id)}
               >
-                <Edit className="h-4 w-4" />
+                <Edit className="size-3.5" />
                 <span className="sr-only">Edit role</span>
               </Button>
             )}
             {hasDeletePermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                title="Delete role"
                 onClick={() => onDelete(role.id)}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-3.5" />
                 <span className="sr-only">Delete role</span>
               </Button>
             )}

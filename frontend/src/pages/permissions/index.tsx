@@ -9,7 +9,7 @@ import { permissionsApi, type Permission } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Lock, Plus } from 'lucide-react';
 
 export default function PermissionsPage() {
   const navigate = useNavigate();
@@ -98,33 +98,31 @@ export default function PermissionsPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={Lock}
         title="Permissions"
         description="Manage system permissions"
         count={permissions.length}
         actions={
           hasPermission('permissions.create') ? (
-            <Button onClick={() => navigate('/permissions/create')} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate('/permissions/create')}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Add Permission
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-    Daftar Permissions
-  </div>
-  <div className="p-3 sm:p-4">
-    <DataTable
+      <PageContent noPadding>
+        <DataTable
           columns={columns}
           data={permissions}
           searchPlaceholder="Search permissions by name or description..."
           pageSize={10}
           tableId="permissions"
         />
-  </div>
-</div>
       </PageContent>
 
       <ConfirmDialog

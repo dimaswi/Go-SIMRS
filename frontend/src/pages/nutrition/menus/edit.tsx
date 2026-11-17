@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { nutritionMenuApi, nutritionIngredientApi, nutritionCategoryLabels, nutritionIngredientUnitLabels, type NutritionIngredient } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, UtensilsCrossed, Tag, DollarSign, FileText, Flame, Beef, Droplets, Wheat, Plus, Trash2 } from "lucide-react";
+import { Loader2, UtensilsCrossed, Tag, DollarSign, FileText, Flame, Beef, Droplets, Wheat, Plus, Trash2 } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -162,12 +162,9 @@ export default function NutritionMenuEdit() {
         title="Edit Menu Makanan"
         description={`Perbarui menu gizi ${formData.name || ""} agar identitas dan nilai gizinya tetap sinkron dengan operasional layanan.`}
         icon={UtensilsCrossed}
+        onBack={() => navigate("/nutrition/menus")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/menus")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="nutrition-menu-edit-form" size="sm" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Perubahan

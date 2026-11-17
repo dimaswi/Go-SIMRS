@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,13 +15,13 @@ import { eklaimLocalApi } from '@/lib/api/eklaim-local';
 import type { EKlaimLocalLog } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, ScrollText, Eye } from 'lucide-react';
+import { Loader2, ScrollText, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
 export default function EklaimLogsPage() {
   const { id } = useParams();
-  //const navigate = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<EKlaimLocalLog[]>([]);
@@ -128,38 +129,31 @@ export default function EklaimLogsPage() {
   ];
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <ScrollText className="h-5 w-5" />
-              Log Komunikasi E-Klaim
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Riwayat komunikasi dengan E-Klaim server
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={ScrollText}
+        title="Log Komunikasi E-Klaim"
+        description="Riwayat komunikasi dengan E-Klaim server"
+        count={logs.length}
+        onBack={() => navigate(`/eklaim/data-klaim/${id}`)}
+      />
 
       {/* Table */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={logs}
-          searchPlaceholder="Cari log..."
-          pageSize={20}
-        />
-      )}
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={logs}
+            searchPlaceholder="Cari log..."
+            pageSize={20}
+          />
+        )}
+      </PageContent>
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={(o) => !o && setSelectedLog(null)}>
@@ -205,6 +199,6 @@ export default function EklaimLogsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

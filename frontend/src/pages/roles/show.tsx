@@ -10,7 +10,7 @@ import { rolesApi } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { ArrowLeft, Clock3, Pencil, Shield, Trash2 } from 'lucide-react';
+import { Clock3, Pencil, Shield, Trash2 } from 'lucide-react';
 
 interface RolePermission {
   id: number;
@@ -137,24 +137,32 @@ export default function RoleShow() {
         title={role.name}
         description={role.description || 'Role ini belum memiliki deskripsi tambahan.'}
         icon={Shield}
+        onBack={() => navigate('/roles')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate('/roles')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
-            <Badge variant="outline" className="h-9 rounded-none px-3 text-[11px] uppercase tracking-[0.16em]">
+            <Badge variant="outline" className="h-8 rounded-none px-3 text-[11px] uppercase tracking-[0.16em]">
               {role.permissions?.length || 0} permission
             </Badge>
             {hasPermission('roles.update') ? (
-              <Button type="button" variant="outline" onClick={() => navigate(`/roles/${id}/edit`)}>
-                <Pencil className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(`/roles/${id}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit
               </Button>
             ) : null}
             {hasPermission('roles.delete') ? (
-              <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Hapus
               </Button>
             ) : null}

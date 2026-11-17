@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { medicineTypeLabels, type RoomMedicine } from "@/lib/api/medicines";
 
 interface MedicineAssignmentPanelProps {
@@ -22,125 +23,100 @@ export function MedicineAssignmentPanel({
   onEdit,
   onDelete,
 }: MedicineAssignmentPanelProps) {
-  const [search, setSearch] = useState("");
-
-  const filteredMedicines = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return roomMedicines;
-
-    return roomMedicines.filter((item) =>
-      [
-        item.medicine?.name,
-        item.medicine?.code,
-        item.medicine?.type ? medicineTypeLabels[item.medicine.type] : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [roomMedicines, search]);
+  const columns = useMemo<ColumnDef<RoomMedicine>[]>(() => [
+    {
+      id: "medicine",
+      accessorFn: (row) => `${row.medicine?.name || ""} ${row.medicine?.code || ""}`,
+      header: "Obat",
+      cell: ({ row }) => (
+        <div className="text-xs">
+          <div className="font-medium">{row.original.medicine?.name || "Unknown"}</div>
+          <div className="text-[11px] font-mono text-muted-foreground">{row.original.medicine?.code || "-"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "type",
+      accessorFn: (row) => (row.medicine?.type ? medicineTypeLabels[row.medicine.type] || row.medicine.type : "-"),
+      header: "Tipe",
+      cell: ({ row }) =>
+        row.original.medicine?.type ? (
+          <Badge variant="outline" className="h-5 text-[10px] font-normal">
+            {medicineTypeLabels[row.original.medicine.type] || row.original.medicine.type}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        ),
+    },
+    {
+      accessorKey: "quantity",
+      header: "Stok",
+      cell: ({ row }) => {
+        const item = row.original;
+        const isLowStock = item.quantity <= item.min_quantity;
+        return (
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className={isLowStock ? "font-semibold text-yellow-600" : "font-semibold"}>{item.quantity}</span>
+            {isLowStock ? <Badge variant="outline" className="h-4 text-[10px] font-normal">Rendah</Badge> : null}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "min_quantity",
+      header: "Min.",
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.min_quantity}</span>,
+    },
+    {
+      id: "selling_price",
+      accessorFn: (row) => row.medicine?.selling_price || 0,
+      header: "Harga Jual",
+      cell: ({ row }) => (
+        <span className="text-xs font-medium text-primary">
+          {row.original.medicine?.selling_price
+            ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(row.original.medicine.selling_price)
+            : "-"}
+        </span>
+      ),
+    },
+    ...(hasPermission && (onEdit || onDelete)
+      ? [
+          {
+            id: "actions",
+            header: () => <div className="text-right">Aksi</div>,
+            cell: ({ row }: { row: { original: RoomMedicine } }) => (
+              <div className="flex items-center justify-end gap-1">
+                {onEdit && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(row.original)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(row.original.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ),
+          } as ColumnDef<RoomMedicine>,
+        ]
+      : []),
+  ], [hasPermission, onEdit, onDelete]);
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden">
-      {/* Medicine Table */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {hasPermission && onAdd && (
-            <Button onClick={onAdd} size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Obat Manual
-            </Button>
-          )}
-        </div>
-
-        <div className="min-w-0 overflow-hidden rounded-lg border">
-          <div className="border-b border-border/70 bg-muted/20 p-3">
-            <div className="relative max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Cari obat..."
-                className="pl-9 h-9"
-              />
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border/70 bg-muted/50 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Obat</th>
-                  <th className="px-4 py-3 font-medium">Tipe</th>
-                  <th className="px-4 py-3 font-medium">Stok</th>
-                  <th className="px-4 py-3 font-medium">Min.</th>
-                  <th className="px-4 py-3 font-medium">Harga Jual</th>
-                  {hasPermission && <th className="px-4 py-3 text-right font-medium">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60 bg-background">
-                {filteredMedicines.length === 0 ? (
-                  <tr>
-                    <td colSpan={hasPermission ? 6 : 5} className="px-4 py-8 text-center text-muted-foreground">
-                      Belum ada obat yang tercatat di ruangan ini.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMedicines.map((item) => {
-                    const isLowStock = item.quantity <= item.min_quantity;
-
-                    return (
-                      <tr key={item.id} className="align-middle hover:bg-muted/30">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{item.medicine?.name || 'Unknown'}</div>
-                          <div className="text-xs text-muted-foreground">{item.medicine?.code || '-'}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {item.medicine?.type ? (
-                            <Badge variant="outline" className="text-[10px] font-normal">
-                              {medicineTypeLabels[item.medicine.type] || item.medicine.type}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className={isLowStock ? 'font-semibold text-yellow-600' : 'font-semibold'}>{item.quantity}</span>
-                            {isLowStock ? <Badge variant="outline" className="text-[10px] font-normal">Rendah</Badge> : null}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{item.min_quantity}</td>
-                        <td className="px-4 py-3 font-medium text-primary">
-                          {item.medicine?.selling_price
-                            ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(item.medicine.selling_price)
-                            : '-'}
-                        </td>
-                        {hasPermission && (
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {onEdit && (
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(item)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {onDelete && (
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(item.id)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      data={roomMedicines}
+      searchPlaceholder="Cari obat..."
+      hideRowCount
+      toolbarRight={
+        hasPermission && onAdd ? (
+          <Button onClick={onAdd} size="sm" className="h-8 text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Tambah Obat Manual
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }

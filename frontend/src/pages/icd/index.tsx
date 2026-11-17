@@ -111,6 +111,7 @@ export default function ICDIndexPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={activeTab === "icd10" ? Stethoscope : Syringe}
         title={activeTab === "icd10" ? "ICD-10 Indonesia Modified" : "ICD-9-CM Indonesia Modified"}
         description={
           activeTab === "icd10"
@@ -126,40 +127,33 @@ export default function ICDIndexPage() {
             </Button>
           ) : undefined
         }
-      />
+      >
+        <FilterBar>
+          <FilterPill active={activeTab === "icd10"} onClick={() => handleTabChange("icd10")}>
+            <Stethoscope className="h-3.5 w-3.5" />
+            ICD-10
+          </FilterPill>
+          <FilterPill active={activeTab === "icd9cm"} onClick={() => handleTabChange("icd9cm")}>
+            <Syringe className="h-3.5 w-3.5" />
+            ICD-9-CM
+          </FilterPill>
+        </FilterBar>
+      </PageHeader>
 
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {activeTab === "icd10" ? "Daftar ICD-10" : "Daftar ICD-9-CM"}
+      <PageContent noPadding>
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-
-          <div className="p-3 sm:p-4">
-            <FilterBar>
-              <FilterPill active={activeTab === "icd10"} onClick={() => handleTabChange("icd10")}>
-                <Stethoscope className="h-3.5 w-3.5" />
-                ICD-10
-              </FilterPill>
-              <FilterPill active={activeTab === "icd9cm"} onClick={() => handleTabChange("icd9cm")}>
-                <Syringe className="h-3.5 w-3.5" />
-                ICD-9-CM
-              </FilterPill>
-            </FilterBar>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={data}
-                searchPlaceholder="Cari kode atau nama..."
-                pageSize={15}
-                tableId={`icd_${activeTab}`}
-              />
-            )}
-          </div>
-        </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari kode atau nama..."
+            pageSize={15}
+            tableId={`icd_${activeTab}`}
+          />
+        )}
       </PageContent>
 
       <ConfirmDialog

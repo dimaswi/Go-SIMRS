@@ -179,50 +179,53 @@ export function createEmployeeColumns({
     },
     {
       id: "actions",
-      header: "Aksi",
+      header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => {
         const employee = row.original
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-1.5">
             {hasCreateUserPermission && !employee.user && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => onCreateUser(employee)}
-                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                className="size-7 rounded-none border border-indigo-200 text-indigo-600 bg-indigo-50/20 hover:bg-indigo-100/50 hover:text-indigo-700 p-0 shadow-none"
                 title="Buat Akun Pegawai"
               >
-                <Lock className="h-4 w-4" />
+                <Lock className="size-3.5" />
               </Button>
             )}
             {hasViewPermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => onView(employee.id)}
-                className="h-8 w-8"
+                className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+                title="Lihat Detail Pegawai"
               >
-                <Eye className="h-4 w-4" />
+                <Eye className="size-3.5" />
               </Button>
             )}
             {hasEditPermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => onEdit(employee.id)}
-                className="h-8 w-8"
+                className="size-7 rounded-none border border-amber-200 text-amber-600 bg-amber-50/20 hover:bg-amber-100/50 hover:text-amber-700 p-0 shadow-none"
+                title="Edit Pegawai"
               >
-                <Edit className="h-4 w-4" />
+                <Edit className="size-3.5" />
               </Button>
             )}
             {hasDeletePermission && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => onDelete(employee.id)}
-                className="h-8 w-8 text-destructive hover:text-destructive"
+                className="size-7 rounded-none border border-rose-200 text-rose-500 bg-rose-50/20 hover:bg-rose-100/50 hover:text-rose-600 p-0 shadow-none"
+                title="Hapus Pegawai"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-3.5" />
               </Button>
             )}
           </div>

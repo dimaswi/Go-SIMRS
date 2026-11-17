@@ -16,7 +16,7 @@ import {
   type NutritionPackageInput,
 } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Trash2, UtensilsCrossed, Flame, Search } from "lucide-react";
+import { Loader2, Plus, Trash2, UtensilsCrossed, Flame, Search } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -225,12 +225,9 @@ export default function NutritionMealPackageCreate() {
         title="Tambah Paket Makanan"
         description="Susun paket makanan layanan gizi dari kombinasi menu aktif, jadwal makan, diet, harga, dan total nilai gizi yang siap dipakai operasional."
         icon={UtensilsCrossed}
+        onBack={() => navigate("/nutrition/meal-packages")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/meal-packages")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="nutrition-package-create-form" size="sm" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Paket

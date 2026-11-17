@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -718,38 +719,31 @@ export default function AdmissionRequestShowPage() {
     : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
   return (
-    <div className="flex flex-1 flex-col px-4 gap-4 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/registrations?tab=admission_requests">
-              <ChevronLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold">{request.request_number}</h1>
-            <p className="text-sm text-muted-foreground">
-              Permintaan Rawat Inap
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {getStatusBadge(request.status)}
-          {getPriorityBadge(request.priority)}
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        icon={Bed}
+        title={request.request_number}
+        description="Permintaan Rawat Inap"
+        onBack={() => navigate("/registrations?tab=admission_requests")}
+        badges={
+          <>
+            {getStatusBadge(request.status)}
+            {getPriorityBadge(request.priority)}
+          </>
+        }
+      />
 
-      <div className="grid gap-4 lg:grid-cols-3 flex-1 min-h-0">
-        {/* Left Column - Detail Permintaan */}
-        <div className="rounded-lg border flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center gap-2 px-6 py-4 shrink-0">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Detail Permintaan
-            </h3>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <PageContent>
+        <div className="grid gap-6 lg:grid-cols-3 lg:divide-x lg:divide-neutral-200 dark:lg:divide-neutral-800">
+          {/* Left Column - Detail Permintaan */}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
+                <FileText className="h-4 w-4 text-neutral-500" />
+                Detail Permintaan
+              </h3>
+            </div>
+            <div className="pt-4 space-y-6">
             {/* Patient Info */}
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -995,23 +989,23 @@ export default function AdmissionRequestShowPage() {
         </div>
 
         {/* Right Column - Proses Pemilihan */}
-        <div className="rounded-lg border lg:col-span-2 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center gap-2 px-6 py-4 shrink-0 border-b">
-            <h3 className="text-sm font-medium flex items-center gap-2">
+        <div className="lg:col-span-2 flex flex-col lg:pl-6">
+          <div className="flex items-center gap-2 pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-neutral-800 dark:text-neutral-200">
               {isPending ? (
                 <>
-                  <Building className="h-4 w-4" />
+                  <Building className="h-4 w-4 text-neutral-500" />
                   Proses Admisi
                 </>
               ) : (
                 <>
-                  <CheckCircle className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4 text-neutral-500" />
                   Status Permintaan
                 </>
               )}
             </h3>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="pt-4">
             {isPending ? (
               <div className="space-y-6">
                 {/* Room Selection */}
@@ -1336,7 +1330,7 @@ export default function AdmissionRequestShowPage() {
           </div>
           {/* Sticky Action Footer */}
           {isPending && (
-            <div className="shrink-0 border-t bg-background px-4 py-3 flex items-center justify-between gap-3">
+            <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-background px-4 py-3 flex items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 {selectedRoomId && selectedBedId && selectedDoctorId ? (
                   <span className="text-green-700 font-medium">
@@ -1350,13 +1344,14 @@ export default function AdmissionRequestShowPage() {
                 <Button
                   variant="outline"
                   onClick={() => setRejectDialogOpen(true)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="rounded-none text-red-600 hover:text-red-700 hover:bg-red-50"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Tolak
                 </Button>
                 <Button
                   onClick={handleProcessClick}
+                  className="rounded-none"
                   disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
                 >
                   {processing ? (
@@ -1376,6 +1371,7 @@ export default function AdmissionRequestShowPage() {
           )}
         </div>
       </div>
+      </PageContent>
 
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
@@ -1706,6 +1702,6 @@ export default function AdmissionRequestShowPage() {
         }}
         requiredSignatures={2}
       />
-    </div>
+    </PageShell>
   );
 }

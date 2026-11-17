@@ -6,10 +6,11 @@ import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Stethoscope, Syringe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 type ICDType = "icd10" | "icd9cm";
 
@@ -80,21 +81,21 @@ export default function ICDShowPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col px-4">
-        <div className="rounded-lg border p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <Skeleton className="h-9 w-9" />
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-48" />
-                <Skeleton className="h-4 w-32" />
-              </div>
+      <PageShell>
+        <PageContent>
+          <div className="flex items-center gap-4 mb-6">
+            <Skeleton className="h-9 w-9" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-32" />
             </div>
-            <div className="space-y-4">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-        </div>
-      </div>
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -106,45 +107,38 @@ export default function ICDShowPage() {
   const icdData = data as ICD10;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="icon" asChild className="h-9 w-9">
-                <Link to={`/icd?type=${type}`}>
-                  <ArrowLeft className="h-4 w-4" />
+    <PageShell>
+      <PageHeader
+        icon={isICD10 ? Stethoscope : Syringe}
+        title={data.display}
+        badges={
+          <Badge variant={data.is_active ? "default" : "secondary"}>
+            {data.is_active ? "Aktif" : "Nonaktif"}
+          </Badge>
+        }
+        description={`Kode: ${data.code} (${isICD10 ? "ICD-10" : "ICD-9-CM"})`}
+        onBack={() => navigate(`/icd?type=${type}`)}
+        actions={
+          <div className="flex gap-2">
+            {hasPermission("icd.update") && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/icd/${type}/${data.id}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
                 </Link>
               </Button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-semibold">{data.display}</h1>
-                  <Badge variant={data.is_active ? "default" : "secondary"}>
-                    {data.is_active ? "Aktif" : "Nonaktif"}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground font-mono">
-                  Kode: {data.code} ({isICD10 ? "ICD-10" : "ICD-9-CM"})
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {hasPermission("icd.update") && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link to={`/icd/${type}/${data.id}/edit`}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Link>
-                </Button>
-              )}
-              {hasPermission("icd.delete") && (
-                <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </Button>
-              )}
-            </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          <div className="space-y-6">
+            )}
+            {hasPermission("icd.delete") && (
+              <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Hapus
+              </Button>
+            )}
+          </div>
+        }
+      />
+      <PageContent>
+        <div className="space-y-6">
             {/* Badges */}
             <div className="flex flex-wrap gap-2">
               <Badge variant={data.valid_code ? "default" : "secondary"}>
@@ -202,8 +196,8 @@ export default function ICDShowPage() {
                 </div>
               )}
             </div>
-          </div>
-      </div>
+        </div>
+      </PageContent>
 
       <ConfirmDialog
         open={showDelete}
@@ -214,6 +208,6 @@ export default function ICDShowPage() {
         confirmText="Hapus"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

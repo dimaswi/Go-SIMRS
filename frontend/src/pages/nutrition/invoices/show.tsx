@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Pencil, ReceiptText } from "lucide-react";
+import { Loader2, Pencil, ReceiptText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,12 +58,9 @@ export default function NutritionInvoiceShow() {
         title={invoice.invoice_number}
         description="Rincian faktur bahan gizi untuk kebutuhan audit dan laporan pembelian."
         icon={ReceiptText}
+        onBack={() => navigate("/nutrition/invoices")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/invoices")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/invoices/${invoice.id}/edit`)}>
               <Pencil className="h-4 w-4" />
               Edit

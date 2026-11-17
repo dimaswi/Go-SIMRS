@@ -16,9 +16,9 @@ import {
 import {
   Loader2, Download, TrendingUp, Building2, DollarSign,
   HeartPulse, Pill, FlaskConical, Boxes, UserCheck, Landmark, Calendar,
-  ArrowRight, ArrowLeft,
+  ArrowRight, Search,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   PageShell,
@@ -27,6 +27,8 @@ import {
   FilterBar,
   FilterPill,
 } from '@/components/layout/page-shell';
+import { DataTable as SharedDataTable } from '@/components/ui/data-table';
+import { type ColumnDef } from '@/components/ui/data-table-utils';
 import {
   reportCategories,
   reportQuickStats,
@@ -122,14 +124,14 @@ function InlineNav({ items, value, onChange }: {
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="border border-border/70 bg-background px-3 py-3">
-      <FilterBar className="gap-2">
+    <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 px-4 py-2">
+      <FilterBar className="gap-1.5">
         {items.map(item => (
           <FilterPill
             key={item.value}
             onClick={() => onChange(item.value)}
             active={value === item.value}
-            className="min-h-[38px] px-3 py-2 text-[10px] leading-none"
+            className="h-7 px-2.5 text-xs"
           >
             {item.label}
           </FilterPill>
@@ -148,20 +150,21 @@ function DateFilter({ startDate, endDate, onStartChange, onEndChange, onApply, o
   onApply: () => void; onExport?: () => void; loading?: boolean;
 }) {
   return (
-    <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
-      <div className="flex items-center gap-1.5 border border-border/70 bg-background px-2 py-2">
-        <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+    <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground hidden sm:block" />
+        <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="h-8 w-[138px] text-xs" />
+        <span className="shrink-0 text-xs text-muted-foreground">-</span>
+        <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="h-8 w-[138px] text-xs" />
       </div>
-      <Input type="date" value={startDate} onChange={e => onStartChange(e.target.value)} className="h-9 w-[145px] rounded-none border-border/70 px-2 text-xs" />
-      <span className="shrink-0 text-[11px] text-muted-foreground"> - </span>
-      <Input type="date" value={endDate} onChange={e => onEndChange(e.target.value)} className="h-9 w-[145px] rounded-none border-border/70 px-2 text-xs" />
-      <Button onClick={onApply} disabled={loading} size="sm" className="h-9 shrink-0 rounded-none px-3 text-xs">
-        {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-        OK
+      <Button onClick={onApply} disabled={loading} size="sm" className="h-8 shrink-0 px-3 text-xs">
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+        Tampilkan
       </Button>
       {onExport && (
-        <Button variant="outline" size="sm" onClick={onExport} className="h-9 shrink-0 rounded-none border-border/70 px-3 text-xs">
-          <Download className="h-3 w-3" />
+        <Button variant="outline" size="sm" onClick={onExport} className="h-8 shrink-0 px-2.5 text-xs">
+          <Download className="h-3.5 w-3.5 mr-1.5" />
+          Excel
         </Button>
       )}
     </div>
@@ -169,15 +172,15 @@ function DateFilter({ startDate, endDate, onStartChange, onEndChange, onApply, o
 }
 
 // ============================================================
-// Page Header (title left, filter right)
+// Page Header (title left with back button, filter right)
 // ============================================================
-function PageHeader({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
+function PageHeader({ title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
+  const navigate = useNavigate();
   return (
     <ShellPageHeader
       title={title}
+      onBack={() => navigate('/reports')}
       actions={children ?? null}
-      className="border-border/70 bg-background/95"
-      badges={icon}
     />
   );
 }
@@ -196,44 +199,37 @@ function getDefaultEnd() {
 // ============================================================
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DataTable({ columns, data }: { columns: { key: string; label: string; format?: (v: any) => string; align?: string; width?: string; wrap?: boolean }[]; data: any[] }) {
-  if (!data || data.length === 0) return <p className="text-muted-foreground text-center py-8">Tidak ada data untuk periode ini.</p>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tableColumns: ColumnDef<any>[] = columns.map((col) => ({
+    id: col.key,
+    accessorFn: (row) => {
+      const val = row?.[col.key];
+      return val != null ? String(val) : '';
+    },
+    header: () => (
+      <div className={cn('text-[11px] font-semibold uppercase tracking-wider', col.align === 'right' && 'text-right')}>
+        {col.label}
+      </div>
+    ),
+    cell: ({ row }) => {
+      const val = row.original?.[col.key];
+      const badge = renderReportBadge(val, col.key);
+      return (
+        <div className={cn('text-xs', col.align === 'right' && 'text-right tabular-nums', col.wrap ? 'whitespace-normal break-words' : 'max-w-[280px] truncate')}>
+          {badge ?? (col.format ? col.format(val) : (val != null ? String(val) : '-'))}
+        </div>
+      );
+    },
+  }));
+
   return (
-    <div className="overflow-hidden border border-border/70 bg-background">
-      <div
-        className="hidden border-b border-border/70 bg-muted/20 px-4 py-3 md:grid"
-        style={{ gridTemplateColumns: columns.map((col) => col.width || 'minmax(0,1fr)').join(' ') }}
-      >
-        {columns.map(col => (
-          <div
-            key={col.key}
-            className={cn('px-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground', col.align === 'right' && 'text-right')}
-            style={{ fontFamily: REPORT_MONO_FAMILY }}
-          >
-            {col.label}
-          </div>
-        ))}
-      </div>
-      <div className="divide-y divide-dashed divide-border/70">
-        {data.map((row, i) => (
-          <div
-            key={i}
-            className="grid gap-3 px-4 py-3 md:items-center"
-            style={{ gridTemplateColumns: columns.map((col) => col.width || 'minmax(0,1fr)').join(' ') }}
-          >
-            {columns.map(col => (
-              <div key={col.key} className={cn('min-w-0 px-2', col.align === 'right' && 'md:text-right')}>
-                <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground md:hidden" style={{ fontFamily: REPORT_MONO_FAMILY }}>
-                  {col.label}
-                </div>
-                <div className={cn('text-sm', col.wrap ? 'whitespace-normal break-words' : 'truncate')}>
-                  {renderReportBadge(row[col.key], col.key) ?? (col.format ? col.format(row[col.key]) : (row[col.key] != null ? String(row[col.key]) : '-'))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
+    <SharedDataTable
+      columns={tableColumns}
+      data={Array.isArray(data) ? data : []}
+      searchPlaceholder="Cari data laporan..."
+      pageSize={15}
+      hideRowCount
+    />
   );
 }
 
@@ -275,9 +271,11 @@ function ReportFilterField({
 }
 
 function ReportExplorerLayout({
+  sidebarTitle,
   reportItems,
   activeTab,
   onTabChange,
+  previewTitle,
   previewChildren,
   showPreview = false,
 }: {
@@ -292,66 +290,57 @@ function ReportExplorerLayout({
   previewChildren: ReactNode;
   showPreview?: boolean;
 }) {
-  const [opened, setOpened] = useState(false);
+  const activeItem = reportItems.find((item) => item.value === activeTab);
 
   return (
-    <>
-      <div className="space-y-4">
-        <div className="space-y-4">
-          {opened ? (
-            <div className="space-y-4 pb-12">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-none border-border/70 text-xs bg-background hover:bg-muted"
-                  onClick={() => setOpened(false)}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Kembali
-                </Button>
-              </div>
-              {previewChildren}
-            </div>
-          ) : (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {reportItems.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => {
-                    onTabChange(item.value);
-                    setOpened(true);
-                  }}
-                  className={cn(
-                    'flex min-h-[108px] items-start justify-between border px-4 py-4 text-left transition-colors',
-                    activeTab === item.value ? 'border-foreground bg-muted/10' : 'border-border/70 bg-background hover:bg-muted/10',
-                  )}
-                >
-                  <div className="flex gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center border border-border/70 bg-muted/20 text-[10px] font-semibold">
-                      R
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-base font-semibold leading-6">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">{item.note}</p>
-                      <p className="text-sm text-muted-foreground">keterangan:</p>
-                    </div>
-                  </div>
-                  <Download className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          )}
+    <div className="flex flex-col lg:flex-row min-h-[540px]">
+      <aside className="w-full lg:w-[250px] shrink-0 border-b lg:border-b-0 lg:border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/20">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {sidebarTitle || 'Jenis Laporan'}
         </div>
-      </div>
+        <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible divide-x lg:divide-x-0 lg:divide-y divide-neutral-200/70 dark:divide-neutral-800/70">
+          {reportItems.map((item) => {
+            const isActive = activeTab === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => onTabChange(item.value)}
+                className={cn(
+                  'shrink-0 lg:shrink text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-2',
+                  isActive
+                    ? 'bg-background text-foreground font-semibold lg:border-l-2 lg:border-l-primary'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                )}
+              >
+                <span className="text-xs leading-snug">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
 
-      {showPreview ? (
-        <div className="pt-2 pb-12">
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-4 py-2.5">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">{previewTitle || activeItem?.label}</h2>
+            {activeItem?.note && !activeItem.note.toLowerCase().startsWith('download:') && (
+              <p className="text-xs text-muted-foreground mt-0.5">{activeItem.note}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
           {previewChildren}
         </div>
-      ) : null}
-    </>
+
+        {showPreview ? (
+          <div className="pt-2">
+            {previewChildren}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -385,17 +374,16 @@ function aggregateByKey<T extends Record<string, any>>(
 
 function ReportIndexHero() {
   return (
-    <div className="grid gap-px border border-border/70 bg-border/70 md:grid-cols-3">
+    <div className="grid border-b border-neutral-200 dark:border-neutral-800 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 md:grid-cols-3 bg-neutral-50/40 dark:bg-neutral-900/20">
       {reportQuickStats.map((item) => (
-        <div key={item.label} className="bg-background px-4 py-4">
-          <div
-            className="text-[10px] uppercase leading-[1.6] tracking-[0.24em] text-muted-foreground"
-            style={{ fontFamily: REPORT_MONO_FAMILY }}
-          >
+        <div key={item.label} className="px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {item.label}
           </div>
-          <div className="mt-2 text-xl font-semibold text-foreground">{item.value}</div>
-          <div className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">{item.hint}</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-lg font-bold text-foreground">{item.value}</span>
+            <span className="text-xs text-muted-foreground">{item.hint}</span>
+          </div>
         </div>
       ))}
     </div>
@@ -403,51 +391,80 @@ function ReportIndexHero() {
 }
 
 export default function ReportIndexPage() {
+  const [search, setSearch] = useState('');
   useEffect(() => { setPageTitle('Laporan'); }, []);
+
+  const filteredCategories = reportCategories.filter((cat) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      cat.title.toLowerCase().includes(q) ||
+      cat.description.toLowerCase().includes(q) ||
+      cat.auditFocus.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <PageShell>
-      <PageContent className="space-y-6 px-4 pb-4 pt-4 md:px-6">
+      <ShellPageHeader
+        title="Laporan SIMRS"
+        description="Pilih kategori laporan operasional, keuangan, farmasi, penunjang, SDM, atau Kemenkes RL"
+      />
+      <PageContent noPadding>
         <ReportIndexHero />
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {reportCategories.map(cat => {
-            const Icon = cat.icon;
-            return (
-              <Link to={cat.path} key={cat.path} className="group">
-                <div className="group relative h-full overflow-hidden border border-border/70 bg-background transition-colors duration-200 hover:bg-muted/10">
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-500 via-cyan-500 to-emerald-500" />
-                  <div className="flex h-full flex-col justify-between">
-                    <div className="space-y-2 px-4 pb-0 pt-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border/70 bg-muted/20 text-foreground">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-semibold text-foreground">{cat.title}</h2>
-                            <Badge variant="secondary" className="ml-auto rounded-none px-2 py-0 text-[10px]">
-                              {cat.count}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{cat.description}</p>
-                          <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80" style={{ fontFamily: REPORT_MONO_FAMILY }}>
-                            {cat.auditFocus}
-                          </p>
-                        </div>
-                      </div>
+        <div className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-2.5 bg-background">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari kategori atau jenis laporan..."
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
+        </div>
+
+        {filteredCategories.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Kategori laporan tidak ditemukan.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {filteredCategories.map((cat, idx) => {
+              const Icon = cat.icon;
+              return (
+                <Link
+                  to={cat.path}
+                  key={cat.path}
+                  className={cn(
+                    'group flex items-start justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 p-4 transition-colors hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40',
+                    idx % 2 === 0 && 'md:border-r',
+                  )}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-foreground">
+                      <Icon className="h-4 w-4" />
                     </div>
-                    <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-[11px] text-muted-foreground">
-                      <span>Masuk</span>
-                      <span className="inline-flex items-center gap-1 font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                        Buka <ArrowRight className="h-3 w-3" />
-                      </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-semibold text-foreground">{cat.title}</h2>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                          {cat.count} laporan
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{cat.description}</p>
+                      <p className="mt-1.5 text-[11px] font-medium text-muted-foreground/80">
+                        Fokus: {cat.auditFocus}
+                      </p>
                     </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-50 transition-all group-hover:translate-x-0.5 group-hover:opacity-100 group-hover:text-foreground mt-1" />
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </PageContent>
     </PageShell>
   );
@@ -585,10 +602,10 @@ export function ReportVisitsPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<TrendingUp className="h-5 w-5" />} title="Laporan Kunjungan & Pasien">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<TrendingUp className="h-5 w-5" />} title="Laporan Kunjungan & Pasien">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan kunjungan"
           reportItems={reportItems}
@@ -919,10 +936,10 @@ export function ReportBPJSPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<Building2 className="h-5 w-5" />} title="Laporan BPJS">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<Building2 className="h-5 w-5" />} title="Laporan BPJS">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan BPJS"
           reportItems={reportItems}
@@ -1147,10 +1164,10 @@ export function ReportBillingPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<DollarSign className="h-5 w-5" />} title="Laporan Keuangan">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<DollarSign className="h-5 w-5" />} title="Laporan Keuangan">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan keuangan"
           reportItems={reportItems}
@@ -1390,10 +1407,10 @@ export function ReportInpatientPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Rawat Inap">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Rawat Inap">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan rawat inap"
           reportItems={reportItems}
@@ -1572,10 +1589,10 @@ export function ReportPharmacyPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<Pill className="h-5 w-5" />} title="Laporan Farmasi">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<Pill className="h-5 w-5" />} title="Laporan Farmasi">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan farmasi"
           reportItems={reportItems}
@@ -1777,10 +1794,10 @@ export function ReportPenunjangPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<FlaskConical className="h-5 w-5" />} title="Laporan Penunjang (Lab & Radiologi)">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<FlaskConical className="h-5 w-5" />} title="Laporan Penunjang (Lab & Radiologi)">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent noPadding>
         <ReportExplorerLayout
           sidebarTitle="Parameter laporan penunjang"
           reportItems={reportItems}
@@ -1966,10 +1983,10 @@ export function ReportServicesPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Layanan">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
+      <PageHeader icon={<HeartPulse className="h-5 w-5" />} title="Laporan Layanan">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <PageContent className="p-4 space-y-4">
 
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="border border-border/70 bg-background">
@@ -2265,13 +2282,13 @@ export function ReportInventoryPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<Boxes className="h-5 w-5" />} title="Laporan Inventaris & Stok">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
-        <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageHeader icon={<Boxes className="h-5 w-5" />} title="Laporan Inventaris & Stok">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageContent className="p-4 space-y-4">
 
-        <div className="pt-2">
+        <div>
           {tab === 'medicine-stock' && (
             <ReportPanel eyebrow="Data" title="Stok Obat">
               <DataTable columns={[
@@ -2384,13 +2401,13 @@ export function ReportHRPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<UserCheck className="h-5 w-5" />} title="Laporan SDM">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
-        <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageHeader icon={<UserCheck className="h-5 w-5" />} title="Laporan SDM">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageContent className="p-4 space-y-4">
 
-        <div className="pt-2">
+        <div>
           {tab === 'summary' && (
             <div className="space-y-4">
               <ReportPanel eyebrow="Trend" title="Komposisi Pegawai">
@@ -2570,13 +2587,13 @@ export function ReportKemenkesPage() {
 
   return (
     <PageShell>
-      <PageContent className="space-y-4 px-4 pb-4 pt-4 md:px-6">
-        <PageHeader icon={<Landmark className="h-5 w-5" />} title="Laporan Kemenkes / RL">
-          <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
-        </PageHeader>
-        <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageHeader icon={<Landmark className="h-5 w-5" />} title="Laporan Kemenkes / RL">
+        <DateFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onApply={fetchData} onExport={exportExcel} loading={loading} />
+      </PageHeader>
+      <InlineNav items={navItems} value={tab} onChange={setTab} />
+      <PageContent className="p-4 space-y-4">
 
-        <div className="pt-2">
+        <div>
           {tab === 'quality-indicators' && (
             <div className="grid gap-px bg-border/70 md:grid-cols-2 lg:grid-cols-3">
               {data.map((row: { indikator: string; nilai: string; standar: string; status: string }, i: number) => (

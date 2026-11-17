@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { nutritionIngredientApi, nutritionIngredientUnitLabels, type NutritionIngredient } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel } from "../shared-page-chrome";
@@ -46,12 +46,9 @@ export default function NutritionIngredientShow() {
       <PageHeader
         title={item.name}
         description="Tinjau detail master bahan yang digunakan dalam komposisi menu gizi."
+        onBack={() => navigate("/nutrition/ingredients")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/ingredients")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/ingredients/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
               Edit

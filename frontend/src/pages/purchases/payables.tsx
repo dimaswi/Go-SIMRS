@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight, Loader2, Receipt, ShoppingCart } from "lucide-react";
+import { Eye, Loader2, Receipt, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -260,12 +260,19 @@ export default function PurchasePayablesIndex() {
       },
       {
         id: "actions",
-        header: "Aksi",
+        header: () => <div className="text-right">Aksi</div>,
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" onClick={() => navigate(`/purchases/${row.original.id}`)}>
-            <ArrowRight className="mr-2 h-4 w-4" />
-            Detail
-          </Button>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+              onClick={() => navigate(`/purchases/${row.original.id}`)}
+              title="Detail"
+            >
+              <Eye className="size-3.5" />
+            </Button>
+          </div>
         ),
       },
     ],
@@ -283,89 +290,72 @@ export default function PurchasePayablesIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={Receipt}
         title="Hutang Supplier"
         description="Pantau outstanding pembelian supplier, jatuh tempo, dan transaksi yang sudah atau belum dilunasi."
         count={filteredPayables.length}
+        onBack={() => navigate("/purchases")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/purchases")} size="sm">
-              <ShoppingCart className="h-4 w-4" />
+            <Button
+              variant="outline"
+              onClick={() => navigate("/purchases")}
+              size="sm"
+              className="rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
               Daftar Pembelian
             </Button>
-            <Button onClick={() => navigate("/purchases/create")} size="sm">
-              <Receipt className="h-4 w-4" />
+            <Button
+              onClick={() => navigate("/purchases/create")}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Receipt className="h-3.5 w-3.5" />
               Buat Pembelian
             </Button>
           </div>
         }
-      />
-      <PageContent>
-        <div className="space-y-4">
-          {/* <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SummaryStrip label="Outstanding" value={formatCurrency(outstandingTotal)} helper="Total sisa hutang seluruh pembelian supplier." />
-            <SummaryStrip label="Overdue" value={formatCurrency(overdueTotal)} helper="Nilai hutang yang sudah melewati jatuh tempo." />
-            <SummaryStrip label="Sudah Dibayar" value={formatCurrency(paidThisRegister)} helper="Akumulasi pembayaran yang tercatat pada register pembelian." />
-            <SummaryStrip label="Dokumen Aktif" value={filteredPayables.length.toLocaleString("id-ID")} helper="Jumlah pembelian pada filter monitoring saat ini." />
-          </div>
-
-          
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {agingBuckets.map((bucket) => (
-                <SummaryStrip
-                  key={bucket.label}
-                  label={bucket.label}
-                  value={formatCurrency(bucket.amount)}
-                  helper={`${bucket.count.toLocaleString("id-ID")} dokumen. ${bucket.helper}`}
-                />
-              ))}
-            </div> */}
-          
-          <div className="border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Monitoring Hutang Supplier
-            </div>
-            <div className="space-y-4 p-3 sm:p-4">
-              <FilterBar>
-                <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={payables.length}>
-                  Semua
-                </FilterPill>
-                <FilterPill active={activeView === "unpaid"} onClick={() => setActiveView("unpaid")} count={payables.filter((item) => item.payment_status === "unpaid").length}>
-                  Belum Bayar
-                </FilterPill>
-                <FilterPill active={activeView === "partial"} onClick={() => setActiveView("partial")} count={payables.filter((item) => item.payment_status === "partial").length}>
-                  Sebagian
-                </FilterPill>
-                <FilterPill active={activeView === "overdue"} onClick={() => setActiveView("overdue")} count={payables.filter((item) => item.payment_status === "overdue").length}>
-                  Overdue
-                </FilterPill>
-                <FilterPill active={activeView === "paid"} onClick={() => setActiveView("paid")} count={payables.filter((item) => item.payment_status === "paid").length}>
-                  Lunas
-                </FilterPill>
-              </FilterBar>
-
-              <DataTable
-                columns={columns}
-                data={filteredPayables}
-                searchPlaceholder="Cari nomor pembelian, supplier, atau nomor faktur..."
-                pageSize={10}
-                tableId="purchase_payables"
-                searchSlot={
-                  <div className="flex min-w-[220px] items-center gap-2">
-                    <Combobox
-                      options={supplierOptions}
-                      value={supplierFilter}
-                      onValueChange={(value) => setSupplierFilter(value || "all")}
-                      placeholder="Filter supplier"
-                      searchPlaceholder="Cari supplier..."
-                      emptyText="Supplier tidak ditemukan"
-                      className="h-7 min-w-[220px] text-xs"
-                    />
-                  </div>
-                }
+      >
+        <FilterBar>
+          <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={payables.length}>
+            Semua
+          </FilterPill>
+          <FilterPill active={activeView === "unpaid"} onClick={() => setActiveView("unpaid")} count={payables.filter((item) => item.payment_status === "unpaid").length}>
+            Belum Bayar
+          </FilterPill>
+          <FilterPill active={activeView === "partial"} onClick={() => setActiveView("partial")} count={payables.filter((item) => item.payment_status === "partial").length}>
+            Sebagian
+          </FilterPill>
+          <FilterPill active={activeView === "overdue"} onClick={() => setActiveView("overdue")} count={payables.filter((item) => item.payment_status === "overdue").length}>
+            Overdue
+          </FilterPill>
+          <FilterPill active={activeView === "paid"} onClick={() => setActiveView("paid")} count={payables.filter((item) => item.payment_status === "paid").length}>
+            Lunas
+          </FilterPill>
+        </FilterBar>
+      </PageHeader>
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={filteredPayables}
+          searchPlaceholder="Cari nomor pembelian, supplier, atau nomor faktur..."
+          pageSize={10}
+          tableId="purchase_payables"
+          searchSlot={
+            <div className="flex min-w-[220px] items-center gap-2">
+              <Combobox
+                options={supplierOptions}
+                value={supplierFilter}
+                onValueChange={(value) => setSupplierFilter(value || "all")}
+                placeholder="Filter supplier"
+                searchPlaceholder="Cari supplier..."
+                emptyText="Supplier tidak ditemukan"
+                className="h-7 min-w-[220px] text-xs rounded-none"
               />
             </div>
-          </div>
-        </div>
+          }
+        />
       </PageContent>
     </PageShell>
   );

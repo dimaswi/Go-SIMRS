@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";
+import { ClipboardCheck, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
@@ -119,33 +119,31 @@ export default function StockOpnameIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={ClipboardCheck}
         title="Stock Opname"
         description="Pengecekan dan penyesuaian stok fisik"
         count={stockOpnames.length}
         actions={
           hasPermission("stock_opname.create") ? (
-            <Button onClick={() => navigate("/stock-opname/create")} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate("/stock-opname/create")}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Buat Stock Opname
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Stock Opname
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
-              columns={columns}
-              data={stockOpnames}
-              searchPlaceholder="Cari nomor opname..."
-              pageSize={10}
-              tableId="stock_opname"
-            />
-          </div>
-        </div>
+      <PageContent noPadding>
+        <DataTable
+          columns={columns}
+          data={stockOpnames}
+          searchPlaceholder="Cari nomor opname..."
+          pageSize={10}
+          tableId="stock_opname"
+        />
       </PageContent>
 
       <ConfirmDialog

@@ -19,8 +19,7 @@ import {
   ShieldCheck,
   FileEdit,
   ExternalLink,
-  QrCode,
-  ArrowLeft
+  QrCode
 } from "lucide-react";
 import { settingsApi } from "@/lib/api";
 import { QRCodeSVG } from "qrcode.react";
@@ -296,18 +295,14 @@ export default function SettingsPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={Building2}
         title="Pengaturan Sistem"
         description="Kelola preferensi aplikasi, branding, dan informasi rumah sakit"
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-8">
-            <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-            Kembali
-          </Button>
-        }
+        onBack={() => navigate(-1)}
       />
 
       <PageContent className="max-w-full">
-        <div className="space-y-6">
+        <div className="space-y-8">
           {fetching ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
@@ -315,15 +310,15 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              {/* Application Settings Card */}
-              <div className=" border bg-card shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/30">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-primary" />
+              {/* Application Settings Section */}
+              <section className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-neutral-500" />
                     Identitas Aplikasi
                   </h3>
                 </div>
-                <div className="p-6 space-y-5">
+                <div className="space-y-5">
                   <div className="grid gap-5 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="appName" className="text-xs font-medium">Nama Aplikasi</Label>
@@ -350,7 +345,7 @@ export default function SettingsPage() {
                     onClick={handleSaveAppSettings}
                     disabled={loading}
                     size="sm"
-                    className="h-8"
+                    className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
                   >
                     {loading ? (
                       <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />Menyimpan...</>
@@ -359,23 +354,23 @@ export default function SettingsPage() {
                     )}
                   </Button>
                 </div>
-              </div>
+              </section>
 
-              {/* Branding Settings Card */}
-              <div className=" border bg-card shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/30">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Image className="h-4 w-4 text-primary" />
+              {/* Branding Settings Section */}
+              <section className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
+                    <Image className="h-4 w-4 text-neutral-500" />
                     Visual & Branding
                   </h3>
                 </div>
-                <div className="p-6">
+                <div>
                   <div className="grid gap-8 md:grid-cols-2">
                     {/* Logo Upload */}
                     <div className="space-y-3">
                       <Label className="text-xs font-medium">Logo Aplikasi</Label>
                       <div className="flex items-start gap-4">
-                        <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                        <div className="w-20 h-20 border flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
                           {appLogo ? (
                             <img src={`${BASE_URL}${appLogo}`} alt="Logo" className="w-full h-full object-contain" />
                           ) : (
@@ -397,7 +392,7 @@ export default function SettingsPage() {
                     <div className="space-y-3">
                       <Label className="text-xs font-medium">Favicon</Label>
                       <div className="flex items-start gap-4">
-                        <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                        <div className="w-20 h-20 border flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
                           {appFavicon ? (
                             <img src={`${BASE_URL}${appFavicon}`} alt="Favicon" className="w-full h-full object-contain" />
                           ) : (
@@ -416,10 +411,10 @@ export default function SettingsPage() {
                     </div>
 
                     {/* BPJS Logo Upload */}
-                    <div className="space-y-3 md:col-span-2 pt-2 border-t">
+                    <div className="space-y-3 md:col-span-2 pt-4 border-t border-neutral-200 dark:border-neutral-800">
                       <Label className="text-xs font-medium">Logo BPJS (Untuk SEP)</Label>
                       <div className="flex items-start gap-4">
-                        <div className="w-20 h-14 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                        <div className="w-20 h-14 border flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
                           {bpjsLogo ? (
                             <img src={`${BASE_URL}${bpjsLogo}`} alt="Logo BPJS" className="w-full h-full object-contain" />
                           ) : (
@@ -438,22 +433,22 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              {/* Hospital Info Card */}
-              <div className=" border bg-card shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/30">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Hospital className="h-4 w-4 text-primary" />
+              {/* Hospital Info Section */}
+              <section className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
+                    <Hospital className="h-4 w-4 text-neutral-500" />
                     Profil Rumah Sakit & Kop Cetakan
                   </h3>
                 </div>
-                <div className="p-6 space-y-6">
+                <div className="space-y-6">
                   {/* Kop Preview Box */}
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview Header Dokumen</Label>
-                    <div className="bg-muted/30  p-4 border border-dashed flex justify-center overflow-hidden">
-                      <div className="bg-white shadow-md border w-full max-w-[600px] p-6 origin-top" style={{ transform: "scale(0.85)", transformOrigin: "top", marginBottom: "-40px" }}>
+                    <div className="bg-muted/30 p-4 border border-dashed flex justify-center overflow-hidden">
+                      <div className="bg-white border w-full max-w-[600px] p-6 origin-top" style={{ transform: "scale(0.85)", transformOrigin: "top", marginBottom: "-40px" }}>
                         <div className="flex items-center gap-3">
                           {appLogo && (
                             <div className="w-14 h-14 shrink-0">
@@ -512,22 +507,27 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <Button onClick={handleSaveHospitalSettings} disabled={savingHospital} size="sm" className="h-8 px-6">
+                  <Button
+                    onClick={handleSaveHospitalSettings}
+                    disabled={savingHospital}
+                    size="sm"
+                    className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
+                  >
                     {savingHospital ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-2" />}
                     Simpan Data Rumah Sakit
                   </Button>
                 </div>
-              </div>
+              </section>
 
-              {/* Security & Features Card */}
-              <div className=" border bg-card shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/30">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
+              {/* Security & Features Section */}
+              <section className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-neutral-500" />
                     Keamanan & Tanda Tangan Digital
                   </h3>
                 </div>
-                <div className="p-6 space-y-8">
+                <div className="space-y-8">
                   {/* Signature Toggle */}
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -546,7 +546,7 @@ export default function SettingsPage() {
 
                   {/* QR Preview */}
                   <div className="flex flex-col md:flex-row items-center gap-8">
-                    <div className="shrink-0 bg-white p-3  border-2 border-primary/10 shadow-sm">
+                    <div className="shrink-0 bg-white p-3 border border-neutral-200 dark:border-neutral-800">
                       <QRCodeSVG
                         value={`${window.location.origin}/verify/example-hash`}
                         size={110}
@@ -568,10 +568,10 @@ export default function SettingsPage() {
                         QR code verifikasi akan muncul otomatis pada dokumen yang sudah ditandatangani. Logo RS akan disematkan di tengah QR code.
                       </p>
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Logo dari Identitas Aplikasi</li>
-                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Level redundansi medium (M)</li>
-                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Link ke halaman verifikasi</li>
-                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Excavate logo mode</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 bg-primary" />Logo dari Identitas Aplikasi</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 bg-primary" />Level redundansi medium (M)</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 bg-primary" />Link ke halaman verifikasi</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 bg-primary" />Excavate logo mode</li>
                       </ul>
                     </div>
                   </div>
@@ -581,21 +581,21 @@ export default function SettingsPage() {
                   {/* Links/Audit Log */}
                   <Link
                     to="/settings/audit-log"
-                    className="flex items-center justify-between p-4  border bg-muted/20 hover:bg-muted/40 transition-all group"
+                    className="flex items-center justify-between py-3 border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 px-2 transition-colors group"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                        <FileEdit className="h-5 w-5 text-primary" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
+                        <FileEdit className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold">Audit Log Aktivitas</p>
+                        <p className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Audit Log Aktivitas</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Pantau riwayat tanda tangan digital dan perubahan dokumen rekam medis.</p>
                       </div>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
                   </Link>
                 </div>
-              </div>
+              </section>
             </>
           )}
         </div>

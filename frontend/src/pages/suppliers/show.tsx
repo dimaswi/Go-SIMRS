@@ -25,7 +25,6 @@ import {
   Loader2,
   Pencil,
   Building2,
-  ArrowLeft,
   Phone,
   Mail,
   MapPin,
@@ -177,12 +176,9 @@ export default function SupplierShow() {
         title="Detail Supplier"
         description="Tinjau identitas supplier, PIC, rekening, dan status dalam satu halaman yang lebih ringkas."
         icon={Building2}
+        onBack={() => navigate("/suppliers")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/suppliers")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             {hasPermission("suppliers.update") && (
               <Button variant="outline" size="sm" onClick={() => navigate(`/suppliers/${id}/edit`)}>
                 <Pencil className="h-4 w-4" />

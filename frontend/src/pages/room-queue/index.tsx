@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { roomQueuesApi } from '@/lib/api/room-queues';
 import type { RoomQueue, RoomQueueStats } from '@/lib/api/room-queues';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -68,12 +68,12 @@ export default function RoomQueueManagement() {
   const [searchParams] = useSearchParams();
   const queryRoomId = searchParams.get('room_id');
   const roomId = paramRoomId || queryRoomId;
-  
+
   const [queues, setQueues] = useState<RoomQueue[]>([]);
   const [stats, setStats] = useState<RoomQueueStats | null>(null);
   const [currentQueue, setCurrentQueue] = useState<RoomQueue | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  
+
   // Format tanggal ke string yyyy-MM-dd (dari browser timezone lokal)
   const getTodayString = (): string => {
     const now = new Date();
@@ -82,7 +82,7 @@ export default function RoomQueueManagement() {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
-  
+
   const today = getTodayString();
 
   const buildRoomAnnouncementText = (queue: RoomQueue) => {
@@ -93,7 +93,7 @@ export default function RoomQueueManagement() {
 
   const fetchData = async () => {
     if (!roomId) return;
-    
+
     try {
       const [queuesData, statsData] = await Promise.all([
         roomQueuesApi.getAll({
@@ -239,211 +239,207 @@ export default function RoomQueueManagement() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Room Queue Management</h1>
-          <p className="text-muted-foreground">
-            Manage patient queues for this room
-          </p>
-        </div>
-        <Button onClick={handleCallNext} size="lg">
-          <Phone className="mr-2 h-4 w-4" />
-          Call Next Patient
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        icon={Phone}
+        title="Room Queue Management"
+        description="Manage patient queues for this room"
+        count={queues.length}
+        actions={
+          <Button onClick={handleCallNext} size="sm" className="h-8 rounded-none text-xs">
+            <Phone className="mr-1.5 h-3.5 w-3.5" />
+            Call Next Patient
+          </Button>
+        }
+      />
 
-      {/* Statistics Cards */}
+      {/* Statistics KPI Strip */}
       {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Queues</CardDescription>
-              <CardTitle className="text-3xl">{stats.total_queues}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Waiting</CardDescription>
-              <CardTitle className="text-3xl text-yellow-600">{stats.waiting_queues}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Serving</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">{stats.serving_queues}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Avg Wait Time</CardDescription>
-              <CardTitle className="text-3xl">
-                {Math.round(stats.average_wait_time_minutes || 0)} min
-              </CardTitle>
-            </CardHeader>
-          </Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Total Queues</div>
+            <div className="mt-1 text-2xl font-bold text-neutral-900 dark:text-white">{stats.total_queues}</div>
+          </div>
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Waiting</div>
+            <div className="mt-1 text-2xl font-bold text-yellow-600">{stats.waiting_queues}</div>
+          </div>
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Serving</div>
+            <div className="mt-1 text-2xl font-bold text-blue-600">{stats.serving_queues}</div>
+          </div>
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">Avg Wait Time</div>
+            <div className="mt-1 text-2xl font-bold text-neutral-900 dark:text-white">
+              {Math.round(stats.average_wait_time_minutes || 0)} min
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Current Queue Display */}
-      {currentQueue && (
-        <Card className="border-primary">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5" />
-              Currently Serving
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <p className="text-sm text-muted-foreground">Queue Number</p>
-                <p className="text-4xl font-bold">{currentQueue.queue_number}</p>
+      <PageContent className="space-y-4">
+        {/* Current Queue Display */}
+        {currentQueue && (
+          <section className="space-y-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+                <Phone className="h-4 w-4 text-neutral-500" />
+                Currently Serving
+              </h3>
+            </div>
+            <div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <p className="text-xs font-mono uppercase text-muted-foreground">Queue Number</p>
+                  <p className="text-3xl font-bold">{currentQueue.queue_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-mono uppercase text-muted-foreground">Patient Name</p>
+                  <p className="text-xl font-semibold">
+                    {formatPatientName(currentQueue.visit?.registration?.patient?.nama_lengkap, currentQueue.visit?.registration?.patient?.jenis_kelamin, undefined, currentQueue.visit?.registration?.patient?.tanggal_lahir) || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-mono uppercase text-muted-foreground">RM Number</p>
+                  <p className="text-xl font-semibold">
+                    {currentQueue.visit?.registration?.patient?.no_rm || '-'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Patient Name</p>
-                <p className="text-2xl font-semibold">
-                  {formatPatientName(currentQueue.visit?.registration?.patient?.nama_lengkap, currentQueue.visit?.registration?.patient?.jenis_kelamin, undefined, currentQueue.visit?.registration?.patient?.tanggal_lahir) || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">RM Number</p>
-                <p className="text-2xl font-semibold">
-                  {currentQueue.visit?.registration?.patient?.no_rm || '-'}
-                </p>
+              <div className="mt-4 flex gap-2">
+                <Button
+                  onClick={() => handleUpdateStatus(currentQueue.id, 'serving')}
+                  disabled={currentQueue.status === 'serving'}
+                  className="rounded-none"
+                >
+                  Start Serving
+                </Button>
+                <Button
+                  onClick={() => handleUpdateStatus(currentQueue.id, 'completed')}
+                  variant="outline"
+                  className="rounded-none"
+                >
+                  Complete
+                </Button>
+                <Button
+                  onClick={() => handleUpdateStatus(currentQueue.id, 'skipped')}
+                  variant="outline"
+                  className="rounded-none"
+                >
+                  Skip
+                </Button>
               </div>
             </div>
-            <div className="mt-4 flex gap-2">
-              <Button
-                onClick={() => handleUpdateStatus(currentQueue.id, 'serving')}
-                disabled={currentQueue.status === 'serving'}
-              >
-                Start Serving
-              </Button>
-              <Button
-                onClick={() => handleUpdateStatus(currentQueue.id, 'completed')}
-                variant="outline"
-              >
-                Complete
-              </Button>
-              <Button
-                onClick={() => handleUpdateStatus(currentQueue.id, 'skipped')}
-                variant="outline"
-              >
-                Skip
-              </Button>
+          </section>
+        )}
+
+        {/* Filter & Queue Table */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider">Queue List ({today})</h3>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Filter */}
-      <div className="flex items-center gap-4">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="waiting">Waiting</SelectItem>
-            <SelectItem value="called">Called</SelectItem>
-            <SelectItem value="serving">Serving</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="skipped">Skipped</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Queue Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Queue List</CardTitle>
-          <CardDescription>All queues for today ({today})</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Queue No</TableHead>
-                <TableHead>Patient Name</TableHead>
-                <TableHead>RM Number</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Check-in Time</TableHead>
-                <TableHead>Called At</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {queues.length === 0 ? (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 w-[180px] rounded-none border-neutral-200 dark:border-neutral-800 text-xs">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none">
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="waiting">Waiting</SelectItem>
+                <SelectItem value="called">Called</SelectItem>
+                <SelectItem value="serving">Serving</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="skipped">Skipped</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="p-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
-                    No queues found
-                  </TableCell>
+                  <TableHead>Queue No</TableHead>
+                  <TableHead>Patient Name</TableHead>
+                  <TableHead>RM Number</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Check-in Time</TableHead>
+                  <TableHead>Called At</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : (
-                queues.map((queue) => (
-                  <TableRow key={queue.id}>
-                    <TableCell className="font-bold text-lg">
-                      <div className="flex items-center gap-2">
-                        {queue.queue_number}
-                        {queue.is_mjkn && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
-                            <Smartphone className="h-3 w-3" />
-                            MJKN
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{queue.visit?.registration?.patient?.nama_lengkap || '-'}</TableCell>
-                    <TableCell>{queue.visit?.registration?.patient?.no_rm || '-'}</TableCell>
-                    <TableCell>{getPriorityBadge(queue.priority)}</TableCell>
-                    <TableCell>{getStatusBadge(queue.status)}</TableCell>
-                    <TableCell>
-                      {queue.visit?.check_in_time
-                        ? format(new Date(queue.visit.check_in_time), 'HH:mm')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {queue.called_at ? format(new Date(queue.called_at), 'HH:mm') : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {queue.status === 'waiting' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleCallSpecific(queue.id)}
-                          >
-                            Call
-                          </Button>
-                        )}
-                        {queue.status === 'called' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateStatus(queue.id, 'serving')}
-                          >
-                            Serve
-                          </Button>
-                        )}
-                        {queue.status === 'serving' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateStatus(queue.id, 'completed')}
-                          >
-                            Complete
-                          </Button>
-                        )}
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {queues.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      No queues found
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+                ) : (
+                  queues.map((queue) => (
+                    <TableRow key={queue.id}>
+                      <TableCell className="font-bold text-lg">
+                        <div className="flex items-center gap-2">
+                          {queue.queue_number}
+                          {queue.is_mjkn && (
+                            <Badge variant="outline" className="rounded-none bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                              <Smartphone className="h-3 w-3" />
+                              MJKN
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{queue.visit?.registration?.patient?.nama_lengkap || '-'}</TableCell>
+                      <TableCell>{queue.visit?.registration?.patient?.no_rm || '-'}</TableCell>
+                      <TableCell>{getPriorityBadge(queue.priority)}</TableCell>
+                      <TableCell>{getStatusBadge(queue.status)}</TableCell>
+                      <TableCell>
+                        {queue.visit?.check_in_time
+                          ? format(new Date(queue.visit.check_in_time), 'HH:mm')
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {queue.called_at ? format(new Date(queue.called_at), 'HH:mm') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {queue.status === 'waiting' && (
+                            <Button
+                              size="sm"
+                              className="rounded-none"
+                              onClick={() => handleCallSpecific(queue.id)}
+                            >
+                              Call
+                            </Button>
+                          )}
+                          {queue.status === 'called' && (
+                            <Button
+                              size="sm"
+                              className="rounded-none"
+                              onClick={() => handleUpdateStatus(queue.id, 'serving')}
+                            >
+                              Serve
+                            </Button>
+                          )}
+                          {queue.status === 'serving' && (
+                            <Button
+                              size="sm"
+                              className="rounded-none"
+                              onClick={() => handleUpdateStatus(queue.id, 'completed')}
+                            >
+                              Complete
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

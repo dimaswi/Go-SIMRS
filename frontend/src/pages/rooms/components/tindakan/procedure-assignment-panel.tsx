@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import {
   calculateTotalTariff,
   getProcedureTypeLabel,
@@ -26,26 +27,6 @@ export function ProcedureAssignmentPanel({
   onEdit,
   onDelete,
 }: ProcedureAssignmentPanelProps) {
-  const [assignedSearch, setAssignedSearch] = useState("");
-
-  const filteredAssignedProcedures = useMemo(() => {
-    const query = assignedSearch.trim().toLowerCase();
-    if (!query) return roomProcedures;
-
-    return roomProcedures.filter((item) =>
-      [
-        item.procedure?.name,
-        item.procedure?.code,
-        item.procedure?.procedure_type ? getProcedureTypeLabel(item.procedure.procedure_type) : '',
-        item.is_available ? 'tersedia' : 'tidak tersedia',
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [assignedSearch, roomProcedures]);
-
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -54,120 +35,119 @@ export function ProcedureAssignmentPanel({
     }).format(value);
   };
 
-  return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden">
-      <div className="min-w-0 overflow-hidden rounded-lg border">
-        <div className="border-b border-border/70 bg-muted/20 p-3 flex justify-between">
-          <div className="relative max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={assignedSearch}
-              onChange={(event) => setAssignedSearch(event.target.value)}
-              placeholder="Cari tindakan..."
-              className="pl-9 h-9"
-            />
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            {hasPermission && onAdd && (
-              <Button onClick={onAdd} size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Tambah Tindakan
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border/70 bg-muted/50 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Tindakan</th>
-                <th className="px-4 py-3 font-medium">Tipe</th>
-                <th className="px-4 py-3 font-medium">Tarif</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Booking</th>
-                <th className="px-4 py-3 font-medium">Maks/Hari</th>
-                {hasPermission && <th className="px-4 py-3 text-right font-medium">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60 bg-background">
-              {filteredAssignedProcedures.length === 0 ? (
-                <tr>
-                  <td colSpan={hasPermission ? 7 : 6} className="px-4 py-8 text-center text-muted-foreground">
-                    Belum ada tindakan yang ditugaskan ke ruangan ini.
-                  </td>
-                </tr>
-              ) : (
-                filteredAssignedProcedures.map((item) => {
-                  const tariff = item.procedure?.tariffs?.[0];
-                  const total = tariff ? calculateTotalTariff(tariff) : 0;
-
-                  return (
-                    <tr key={item.id} className="align-middle hover:bg-muted/30">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium">{item.procedure?.name || 'Unknown'}</div>
-                          {item.is_mandatory && (
-                            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">Wajib</Badge>
-                          )}
-                          {item.is_prescription_fee && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">
-                              Jasa Resep
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{item.procedure?.code || '-'}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.procedure?.procedure_type ? (
-                          <Badge variant="outline" className="text-[10px] font-normal">
-                            {getProcedureTypeLabel(item.procedure.procedure_type)}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-primary">
-                        {tariff ? formatCurrency(total) : '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant={item.is_available ? 'default' : 'secondary'} className="text-[10px] font-normal">
-                          {item.is_available ? 'Tersedia' : 'Tidak Tersedia'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.requires_booking ? (
-                          <Badge variant="outline" className="text-[10px] font-normal">Ya</Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Tidak</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {item.max_per_day > 0 ? item.max_per_day : 'Tanpa batas'}
-                      </td>
-                      {hasPermission && (
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {onEdit && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(item)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {onDelete && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(item.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })
+  const columns = useMemo<ColumnDef<RoomProcedure>[]>(() => [
+    {
+      id: "procedure",
+      accessorFn: (row) => `${row.procedure?.name || ""} ${row.procedure?.code || ""}`,
+      header: "Tindakan",
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium">{item.procedure?.name || "Unknown"}</span>
+              {item.is_mandatory && (
+                <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">Wajib</Badge>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+              {item.is_prescription_fee && (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">
+                  Jasa Resep
+                </Badge>
+              )}
+            </div>
+            <div className="text-[11px] font-mono text-muted-foreground">{item.procedure?.code || "-"}</div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "type",
+      accessorFn: (row) => (row.procedure?.procedure_type ? getProcedureTypeLabel(row.procedure.procedure_type) : "-"),
+      header: "Tipe",
+      cell: ({ row }) =>
+        row.original.procedure?.procedure_type ? (
+          <Badge variant="outline" className="h-5 text-[10px] font-normal">
+            {getProcedureTypeLabel(row.original.procedure.procedure_type)}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        ),
+    },
+    {
+      id: "tariff",
+      header: "Tarif",
+      cell: ({ row }) => {
+        const tariff = row.original.procedure?.tariffs?.[0];
+        const total = tariff ? calculateTotalTariff(tariff) : 0;
+        return <span className="text-xs font-medium text-primary">{tariff ? formatCurrency(total) : "-"}</span>;
+      },
+    },
+    {
+      accessorKey: "is_available",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.is_available ? "default" : "secondary"} className="h-5 text-[10px] font-normal">
+          {row.original.is_available ? "Tersedia" : "Tidak Tersedia"}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "requires_booking",
+      header: "Booking",
+      cell: ({ row }) =>
+        row.original.requires_booking ? (
+          <Badge variant="outline" className="h-5 text-[10px] font-normal">Ya</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">Tidak</span>
+        ),
+    },
+    {
+      accessorKey: "max_per_day",
+      header: "Maks/Hari",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.original.max_per_day > 0 ? row.original.max_per_day : "Tanpa batas"}
+        </span>
+      ),
+    },
+    ...(hasPermission && (onEdit || onDelete)
+      ? [
+          {
+            id: "actions",
+            header: () => <div className="text-right">Aksi</div>,
+            cell: ({ row }: { row: { original: RoomProcedure } }) => (
+              <div className="flex items-center justify-end gap-1">
+                {onEdit && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(row.original)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(row.original.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ),
+          } as ColumnDef<RoomProcedure>,
+        ]
+      : []),
+  ], [hasPermission, onEdit, onDelete]);
+
+  return (
+    <DataTable
+      columns={columns}
+      data={roomProcedures}
+      searchPlaceholder="Cari tindakan..."
+      hideRowCount
+      toolbarRight={
+        hasPermission && onAdd ? (
+          <Button onClick={onAdd} size="sm" className="h-8 text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Tambah Tindakan
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }

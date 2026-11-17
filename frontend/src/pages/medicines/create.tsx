@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { medicinesApi, type MedicineCategory, type MedicineType, type MedicineForm } from "@/lib/api/medicines";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Pill, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info, ArrowLeft } from "lucide-react";
+import { Loader2, Pill, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DPHOMappingField } from "./dpho-mapping-field";
@@ -191,12 +191,9 @@ export default function MedicineCreate() {
         title="Tambah Obat"
         description="Buat data obat baru dengan identitas, harga, stok, dan informasi klinis yang lengkap agar langsung siap dipakai di farmasi dan billing."
         icon={Pill}
+        onBack={() => navigate("/medicines")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/medicines")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="medicine-create-form" size="sm" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Simpan Obat

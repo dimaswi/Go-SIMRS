@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -389,179 +390,159 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-muted/20">
+    <PageShell>
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 w-full flex-1 flex-col">
         {!mode && (
           <div
             ref={mainStickyHeaderRef}
-          className="sticky top-0 z-40 border-b border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85"
-        >
-          {/* Header */}
-          <div
-            className="flex cursor-pointer flex-col gap-4 border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6 lg:flex-row lg:items-start lg:justify-between"
-            onClick={() => setShowHeaderPanels((prev) => !prev)}
-            title="Klik header untuk sembunyikan/tampilkan ringkasan"
+            className="border-b border-neutral-200 dark:border-neutral-800 bg-background"
           >
-          <div className="flex min-w-0 items-start gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            className="mt-0.5 shrink-0 rounded-none"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate('/eklaim/data-klaim');
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <h1 className="flex min-w-0 items-center gap-2 text-xl font-semibold leading-tight tracking-tight text-foreground">
-              <span className="border border-border/70 bg-background p-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </span>
-              Detail E-Klaim
-            </h1>
-            <p className="mt-1 max-w-3xl truncate text-sm leading-relaxed text-muted-foreground">
-              {detail.nama_pasien} - <span className="font-mono">{detail.no_sep}</span>
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-[55%] lg:justify-end" onClick={(e) => e.stopPropagation()}>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-none"
-            onClick={() => setShowHeaderPanels((prev) => !prev)}
-          >
-            {showHeaderPanels ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
-          </Button>
-          <Badge className={`rounded-none px-3 py-1 text-sm ${eklaimLocalStatusColors[status] || ''}`}>
-            {eklaimLocalStatusLabels[status] || status}
-          </Badge>
+            {/* Header */}
+            <PageHeader
+              icon={FileText}
+              title="Detail E-Klaim"
+              description={`${detail.nama_pasien} - ${detail.no_sep}`}
+              onBack={() => navigate('/eklaim/data-klaim')}
+              badges={
+                <Badge className={`rounded-none px-2.5 py-0.5 text-xs ${eklaimLocalStatusColors[status] || ''}`}>
+                  {eklaimLocalStatusLabels[status] || status}
+                </Badge>
+              }
+              actions={
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-none"
+                    onClick={() => setShowHeaderPanels((prev) => !prev)}
+                  >
+                    {showHeaderPanels ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
 
-          {/* Workflow action buttons */}
-          {status === 'draft' && (
-            <Button
-              size="sm"
-              className="rounded-none"
-              disabled={submitting}
-              onClick={() => handleAction('new_claim')}
-            >
-              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
-              Buat Klaim
-            </Button>
-          )}
-          {detail.buttons?.final_claim && (
-            <Button
-              size="sm"
-              className="rounded-none"
-              disabled={submitting}
-              onClick={() => handleAction('final')}
-            >
-              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
-              Finalisasi Klaim
-            </Button>
-          )}
-          {detail.buttons?.send_claim && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-none"
-              disabled={submitting || !detail.claim_final_success}
-              onClick={handlePrintClaim}
-            >
-              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />}
-              Cetak Berkas Klaim
-            </Button>
-          )}
-          {detail.buttons?.send_claim && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-none"
-              disabled={submitting}
-              onClick={() => handleAction('claim_send')}
-            >
-              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
-              Kirim Klaim
-            </Button>
-          )}
+                  {/* Workflow action buttons */}
+                  {status === 'draft' && (
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-none text-xs"
+                      disabled={submitting}
+                      onClick={() => handleAction('new_claim')}
+                    >
+                      {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
+                      Buat Klaim
+                    </Button>
+                  )}
+                  {detail.buttons?.final_claim && (
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-none text-xs"
+                      disabled={submitting}
+                      onClick={() => handleAction('final')}
+                    >
+                      {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
+                      Finalisasi Klaim
+                    </Button>
+                  )}
+                  {detail.buttons?.send_claim && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-none text-xs"
+                      disabled={submitting || !detail.claim_final_success}
+                      onClick={handlePrintClaim}
+                    >
+                      {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />}
+                      Cetak Berkas Klaim
+                    </Button>
+                  )}
+                  {detail.buttons?.send_claim && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-none text-xs"
+                      disabled={submitting}
+                      onClick={() => handleAction('claim_send')}
+                    >
+                      {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
+                      Kirim Klaim
+                    </Button>
+                  )}
 
-          {/* Secondary actions dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 rounded-none">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => navigate(`/eklaim/data-klaim/${id}/logs`)}
-              >
-                <ScrollText className="mr-2 h-4 w-4" />
-                Lihat Log
-              </DropdownMenuItem>
-              {status !== 'draft' && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    const sep = detail?.sep;
-                    const patient = sep?.patient;
-                    const tglLahirRaw = sep?.tgl_lahir || patient?.tanggal_lahir || '';
-                    const tglLahir = tglLahirRaw.length >= 10 ? tglLahirRaw.substring(0, 10) : tglLahirRaw;
-                    const jk = sep?.jenis_kelamin || patient?.jenis_kelamin || '';
-                    setUpdatePatientForm({
-                      nomor_kartu: sep?.no_kartu || detail?.no_kartu || '',
-                      nomor_rm: sep?.no_mr || patient?.no_rm || '',
-                      nama_pasien: sep?.nama_pasien || detail?.nama_pasien || patient?.nama_lengkap || '',
-                      tgl_lahir: tglLahir,
-                      gender: jk === 'L' ? 1 : jk === 'P' ? 2 : 0,
-                    });
-                    setUpdatePatientOpen(true);
-                  }}
-                  disabled={submitting}
-                >
-                  <UserPen className="mr-2 h-4 w-4" />
-                  Update Pasien
-                </DropdownMenuItem>
-              )}
-              {detail.buttons?.reedit_claim && (
-                <DropdownMenuItem
-                  onClick={() => handleAction('claim_reedit')}
-                  disabled={submitting}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Edit Ulang Klaim
-                </DropdownMenuItem>
-              )}
-              {status !== 'draft' && (
-                <DropdownMenuItem
-                  onClick={() => setCancelDialogOpen(true)}
-                  disabled={submitting}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Batal Klaim
-                </DropdownMenuItem>
-              )}
-              {status !== 'draft' && (
-                <DropdownMenuItem
-                  onClick={() => setDeleteDialogOpen(true)}
-                  disabled={submitting}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus Klaim
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+                  {/* Secondary actions dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-none">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-none">
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/eklaim/data-klaim/${id}/logs`)}
+                      >
+                        <ScrollText className="mr-2 h-4 w-4" />
+                        Lihat Log
+                      </DropdownMenuItem>
+                      {status !== 'draft' && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const sep = detail?.sep;
+                            const patient = sep?.patient;
+                            const tglLahirRaw = sep?.tgl_lahir || patient?.tanggal_lahir || '';
+                            const tglLahir = tglLahirRaw.length >= 10 ? tglLahirRaw.substring(0, 10) : tglLahirRaw;
+                            const jk = sep?.jenis_kelamin || patient?.jenis_kelamin || '';
+                            setUpdatePatientForm({
+                              nomor_kartu: sep?.no_kartu || detail?.no_kartu || '',
+                              nomor_rm: sep?.no_mr || patient?.no_rm || '',
+                              nama_pasien: sep?.nama_pasien || detail?.nama_pasien || patient?.nama_lengkap || '',
+                              tgl_lahir: tglLahir,
+                              gender: jk === 'L' ? 1 : jk === 'P' ? 2 : 0,
+                            });
+                            setUpdatePatientOpen(true);
+                          }}
+                          disabled={submitting}
+                        >
+                          <UserPen className="mr-2 h-4 w-4" />
+                          Update Pasien
+                        </DropdownMenuItem>
+                      )}
+                      {detail.buttons?.reedit_claim && (
+                        <DropdownMenuItem
+                          onClick={() => handleAction('claim_reedit')}
+                          disabled={submitting}
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          Edit Ulang Klaim
+                        </DropdownMenuItem>
+                      )}
+                      {status !== 'draft' && (
+                        <DropdownMenuItem
+                          onClick={() => setCancelDialogOpen(true)}
+                          disabled={submitting}
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Batal Klaim
+                        </DropdownMenuItem>
+                      )}
+                      {status !== 'draft' && (
+                        <DropdownMenuItem
+                          onClick={() => setDeleteDialogOpen(true)}
+                          disabled={submitting}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Hapus Klaim
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              }
+            />
 
       {/* Error Banner */}
       {showHeaderPanels && detail.last_error && (
@@ -979,7 +960,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

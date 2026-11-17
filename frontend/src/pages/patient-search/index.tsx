@@ -20,9 +20,10 @@ import {
 import { differenceInYears, parseISO } from 'date-fns';
 import { formatPatientName } from '@/lib/print-utils';
 import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function PatientSearchIndex() {
   const [searchParams] = useSearchParams();
@@ -184,17 +185,18 @@ export default function PatientSearchIndex() {
       id: 'actions',
       header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => (
-        <div className="text-right">
+        <div className="flex items-center justify-end gap-1.5">
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="size-7 rounded-none border border-blue-200 text-blue-500 bg-blue-50/20 hover:bg-blue-100/50 hover:text-blue-600 p-0 shadow-none"
+            title="Lihat Detail"
             onClick={(e) => {
               e.stopPropagation();
               handleViewPatient(row.original);
             }}
           >
-            <Eye className="h-4 w-4" />
+            <Eye className="size-3.5" />
           </Button>
         </div>
       ),
@@ -204,6 +206,7 @@ export default function PatientSearchIndex() {
   return (
     <PageShell>
       <PageHeader
+        icon={Search}
         title={query ? "Hasil Pencarian Pasien" : "Cari Pasien"}
         description={query
           ? `Menampilkan hasil untuk "${query}"`
@@ -212,30 +215,24 @@ export default function PatientSearchIndex() {
         count={results.length}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant={showFilters ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="h-8 text-xs"
-            >
-              <Filter className="h-3.5 w-3.5 mr-1.5" />
-              Filter
-              {hasActiveFilters && (
-                <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary">
-                  !
-                </span>
-              )}
-            </Button>
-          </div>
-        }
-      />
-
-      <PageContent>
-        <div className="">
-          <Collapsible open={showFilters} onOpenChange={setShowFilters}>
-            <CollapsibleContent>
-              <div className="rounded-lg border bg-card p-4 mb-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Popover open={showFilters} onOpenChange={setShowFilters}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={hasActiveFilters ? 'default' : 'outline'}
+                  size="sm"
+                  className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+                >
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
+                  Filter
+                  {hasActiveFilters && (
+                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-none bg-primary-foreground text-[10px] text-primary">
+                      !
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[340px] p-4">
+                <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="filter-address" className="text-xs">Alamat</Label>
                     <Input
@@ -276,19 +273,24 @@ export default function PatientSearchIndex() {
                       className="h-8 text-xs"
                     />
                   </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                    <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-8 text-xs">
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Reset
+                    </Button>
+                    <Button size="sm" onClick={() => { handleApplyFilters(); setShowFilters(false); }} className="h-8 text-xs px-4">
+                      Terapkan Filter
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-4">
-                  <Button size="sm" onClick={handleApplyFilters} className="h-8 text-xs px-4">
-                    Terapkan Filter
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-8 text-xs">
-                    <X className="h-3.5 w-3.5 mr-1.5" />
-                    Reset
-                  </Button>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+              </PopoverContent>
+            </Popover>
+          </div>
+        }
+      />
+
+      <PageContent noPadding={!!query && !loading && results.length > 0}>
+        <div className="">
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">

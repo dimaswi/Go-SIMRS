@@ -8,12 +8,12 @@ import { setPageTitle } from '@/lib/page-title';
 import { createVillageColumns } from '../villages/columns';
 import { 
   Loader2, 
-  ArrowLeft,
   Map,
   Home,
   Pencil,
   Plus
 } from 'lucide-react';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 export default function DistrictShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,69 +68,58 @@ export default function DistrictShowPage() {
   const regency = district.regency;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Villages List */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (regency) {
-                navigate(`/regions/regencies/${regency.id}`);
-              } else {
-                navigate('/regions');
-              }
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <Map className="h-5 w-5" />
-              {district.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {district.villages && district.villages.length > 0 
-                ? `${district.villages.length} desa/kelurahan` 
-                : 'Belum ada data desa/kelurahan'}
-            </p>
+    <PageShell>
+      <PageHeader
+        icon={Map}
+        title={district.name}
+        description={
+          district.villages && district.villages.length > 0 
+            ? `${district.villages.length} desa/kelurahan` 
+            : 'Belum ada data desa/kelurahan'
+        }
+        onBack={() => {
+          if (regency) {
+            navigate(`/regions/regencies/${regency.id}`);
+          } else {
+            navigate('/regions');
+          }
+        }}
+        actions={
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/districts/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/villages/create?districtId=${id}`)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Desa/Kelurahan
+            </Button>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/districts/${id}/edit`)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/villages/create?districtId=${id}`)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Desa/Kelurahan
-          </Button>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          {!district.villages || district.villages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Home className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Belum ada data desa/kelurahan</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={district.villages}
-              searchPlaceholder="Cari desa/kelurahan..."
-              tableId="district_villages"
-            />
-          )}
-      </div>
-    </div>
+        }
+      />
+      <PageContent noPadding={!!(district.villages && district.villages.length > 0)}>
+        {!district.villages || district.villages.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Home className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Belum ada data desa/kelurahan</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={district.villages}
+            searchPlaceholder="Cari desa/kelurahan..."
+            tableId="district_villages"
+          />
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

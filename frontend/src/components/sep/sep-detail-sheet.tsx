@@ -43,11 +43,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SearchModal } from "./search-modal";
-import {
-  BPJS_COMPACT_FIELD_CLASS,
-  BPJS_FOOTER_CLASS,
-  BPJSStatePanel,
-} from "./bpjs-sheet-chrome";
 
 interface SEPDetailSheetProps {
   open: boolean;
@@ -282,362 +277,369 @@ export function SEPDetailSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <div className="flex flex-col border-b px-4 py-2">
-            <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
-              <div className="space-y-1 text-left">
+        <SheetContent className="flex h-full w-[80vw] max-w-[80vw] flex-col gap-0 p-0 sm:w-[80vw] sm:max-w-[80vw]">
+          <div className="flex flex-col border-b px-6 py-2.5">
+            <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+              <div className="space-y-0.5 text-left">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xl font-bold">Detail SEP</h4>
-                  <Badge variant="outline">SEP</Badge>
+                  <h4 className="text-base font-bold leading-tight">Detail SEP</h4>
+                  <Badge variant="outline" className="h-5 text-[10px]">SEP</Badge>
                   {getStatusBadge(sep.status)}
                 </div>
-                <p className="text-muted-foreground">{sep.no_sep}</p>
+                <p className="font-mono text-xs text-muted-foreground">{sep.no_sep}</p>
               </div>
             </SheetHeader>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-2">
-
+          <div className="flex-1 overflow-y-auto">
             {/* Status Warning for Deleted SEP */}
             {sep.status === "deleted" && (
-              <BPJSStatePanel
-                tone="danger"
-                icon={<AlertTriangle className="h-4 w-4" />}
-                title="SEP ini telah dibatalkan"
-                description="SEP tidak dapat digunakan lagi untuk proses klaim atau tindak lanjut layanan."
-              />
+              <div className="mx-6 mt-3 flex items-start gap-2 border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold">SEP ini telah dibatalkan</div>
+                  <p>SEP tidak dapat digunakan lagi untuk proses klaim atau tindak lanjut layanan.</p>
+                </div>
+              </div>
             )}
 
             {!isEditing ? (
               /* Detail View */
-              <div className="grid gap-2">
-                <div className="space-y-2 ">
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-4 border rounded-md bg-background p-4 text-sm">
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">No. SEP</span>
-                        <p className="font-mono font-medium text-foreground">{sep.no_sep}</p>
-                      </div>
-
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">Tanggal SEP</span>
-                        <p className="font-medium text-foreground">{sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}</p>
-                      </div>
-
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">Jenis Pelayanan</span>
-                        <p className="font-medium text-foreground">{getJenisPelayanan(sep.jns_pelayanan)}</p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Kelas Rawat</span>
-                        <p className="font-medium text-foreground">{getKelasRawat(sep.kls_rawat_hak)}</p>
-                      </div>
-
-                      <div className="col-span-2 border-t pt-3 mt-1">
-                        <span className="text-muted-foreground text-xs block mb-1">No. Kartu BPJS</span>
-                        <p className="font-mono font-medium text-foreground">{sep.no_kartu}</p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Nama Peserta</span>
-                        <p className="font-medium text-foreground">{sep.nama_pasien}</p>
-                      </div>
-
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">No. RM</span>
-                        <p className="font-mono font-medium text-foreground">{sep.no_mr}</p>
-                      </div>
-
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">NIK</span>
-                        <p className="font-mono font-medium text-foreground">{sep.nik || "-"}</p>
-                      </div>
-
-                      <div className="col-span-2 border-t pt-3 mt-1">
-                        <span className="text-muted-foreground text-xs block mb-1">No. Rujukan</span>
-                        <p className="font-mono font-medium text-foreground">{sep.no_rujukan || "-"}</p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Tanggal Rujukan</span>
-                        <p className="font-medium text-foreground">{sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-"}</p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Faskes Perujuk</span>
-                        <p className="font-medium text-foreground">{sep.nama_rujukan || sep.ppk_rujukan || "-"}</p>
-                      </div>
-
-                      <div className="col-span-2 border-t pt-3 mt-1">
-                        <span className="text-muted-foreground text-xs block mb-1">Poli Tujuan</span>
-                        <p className="font-medium text-foreground">
-                          {sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}
-                        </p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Dokter DPJP</span>
-                        <p className="font-medium text-foreground">
-                          {sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}
-                        </p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground text-xs block mb-1">Diagnosa Awal</span>
-                        <p className="font-medium text-foreground">
-                          {sep.nama_diagnosa || sep.diag_awal || "-"}
-                          {sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}
-                        </p>
-                      </div>
+              <div className="divide-y divide-border/70">
+                <div className="px-6 py-3 space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Informasi SEP
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. SEP</span>
+                      <p className="mt-0.5 font-mono font-medium text-foreground">{sep.no_sep}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Tanggal SEP</span>
+                      <p className="mt-0.5 font-medium text-foreground">
+                        {sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Jenis Pelayanan</span>
+                      <p className="mt-0.5 font-medium text-foreground">{getJenisPelayanan(sep.jns_pelayanan)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Kelas Rawat</span>
+                      <p className="mt-0.5 font-medium text-foreground">{getKelasRawat(sep.kls_rawat_hak)}</p>
                     </div>
                   </div>
-                  {sep.catatan && (
-                    <div className="space-y-4">
-                      <div className="border border-border/70 bg-muted/10 p-4 text-sm leading-relaxed rounded-md text-foreground">{sep.catatan}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* Edit View - dengan Search Modal seperti Create SEP */
-              <div className="grid gap-6 xl:grid-cols-2 [&_label]:text-sm [&_label]:font-medium">
-                <div className="xl:col-span-2 border-b pb-2">
-                  <h4 className="font-semibold text-lg">Ubah Data SEP</h4>
                 </div>
 
-                {/* Kelas Rawat */}
-                <div className="space-y-4 xl:col-span-2">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Naik Kelas</Label>
+                <div className="px-6 py-3 space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Data Peserta
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. Kartu BPJS</span>
+                      <p className="mt-0.5 font-mono font-medium text-foreground">{sep.no_kartu}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Nama Peserta</span>
+                      <p className="mt-0.5 font-medium text-foreground">{sep.nama_pasien}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. RM</span>
+                      <p className="mt-0.5 font-mono font-medium text-foreground">{sep.no_mr}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">NIK</span>
+                      <p className="mt-0.5 font-mono font-medium text-foreground">{sep.nik || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-3 space-y-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Rujukan &amp; Layanan
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">No. Rujukan</span>
+                      <p className="mt-0.5 font-mono font-medium text-foreground">{sep.no_rujukan || "-"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Tanggal Rujukan</span>
+                      <p className="mt-0.5 font-medium text-foreground">
+                        {sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Faskes Perujuk</span>
+                      <p className="mt-0.5 font-medium text-foreground">{sep.nama_rujukan || sep.ppk_rujukan || "-"}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3 pt-1">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Poli Tujuan</span>
+                      <p className="mt-0.5 font-medium text-foreground">
+                        {sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Dokter DPJP</span>
+                      <p className="mt-0.5 font-medium text-foreground">
+                        {sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">Diagnosa Awal</span>
+                      <p className="mt-0.5 font-medium text-foreground">
+                        {sep.nama_diagnosa || sep.diag_awal || "-"}
+                        {sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {sep.catatan && (
+                  <div className="px-6 py-3 space-y-1.5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Catatan
+                    </div>
+                    <p className="text-xs leading-relaxed text-foreground">{sep.catatan}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Edit View */
+              <div className="divide-y divide-border/70">
+                <div className="px-6 py-3 space-y-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Naik Kelas &amp; Pembiayaan
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Naik Kelas</Label>
                       <Select
                         value={editForm.kls_rawat_naik || "none"}
                         onValueChange={(value) => setEditForm({ ...editForm, kls_rawat_naik: value, pembiayaan: value === "none" ? "" : editForm.pembiayaan })}
                       >
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Tidak Naik</SelectItem>
-                          <SelectItem value="1">VVIP</SelectItem>
-                          <SelectItem value="2">VIP</SelectItem>
-                          <SelectItem value="3">Kelas 1</SelectItem>
-                          <SelectItem value="4">Kelas 2</SelectItem>
-                          <SelectItem value="5">Kelas 3</SelectItem>
-                          <SelectItem value="6">ICCU</SelectItem>
-                          <SelectItem value="7">ICU</SelectItem>
-                          <SelectItem value="8">Diatas Kelas 1</SelectItem>
+                          <SelectItem value="none" className="text-xs">Tidak Naik</SelectItem>
+                          <SelectItem value="1" className="text-xs">VVIP</SelectItem>
+                          <SelectItem value="2" className="text-xs">VIP</SelectItem>
+                          <SelectItem value="3" className="text-xs">Kelas 1</SelectItem>
+                          <SelectItem value="4" className="text-xs">Kelas 2</SelectItem>
+                          <SelectItem value="5" className="text-xs">Kelas 3</SelectItem>
+                          <SelectItem value="6" className="text-xs">ICCU</SelectItem>
+                          <SelectItem value="7" className="text-xs">ICU</SelectItem>
+                          <SelectItem value="8" className="text-xs">Diatas Kelas 1</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Pembiayaan</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Pembiayaan</Label>
                       <Select
                         value={editForm.pembiayaan || "none"}
                         onValueChange={(value) => setEditForm({ ...editForm, pembiayaan: value })}
                         disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
                       >
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">-</SelectItem>
-                          <SelectItem value="1">Pribadi</SelectItem>
-                          <SelectItem value="2">Pemberi Kerja</SelectItem>
-                          <SelectItem value="3">Asuransi Tambahan</SelectItem>
+                          <SelectItem value="none" className="text-xs">-</SelectItem>
+                          <SelectItem value="1" className="text-xs">Pribadi</SelectItem>
+                          <SelectItem value="2" className="text-xs">Pemberi Kerja</SelectItem>
+                          <SelectItem value="3" className="text-xs">Asuransi Tambahan</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Penanggung Jawab</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Penanggung Jawab</Label>
                       <Input
                         value={editForm.penanggung_jawab}
                         onChange={(e) => setEditForm({ ...editForm, penanggung_jawab: e.target.value })}
                         placeholder="Nama penanggung jawab"
                         disabled={!editForm.kls_rawat_naik || editForm.kls_rawat_naik === "none"}
-                        className={BPJS_COMPACT_FIELD_CLASS}
+                        className="h-8 text-xs"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Poli Tujuan - dengan Search Modal */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Poli Tujuan *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={editForm.nama_poli ? `${editForm.nama_poli} (${editForm.poli_tujuan})` : editForm.poli_tujuan}
-                        readOnly
-                        placeholder="Pilih poli tujuan"
-                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                      />
-                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setPoliModalOpen(true)}>
-                        <Search className="h-4 w-4" />
-                      </Button>
+                <div className="px-6 py-3 space-y-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pelayanan &amp; Diagnosa
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          value={editForm.nama_poli ? `${editForm.nama_poli} (${editForm.poli_tujuan})` : editForm.poli_tujuan}
+                          readOnly
+                          placeholder="Pilih poli tujuan"
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 px-0 shrink-0" onClick={() => setPoliModalOpen(true)}>
+                          <Search className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Dokter DPJP</Label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          value={editForm.nama_dpjp ? `${editForm.nama_dpjp} (${editForm.dpjp_layan})` : editForm.dpjp_layan}
+                          readOnly
+                          placeholder="Pilih dokter DPJP"
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 px-0 shrink-0" onClick={() => setDokterModalOpen(true)}>
+                          <Search className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Cari kode spesialis: INT, BED, ANA, dll</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Diagnosa Awal *</Label>
+                      <div className="flex gap-1.5">
+                        <Input
+                          value={editForm.nama_diagnosa ? `${editForm.diag_awal} - ${editForm.nama_diagnosa}` : editForm.diag_awal}
+                          readOnly
+                          placeholder="Pilih diagnosa awal"
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 px-0 shrink-0" onClick={() => setDiagnosaModalOpen(true)}>
+                          <Search className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Dokter DPJP - dengan Search Modal */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Dokter DPJP</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={editForm.nama_dpjp ? `${editForm.nama_dpjp} (${editForm.dpjp_layan})` : editForm.dpjp_layan}
-                        readOnly
-                        placeholder="Pilih dokter DPJP"
-                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                      />
-                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDokterModalOpen(true)}>
-                        <Search className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
+                <div className="px-6 py-3 space-y-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Informasi Tambahan
                   </div>
-                </div>
-
-                {/* Diagnosa Awal - dengan Search Modal */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Diagnosa Awal *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={editForm.nama_diagnosa ? `${editForm.diag_awal} - ${editForm.nama_diagnosa}` : editForm.diag_awal}
-                        readOnly
-                        placeholder="Pilih diagnosa awal"
-                        className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
-                      />
-                      <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDiagnosaModalOpen(true)}>
-                        <Search className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Informasi Tambahan */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Poli Eksekutif</Label>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Poli Eksekutif</Label>
                       <Select value={editForm.poli_eksekutif} onValueChange={(value) => setEditForm({ ...editForm, poli_eksekutif: value })}>
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0">Tidak</SelectItem>
-                          <SelectItem value="1">Ya</SelectItem>
+                          <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                          <SelectItem value="1" className="text-xs">Ya</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>COB</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">COB</Label>
                       <Select value={editForm.cob} onValueChange={(value) => setEditForm({ ...editForm, cob: value })}>
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0">Tidak</SelectItem>
-                          <SelectItem value="1">Ya</SelectItem>
+                          <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                          <SelectItem value="1" className="text-xs">Ya</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Katarak</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Katarak</Label>
                       <Select value={editForm.katarak} onValueChange={(value) => setEditForm({ ...editForm, katarak: value })}>
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0">Tidak</SelectItem>
-                          <SelectItem value="1">Ya</SelectItem>
+                          <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                          <SelectItem value="1" className="text-xs">Ya</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Lakalantas</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Lakalantas</Label>
                       <Select value={editForm.laka_lantas} onValueChange={(value) => setEditForm({ ...editForm, laka_lantas: value })}>
-                        <SelectTrigger className={BPJS_COMPACT_FIELD_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0">Bukan KLL</SelectItem>
-                          <SelectItem value="1">KLL & Bukan KK</SelectItem>
-                          <SelectItem value="2">KLL & KK</SelectItem>
-                          <SelectItem value="3">KK</SelectItem>
+                          <SelectItem value="0" className="text-xs">Bukan KLL</SelectItem>
+                          <SelectItem value="1" className="text-xs">KLL &amp; Bukan KK</SelectItem>
+                          <SelectItem value="2" className="text-xs">KLL &amp; KK</SelectItem>
+                          <SelectItem value="3" className="text-xs">KK</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1 col-span-2 md:col-span-1">
+                      <Label className="text-xs font-medium">No. Telepon</Label>
+                      <Input
+                        value={editForm.no_telp}
+                        onChange={(e) => setEditForm({ ...editForm, no_telp: e.target.value })}
+                        placeholder="No. telepon pasien"
+                        className="h-8 text-xs"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* No Telepon */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>No. Telepon</Label>
-                    <Input
-                      value={editForm.no_telp}
-                      onChange={(e) => setEditForm({ ...editForm, no_telp: e.target.value })}
-                      placeholder="No. telepon pasien"
-                      className={BPJS_COMPACT_FIELD_CLASS}
-                    />
-                  </div>
-                </div>
-
-                {/* Catatan */}
-                <div className="space-y-4 xl:col-span-2">
-                  <div className="space-y-2">
-                    <Label>Catatan</Label>
+                  <div className="space-y-1 pt-1">
+                    <Label className="text-xs font-medium">Catatan</Label>
                     <Textarea
                       value={editForm.catatan}
                       onChange={(e) => setEditForm({ ...editForm, catatan: e.target.value })}
-                      rows={3}
+                      rows={2}
                       placeholder="Catatan tambahan"
-                      className="rounded-none border-border/70"
+                      className="min-h-[60px] text-xs"
                     />
                   </div>
                 </div>
-
               </div>
             )}
           </div>
 
-          <SheetFooter className={`${BPJS_FOOTER_CLASS} sticky bottom-0 z-20 bg-background/95 backdrop-blur`}>
+          <SheetFooter className="sticky bottom-0 z-20 border-t bg-background/95 px-6 py-3 backdrop-blur">
             <div className="flex w-full items-center justify-between gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-none border-border/70"
+                size="sm"
+                className="h-8 text-xs"
                 onClick={handlePrint}
                 disabled={printing || updating || deleting}
               >
-                {printing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                {printing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Printer className="mr-1.5 h-3.5 w-3.5" />}
                 Cetak SEP
               </Button>
 
               <div className="flex items-center gap-2">
                 {!isEditing ? (
                   <>
-                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => onOpenChange(false)}>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
                       Tutup
                     </Button>
                     <Button
                       variant="outline"
-                      className="rounded-none border-border/70"
+                      size="sm"
+                      className="h-8 text-xs"
                       onClick={() => setIsEditing(true)}
                       disabled={sep.status !== "active"}
                     >
-                      <Pencil className="mr-2 h-4 w-4" />
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
                       Edit SEP
                     </Button>
                     <Button
                       variant="destructive"
-                      className="rounded-none"
+                      size="sm"
+                      className="h-8 text-xs"
                       onClick={() => setDeleteDialogOpen(true)}
                       disabled={sep.status !== "active" || deleting}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                       Hapus SEP
                     </Button>
                   </>
                 ) : (
                   <>
-                    <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(false)} disabled={updating}>
-                      <X className="mr-2 h-4 w-4" />
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setIsEditing(false)} disabled={updating}>
+                      <X className="mr-1.5 h-3.5 w-3.5" />
                       Batal
                     </Button>
-                    <Button className="rounded-none" onClick={handleUpdate} disabled={updating}>
-                      {updating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    <Button size="sm" className="h-8 text-xs" onClick={handleUpdate} disabled={updating}>
+                      {updating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
                       Simpan
                     </Button>
                   </>

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { suppliersApi, type SupplierFormData } from "@/lib/api/suppliers";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, Save, Building2, ArrowLeft, User, CreditCard, FileText } from "lucide-react";
+import { Loader2, Save, Building2, User, CreditCard, FileText } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 function SummaryCue({
@@ -40,20 +40,18 @@ function SectionPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="flex items-start gap-2.5">
+          <Icon className="h-4 w-4 text-neutral-500 mt-0.5 shrink-0" />
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <div className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</div>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">{description}</p>
           </div>
         </div>
       </div>
-      <div className="p-3 sm:p-4 space-y-6">{children}</div>
-    </div>
+      <div className="space-y-6">{children}</div>
+    </section>
   );
 }
 
@@ -126,12 +124,9 @@ export default function SupplierCreate() {
         title="Tambah Supplier"
         description="Buat data supplier baru lengkap dengan identitas, PIC, rekening, dan status agar siap dipakai di pembelian dan inventori."
         icon={Building2}
+        onBack={() => navigate("/suppliers")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/suppliers")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button type="submit" form="supplier-create-form" size="sm" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Simpan Supplier
@@ -154,9 +149,9 @@ export default function SupplierCreate() {
         </div>
 
         <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <form id="supplier-create-form" onSubmit={handleSubmit} className="flex flex-col flex-1 gap-6">
-          {/* Basic Info */}
-          <SectionPanel icon={Building2} title="Informasi Dasar" description="Identitas utama supplier dan kanal komunikasi dasar.">
+          <form id="supplier-create-form" onSubmit={handleSubmit} className="flex flex-col flex-1 gap-6">
+            {/* Basic Info */}
+            <SectionPanel icon={Building2} title="Informasi Dasar" description="Identitas utama supplier dan kanal komunikasi dasar.">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Kode Supplier</Label>
@@ -221,132 +216,132 @@ export default function SupplierCreate() {
                   />
                 </div>
               </div>
-          </SectionPanel>
+            </SectionPanel>
 
-          {/* Contact Person */}
-          <SectionPanel icon={User} title="Contact Person" description="Penanggung jawab supplier untuk komunikasi operasional harian.">
-            <div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="contact_person">Nama PIC</Label>
-                  <Input
-                    id="contact_person"
-                    name="contact_person"
-                    placeholder="Nama contact person"
-                    value={formData.contact_person}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contact_phone">No. HP PIC</Label>
-                  <Input
-                    id="contact_phone"
-                    name="contact_phone"
-                    placeholder="08123456789"
-                    value={formData.contact_phone}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            </div>
-          </SectionPanel>
-
-          {/* Bank Info */}
-          <SectionPanel icon={CreditCard} title="Informasi Bank" description="Data rekening supplier untuk kebutuhan pembayaran dan administrasi.">
-            <div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="bank_name">Nama Bank</Label>
-                  <Input
-                    id="bank_name"
-                    name="bank_name"
-                    placeholder="Bank BCA"
-                    value={formData.bank_name}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bank_account">No. Rekening</Label>
-                  <Input
-                    id="bank_account"
-                    name="bank_account"
-                    placeholder="1234567890"
-                    value={formData.bank_account}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bank_account_name">Atas Nama</Label>
-                  <Input
-                    id="bank_account_name"
-                    name="bank_account_name"
-                    placeholder="PT Supplier Indonesia"
-                    value={formData.bank_account_name}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            </div>
-          </SectionPanel>
-
-          {/* Notes and Status */}
-          <SectionPanel icon={FileText} title="Status & Catatan" description="Catatan internal dan status aktif supplier untuk kontrol operasional.">
-            <div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Catatan</Label>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    placeholder="Catatan tambahan..."
-                    value={formData.notes}
-                    onChange={handleChange}
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <div className="flex items-center space-x-2 pt-2">
-                    <Switch
-                      id="is_active"
-                      checked={formData.is_active}
-                      onCheckedChange={(checked) =>
-                        setFormData((prev) => ({ ...prev, is_active: checked }))
-                      }
+            {/* Contact Person */}
+            <SectionPanel icon={User} title="Contact Person" description="Penanggung jawab supplier untuk komunikasi operasional harian.">
+              <div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="contact_person">Nama PIC</Label>
+                    <Input
+                      id="contact_person"
+                      name="contact_person"
+                      placeholder="Nama contact person"
+                      value={formData.contact_person}
+                      onChange={handleChange}
                     />
-                    <Label htmlFor="is_active" className="font-normal">
-                      {formData.is_active ? "Aktif" : "Non-Aktif"}
-                    </Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contact_phone">No. HP PIC</Label>
+                    <Input
+                      id="contact_phone"
+                      name="contact_phone"
+                      placeholder="08123456789"
+                      value={formData.contact_phone}
+                      onChange={handleChange}
+                    />
                   </div>
                 </div>
               </div>
-            </div>
-          </SectionPanel>
+            </SectionPanel>
 
-          {/* Sticky Footer Actions */}
-          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-auto flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 backdrop-blur">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate("/suppliers")}
-            >
-              Batal
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Menyimpan...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Simpan
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+            {/* Bank Info */}
+            <SectionPanel icon={CreditCard} title="Informasi Bank" description="Data rekening supplier untuk kebutuhan pembayaran dan administrasi.">
+              <div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="bank_name">Nama Bank</Label>
+                    <Input
+                      id="bank_name"
+                      name="bank_name"
+                      placeholder="Bank BCA"
+                      value={formData.bank_name}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bank_account">No. Rekening</Label>
+                    <Input
+                      id="bank_account"
+                      name="bank_account"
+                      placeholder="1234567890"
+                      value={formData.bank_account}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bank_account_name">Atas Nama</Label>
+                    <Input
+                      id="bank_account_name"
+                      name="bank_account_name"
+                      placeholder="PT Supplier Indonesia"
+                      value={formData.bank_account_name}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SectionPanel>
+
+            {/* Notes and Status */}
+            <SectionPanel icon={FileText} title="Status & Catatan" description="Catatan internal dan status aktif supplier untuk kontrol operasional.">
+              <div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Catatan</Label>
+                    <Textarea
+                      id="notes"
+                      name="notes"
+                      placeholder="Catatan tambahan..."
+                      value={formData.notes}
+                      onChange={handleChange}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Switch
+                        id="is_active"
+                        checked={formData.is_active}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, is_active: checked }))
+                        }
+                      />
+                      <Label htmlFor="is_active" className="font-normal">
+                        {formData.is_active ? "Aktif" : "Non-Aktif"}
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </SectionPanel>
+
+            {/* Sticky Footer Actions */}
+            <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-auto flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 backdrop-blur">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/suppliers")}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Simpan
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
         </div>
       </PageContent>
     </PageShell>

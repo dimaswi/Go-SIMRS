@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
@@ -59,7 +59,6 @@ const LOGISTICS_ACCESS_PERMISSIONS = [
   'room-inventories.view',
 ];
 
-const FLAT_CARD_CLASS = 'rounded-none border-border/70 shadow-none';
 const DASHBOARD_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
 
 interface ActivityItem {
@@ -115,10 +114,6 @@ interface RankedItem {
   helper: string;
 }
 
-function DashboardShellCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <Card className={cn(FLAT_CARD_CLASS, className)}>{children}</Card>;
-}
-
 function DashboardPanel({
   eyebrow,
   title,
@@ -137,19 +132,19 @@ function DashboardPanel({
   contentClassName?: string;
 }) {
   return (
-    <DashboardShellCard className={cn('overflow-hidden bg-background/95 backdrop-blur', className)}>
-      <CardHeader className="border-b border-border/70 bg-muted/10 px-4 py-3 sm:px-5">
+    <section className={cn('space-y-4', className)}>
+      <CardHeader className="border-b border-neutral-200 dark:border-neutral-800 px-0 py-2.5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{eyebrow}</div>
-            <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-wider">{title}</CardTitle>
             {description ? <CardDescription className="text-xs uppercase tracking-[0.16em]">{description}</CardDescription> : null}
           </div>
           {action}
         </div>
       </CardHeader>
-      <CardContent className={cn('p-4 sm:p-5', contentClassName)}>{children}</CardContent>
-    </DashboardShellCard>
+      <CardContent className={cn('p-0 space-y-4', contentClassName)}>{children}</CardContent>
+    </section>
   );
 }
 
@@ -158,31 +153,26 @@ function MetricCard({
   value,
   detail,
   icon: Icon,
-  tintClass,
   iconClass,
 }: {
   title: string;
   value: string;
   detail: string;
   icon: typeof LayoutDashboard;
-  tintClass: string;
+  tintClass?: string;
   iconClass: string;
 }) {
   return (
-    <DashboardShellCard className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className={cn('flex items-start justify-between gap-4 px-4 py-4 sm:px-5', tintClass)}>
-          <div className="space-y-1">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{title}</div>
-            <div className="text-2xl font-semibold tracking-tight text-foreground">{value}</div>
-            <div className="text-xs text-muted-foreground">{detail}</div>
-          </div>
-          <div className={cn('flex size-10 shrink-0 items-center justify-center border border-current/15 bg-background/70', iconClass)}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </DashboardShellCard>
+    <div className="flex items-start justify-between gap-3 bg-white dark:bg-neutral-950 px-4 py-3.5 min-w-0">
+      <div className="space-y-1 min-w-0 flex-1">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{title}</div>
+        <div className="text-lg xl:text-xl font-mono font-bold tracking-tight text-neutral-900 dark:text-white break-words">{value}</div>
+        <div className="text-xs text-neutral-500">{detail}</div>
+      </div>
+      <div className={cn('flex size-8 shrink-0 items-center justify-center border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900', iconClass)}>
+        <Icon className="h-4 w-4" />
+      </div>
+    </div>
   );
 }
 
@@ -733,7 +723,7 @@ export default function LogisticsDashboardPage() {
   if (loading) {
     return (
       <PageShell>
-        <PageHeader title="Dashboard Logistik" description="Ringkasan operasional logistik rumah sakit" />
+        <PageHeader icon={LayoutDashboard} title="Dashboard Logistik" description="Ringkasan operasional logistik rumah sakit" />
         <PageContent>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-none" />)}
@@ -744,162 +734,164 @@ export default function LogisticsDashboardPage() {
   }
 
   return (
-    <PageShell className="overflow-hidden">
+    <PageShell>
       <PageHeader
+        icon={LayoutDashboard}
         title="Dashboard Logistik"
         description="Pantau pembelian, permintaan, distribusi, opname, dan stok logistik dalam satu ringkasan kerja."
         actions={
-          <Button size="sm" variant="outline" className="rounded-none" onClick={() => void loadDashboard(true)} disabled={refreshing}>
-            {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          <Button size="sm" variant="outline" className="rounded-none h-8 px-3 text-xs font-semibold shadow-none" onClick={() => void loadDashboard(true)} disabled={refreshing}>
+            {refreshing ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
             Muat Ulang
           </Button>
         }
       />
-      <PageContent className="min-h-0 overflow-y-auto space-y-4 pb-8">
-        <div className="space-y-4 pb-4" style={{ fontFamily: '"IBM Plex Sans", "Segoe UI", sans-serif' }}>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline" className="rounded-none">Logistik Only</Badge>
-          {lastUpdatedAt ? <span>Terakhir diperbarui {formatDateTime(lastUpdatedAt.toISOString())}</span> : null}
-          <div className="ml-auto w-[140px] min-w-[140px]">
-            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
-              <SelectTrigger className="h-8 rounded-none text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-none">
-                <SelectItem value="7d">7 Hari</SelectItem>
-                <SelectItem value="30d">30 Hari</SelectItem>
-                <SelectItem value="90d">90 Hari</SelectItem>
-              </SelectContent>
-            </Select>
+      <PageContent className="space-y-6 pb-8">
+        <div className="space-y-6" style={{ fontFamily: '"IBM Plex Sans", "Segoe UI", sans-serif' }}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3 text-xs text-muted-foreground">
+            <Badge variant="outline" className="rounded-none">Logistik Only</Badge>
+            {lastUpdatedAt ? <span>Terakhir diperbarui {formatDateTime(lastUpdatedAt.toISOString())}</span> : null}
+            <div className="ml-auto w-[140px] min-w-[140px]">
+              <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
+                <SelectTrigger className="h-8 rounded-none text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-none">
+                  <SelectItem value="7d">7 Hari</SelectItem>
+                  <SelectItem value="30d">30 Hari</SelectItem>
+                  <SelectItem value="90d">90 Hari</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <MetricCard title="Master Obat" value={formatNumber(metrics.medicineCount)} detail={`${formatNumber(metrics.lowMedicineCount)} stok rendah`} icon={Pill} tintClass="bg-emerald-50/60" iconClass="text-emerald-700" />
-          <MetricCard title="Master Inventaris" value={formatNumber(metrics.inventoryCount)} detail={`${formatNumber(metrics.lowInventoryCount)} stok rendah`} icon={Package} tintClass="bg-sky-50/60" iconClass="text-sky-700" />
-          <MetricCard title="Supplier Aktif" value={formatNumber(metrics.activeSuppliers)} detail="mitra logistik aktif" icon={Truck} tintClass="bg-amber-50/60" iconClass="text-amber-700" />
-          <MetricCard title="Permintaan Aktif" value={formatNumber(metrics.activeRequests)} detail={`${formatNumber(requestStats.urgent)} prioritas urgent`} icon={FileSpreadsheet} tintClass="bg-orange-50/60" iconClass="text-orange-700" />
-          <MetricCard title="Distribusi Berjalan" value={formatNumber(metrics.pendingDistributions)} detail={`${formatNumber(distributionStats.delivered)} sudah dikirim`} icon={Send} tintClass="bg-indigo-50/60" iconClass="text-indigo-700" />
-          <MetricCard title="Sisa Hutang" value={formatCurrency(metrics.outstandingPayables)} detail={`${formatNumber(purchaseStats.overdue)} sudah overdue`} icon={Wallet} tintClass="bg-rose-50/60" iconClass="text-rose-700" />
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 border-t border-l border-neutral-200 dark:border-neutral-800 [&>*]:border-r [&>*]:border-b [&>*]:border-neutral-200 dark:[&>*]:border-neutral-800">
+            <MetricCard title="Master Obat" value={formatNumber(metrics.medicineCount)} detail={`${formatNumber(metrics.lowMedicineCount)} stok rendah`} icon={Pill} iconClass="text-emerald-700 dark:text-emerald-400" />
+            <MetricCard title="Master Inventaris" value={formatNumber(metrics.inventoryCount)} detail={`${formatNumber(metrics.lowInventoryCount)} stok rendah`} icon={Package} iconClass="text-sky-700 dark:text-sky-400" />
+            <MetricCard title="Supplier Aktif" value={formatNumber(metrics.activeSuppliers)} detail="mitra logistik aktif" icon={Truck} iconClass="text-amber-700 dark:text-amber-400" />
+            <MetricCard title="Permintaan Aktif" value={formatNumber(metrics.activeRequests)} detail={`${formatNumber(requestStats.urgent)} prioritas urgent`} icon={FileSpreadsheet} iconClass="text-orange-700 dark:text-orange-400" />
+            <MetricCard title="Distribusi Berjalan" value={formatNumber(metrics.pendingDistributions)} detail={`${formatNumber(distributionStats.delivered)} sudah dikirim`} icon={Send} iconClass="text-indigo-700 dark:text-indigo-400" />
+            <MetricCard title="Sisa Hutang" value={formatCurrency(metrics.outstandingPayables)} detail={`${formatNumber(purchaseStats.overdue)} sudah overdue`} icon={Wallet} iconClass="text-rose-700 dark:text-rose-400" />
+          </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <DashboardPanel eyebrow="Operasional" title="Status Proses Logistik" description="monitor status kerja inti logistik">
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="space-y-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Permintaan Stok</div>
-                <DistributionRow label="Menunggu Approval" value={requestStats.pending} total={Math.max(requestStats.total, 1)} fill="bg-amber-500" helper="pending" />
-                <DistributionRow label="Disetujui Sebagian" value={requestStats.partial} total={Math.max(requestStats.total, 1)} fill="bg-orange-500" helper="partial" />
-                <DistributionRow label="Sudah Disetujui" value={requestStats.approved} total={Math.max(requestStats.total, 1)} fill="bg-emerald-500" helper="approved" />
-                <DistributionRow label="Selesai Distribusi" value={requestStats.completed} total={Math.max(requestStats.total, 1)} fill="bg-sky-600" helper="completed" />
-              </div>
-              <div className="space-y-3">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Pembelian, Distribusi, Opname</div>
-                <DistributionRow label="PO Menunggu Terima" value={purchaseStats.ordered + purchaseStats.partial} total={Math.max(purchaseStats.total, 1)} fill="bg-indigo-500" helper="ordered + partial" />
-                <DistributionRow label="Distribusi Pending/Delivered" value={distributionStats.pending + distributionStats.delivered} total={Math.max(distributionStats.total, 1)} fill="bg-violet-500" helper="belum diterima ruangan" />
-                <DistributionRow label="Opname Berjalan" value={opnameStats.inProgress + opnameStats.completed} total={Math.max(opnameStats.total, 1)} fill="bg-cyan-600" helper="in progress + completed" />
-                <DistributionRow label="PO Overdue" value={purchaseStats.overdue} total={Math.max(purchaseStats.total, 1)} fill="bg-rose-500" helper="butuh tindak lanjut" />
-              </div>
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Stok" title="Persediaan Logistik" description="rekap master dan stok ruang">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
-                <div className="flex items-center gap-2"><Warehouse className="h-4 w-4 text-emerald-700" /><span>Total Stok Obat Ruangan</span></div>
-                <Badge variant="outline" className="rounded-none">{formatNumber(metrics.totalMedicineStock)}</Badge>
-              </div>
-              <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
-                <div className="flex items-center gap-2"><Boxes className="h-4 w-4 text-sky-700" /><span>Total Stok Inventaris Ruangan</span></div>
-                <Badge variant="outline" className="rounded-none">{formatNumber(metrics.totalInventoryStock)}</Badge>
-              </div>
-              <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
-                <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-700" /><span>Obat Master Stok Rendah</span></div>
-                <Badge className="rounded-none border border-amber-200 bg-amber-50 text-amber-700">{formatNumber(metrics.lowMedicineCount)}</Badge>
-              </div>
-              <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
-                <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-orange-700" /><span>Inventaris Master Stok Rendah</span></div>
-                <Badge className="rounded-none border border-orange-200 bg-orange-50 text-orange-700">{formatNumber(metrics.lowInventoryCount)}</Badge>
-              </div>
-              <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
-                <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-rose-700" /><span>Stok Obat Ruangan Kritis</span></div>
-                <Badge className="rounded-none border border-rose-200 bg-rose-50 text-rose-700">{formatNumber(metrics.lowRoomMedicineCount)}</Badge>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-red-700" /><span>Stok Inventaris Ruangan Kritis</span></div>
-                <Badge className="rounded-none border border-red-200 bg-red-50 text-red-700">{formatNumber(metrics.lowRoomInventoryCount)}</Badge>
-              </div>
-            </div>
-          </DashboardPanel>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-          <DashboardPanel eyebrow="Prioritas" title="Tindak Lanjut Hari Ini" description="antrian kerja yang paling butuh perhatian">
-            <div className="space-y-2.5">
-              {priorities.map((item) => (
-                <Link
-                  key={item.id}
-                  to={item.href}
-                  className="group flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">{item.label}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={cn('rounded-none border', getPriorityToneClasses(item.tone))}>{formatNumber(item.value)}</Badge>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Keuangan" title="Pembelian & Kewajiban" description="nilai transaksi logistik yang masih terbuka">
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="border border-border/70 bg-muted/10 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Total Pembelian</div>
-                  <div className="mt-1 text-xl font-semibold">{formatCurrency(purchases.reduce((sum, item) => sum + (item.total_amount || 0), 0))}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">semua PO logistik</div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:divide-x xl:divide-neutral-200 dark:xl:divide-neutral-800">
+            <DashboardPanel eyebrow="Operasional" title="Status Proses Logistik" description="monitor status kerja inti logistik" className="xl:pr-6">
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Permintaan Stok</div>
+                  <DistributionRow label="Menunggu Approval" value={requestStats.pending} total={Math.max(requestStats.total, 1)} fill="bg-amber-500" helper="pending" />
+                  <DistributionRow label="Disetujui Sebagian" value={requestStats.partial} total={Math.max(requestStats.total, 1)} fill="bg-orange-500" helper="partial" />
+                  <DistributionRow label="Sudah Disetujui" value={requestStats.approved} total={Math.max(requestStats.total, 1)} fill="bg-emerald-500" helper="approved" />
+                  <DistributionRow label="Selesai Distribusi" value={requestStats.completed} total={Math.max(requestStats.total, 1)} fill="bg-sky-600" helper="completed" />
                 </div>
-                <div className="border border-border/70 bg-muted/10 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Sudah Dibayar</div>
-                  <div className="mt-1 text-xl font-semibold text-emerald-700">{formatCurrency(purchases.reduce((sum, item) => sum + (item.paid_amount || 0), 0))}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">realisasi pembayaran supplier</div>
+                <div className="space-y-3">
+                  <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Pembelian, Distribusi, Opname</div>
+                  <DistributionRow label="PO Menunggu Terima" value={purchaseStats.ordered + purchaseStats.partial} total={Math.max(purchaseStats.total, 1)} fill="bg-indigo-500" helper="ordered + partial" />
+                  <DistributionRow label="Distribusi Pending/Delivered" value={distributionStats.pending + distributionStats.delivered} total={Math.max(distributionStats.total, 1)} fill="bg-violet-500" helper="belum diterima ruangan" />
+                  <DistributionRow label="Opname Berjalan" value={opnameStats.inProgress + opnameStats.completed} total={Math.max(opnameStats.total, 1)} fill="bg-cyan-600" helper="in progress + completed" />
+                  <DistributionRow label="PO Overdue" value={purchaseStats.overdue} total={Math.max(purchaseStats.total, 1)} fill="bg-rose-500" helper="butuh tindak lanjut" />
                 </div>
               </div>
-              <DistributionRow label="Pembelian Bayar Sebagian" value={purchases.filter((item) => item.payment_status === 'partial').length} total={Math.max(purchases.length, 1)} fill="bg-amber-500" helper={purchasePaymentStatusLabels.partial} />
-              <DistributionRow label="Pembelian Belum Bayar" value={purchases.filter((item) => item.payment_status === 'unpaid').length} total={Math.max(purchases.length, 1)} fill="bg-slate-500" helper={purchasePaymentStatusLabels.unpaid} />
-              <DistributionRow label="Pembelian Overdue" value={purchaseStats.overdue} total={Math.max(purchases.length, 1)} fill="bg-rose-500" helper={purchasePaymentStatusLabels.overdue} />
-              <div className="border-t border-border/70 pt-3">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Eksposur Supplier</div>
-                <div className="space-y-2">
-                  {supplierExposure.length > 0 ? supplierExposure.map((item) => (
-                    <div key={item.supplierKey} className="flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-2.5">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">{item.supplierName}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {item.purchaseCount} PO aktif
-                          {item.overdueCount > 0 ? ` | ${item.overdueCount} overdue` : ''}
-                          {item.latestDueDate ? ` | JT ${formatShortDate(item.latestDueDate)}` : ''}
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Stok" title="Persediaan Logistik" description="rekap master dan stok ruang" className="xl:pl-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
+                  <div className="flex items-center gap-2"><Warehouse className="h-4 w-4 text-emerald-700" /><span>Total Stok Obat Ruangan</span></div>
+                  <Badge variant="outline" className="rounded-none">{formatNumber(metrics.totalMedicineStock)}</Badge>
+                </div>
+                <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
+                  <div className="flex items-center gap-2"><Boxes className="h-4 w-4 text-sky-700" /><span>Total Stok Inventaris Ruangan</span></div>
+                  <Badge variant="outline" className="rounded-none">{formatNumber(metrics.totalInventoryStock)}</Badge>
+                </div>
+                <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
+                  <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-700" /><span>Obat Master Stok Rendah</span></div>
+                  <Badge className="rounded-none border border-amber-200 bg-amber-50 text-amber-700">{formatNumber(metrics.lowMedicineCount)}</Badge>
+                </div>
+                <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
+                  <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-orange-700" /><span>Inventaris Master Stok Rendah</span></div>
+                  <Badge className="rounded-none border border-orange-200 bg-orange-50 text-orange-700">{formatNumber(metrics.lowInventoryCount)}</Badge>
+                </div>
+                <div className="flex items-center justify-between border-b border-dashed border-border/70 pb-3 text-sm">
+                  <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-rose-700" /><span>Stok Obat Ruangan Kritis</span></div>
+                  <Badge className="rounded-none border border-rose-200 bg-rose-50 text-rose-700">{formatNumber(metrics.lowRoomMedicineCount)}</Badge>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-red-700" /><span>Stok Inventaris Ruangan Kritis</span></div>
+                  <Badge className="rounded-none border border-red-200 bg-red-50 text-red-700">{formatNumber(metrics.lowRoomInventoryCount)}</Badge>
+                </div>
+              </div>
+            </DashboardPanel>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:divide-x xl:divide-neutral-200 dark:xl:divide-neutral-800">
+            <DashboardPanel eyebrow="Prioritas" title="Tindak Lanjut Hari Ini" description="antrian kerja yang paling butuh perhatian" className="xl:pr-6">
+              <div className="space-y-2.5">
+                {priorities.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={item.href}
+                    className="group flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">{item.label}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={cn('rounded-none border', getPriorityToneClasses(item.tone))}>{formatNumber(item.value)}</Badge>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Keuangan" title="Pembelian & Kewajiban" description="nilai transaksi logistik yang masih terbuka" className="xl:pl-6">
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="border border-border/70 bg-muted/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Total Pembelian</div>
+                    <div className="mt-1 text-xl font-semibold">{formatCurrency(purchases.reduce((sum, item) => sum + (item.total_amount || 0), 0))}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">semua PO logistik</div>
+                  </div>
+                  <div className="border border-border/70 bg-muted/10 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Sudah Dibayar</div>
+                    <div className="mt-1 text-xl font-semibold text-emerald-700">{formatCurrency(purchases.reduce((sum, item) => sum + (item.paid_amount || 0), 0))}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">realisasi pembayaran supplier</div>
+                  </div>
+                </div>
+                <DistributionRow label="Pembelian Bayar Sebagian" value={purchases.filter((item) => item.payment_status === 'partial').length} total={Math.max(purchases.length, 1)} fill="bg-amber-500" helper={purchasePaymentStatusLabels.partial} />
+                <DistributionRow label="Pembelian Belum Bayar" value={purchases.filter((item) => item.payment_status === 'unpaid').length} total={Math.max(purchases.length, 1)} fill="bg-slate-500" helper={purchasePaymentStatusLabels.unpaid} />
+                <DistributionRow label="Pembelian Overdue" value={purchaseStats.overdue} total={Math.max(purchases.length, 1)} fill="bg-rose-500" helper={purchasePaymentStatusLabels.overdue} />
+                <div className="border-t border-border/70 pt-3">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Eksposur Supplier</div>
+                  <div className="space-y-2">
+                    {supplierExposure.length > 0 ? supplierExposure.map((item) => (
+                      <div key={item.supplierKey} className="flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-2.5">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-foreground">{item.supplierName}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {item.purchaseCount} PO aktif
+                            {item.overdueCount > 0 ? ` | ${item.overdueCount} overdue` : ''}
+                            {item.latestDueDate ? ` | JT ${formatShortDate(item.latestDueDate)}` : ''}
+                          </div>
                         </div>
+                        <div className="shrink-0 text-right text-sm font-semibold text-foreground">{formatCurrency(item.totalOutstanding)}</div>
                       </div>
-                      <div className="shrink-0 text-right text-sm font-semibold text-foreground">{formatCurrency(item.totalOutstanding)}</div>
-                    </div>
-                  )) : (
-                    <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
-                      Tidak ada hutang supplier yang masih terbuka.
-                    </div>
-                  )}
+                    )) : (
+                      <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
+                        Tidak ada hutang supplier yang masih terbuka.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </DashboardPanel>
+            </DashboardPanel>
+          </div>
 
           <DashboardPanel eyebrow="Akses Cepat" title="Modul Logistik" description="masuk cepat ke area kerja utama">
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {[
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-l border-neutral-200 dark:border-neutral-800 [&>*]:border-r [&>*]:border-b [&>*]:border-neutral-200 dark:[&>*]:border-neutral-800">
+              {[
                 { href: '/purchases', label: 'Pembelian', icon: ShoppingCart, enabled: permissionFlags.canViewPurchases },
                 { href: '/stock-requests', label: 'Permintaan Stok', icon: FileSpreadsheet, enabled: permissionFlags.canViewRequests },
                 { href: '/distributions', label: 'Distribusi', icon: Send, enabled: permissionFlags.canViewDistributions },
@@ -909,214 +901,213 @@ export default function LogisticsDashboardPage() {
               ].filter((item) => item.enabled).map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} to={item.href} className="group flex items-center justify-between border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20">
-                    <div className="flex items-center gap-2">
-                      <div className="flex size-8 items-center justify-center border border-border/70 bg-muted/20 text-foreground/80"><Icon className="h-4 w-4" /></div>
-                      <span className="text-sm font-medium">{item.label}</span>
+                  <Link key={item.href} to={item.href} className="group flex items-center justify-between gap-2 bg-white dark:bg-neutral-950 px-3.5 py-3 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className="h-4 w-4 text-neutral-600 dark:text-neutral-400 shrink-0" />
+                      <span className="text-xs font-semibold truncate">{item.label}</span>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRight className="h-3.5 w-3.5 text-neutral-400 transition-transform group-hover:translate-x-0.5 shrink-0" />
                   </Link>
                 );
               })}
             </div>
           </DashboardPanel>
-        </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
-          <DashboardPanel eyebrow="Risiko" title="Obat Stok Rendah" description="master obat yang perlu restock cepat">
-            <div className="space-y-2.5">
-              {topLowStockMedicines.length > 0 ? topLowStockMedicines.map((item) => (
-                <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 font-mono text-[11px] text-muted-foreground">{item.code}</div>
-                  </div>
-                  <div className="shrink-0 text-right text-xs">
-                    <div className="font-semibold text-rose-700">{formatNumber(item.current)}</div>
-                    <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
-                  </div>
-                </Link>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Tidak ada obat yang berada di bawah batas minimum.</div>
-              )}
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Risiko" title="Inventaris Stok Rendah" description="master inventaris yang mendekati habis">
-            <div className="space-y-2.5">
-              {topLowStockInventories.length > 0 ? topLowStockInventories.map((item) => (
-                <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 font-mono text-[11px] text-muted-foreground">{item.code}</div>
-                  </div>
-                  <div className="shrink-0 text-right text-xs">
-                    <div className="font-semibold text-orange-700">{formatNumber(item.current)}</div>
-                    <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
-                  </div>
-                </Link>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Tidak ada inventaris yang berada di bawah batas minimum.</div>
-              )}
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Risiko Ruang" title="Ruang Dengan Stok Kritis" description="lokasi yang perlu suplai lanjutan">
-            <div className="space-y-2.5">
-              {criticalRoomStocks.length > 0 ? criticalRoomStocks.map((item) => (
-                <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 border border-border/70 bg-background px-3 py-3 transition-colors hover:bg-muted/20">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{item.location || '-'} | {item.code}</div>
-                  </div>
-                  <div className="shrink-0 text-right text-xs">
-                    <div className="font-semibold text-rose-700">{formatNumber(item.current)}</div>
-                    <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
-                  </div>
-                </Link>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada ruang yang masuk kategori stok kritis.</div>
-              )}
-            </div>
-          </DashboardPanel>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <DashboardPanel eyebrow="Tren" title="Pergerakan Logistik" description={`aktivitas ${periodFilter === '7d' ? '7 hari' : periodFilter === '30d' ? '30 hari' : '90 hari'} terakhir`}>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="logistics-requests" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ea580c" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="logistics-purchases" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="logistics-distributions" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0f766e" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#0f766e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="4 4" stroke="#d4d4d8" />
-                <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 0 }} />
-                <Area type="monotone" dataKey="requests" name="Permintaan" stroke="#ea580c" fill="url(#logistics-requests)" strokeWidth={2} />
-                <Area type="monotone" dataKey="purchases" name="Pembelian" stroke="#7c3aed" fill="url(#logistics-purchases)" strokeWidth={2} />
-                <Area type="monotone" dataKey="distributions" name="Distribusi" stroke="#0f766e" fill="url(#logistics-distributions)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Kinerja" title="Volume Periode Aktif" description="ringkas transaksi operasional per jenis">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={[
-                { name: 'Permintaan', value: filteredRequests.length },
-                { name: 'Pembelian', value: filteredPurchases.length },
-                { name: 'Distribusi', value: filteredDistributions.length },
-                { name: 'Opname', value: filteredOpnames.length },
-              ]}>
-                <CartesianGrid strokeDasharray="4 4" stroke="#d4d4d8" />
-                <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 0 }} />
-                <Bar dataKey="value" fill="#0f172a" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
-          </DashboardPanel>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-3">
-          <DashboardPanel eyebrow="Ranking" title="Ruangan Paling Aktif Meminta" description="top request origin pada periode aktif">
-            <div className="space-y-2.5">
-              {topRequestRooms.length > 0 ? topRequestRooms.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
-                  </div>
-                  <Badge variant="outline" className="rounded-none">{formatNumber(item.value)}</Badge>
-                </div>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada permintaan pada periode ini.</div>
-              )}
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Ranking" title="Tujuan Distribusi Terbesar" description="ruangan dengan volume kirim tertinggi">
-            <div className="space-y-2.5">
-              {topDistributionTargets.length > 0 ? topDistributionTargets.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
-                  </div>
-                  <Badge variant="outline" className="rounded-none">{formatNumber(item.value)}</Badge>
-                </div>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada distribusi pada periode ini.</div>
-              )}
-            </div>
-          </DashboardPanel>
-
-          <DashboardPanel eyebrow="Ranking" title="Supplier Paling Dipakai" description="nilai pembelian terbesar pada periode aktif">
-            <div className="space-y-2.5">
-              {topSuppliersByPurchase.length > 0 ? topSuppliersByPurchase.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">{item.name}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
-                  </div>
-                  <Badge variant="outline" className="rounded-none">{formatCurrency(item.value)}</Badge>
-                </div>
-              )) : (
-                <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada pembelian pada periode ini.</div>
-              )}
-            </div>
-          </DashboardPanel>
-        </div>
-
-        <DashboardPanel eyebrow="Aktivitas" title="Aktivitas Logistik Terbaru" description="timeline pembelian, permintaan, distribusi, dan opname" contentClassName="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted/20">
-                  <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Aktivitas</th>
-                  <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Deskripsi</th>
-                  <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
-                  <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Waktu</th>
-                  <th className="border-b border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentActivities.length > 0 ? recentActivities.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/10">
-                    <td className="border-b border-r border-border/60 px-4 py-3 align-top">
-                      <div className="font-medium text-foreground">{item.title}</div>
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{getActivityTypeLabel(item.type)}</div>
-                    </td>
-                    <td className="border-b border-r border-border/60 px-4 py-3 align-top text-muted-foreground">{item.description}</td>
-                    <td className="border-b border-r border-border/60 px-4 py-3 align-top">
-                      <Badge className={cn('rounded-none border', statusTone(item.status))}>{item.status}</Badge>
-                    </td>
-                    <td className="border-b border-r border-border/60 px-4 py-3 align-top text-muted-foreground">{formatDateTime(item.date)}</td>
-                    <td className="border-b border-border/60 px-4 py-3 align-top">
-                      <Button asChild variant="outline" size="sm" className="rounded-none">
-                        <Link to={item.href}>Buka</Link>
-                      </Button>
-                    </td>
-                  </tr>
+          <div className="grid gap-6 xl:grid-cols-3 xl:divide-x xl:divide-neutral-200 dark:xl:divide-neutral-800">
+            <DashboardPanel eyebrow="Risiko" title="Obat Stok Rendah" description="master obat yang perlu restock cepat" className="xl:pr-5">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
+                {topLowStockMedicines.length > 0 ? topLowStockMedicines.map((item) => (
+                  <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 py-2.5 px-1 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{item.code}</div>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="font-semibold text-rose-700">{formatNumber(item.current)}</div>
+                      <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
+                    </div>
+                  </Link>
                 )) : (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">Belum ada aktivitas logistik yang bisa ditampilkan.</td>
-                  </tr>
+                  <div className="py-6 text-center text-sm text-muted-foreground">Tidak ada obat yang berada di bawah batas minimum.</div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Risiko" title="Inventaris Stok Rendah" description="master inventaris yang mendekati habis" className="xl:px-5">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
+                {topLowStockInventories.length > 0 ? topLowStockInventories.map((item) => (
+                  <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 py-2.5 px-1 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{item.code}</div>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="font-semibold text-orange-700">{formatNumber(item.current)}</div>
+                      <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
+                    </div>
+                  </Link>
+                )) : (
+                  <div className="py-6 text-center text-sm text-muted-foreground">Tidak ada inventaris yang berada di bawah batas minimum.</div>
+                )}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Risiko Ruang" title="Ruang Dengan Stok Kritis" description="lokasi yang perlu suplai lanjutan" className="xl:pl-5">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
+                {criticalRoomStocks.length > 0 ? criticalRoomStocks.map((item) => (
+                  <Link key={item.id} to={item.href} className="group flex items-start justify-between gap-3 py-2.5 px-1 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{item.location || '-'} | {item.code}</div>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="font-semibold text-rose-700">{formatNumber(item.current)}</div>
+                      <div className="text-muted-foreground">min {formatNumber(item.minimum)}</div>
+                    </div>
+                  </Link>
+                )) : (
+                  <div className="py-6 text-center text-sm text-muted-foreground">Belum ada ruang yang masuk kategori stok kritis.</div>
+                )}
+              </div>
+            </DashboardPanel>
           </div>
-        </DashboardPanel>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] xl:divide-x xl:divide-neutral-200 dark:xl:divide-neutral-800">
+            <DashboardPanel eyebrow="Tren" title="Pergerakan Logistik" description={`aktivitas ${periodFilter === '7d' ? '7 hari' : periodFilter === '30d' ? '30 hari' : '90 hari'} terakhir`} className="xl:pr-6">
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="logistics-requests" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ea580c" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="logistics-purchases" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="logistics-distributions" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0f766e" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="#0f766e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#d4d4d8" />
+                  <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 0 }} />
+                  <Area type="monotone" dataKey="requests" name="Permintaan" stroke="#ea580c" fill="url(#logistics-requests)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="purchases" name="Pembelian" stroke="#7c3aed" fill="url(#logistics-purchases)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="distributions" name="Distribusi" stroke="#0f766e" fill="url(#logistics-distributions)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Kinerja" title="Volume Periode Aktif" description="ringkas transaksi operasional per jenis" className="xl:pl-6">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={[
+                  { name: 'Permintaan', value: filteredRequests.length },
+                  { name: 'Pembelian', value: filteredPurchases.length },
+                  { name: 'Distribusi', value: filteredDistributions.length },
+                  { name: 'Opname', value: filteredOpnames.length },
+                ]}>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#d4d4d8" />
+                  <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 0 }} />
+                  <Bar dataKey="value" fill="#0f172a" radius={0} />
+                </BarChart>
+              </ResponsiveContainer>
+            </DashboardPanel>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-3 xl:divide-x xl:divide-neutral-200 dark:xl:divide-neutral-800">
+            <DashboardPanel eyebrow="Ranking" title="Ruangan Paling Aktif Meminta" description="top request origin pada periode aktif" className="xl:pr-5">
+              <div className="space-y-2.5">
+                {topRequestRooms.length > 0 ? topRequestRooms.map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
+                    </div>
+                    <Badge variant="outline" className="rounded-none">{formatNumber(item.value)}</Badge>
+                  </div>
+                )) : (
+                  <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada permintaan pada periode ini.</div>
+                )}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Ranking" title="Tujuan Distribusi Terbesar" description="ruangan dengan volume kirim tertinggi" className="xl:px-5">
+              <div className="space-y-2.5">
+                {topDistributionTargets.length > 0 ? topDistributionTargets.map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
+                    </div>
+                    <Badge variant="outline" className="rounded-none">{formatNumber(item.value)}</Badge>
+                  </div>
+                )) : (
+                  <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada distribusi pada periode ini.</div>
+                )}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel eyebrow="Ranking" title="Supplier Paling Dipakai" description="nilai pembelian terbesar pada periode aktif" className="xl:pl-5">
+              <div className="space-y-2.5">
+                {topSuppliersByPurchase.length > 0 ? topSuppliersByPurchase.map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between border border-border/70 bg-background px-3 py-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.helper}</div>
+                    </div>
+                    <Badge variant="outline" className="rounded-none">{formatCurrency(item.value)}</Badge>
+                  </div>
+                )) : (
+                  <div className="border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">Belum ada pembelian pada periode ini.</div>
+                )}
+              </div>
+            </DashboardPanel>
+          </div>
+
+          <DashboardPanel eyebrow="Aktivitas" title="Aktivitas Logistik Terbaru" description="timeline pembelian, permintaan, distribusi, dan opname" contentClassName="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/20">
+                    <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Aktivitas</th>
+                    <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Deskripsi</th>
+                    <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                    <th className="border-b border-r border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Waktu</th>
+                    <th className="border-b border-border/70 px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentActivities.length > 0 ? recentActivities.map((item) => (
+                    <tr key={item.id} className="hover:bg-muted/10">
+                      <td className="border-b border-r border-border/60 px-4 py-3 align-top">
+                        <div className="font-medium text-foreground">{item.title}</div>
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{getActivityTypeLabel(item.type)}</div>
+                      </td>
+                      <td className="border-b border-r border-border/60 px-4 py-3 align-top text-muted-foreground">{item.description}</td>
+                      <td className="border-b border-r border-border/60 px-4 py-3 align-top">
+                        <Badge className={cn('rounded-none border', statusTone(item.status))}>{item.status}</Badge>
+                      </td>
+                      <td className="border-b border-r border-border/60 px-4 py-3 align-top text-muted-foreground">{formatDateTime(item.date)}</td>
+                      <td className="border-b border-border/60 px-4 py-3 align-top">
+                        <Button asChild variant="outline" size="sm" className="rounded-none">
+                          <Link to={item.href}>Buka</Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">Belum ada aktivitas logistik yang bisa ditampilkan.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </DashboardPanel>
         </div>
       </PageContent>
     </PageShell>

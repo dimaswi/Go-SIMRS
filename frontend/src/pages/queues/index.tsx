@@ -468,24 +468,26 @@ export default function QueueIndex() {
         </div>
       )}
 
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-3 sm:px-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Daftar Antrean
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+      <PageContent noPadding>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={queues}
+            searchPlaceholder="Cari nomor antrean atau nama pasien..."
+            pageSize={10}
+            tableId="queues"
+            hideRowCount
+            toolbarRight={
+              <div className="flex flex-wrap items-center gap-2">
                 <DatePickerDropdown
                   value={selectedDate || undefined}
                   onChange={(value) => setSelectedDate(value || "")}
                   size="sm"
-                  className="w-full sm:w-auto"
+                  className="w-[155px]"
                 />
                 <Combobox
                   options={counterOptions}
@@ -496,7 +498,7 @@ export default function QueueIndex() {
                   emptyText="Loket tidak ditemukan"
                   loading={loadingCounters}
                   disabled={activeCounterId !== "all" && activeCounterId !== null}
-                  className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
+                  className="h-8 w-[160px] text-xs"
                 />
                 <Combobox
                   options={statusOptions}
@@ -505,42 +507,12 @@ export default function QueueIndex() {
                   placeholder="Semua Status"
                   searchPlaceholder="Cari status..."
                   emptyText="Status tidak ditemukan"
-                  className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
+                  className="h-8 w-[150px] text-xs"
                 />
-                {/* {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 rounded-none px-3 text-xs"
-                    onClick={() => {
-                      setSelectedDate("");
-                      setSelectedCounter("all");
-                      setSelectedStatus("all");
-                    }}
-                  >
-                    <X className="mr-1.5 h-3.5 w-3.5" />
-                    Reset
-                  </Button>
-                )} */}
               </div>
-            </div>
-          </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={queues}
-                searchPlaceholder="Cari nomor antrean atau nama pasien..."
-                pageSize={10}
-                tableId="queues"
-              />
-            )}
-          </div>
-        </div>
+            }
+          />
+        )}
       </PageContent>
 
       <CounterSelectionDialog

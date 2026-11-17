@@ -113,143 +113,152 @@ export default function AccountPage() {
   return (
     <PageShell>
       <PageHeader
+        icon={User}
         title="Account Settings"
         description="Manage your account information and security"
       />
 
       <PageContent>
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Profile Information */}
-          <div className="rounded-lg border">
-            <div className="flex items-center gap-2 px-6 py-4">
-              <h3 className="text-sm font-medium">Profile Information</h3>
-              <p className="text-sm text-muted-foreground">Update your personal information</p>
-            </div>
-            <div className="px-6 pb-6">
-              <form onSubmit={handleUpdateProfile} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="full_name" className="text-xs font-medium flex items-center gap-2">
-                    <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    Full Name
-                  </Label>
-                  <Input
-                    id="full_name"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    className="h-9 text-sm"
-                  />
+        <div className="space-y-8">
+          <div className="grid gap-8 md:grid-cols-2">
+            {/* Profile Information */}
+            <section className="flex flex-col justify-between space-y-4">
+              <div className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Profile Information</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">Update your personal information</p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-medium flex items-center gap-2">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="h-9 text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium flex items-center gap-2">
-                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                    Role
-                  </Label>
-                  <div>
-                    <Badge variant="outline" className="font-normal">
-                      {user?.role?.name || 'N/A'}
-                    </Badge>
+                <form id="profile-form" onSubmit={handleUpdateProfile} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name" className="text-xs font-medium flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      Full Name
+                    </Label>
+                    <Input
+                      id="full_name"
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      className="h-9 rounded-none text-sm"
+                    />
                   </div>
-                </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-xs font-medium flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="h-9 rounded-none text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                      Role
+                    </Label>
+                    <div>
+                      <Badge variant="outline" className="rounded-none font-normal">
+                        {user?.role?.name || 'N/A'}
+                      </Badge>
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
                 <Button
                   type="submit"
+                  form="profile-form"
                   disabled={loading}
-                  className="w-full h-9 text-sm"
+                  className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
                 >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                   Update Profile
                 </Button>
-              </form>
-            </div>
-          </div>
+              </div>
+            </section>
 
-          {/* Change Password */}
-          <div className="rounded-lg border">
-            <div className="flex items-center gap-2 px-6 py-4">
-              <h3 className="text-sm font-medium">Change Password</h3>
-              <p className="text-sm text-muted-foreground">Update your password to keep your account secure</p>
-            </div>
-            <div className="px-6 pb-6">
-              <form onSubmit={handleChangePassword} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="current_password" className="text-xs font-medium flex items-center gap-2">
-                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                    Current Password
-                  </Label>
-                  <Input
-                    id="current_password"
-                    type="password"
-                    value={formData.current_password}
-                    onChange={(e) => setFormData({ ...formData, current_password: e.target.value })}
-                    className="h-9 text-sm"
-                  />
+            {/* Change Password */}
+            <section className="flex flex-col justify-between space-y-4">
+              <div className="space-y-4">
+                <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Change Password</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">Update your password to keep your account secure</p>
                 </div>
+                <form id="password-form" onSubmit={handleChangePassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="current_password" className="text-xs font-medium flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      Current Password
+                    </Label>
+                    <Input
+                      id="current_password"
+                      type="password"
+                      value={formData.current_password}
+                      onChange={(e) => setFormData({ ...formData, current_password: e.target.value })}
+                      className="h-9 rounded-none text-sm"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="new_password" className="text-xs font-medium flex items-center gap-2">
-                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                    New Password
-                  </Label>
-                  <Input
-                    id="new_password"
-                    type="password"
-                    value={formData.new_password}
-                    onChange={(e) => setFormData({ ...formData, new_password: e.target.value })}
-                    className="h-9 text-sm"
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new_password" className="text-xs font-medium flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      New Password
+                    </Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      value={formData.new_password}
+                      onChange={(e) => setFormData({ ...formData, new_password: e.target.value })}
+                      className="h-9 rounded-none text-sm"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirm_password" className="text-xs font-medium flex items-center gap-2">
-                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                    Confirm New Password
-                  </Label>
-                  <Input
-                    id="confirm_password"
-                    type="password"
-                    value={formData.confirm_password}
-                    onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
-                    className="h-9 text-sm"
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm_password" className="text-xs font-medium flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      Confirm New Password
+                    </Label>
+                    <Input
+                      id="confirm_password"
+                      type="password"
+                      value={formData.confirm_password}
+                      onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
+                      className="h-9 rounded-none text-sm"
+                    />
+                  </div>
+                </form>
+              </div>
 
+              <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
                 <Button
                   type="submit"
+                  form="password-form"
                   disabled={loading}
-                  className="w-full h-9 text-sm"
+                  className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-4 text-xs font-semibold shadow-none"
                 >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                   Change Password
                 </Button>
-              </form>
-            </div>
+              </div>
+            </section>
           </div>
 
           {/* Digital Signature PIN */}
-          <div className="rounded-lg border md:col-span-2">
-            <div className="flex items-center gap-2 px-6 py-4">
-              <h3 className="text-sm font-medium">Tanda Tangan Digital</h3>
-              <p className="text-sm text-muted-foreground">Kelola PIN untuk tanda tangan dokumen digital</p>
+          <section className="space-y-4">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Tanda Tangan Digital</h3>
+              <p className="text-xs text-neutral-500 mt-0.5">Kelola PIN untuk tanda tangan dokumen digital</p>
             </div>
-            <div className="px-6 pb-6">
+            <div>
               <Link
                 to="/account/signature-pin"
-                className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between py-3 px-2 rounded-none border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <ShieldCheck className="h-5 w-5 text-primary" />
@@ -266,15 +275,15 @@ export default function AccountPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {user?.has_signature_pin ? (
-                    <Badge variant="default" className="text-xs">Aktif</Badge>
+                    <Badge variant="default" className="rounded-none text-xs">Aktif</Badge>
                   ) : (
-                    <Badge variant="secondary" className="text-xs">Belum Diatur</Badge>
+                    <Badge variant="secondary" className="rounded-none text-xs">Belum Diatur</Badge>
                   )}
                   <ExternalLink className="h-4 w-4 text-muted-foreground" />
                 </div>
               </Link>
             </div>
-          </div>
+          </section>
         </div>
       </PageContent>
     </PageShell>

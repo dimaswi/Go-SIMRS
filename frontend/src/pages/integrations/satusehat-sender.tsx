@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { Button } from "@/components/ui/button";
@@ -237,7 +236,6 @@ interface StatusData {
 }
 
 export default function SatuSehatSenderPage() {
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -982,47 +980,66 @@ export default function SatuSehatSenderPage() {
     <PageShell>
       <PageHeader
         title="Kirim Data ke SatuSehat"
+        description="Kirim dan sinkronisasi data Pasien, Karyawan, Lokasi, KFA, LOINC, dan Encounter ke SatuSehat"
         icon={Send}
-        onBack={() => navigate(-1)}
         actions={
-          <Button variant="outline" size="sm" onClick={loadData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" className="rounded-none h-8 px-3 text-xs font-semibold shadow-none" onClick={loadData}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh
           </Button>
         }
       />
-      <PageContent>
-        <div className="rounded-lg border bg-card">
+      <PageContent noPadding>
+        <div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2 overflow-x-auto">
+              <TabsList className="h-auto bg-transparent p-0 gap-1 rounded-none">
+                <TabsTrigger
+                  value="patients"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Users className="h-3.5 w-3.5 mr-1.5" />
+                  Pasien
+                </TabsTrigger>
+                <TabsTrigger
+                  value="practitioners"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Stethoscope className="h-3.5 w-3.5 mr-1.5" />
+                  Karyawan
+                </TabsTrigger>
+                <TabsTrigger
+                  value="locations"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5 mr-1.5" />
+                  Lokasi
+                </TabsTrigger>
+                <TabsTrigger
+                  value="kfa"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pill className="h-3.5 w-3.5 mr-1.5" />
+                  KFA Obat
+                </TabsTrigger>
+                <TabsTrigger
+                  value="loinc"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
+                  LOINC Lab/Rad
+                </TabsTrigger>
+                <TabsTrigger
+                  value="encounters"
+                  className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Building2 className="h-3.5 w-3.5 mr-1.5" />
+                  Encounter
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
-            <TabsList className="px-4">
-              <TabsTrigger value="patients">
-                <Users className="h-4 w-4 mr-2" />
-                Pasien
-              </TabsTrigger>
-              <TabsTrigger value="practitioners">
-                <Stethoscope className="h-4 w-4 mr-2" />
-                Karyawan
-              </TabsTrigger>
-              <TabsTrigger value="locations">
-                <MapPin className="h-4 w-4 mr-2" />
-                Lokasi
-              </TabsTrigger>
-              <TabsTrigger value="kfa">
-                <Pill className="h-4 w-4 mr-2" />
-                KFA Obat
-              </TabsTrigger>
-              <TabsTrigger value="loinc">
-                <FlaskConical className="h-4 w-4 mr-2" />
-                LOINC Lab/Rad
-              </TabsTrigger>
-              <TabsTrigger value="encounters">
-                <Building2 className="h-4 w-4 mr-2" />
-                Encounter
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="p-4">
+            <div>
               {/* Patients Tab */}
               <TabsContent value="patients" className="mt-0">
                 <PatientsTab

@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import {
   Loader2,
-  ArrowLeft,
   Save,
   FileCheck,
   CreditCard,
@@ -155,19 +155,15 @@ export default function EKlaimCreate() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Buat E-Klaim Baru</h1>
-          <p className="text-sm text-muted-foreground">
-            Buat klaim BPJS baru untuk pasien dengan SEP yang valid
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
+    <PageShell>
+      <PageHeader
+        icon={FileCheck}
+        title="Buat E-Klaim Baru"
+        description="Buat klaim BPJS baru untuk pasien dengan SEP yang valid"
+        onBack={() => navigate('/eklaim')}
+      />
+      <PageContent>
+        <div className="rounded-none border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-950">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Visit & SEP Information */}
             <div className="space-y-4">
@@ -409,10 +405,10 @@ export default function EKlaimCreate() {
 
             {/* Actions */}
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => navigate('/eklaim')}>
+              <Button type="button" variant="outline" className="rounded-none" onClick={() => navigate('/eklaim')}>
                 Batal
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" className="rounded-none" disabled={saving}>
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -422,7 +418,8 @@ export default function EKlaimCreate() {
               </Button>
             </div>
           </form>
-      </div>
-    </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

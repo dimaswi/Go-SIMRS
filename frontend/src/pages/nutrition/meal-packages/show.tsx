@@ -10,7 +10,7 @@ import {
   type NutritionPackage,
 } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat, UtensilsCrossed } from "lucide-react";
+import { Loader2, Pencil, Flame, Beef, Droplets, Wheat, UtensilsCrossed } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -70,12 +70,9 @@ export default function NutritionMealPackageShow() {
         title={pkg.name}
         description="Tinjau identitas paket makanan, komposisi menu, nilai gizi total, dan status operasional dalam pola halaman yang sama dengan modul master data lain."
         icon={UtensilsCrossed}
+        onBack={() => navigate("/nutrition/meal-packages")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/meal-packages")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/meal-packages/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
               Edit

@@ -59,7 +59,7 @@ import { bpjsApi, type BPJSQueue, type BPJSPendaftaranAntreanItem, type BPJSList
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
+import { BPJSPageFrame } from "./shared-page-chrome";
 
 interface TaskLog {
   task_id: number;
@@ -96,7 +96,6 @@ export default function BPJSQueueMonitoringPage() {
   // Filters
   const [dateFilter, setDateFilter] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
 
   // Active main tab
   const [mainTab, setMainTab] = useState("lokal");
@@ -105,7 +104,6 @@ export default function BPJSQueueMonitoringPage() {
   const [antreanTanggal, setAntreanTanggal] = useState(() => new Date().toISOString().slice(0, 10));
   const [antreanLoading, setAntreanLoading] = useState(false);
   const [antreanData, setAntreanData] = useState<BPJSPendaftaranAntreanItem[]>([]);
-  const [antreanSearched, setAntreanSearched] = useState(false);
   const [antreanCancelling, setAntreanCancelling] = useState<string | null>(null);
   const [antreanCancelConfirm, setAntreanCancelConfirm] = useState<BPJSPendaftaranAntreanItem | null>(null);
   const [antreanCancelKeterangan, setAntreanCancelKeterangan] = useState("");
@@ -233,7 +231,6 @@ export default function BPJSQueueMonitoringPage() {
     }
     setAntreanLoading(true);
     setAntreanData([]);
-    setAntreanSearched(true);
     try {
       const res = await bpjsApi.getPendaftaranAntrean(antreanTanggal);
       setAntreanData(res.data.data || []);
@@ -253,7 +250,7 @@ export default function BPJSQueueMonitoringPage() {
     try {
       await bpjsApi.batalAntrean(item.kodebooking, antreanCancelKeterangan);
       toast({ title: "Berhasil", description: `Antrean ${item.kodebooking} berhasil dibatalkan` });
-      setAntreanData(prev => prev.filter(a => a.kodebooking !== item.kodebooking));
+      await handleSearchAntrean();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal membatalkan antrean" });
     } finally {
@@ -369,16 +366,7 @@ export default function BPJSQueueMonitoringPage() {
 
 
 
-  const filteredQueues = queues.filter((queue) => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      queue.nama_pasien?.toLowerCase().includes(search) ||
-      queue.no_kartu?.toLowerCase().includes(search) ||
-      queue.kode_booking?.toLowerCase().includes(search) ||
-      queue.nomor_antrean?.toLowerCase().includes(search)
-    );
-  });
+  const filteredQueues = queues;
 
   const lokalColumns = useMemo<ColumnDef<QueueWithTaskLogs>[]>(() => [
     {
@@ -614,131 +602,112 @@ export default function BPJSQueueMonitoringPage() {
 
   return (
     <BPJSPageFrame
+      icon={Activity}
       title="Monitoring Antrian BPJS"
-      description=""
+      description="Pantau pengiriman task antrean lokal dan data antrean online BPJS"
+      noPadding
     >
       <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-        <BPJSSectionPanel
-          title="Workspace Monitoring"
-          actions={
-            <TabsList className="h-auto bg-transparent p-0 gap-1.5">
-              <TabsTrigger 
-                value="lokal" 
-                className="h-7 text-[11px] px-3.5 rounded-full border border-transparent data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground hover:bg-muted/50 transition-all"
-              >
-                <Activity className="mr-1.5 h-3.5 w-3.5" />
-                Monitoring Lokal
-              </TabsTrigger>
-              <TabsTrigger 
-                value="antrian-online" 
-                className="h-7 text-[11px] px-3.5 rounded-full border border-transparent data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground hover:bg-muted/50 transition-all"
-              >
+        <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2 flex items-center justify-between">
+          <TabsList className="h-auto bg-transparent p-0 gap-1 rounded-none">
+            <TabsTrigger 
+              value="lokal" 
+              className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Activity className="mr-1.5 h-3.5 w-3.5" />
+              Monitoring Lokal
+            </TabsTrigger>
+            <TabsTrigger 
+              value="antrian-online" 
+              className="h-8 text-xs font-semibold px-3 rounded-none border border-transparent data-[state=active]:border-neutral-900 dark:data-[state=active]:border-white data-[state=active]:bg-neutral-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+            >
                 <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
                 Antrian Online BPJS
               </TabsTrigger>
             </TabsList>
-          }
-        >
+        </div>
+
+        <div>
 
           {/* ===== MONITORING LOKAL ===== */}
           <TabsContent value="lokal" className="mt-0">
-            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
-              <div className="flex items-center gap-1.5 flex-1">
-                <Input
-                  type="date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="h-7 w-[120px] !text-[11px]"
-                />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-7 w-[120px] !text-[11px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="booking">Booking</SelectItem>
-                    <SelectItem value="checkin">Check-in</SelectItem>
-                    <SelectItem value="dipanggil">Dipanggil</SelectItem>
-                    <SelectItem value="dilayani">Dilayani</SelectItem>
-                    <SelectItem value="selesai">Selesai</SelectItem>
-                    <SelectItem value="batal">Batal</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="relative flex-1 max-w-[200px]">
-                  <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Cari pasien..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-7 pl-7 !text-[11px] w-full"
-                  />
-                </div>
-                <Button variant="outline" size="icon" className="h-7 w-7" onClick={loadQueues} disabled={loading}>
-                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-            </div>
-
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : filteredQueues.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-8 text-center">Tidak ada data antrian</p>
             ) : (
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground">{filteredQueues.length} antrean ditemukan</p>
-                <div className="bg-background rounded-lg">
-                  <DataTable
-                    columns={lokalColumns}
-                    data={filteredQueues}
-                    showSearch={false}
-                    showPagination={true}
-                    pageSize={50}
-                  />
-                </div>
-              </div>
+              <DataTable
+                columns={lokalColumns}
+                data={filteredQueues}
+                showSearch={true}
+                searchPlaceholder="Cari pasien, kode booking, atau no. kartu..."
+                showPagination={true}
+                pageSize={50}
+                hideRowCount
+                toolbarRight={
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      className="h-8 w-[155px] rounded-none text-xs bg-white dark:bg-neutral-950"
+                    />
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="h-8 w-[130px] rounded-none text-xs bg-white dark:bg-neutral-950">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="all">Semua Status</SelectItem>
+                        <SelectItem value="booking">Booking</SelectItem>
+                        <SelectItem value="checkin">Check-in</SelectItem>
+                        <SelectItem value="dipanggil">Dipanggil</SelectItem>
+                        <SelectItem value="dilayani">Dilayani</SelectItem>
+                        <SelectItem value="selesai">Selesai</SelectItem>
+                        <SelectItem value="batal">Batal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" className="h-8 rounded-none text-xs px-2.5 bg-white dark:bg-neutral-950 shadow-none" onClick={loadQueues} disabled={loading} title="Refresh">
+                      <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                    </Button>
+                  </div>
+                }
+              />
             )}
           </TabsContent>
 
           {/* ===== ANTRIAN ONLINE BPJS ===== */}
           <TabsContent value="antrian-online" className="mt-0">
-            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
-              <div className="flex gap-1.5 items-center">
-                <Input
-                  type="date"
-                  value={antreanTanggal}
-                  onChange={(e) => setAntreanTanggal(e.target.value)}
-                  className="h-7 w-[120px] !text-[11px]"
-                />
-                <Button onClick={handleSearchAntrean} variant="outline" disabled={antreanLoading} className="h-7 !text-[11px] px-3">
-                  {antreanLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Search className="h-3 w-3 mr-1.5" />}
-                  Cari
-                </Button>
-              </div>
-            </div>
-
-            {/* Results */}
-            {antreanSearched && !antreanLoading && antreanData.length === 0 && (
-              <p className="text-xs text-muted-foreground py-4 text-center">Tidak ada data antrean untuk tanggal ini</p>
-            )}
-
-            {antreanData.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground">{antreanData.length} antrean ditemukan</p>
-                <div className="bg-background rounded-lg">
-                  <DataTable
-                    columns={antreanOnlineColumns}
-                    data={antreanData}
-                    showSearch={false}
-                    showPagination={true}
-                    pageSize={50}
+            <DataTable
+              columns={antreanOnlineColumns}
+              data={antreanData}
+              showSearch={true}
+              searchPlaceholder="Cari kode booking, nama, RM..."
+              showPagination={true}
+              pageSize={50}
+              hideRowCount
+              toolbarRight={
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={antreanTanggal}
+                    onChange={(e) => setAntreanTanggal(e.target.value)}
+                    className="h-8 w-[155px] rounded-none text-xs bg-white dark:bg-neutral-950"
                   />
+                  <Button
+                    onClick={handleSearchAntrean}
+                    variant="outline"
+                    disabled={antreanLoading}
+                    size="sm"
+                    className="h-8 rounded-none text-xs px-3 bg-white dark:bg-neutral-950 shadow-none"
+                  >
+                    {antreanLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Search className="h-3.5 w-3.5 mr-1.5" />}
+                    Cari
+                  </Button>
                 </div>
-              </div>
-            )}
+              }
+            />
           </TabsContent>
-        </BPJSSectionPanel>
+        </div>
       </Tabs>
 
       {/* Batal Antrean Confirmation */}

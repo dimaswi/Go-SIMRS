@@ -1467,7 +1467,7 @@ export default function RegistrationIndex() {
         }
       />
 
-      <div className="border-b border-border bg-muted/15 px-4 py-2 flex items-center justify-between">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-2.5 flex items-center justify-between">
         <div className="flex min-w-0 overflow-x-auto gap-1.5">
           {REG_TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -1479,21 +1479,21 @@ export default function RegistrationIndex() {
                 type="button"
                 onClick={() => handleTabChange(tab.key)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors border",
+                  "flex items-center gap-2 rounded-none px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors border",
                   isActive
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                    ? "bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-neutral-900 dark:border-white"
+                    : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white",
                 )}
               >
                 {tab.label}
                 <Badge
                   className={cn(
-                    "h-4 min-w-4 flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold border-none transition-colors",
+                    "h-4 min-w-4 flex items-center justify-center rounded-none px-1.5 font-mono text-[10px] font-bold border-none transition-colors",
                     isActive
-                      ? "bg-background text-foreground hover:bg-background"
+                      ? "bg-white/20 text-white dark:bg-neutral-900/20 dark:text-neutral-900"
                       : tabCount > 0
                         ? "bg-red-600 text-white hover:bg-red-600"
-                        : "bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/20"
+                        : "bg-neutral-200/70 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
                   )}
                 >
                   {tabCount}
@@ -1503,7 +1503,7 @@ export default function RegistrationIndex() {
           })}
         </div>
         {hasActiveFilters && (
-          <div className="text-[11px] text-muted-foreground shrink-0 ml-4">Filter aktif</div>
+          <div className="text-[11px] font-mono text-muted-foreground shrink-0 ml-4">Filter aktif</div>
         )}
       </div>
 
@@ -1663,37 +1663,32 @@ export default function RegistrationIndex() {
         </DialogContent>
       </Dialog>
 
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Pendaftaran
+      <PageContent noPadding>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              isAdmissionRequestTab ? (
-                <DataTable
-                  columns={admissionColumns}
-                  data={admissionRequests}
-                  searchPlaceholder="Cari no. request, nama pasien, atau RM..."
-                  pageSize={10}
-                  tableId="registrations-admission-requests"
-                />
-              ) : (
-                <DataTable
-                  columns={columns}
-                  data={registrations}
-                  searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
-                  pageSize={10}
-                  tableId={`registrations-${activeTab}`}
-                />
-              )
-            )}
-          </div>
-        </div>
+        ) : (
+          isAdmissionRequestTab ? (
+            <DataTable
+              columns={admissionColumns}
+              data={admissionRequests}
+              searchPlaceholder="Cari no. request, nama pasien, atau RM..."
+              pageSize={10}
+              tableId="registrations-admission-requests"
+              hideRowCount
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={registrations}
+              searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
+              pageSize={10}
+              tableId={`registrations-${activeTab}`}
+              hideRowCount
+            />
+          )
+        )}
       </PageContent>
 
       {/* Confirm dialog for regular registration cancellation */}

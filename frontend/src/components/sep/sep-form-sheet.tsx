@@ -648,27 +648,27 @@ export function SEPFormSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="flex w-[80vw] max-w-[80vw] flex-col p-0 sm:w-[80vw] sm:max-w-[80vw]">
-          <div className="flex flex-col border-b px-4 py-2">
-            <SheetHeader className="flex flex-row items-end justify-between pr-8 space-y-0">
-              <div className="space-y-1 text-left">
+          <div className="flex flex-col border-b bg-neutral-50/40 dark:bg-neutral-900/20 px-6 py-3.5">
+            <SheetHeader className="flex flex-row items-center justify-between pr-8 space-y-0">
+              <div className="space-y-0.5 text-left">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xl font-bold">Form SEP</h4>
-                  <Badge variant="outline">SEP</Badge>
-                  <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"}>
+                  <h4 className="text-base font-bold tracking-tight">Form SEP</h4>
+                  <Badge variant="outline" className="text-[11px]">SEP</Badge>
+                  <Badge variant={peserta ? "default" : pesertaError ? "destructive" : "secondary"} className="text-[11px]">
                     {loadingPeserta ? "Mengecek..." : peserta ? "Peserta Aktif" : pesertaError ? "Peserta Error" : "Belum Verifikasi"}
                   </Badge>
                   {sourceContext === "kontrol" && (
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 text-[11px]">
                       Dari Jadwal Kontrol
                     </Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} &bull; RM {patient.no_rm}</p>
+                <p className="text-xs text-muted-foreground">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} &bull; RM {patient.no_rm}</p>
               </div>
 
               {canAssignExisting && (
                 <Select value={entryMode} onValueChange={(val: any) => setEntryMode(val)}>
-                  <SelectTrigger className="h-8 w-[140px] text-xs bg-muted/50 border-border/70">
+                  <SelectTrigger className="h-8 w-[160px] text-xs bg-background">
                     <SelectValue placeholder="Mode" />
                   </SelectTrigger>
                   <SelectContent>
@@ -681,9 +681,9 @@ export function SEPFormSheet({
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="space-y-4 px-4">
+            <div>
               {canAssignExisting && entryMode === "search" && (
-                <div className="space-y-4">
+                <div className="px-6 py-4 space-y-4">
                   <div className="space-y-3">
                     <div className="flex gap-2">
                       <Input
@@ -777,43 +777,46 @@ export function SEPFormSheet({
               )}
 
               {entryMode === "form" && (
-                <>
-                  {/* === RUJUKAN === */}
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Jenis Pelayanan *</Label>
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {/* === 1. KEPESERTAAN & RUJUKAN === */}
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Kepesertaan & Rujukan
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Jenis Pelayanan *</Label>
                         <Combobox
                           options={toComboOptions(SEP_OPTIONS.jenisPelayanan)}
                           value={jnsPelayanan}
                           onValueChange={setJnsPelayanan}
                           placeholder="Pilih"
-                          className="h-9"
+                          className="h-9 text-xs"
                         />
                       </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Asal Rujukan</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Asal Rujukan</Label>
                         <Combobox
                           options={toComboOptions(SEP_OPTIONS.asalRujukan)}
                           value={asalRujukan}
                           onValueChange={setAsalRujukan}
                           placeholder="Pilih"
-                          className="h-9"
+                          className="h-9 text-xs"
                           disabled={isIGD}
                         />
                       </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Kelas Rawat Hak *</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Kelas Rawat Hak *</Label>
                         <Combobox
                           options={toComboOptions(SEP_OPTIONS.kelasRawat)}
                           value={klsRawatHak}
                           onValueChange={setKlsRawatHak}
                           placeholder="Pilih"
-                          className="h-9"
+                          className="h-9 text-xs"
                         />
                       </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Naik Kelas</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Naik Kelas</Label>
                         <Combobox
                           options={toComboOptions(SEP_OPTIONS.kelasRawatNaik)}
                           value={klsRawatNaik}
@@ -822,14 +825,14 @@ export function SEPFormSheet({
                             if (!val) setPembiayaan("");
                           }}
                           placeholder="Tidak naik"
-                          className="h-9"
+                          className="h-9 text-xs"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">
                           {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")}
                         </Label>
                         <div className="relative">
@@ -838,7 +841,7 @@ export function SEPFormSheet({
                             onChange={(e) => setNoRujukan(e.target.value)}
                             disabled={isIGD || jnsPelayanan === "1"}
                             placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
-                            className={cn("h-9 pr-9 cursor-pointer", (!noKartu || isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
+                            className={cn("h-9 pr-9 text-xs cursor-pointer", (!noKartu || isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
                             onClick={() => {
                               if (!(!noKartu || isIGD || jnsPelayanan === "1")) {
                                 setRujukanModalOpen(true);
@@ -849,42 +852,24 @@ export function SEPFormSheet({
                           <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
                         <Input
                           type="date"
                           value={tglRujukan}
                           onChange={(e) => setTglRujukan(e.target.value)}
-                          className="h-9"
+                          className="h-9 text-xs"
                           disabled={isIGD || jnsPelayanan === "1"}
                         />
                       </div>
-                      <div className="space-y-1.5 lg:col-span-2">
-                        <Label className="text-sm font-medium">Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
-                        <div className="relative">
-                          <Input
-                            value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
-                            placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
-                            readOnly
-                            className={cn("h-9 pr-9 cursor-pointer", !kodePoli ? "bg-muted" : "bg-muted/20")}
-                            onClick={() => {
-                              if (kodePoli) setDokterModalOpen(true);
-                            }}
-                          />
-                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      <div className="space-y-1.5 lg:col-span-2">
-                        <Label className="text-sm font-medium">PPK Perujuk</Label>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label className="text-xs font-medium">PPK Perujuk</Label>
                         <div className="relative">
                           <Input
                             value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : (namaRujukan ? `${ppkRujukan} - ${namaRujukan}` : "")}
                             readOnly
                             placeholder="Pilih PPK perujuk"
-                            className={cn("h-9 pr-9 cursor-pointer", (isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
+                            className={cn("h-9 pr-9 text-xs cursor-pointer", (isIGD || jnsPelayanan === "1") ? "bg-muted" : "bg-muted/20")}
                             onClick={() => {
                               if (!(isIGD || jnsPelayanan === "1")) {
                                 setPpkModalOpen(true);
@@ -894,58 +879,81 @@ export function SEPFormSheet({
                           <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
-                      <div className="space-y-1.5 lg:col-span-2">
-                        <Label className="text-sm font-medium">Diagnosa Awal (ICD-10) *</Label>
+                    </div>
+                  </div>
+
+                  {/* === 2. PELAYANAN & DIAGNOSA === */}
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Pelayanan & Diagnosa
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      {jnsPelayanan !== "1" && (
+                        <div className="space-y-1.5 md:col-span-2">
+                          <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                          <div className="relative">
+                            <Input
+                              value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
+                              placeholder="Pilih poli"
+                              readOnly
+                              className="h-9 pr-9 text-xs cursor-pointer bg-muted/20"
+                              onClick={() => setPoliModalOpen(true)}
+                            />
+                            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      )}
+                      <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "md:col-span-2" : "md:col-span-2 lg:col-span-4")}>
+                        <Label className="text-xs font-medium">Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
                         <div className="relative">
                           <Input
-                            value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
-                            placeholder="Pilih diagnosa"
+                            value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
+                            placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
                             readOnly
-                            className={cn("h-9 pr-9 cursor-pointer", "bg-muted/20")}
-                            onClick={() => setDiagnosaModalOpen(true)}
+                            className={cn("h-9 pr-9 text-xs cursor-pointer", !kodePoli ? "bg-muted" : "bg-muted/20")}
+                            onClick={() => {
+                              if (kodePoli) setDokterModalOpen(true);
+                            }}
                           />
                           <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      {/* Poli Tujuan - hanya untuk rawat jalan */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label className="text-xs font-medium">Diagnosa Awal (ICD-10) *</Label>
+                        <div className="relative">
+                          <Input
+                            value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
+                            placeholder="Pilih diagnosa"
+                            readOnly
+                            className="h-9 pr-9 text-xs cursor-pointer bg-muted/20"
+                            onClick={() => setDiagnosaModalOpen(true)}
+                          />
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
                       {jnsPelayanan !== "1" && (
-                        <>
-                          <div className="space-y-1.5 lg:col-span-2">
-                            <Label className="text-sm font-medium">Poli Tujuan *</Label>
-                            <div className="relative">
-                              <Input
-                                value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
-                                placeholder="Pilih poli"
-                                readOnly
-                                className={cn("h-9 pr-9 cursor-pointer", "bg-muted/20")}
-                                onClick={() => setPoliModalOpen(true)}
-                              />
-                              <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                          <div className="space-y-1.5 lg:col-span-1">
-                            <Label className="text-sm font-medium">Poli Eksekutif</Label>
-                            <Combobox
-                              options={toComboOptions(SEP_OPTIONS.yaTidak)}
-                              value={poliEksekutif}
-                              onValueChange={setPoliEksekutif}
-                              placeholder="Pilih"
-                              className="h-9"
-                            />
-                          </div>
-                        </>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Poli Eksekutif</Label>
+                          <Combobox
+                            options={toComboOptions(SEP_OPTIONS.yaTidak)}
+                            value={poliEksekutif}
+                            onValueChange={setPoliEksekutif}
+                            placeholder="Pilih"
+                            className="h-9 text-xs"
+                          />
+                        </div>
                       )}
-                      <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "lg:col-span-1" : "lg:col-span-2")}>
-                        <Label className="text-sm font-medium">Nomor Surat Kontrol / SPRI</Label>
+                      <div className={cn("space-y-1.5", jnsPelayanan !== "1" ? "lg:col-span-1" : "md:col-span-2")}>
+                        <Label className="text-xs font-medium">Nomor Surat Kontrol / SPRI</Label>
                         <div className="relative">
                           <Input
                             value={noSuratKontrol}
                             onChange={(e) => setNoSuratKontrol(e.target.value)}
                             placeholder="Nomor surat kontrol"
-                            className={cn("h-9 pr-9 cursor-pointer", !noKartu ? "bg-muted" : "bg-muted/20")}
+                            className={cn("h-9 pr-9 text-xs cursor-pointer", !noKartu ? "bg-muted" : "bg-muted/20")}
                             onClick={() => {
                               if (noKartu) setSkdpModalOpen(true);
                             }}
@@ -957,116 +965,119 @@ export function SEPFormSheet({
                     </div>
 
                     {skdpData && (
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground">
                         {skdpData.namaPoliTujuan} - {skdpData.namaDokter} | Berlaku: {skdpData.tglRencanaKontrol}
                         {skdpData.noSepAsalKontrol && (
-                          <span className="block">SEP Asal: {skdpData.noSepAsalKontrol}</span>
+                          <span className="ml-2">· SEP Asal: {skdpData.noSepAsalKontrol}</span>
                         )}
                       </div>
                     )}
                   </div>
 
-                  {/* === JAMINAN === */}
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Kecelakaan Lalu Lintas</Label>
-                        <Combobox
-                          options={toComboOptions(SEP_OPTIONS.lakaLantas)}
-                          value={lakaLantas}
-                          onValueChange={setLakaLantas}
-                          placeholder="Pilih"
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">Tujuan Kunjungan</Label>
+                  {/* === 3. KUNJUNGAN & KETERANGAN === */}
+                  <div className="px-6 py-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Kunjungan & Keterangan
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Tujuan Kunjungan</Label>
                         <Combobox
                           options={toComboOptions(SEP_OPTIONS.tujuanKunjungan)}
                           value={tujuanKunj}
                           onValueChange={setTujuanKunj}
                           placeholder="Pilih"
-                          className="h-9"
+                          className="h-9 text-xs"
                         />
                       </div>
-                      <div className="space-y-1.5 lg:col-span-1">
-                        <Label className="text-sm font-medium">No. Telepon</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Kecelakaan Lalu Lintas</Label>
+                        <Combobox
+                          options={toComboOptions(SEP_OPTIONS.lakaLantas)}
+                          value={lakaLantas}
+                          onValueChange={setLakaLantas}
+                          placeholder="Pilih"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">No. Telepon</Label>
                         <Input
                           value={noTelp}
                           onChange={(e) => setNoTelp(e.target.value)}
                           placeholder="08xxxxxxxxxx"
-                          className="h-9"
+                          className="h-9 text-xs"
                         />
                       </div>
+                      {(tujuanKunj === "2" || tujuanKunj === "0") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Assessment Pelayanan</Label>
+                          <Combobox
+                            options={toComboOptions(SEP_OPTIONS.assesmentPelayanan)}
+                            value={assesmentPel}
+                            onValueChange={setAssesmentPel}
+                            placeholder="Pilih"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {tujuanKunj === "1" && (
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                        <div className="space-y-1.5 lg:col-span-1">
-                          <Label className="text-sm font-medium">Flag Procedure</Label>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Flag Procedure</Label>
                           <Combobox
                             options={toComboOptions(SEP_OPTIONS.flagProcedure)}
                             value={flagProcedure}
                             onValueChange={setFlagProcedure}
                             placeholder="Pilih"
-                            className="h-9"
+                            className="h-9 text-xs"
                           />
                         </div>
-                        <div className="space-y-1.5 lg:col-span-1">
-                          <Label className="text-sm font-medium">Penunjang</Label>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Penunjang</Label>
                           <Combobox
                             options={toComboOptions(SEP_OPTIONS.kdPenunjang)}
                             value={kdPenunjang}
                             onValueChange={setKdPenunjang}
                             placeholder="Pilih"
-                            className="h-9"
+                            className="h-9 text-xs"
                           />
                         </div>
                       </div>
                     )}
 
-                    {(tujuanKunj === "2" || tujuanKunj === "0") && (
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">Assessment Pelayanan</Label>
-                        <Combobox
-                          options={toComboOptions(SEP_OPTIONS.assesmentPelayanan)}
-                          value={assesmentPel}
-                          onValueChange={setAssesmentPel}
-                          placeholder="Pilih"
-                          className="h-9"
-                        />
-                      </div>
-                    )}
-
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">Catatan</Label>
+                      <Label className="text-xs font-medium">Catatan</Label>
                       <Textarea
                         value={catatan}
                         onChange={(e) => setCatatan(e.target.value)}
                         placeholder="Catatan tambahan..."
                         rows={2}
-                        className="resize-none bg-background shadow-none"
+                        className="resize-none bg-background text-xs shadow-none"
                       />
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </ScrollArea>
 
-          <SheetFooter className="p-4 border-t sm:justify-end gap-2">
-            <Button variant="outline" className="" onClick={() => onOpenChange(false)}>
+          <SheetFooter className="px-6 py-3 border-t bg-neutral-50/40 dark:bg-neutral-900/20 sm:justify-end gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
               Batal
             </Button>
             <Button
+              size="sm"
+              className="h-8 text-xs"
               onClick={handleSubmitSEP}
               disabled={loadingSubmit || !peserta || !kodePoli || !diagAwal}
-              className=""
             >
               {loadingSubmit ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
               ) : (
-                <FileText className="h-4 w-4 mr-2" />
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
               )}
               Buat SEP
             </Button>

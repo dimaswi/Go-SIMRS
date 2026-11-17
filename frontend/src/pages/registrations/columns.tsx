@@ -115,14 +115,14 @@ export function createRegistrationColumns(
               )}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              <Badge className={cn(statusColorClass, "h-5 px-1.5 text-[10px] py-0 leading-none")}>
+              <Badge className={cn(statusColorClass, "rounded-none h-5 px-1.5 text-[10px] py-0 leading-none")}>
                 {statusLabel}
               </Badge>
               <Badge
                 className={cn(
                   paymentColors[reg.payment_method],
                   canEditPayment ? "cursor-pointer hover:opacity-80" : "",
-                  "h-5 w-fit px-1.5 text-[10px] py-0 leading-none"
+                  "rounded-none h-5 w-fit px-1.5 text-[10px] py-0 leading-none"
                 )}
                 onClick={canEditPayment ? () => options.onEditPayment(reg) : undefined}
               >

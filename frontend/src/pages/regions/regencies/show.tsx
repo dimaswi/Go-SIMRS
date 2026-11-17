@@ -8,12 +8,12 @@ import { setPageTitle } from '@/lib/page-title';
 import { createDistrictColumns } from '../districts/columns';
 import { 
   Loader2, 
-  ArrowLeft,
   Building2,
   Map,
   Pencil,
   Plus
 } from 'lucide-react';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 export default function RegencyShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -66,69 +66,58 @@ export default function RegencyShowPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Districts List */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (regency.province) {
-                navigate(`/regions/provinces/${regency.province.id}`);
-              } else {
-                navigate('/regions');
-              }
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              {regency.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {regency.districts && regency.districts.length > 0 
-                ? `${regency.districts.length} kecamatan` 
-                : 'Belum ada data kecamatan'}
-            </p>
+    <PageShell>
+      <PageHeader
+        icon={Building2}
+        title={regency.name}
+        description={
+          regency.districts && regency.districts.length > 0 
+            ? `${regency.districts.length} kecamatan` 
+            : 'Belum ada data kecamatan'
+        }
+        onBack={() => {
+          if (regency.province) {
+            navigate(`/regions/provinces/${regency.province.id}`);
+          } else {
+            navigate('/regions');
+          }
+        }}
+        actions={
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/regencies/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/districts/create?regencyId=${id}`)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Kecamatan
+            </Button>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/regencies/${id}/edit`)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/districts/create?regencyId=${id}`)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Kecamatan
-          </Button>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          {!regency.districts || regency.districts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Map className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Belum ada data kecamatan</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={regency.districts}
-              searchPlaceholder="Cari kecamatan..."
-              tableId="regency_districts"
-            />
-          )}
-      </div>
-    </div>
+        }
+      />
+      <PageContent noPadding={!!(regency.districts && regency.districts.length > 0)}>
+        {!regency.districts || regency.districts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Map className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Belum ada data kecamatan</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={regency.districts}
+            searchPlaceholder="Cari kecamatan..."
+            tableId="regency_districts"
+          />
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

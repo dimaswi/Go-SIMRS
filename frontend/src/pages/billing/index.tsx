@@ -1,15 +1,13 @@
-import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
+import { PageShell, PageHeader, PageToolbar, FilterBar, FilterPill, PageContent } from '@/components/layout/page-shell';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import { type ColumnDef } from '@/components/ui/data-table-utils';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { billingApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { cn } from '@/lib/utils';
 import {
   Loader2,
   ArrowRight,
@@ -79,7 +77,6 @@ export default function BillingIndex() {
   const [registrations, setRegistrations] = useState<BillableRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabFilter>(() => normalizeBillingTab(searchParams.get('statusView')));
-  const [statusOpen, setStatusOpen] = useState(false);
 
   useEffect(() => {
     const nextTab = normalizeBillingTab(searchParams.get('statusView'));
@@ -156,17 +153,17 @@ export default function BillingIndex() {
     data.sort((a, b) => {
       const aPartial = a.billing_status === 'partial' ? 1 : 0;
       const bPartial = b.billing_status === 'partial' ? 1 : 0;
-      
+
       if (aPartial !== bPartial) {
         return bPartial - aPartial;
       }
-      
+
       // Secondary sort: by creation time (newest first)
       const dateA = a.registration_date || a.created_at || a.CreatedAt;
       const dateB = b.registration_date || b.created_at || b.CreatedAt;
       const aTime = dateA ? new Date(dateA).getTime() : 0;
       const bTime = dateB ? new Date(dateB).getTime() : 0;
-      
+
       return bTime - aTime;
     });
 
@@ -192,11 +189,6 @@ export default function BillingIndex() {
     { key: 'need_payment', label: 'Belum Bayar', count: stats.needPayment },
     { key: 'paid', label: 'Lunas', count: stats.paid },
   ];
-
-  const totalStatusCount = useMemo(
-    () => tabs.reduce((sum, tab) => sum + tab.count, 0),
-    [tabs],
-  );
 
   const PaymentMethodIcon = ({ method }: { method: string }) => {
     switch (method) {
@@ -381,82 +373,40 @@ export default function BillingIndex() {
         description="Kelola tagihan dan pembayaran pasien"
         count={filtered.length}
         actions={
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant={statusOpen ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-8 gap-2 text-xs"
-              onClick={() => setStatusOpen((prev) => !prev)}
-            >
-              <span className="max-w-[140px] truncate font-medium text-foreground">{tabs.find((tab) => tab.key === activeTab)?.label || 'Semua'}</span>
-              {totalStatusCount > 0 && (
-                <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                  {totalStatusCount}
-                </Badge>
-              )}
-            </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={loadData}>
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={loadData}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
         }
       />
 
-      <Collapsible open={statusOpen} onOpenChange={setStatusOpen}>
-        <CollapsibleContent>
-          <div className="border-border bg-muted/15 px-6 py-2">
-            <div className="flex min-w-0 overflow-x-auto border-y border-border bg-background">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
+      <PageToolbar>
+        <FilterBar>
+          {tabs.map((tab) => (
+            <FilterPill
+              key={tab.key}
+              active={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              count={tab.count}
+            >
+              {tab.label}
+            </FilterPill>
+          ))}
+        </FilterBar>
+      </PageToolbar>
 
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    className={cn(
-                      'min-w-[148px] border-r border-border px-3 py-2 text-left transition-colors last:border-r-0',
-                      isActive ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</span>
-                      {tab.count > 0 ? (
-                        <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
-                          {tab.count}
-                        </Badge>
-                      ) : (
-                        <span className="text-[11px] tabular-nums text-muted-foreground">0</span>
-                      )}
-                    </div>
-                    <div className={cn('mt-1 text-sm font-medium', isActive && 'text-foreground')}>{tab.label}</div>
-                  </button>
-                );
-              })}
-            </div>
+      <PageContent noPadding>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <PageContent className="py-3">
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Billing
-          </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : ( 
-              <DataTable
-                columns={billingColumns}
-                data={filtered}
-                searchPlaceholder="Cari pasien, No. RM, no. registrasi, atau no. billing..."
-              />
-            )}
-          </div>
-        </div>
+        ) : (
+          <DataTable
+            columns={billingColumns}
+            data={filtered}
+            searchPlaceholder="Cari pasien, No. RM, no. registrasi, atau no. billing..."
+            hideRowCount
+          />
+        )}
       </PageContent>
     </PageShell>
   );

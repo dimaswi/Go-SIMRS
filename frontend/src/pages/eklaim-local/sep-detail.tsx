@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -162,99 +163,94 @@ export default function SEPDetailPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Detail SEP
-            </h1>
-            <p className="text-sm text-muted-foreground font-mono">{sep.no_sep}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {eklaimLocal ? (
-            <Button onClick={() => navigate(`/eklaim/data-klaim/${eklaimLocal.id}`)}>
-              <Send className="mr-2 h-4 w-4" />
-              Buka E-Klaim
-            </Button>
-          ) : (
-            <Button onClick={handleOpenClaimDialog} disabled={submitting}>
-              {submitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Copy className="mr-2 h-4 w-4" />
-              )}
+      <PageHeader
+        icon={FileText}
+        title="Detail SEP"
+        description={sep.no_sep}
+        onBack={() => navigate('/eklaim/list-sep')}
+        actions={
+          <div className="flex items-center gap-2">
+            {eklaimLocal ? (
+              <Button size="sm" className="h-8 rounded-none text-xs" onClick={() => navigate(`/eklaim/data-klaim/${eklaimLocal.id}`)}>
+                <Send className="mr-1.5 h-3.5 w-3.5" />
+                Buka E-Klaim
+              </Button>
+            ) : (
+              <Button size="sm" className="h-8 rounded-none text-xs" onClick={handleOpenClaimDialog} disabled={submitting}>
+                {submitting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                )}
                 Buat Klaim
-            </Button>
-          )}
-        </div>
-      </div>
+              </Button>
+            )}
+          </div>
+        }
+      />
 
-      {/* Status Klaim */}
-      {eklaimLocal && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <span className="text-sm">Status Klaim:</span>
-          <Badge className={eklaimLocalStatusColors[eklaimLocal.status as EKlaimLocalStatus] || ''}>
-            {eklaimLocalStatusLabels[eklaimLocal.status as EKlaimLocalStatus] || eklaimLocal.status}
-          </Badge>
-          {eklaimLocal.cbg_code && (
-            <span className="text-sm font-mono ml-2">CBG: {eklaimLocal.cbg_code}</span>
-          )}
-        </div>
-      )}
+      <PageContent className="space-y-4">
+        {/* Status Klaim */}
+        {eklaimLocal && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-none border border-neutral-200 dark:border-neutral-800 bg-muted/50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-sm">Status Klaim:</span>
+            <Badge className={`rounded-none ${eklaimLocalStatusColors[eklaimLocal.status as EKlaimLocalStatus] || ''}`}>
+              {eklaimLocalStatusLabels[eklaimLocal.status as EKlaimLocalStatus] || eklaimLocal.status}
+            </Badge>
+            {eklaimLocal.cbg_code && (
+              <span className="text-sm font-mono ml-2">CBG: {eklaimLocal.cbg_code}</span>
+            )}
+          </div>
+        )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Info SEP */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <div>
-            <h3 className="text-sm font-medium">Data SEP</h3>
-            <p className="text-xs text-muted-foreground">Informasi Surat Eligibilitas Peserta</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Info SEP */}
+          <div className="rounded-none border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-white dark:bg-neutral-950">
+            <div>
+              <h3 className="text-sm font-semibold">Data SEP</h3>
+              <p className="text-xs text-muted-foreground">Informasi Surat Eligibilitas Peserta</p>
+            </div>
+            <div className="grid grid-cols-2 gap-y-2 text-sm">
+              <span className="text-muted-foreground">No. SEP</span>
+              <span className="font-mono font-medium">{sep.no_sep}</span>
+              <span className="text-muted-foreground">No. Kartu BPJS</span>
+              <span className="font-mono">{sep.no_kartu || '-'}</span>
+              <span className="text-muted-foreground">Tgl SEP</span>
+              <span>{formatDate(sep.tgl_sep)}</span>
+              <span className="text-muted-foreground">Jenis Pelayanan</span>
+              <span>{sep.jns_pelayanan === '1' ? 'Rawat Inap' : sep.jns_pelayanan === '2' ? 'Rawat Jalan' : sep.jns_pelayanan || '-'}</span>
+              <span className="text-muted-foreground">Kelas Rawat</span>
+              <span>Kelas {sep.kls_rawat_hak || '-'}</span>
+              <span className="text-muted-foreground">Status</span>
+              <Badge variant="outline" className="w-fit rounded-none">{sep.status || '-'}</Badge>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-y-2 text-sm">
-            <span className="text-muted-foreground">No. SEP</span>
-            <span className="font-mono font-medium">{sep.no_sep}</span>
-            <span className="text-muted-foreground">No. Kartu BPJS</span>
-            <span className="font-mono">{sep.no_kartu || '-'}</span>
-            <span className="text-muted-foreground">Tgl SEP</span>
-            <span>{formatDate(sep.tgl_sep)}</span>
-            <span className="text-muted-foreground">Jenis Pelayanan</span>
-            <span>{sep.jns_pelayanan === '1' ? 'Rawat Inap' : sep.jns_pelayanan === '2' ? 'Rawat Jalan' : sep.jns_pelayanan || '-'}</span>
-            <span className="text-muted-foreground">Kelas Rawat</span>
-            <span>Kelas {sep.kls_rawat_hak || '-'}</span>
-            <span className="text-muted-foreground">Status</span>
-            <Badge variant="outline" className="w-fit">{sep.status || '-'}</Badge>
-          </div>
-        </div>
 
-        {/* Info Pasien */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <div>
-            <h3 className="text-sm font-medium">Data Pasien</h3>
-            <p className="text-xs text-muted-foreground">Informasi pasien</p>
-          </div>
-          <div className="grid grid-cols-2 gap-y-2 text-sm">
-            <span className="text-muted-foreground">Nama</span>
-            <span className="font-medium">{sep.nama_pasien || '-'}</span>
-            <span className="text-muted-foreground">No. RM</span>
-            <span className="font-mono">{sep.no_mr || '-'}</span>
-            <span className="text-muted-foreground">Tgl Lahir</span>
-            <span>{formatDate(sep.tgl_lahir)}</span>
-            <span className="text-muted-foreground">Jenis Kelamin</span>
-            <span>{sep.jenis_kelamin === 'L' ? 'Laki-laki' : sep.jenis_kelamin === 'P' ? 'Perempuan' : sep.jenis_kelamin || '-'}</span>
-            <span className="text-muted-foreground">Poli</span>
-            <span>{sep.nama_poli || '-'}</span>
-            <span className="text-muted-foreground">DPJP</span>
-            <span>{sep.nama_dpjp || '-'}</span>
+          {/* Info Pasien */}
+          <div className="rounded-none border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-white dark:bg-neutral-950">
+            <div>
+              <h3 className="text-sm font-semibold">Data Pasien</h3>
+              <p className="text-xs text-muted-foreground">Informasi pasien</p>
+            </div>
+            <div className="grid grid-cols-2 gap-y-2 text-sm">
+              <span className="text-muted-foreground">Nama</span>
+              <span className="font-medium">{sep.nama_pasien || '-'}</span>
+              <span className="text-muted-foreground">No. RM</span>
+              <span className="font-mono">{sep.no_mr || '-'}</span>
+              <span className="text-muted-foreground">Tgl Lahir</span>
+              <span>{formatDate(sep.tgl_lahir)}</span>
+              <span className="text-muted-foreground">Jenis Kelamin</span>
+              <span>{sep.jenis_kelamin === 'L' ? 'Laki-laki' : sep.jenis_kelamin === 'P' ? 'Perempuan' : sep.jenis_kelamin || '-'}</span>
+              <span className="text-muted-foreground">Poli</span>
+              <span>{sep.nama_poli || '-'}</span>
+              <span className="text-muted-foreground">DPJP</span>
+              <span>{sep.nama_dpjp || '-'}</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Diagnosa dari RM */}
       <div className="space-y-3">
@@ -422,10 +418,10 @@ export default function SEPDetailPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setClaimDialogOpen(false)} disabled={submitting}>
+            <Button variant="outline" className="rounded-none" onClick={() => setClaimDialogOpen(false)} disabled={submitting}>
               Batal
             </Button>
-            <Button onClick={handleCreateClaim} disabled={submitting}>
+            <Button className="rounded-none" onClick={handleCreateClaim} disabled={submitting}>
               {submitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -436,6 +432,7 @@ export default function SEPDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

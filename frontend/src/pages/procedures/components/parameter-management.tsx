@@ -22,13 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -313,14 +306,14 @@ export function ParameterManagement({
   const showLabFields = procedureType === "laboratory" || formData.input_type === "number";
 
   return (
-    <Card>
-      <CardHeader>
+    <section className="space-y-4">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-semibold">Parameter Tindakan</CardTitle>
-            <CardDescription>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Parameter Tindakan</h3>
+            <p className="mt-0.5 text-[11px] font-mono text-neutral-500">
               Kelola parameter hasil untuk tindakan {procedureName}
-            </CardDescription>
+            </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowApplyTemplateDialog(true)}>
@@ -333,8 +326,8 @@ export function ParameterManagement({
             </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div>
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -422,7 +415,7 @@ export function ParameterManagement({
             </TableBody>
           </Table>
         )}
-      </CardContent>
+      </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -711,6 +704,6 @@ export function ParameterManagement({
         cancelText="Batal"
         variant="destructive"
       />
-    </Card>
+    </section>
   );
 }

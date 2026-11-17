@@ -11,7 +11,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { roomsApi, masterDataApi, employeesApi, ROOM_TARIFF_COMPONENTS, type MasterData, type Employee, type RoomTariffRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Building2, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
+import { Loader2, Building2, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function RoomEdit() {
@@ -227,24 +227,15 @@ export default function RoomEdit() {
         title="Edit Ruangan"
         description="Perbarui detail informasi ruangan"
         icon={Building2}
-        actions={
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        }
+        onBack={() => navigate("/rooms")}
       />
       <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Building2 className="h-3 w-3" />
+        <div className="space-y-4">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
+            <Building2 className="h-3.5 w-3.5 text-neutral-500" />
             DATA RUANGAN
           </div>
-          <div className="p-3 sm:p-4">
+          <div>
             <form onSubmit={handleSubmit} className="space-y-5 [&_input]:h-9 [&_[role=combobox]]:h-9">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

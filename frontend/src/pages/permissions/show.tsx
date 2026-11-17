@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { permissionsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { ArrowLeft, Clock3, Lock, Pencil, Tag, Trash2 } from 'lucide-react';
+import { Clock3, Lock, Pencil, Tag, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 
 function DetailField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
@@ -124,21 +124,29 @@ export default function PermissionShow() {
         title={permission.name}
         description={permission.description || 'Permission ini belum memiliki deskripsi tambahan.'}
         icon={Lock}
+        onBack={() => navigate('/permissions')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => navigate('/permissions')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
             {canPerform('role_management', 'update') ? (
-              <Button type="button" variant="outline" onClick={() => navigate(`/permissions/${id}/edit`)}>
-                <Pencil className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(`/permissions/${id}/edit`)}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit
               </Button>
             ) : null}
             {canPerform('role_management', 'delete') ? (
-              <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-none h-8 px-3 text-xs font-semibold shadow-none"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Hapus
               </Button>
             ) : null}

@@ -53,6 +53,7 @@ interface DispositionFormProps {
   readOnly?: boolean;
   externalData?: Partial<Disposition>;
   useExternalData?: boolean;
+  onNavigateToDeathCertificate?: () => void;
 }
 
 // Icon mapping for disposition types
@@ -104,6 +105,7 @@ export function DispositionForm({
   readOnly = false,
   externalData,
   useExternalData = false,
+  onNavigateToDeathCertificate,
 }: DispositionFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -1470,6 +1472,9 @@ export function DispositionForm({
         onSubmit={handleSubmit}
         saving={saving}
         isDisabled={isDisabled || readOnly}
+        visitId={visitId}
+        patientData={patientData}
+        onNavigateToDeathCertificate={onNavigateToDeathCertificate}
       />
 
       {/* Outpatient Transfer Drawer (UGD → Rawat Jalan) */}

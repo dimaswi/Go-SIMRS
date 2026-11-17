@@ -8,12 +8,12 @@ import { setPageTitle } from '@/lib/page-title';
 import { createRegencyColumns } from '../regencies/columns';
 import { 
   Loader2, 
-  ArrowLeft, 
   MapPin,
   Building2,
   Pencil,
   Plus
 } from 'lucide-react';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 export default function ProvinceShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -66,63 +66,52 @@ export default function ProvinceShowPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Regencies List */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              {province.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {province.regencies && province.regencies.length > 0 
-                ? `${province.regencies.length} kabupaten/kota` 
-                : 'Belum ada data kabupaten/kota'}
-            </p>
+    <PageShell>
+      <PageHeader
+        icon={MapPin}
+        title={province.name}
+        description={
+          province.regencies && province.regencies.length > 0 
+            ? `${province.regencies.length} kabupaten/kota` 
+            : 'Belum ada data kabupaten/kota'
+        }
+        onBack={() => navigate('/regions')}
+        actions={
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/provinces/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/regions/regencies/create?provinceId=${id}`)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Kabupaten/Kota
+            </Button>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/provinces/${id}/edit`)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/regions/regencies/create?provinceId=${id}`)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Kabupaten/Kota
-          </Button>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          {!province.regencies || province.regencies.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Belum ada data kabupaten/kota</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={province.regencies}
-              searchPlaceholder="Cari kabupaten/kota..."
-              tableId="province_regencies"
-            />
-          )}
-      </div>
-    </div>
+        }
+      />
+      <PageContent noPadding={!!(province.regencies && province.regencies.length > 0)}>
+        {!province.regencies || province.regencies.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Belum ada data kabupaten/kota</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={province.regencies}
+            searchPlaceholder="Cari kabupaten/kota..."
+            tableId="province_regencies"
+          />
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

@@ -91,38 +91,35 @@ export default function ProceduresPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Tindakan"
+        title="Master Tindakan"
         description="Kelola data tindakan medis, radiologi, dan laboratorium"
         count={procedures.length}
         actions={
           hasPermission('procedures.create') ? (
-            <Button onClick={() => navigate('/procedures/create')} size="sm">
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => navigate('/procedures/create')}
+              size="sm"
+              className="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 rounded-none h-8 px-3 text-xs font-semibold gap-1.5 shadow-none"
+            >
+              <Plus className="size-3.5" />
               Tambah Tindakan
             </Button>
           ) : undefined
         }
       />
-      <PageContent>
+      <PageContent noPadding>
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="border border-border/70 bg-background">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Tindakan
-          </div>
-          <div className="p-3 sm:p-4">
-            <DataTable
+          <DataTable
             columns={columns}
             data={procedures}
             searchPlaceholder="Cari tindakan berdasarkan kode atau nama..."
             pageSize={10}
             tableId="procedures"
           />
-          </div>
-        </div>
         )}
       </PageContent>
 

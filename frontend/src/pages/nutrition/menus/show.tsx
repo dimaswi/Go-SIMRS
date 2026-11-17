@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { nutritionMenuApi, type NutritionMenu, nutritionCategoryLabels, nutritionCategoryColors, nutritionIngredientUnitLabels } from "@/lib/api/nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat, Plus } from "lucide-react";
+import { Loader2, Pencil, Flame, Beef, Droplets, Wheat, Plus } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
@@ -46,12 +46,9 @@ export default function NutritionMenuShow() {
       <PageHeader
         title={menu.name}
         description="Tinjau detail menu gizi, kandungan nutrisi per porsi, komposisi bahan, dan status operasionalnya dalam format yang sama dengan halaman master lain."
+        onBack={() => navigate("/nutrition/menus")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/menus")}>
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Button>
             <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/menus/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
               Edit
