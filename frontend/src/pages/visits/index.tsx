@@ -318,11 +318,17 @@ export default function VisitsIndex() {
     return counts;
   }, [allVisits, availableTabs]);
 
-  const buildRoomAnnouncementText = useCallback((queueNumber: string) => {
-    const queueText = spellQueueNumberForSpeech(queueNumber);
-    const roomName = rooms.find((room) => String(room.id) === selectedRoom)?.name || "ruangan";
-    return `Nomor antrean ${queueText}. Silakan menuju ${roomName}.`;
-  }, [rooms, selectedRoom]);
+  const buildRoomAnnouncementText = useCallback(
+    (queueNumber: string, explicitRoomName?: string) => {
+      const queueText = spellQueueNumberForSpeech(queueNumber);
+      const roomName =
+        explicitRoomName?.trim() ||
+        rooms.find((room) => String(room.id) === selectedRoom)?.name ||
+        "ruangan";
+      return `Nomor antrean ${queueText}. Silakan menuju ${roomName}.`;
+    },
+    [rooms, selectedRoom]
+  );
 
   useEffect(() => {
     try {
@@ -530,7 +536,10 @@ export default function VisitsIndex() {
         queueSharedAnnouncement({
           id: `${response.data.id}-${getRoomQueueAnnouncementVersion(response.data)}`,
           kind: "room",
-          speechText: buildRoomAnnouncementText(response.data.queue_number),
+          speechText: buildRoomAnnouncementText(
+            response.data.queue_number,
+            response.data.room?.name || visit.room?.name
+          ),
         });
       }
 
@@ -569,7 +578,10 @@ export default function VisitsIndex() {
         queueSharedAnnouncement({
           id: `${response.data.id}-${getRoomQueueAnnouncementVersion(response.data)}`,
           kind: "room",
-          speechText: buildRoomAnnouncementText(response.data.queue_number),
+          speechText: buildRoomAnnouncementText(
+            response.data.queue_number,
+            response.data.room?.name || visit.room?.name
+          ),
         });
       }
 

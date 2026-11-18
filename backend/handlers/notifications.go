@@ -268,7 +268,7 @@ func getAdminUserIDs() []uint {
 
 	err := database.DB.Table("users").
 		Joins("JOIN roles ON users.role_id = roles.id").
-		Where("(roles.name = ? OR roles.name = ? OR roles.name = ?) AND users.deleted_at IS NULL", "Super Admin", "admin", "Admin").
+		Where("LOWER(roles.name) IN ? AND users.deleted_at IS NULL", []string{"super admin", "admin", "administrator"}).
 		Pluck("users.id", &adminIDs).Error
 
 	if err != nil {

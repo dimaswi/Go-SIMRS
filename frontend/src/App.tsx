@@ -128,6 +128,7 @@ function App() {
         <Routes>
           {/* Public Kiosk Route */}
           <Route path="/kiosk" element={<KioskRoutes />} />
+          <Route path="/kiosk/:counterId" element={<KioskRoutes />} />
           
           {/* Public Queue Display */}
           <Route path="/queue-display/*" element={<QueueDisplayRoutes />} />
@@ -439,7 +440,7 @@ function App() {
         </Routes>
       </Suspense>
       <Toaster />
-      <SonnerToaster position="top-right" richColors />
+      <SonnerToaster position="top-right" richColors visibleToasts={1} />
     </BrowserRouter>
     </NotificationProvider>
   );

@@ -609,7 +609,7 @@ func CreateMedicineOrder(c *gin.Context) {
 	// Send notification to pharmacy room users
 	if NotifService != nil {
 		patientName := ""
-		if order.SourceVisit.Registration.Patient.NamaLengkap != "" {
+		if order.SourceVisit != nil && order.SourceVisit.Registration != nil && order.SourceVisit.Registration.Patient != nil {
 			patientName = order.SourceVisit.Registration.Patient.NamaLengkap
 		}
 		sourceRoomName := ""

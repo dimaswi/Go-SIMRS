@@ -60,7 +60,7 @@ export function CounterSelectionDialog({
         <div className="py-2">
           {counters.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-4">
-              Memuat data loket...
+              Tidak ada loket aktif. Silakan tambahkan loket di pengaturan terlebih dahulu.
             </div>
           ) : (
             <ScrollArea className="max-h-[400px] pr-4">

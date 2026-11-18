@@ -32,7 +32,6 @@ import {
   Receipt,
   BookMarked,
   Hotel,
-  QrCode,
   Stethoscope,
   Map,
   UtensilsCrossed,
@@ -124,7 +123,6 @@ const menuItems: MenuItem[] = [
     icon: Users,
     submenu: [
       { path: '/queues', label: 'Antrean', icon: ClipboardList, permission: 'queues.view' },
-      { path: '/checkin', label: 'Check-In Scanner', icon: QrCode, permission: 'registrations.checkin', target: '_blank' },
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },

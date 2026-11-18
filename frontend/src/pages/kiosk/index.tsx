@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { queueApi, type Queue } from "@/lib/api/queue";
-import { counterApi, type Counter } from "@/lib/api/counters";
+import { type Queue } from "@/lib/api/queue";
+import { type Counter } from "@/lib/api/counters";
 import {
+  api,
   settingsApi,
-  roomsApi,
-  schedulesApi,
-  patientsApi,
   type Room,
   type RoomStaff,
   type Patient,
@@ -154,6 +152,15 @@ const BASE_URL = getBaseUrl();
 
 export default function KioskIndex() {
   const navigate = useNavigate();
+  const { counterId: paramCounterId } = useParams<{ counterId?: string }>();
+  const [searchParams] = useSearchParams();
+  const queryCounterId = searchParams.get("counter");
+  const lockedCounterId = useMemo(() => {
+    const raw = paramCounterId || queryCounterId;
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [paramCounterId, queryCounterId]);
   const { toast } = useToast();
 
   // Global & Master data
@@ -189,11 +196,29 @@ export default function KioskIndex() {
 
   // Submission & Ticket Receipt
   const [submitting, setSubmitting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [queueNumber, setQueueNumber] = useState("");
   const [queueId, setQueueId] = useState<number | null>(null);
   const [issuedAt, setIssuedAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const printIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const printBlobUrlRef = useRef<string | null>(null);
+
+  const cleanupPrintResources = useCallback(() => {
+    if (printIframeRef.current) {
+      printIframeRef.current.remove();
+      printIframeRef.current = null;
+    }
+    if (printBlobUrlRef.current) {
+      URL.revokeObjectURL(printBlobUrlRef.current);
+      printBlobUrlRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => cleanupPrintResources();
+  }, [cleanupPrintResources]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -246,7 +271,9 @@ export default function KioskIndex() {
 
     const loadRooms = async () => {
       try {
-        const response = await roomsApi.getAll({ limit: 500, is_active: "true" });
+        const response = await api.get<{ data: Room[] }>("/public/rooms", {
+          params: { limit: 500, is_active: "true" },
+        });
         setAllRooms(response.data.data || []);
       } catch (error) {
         console.error("Failed to load rooms:", error);
@@ -260,9 +287,14 @@ export default function KioskIndex() {
   useEffect(() => {
     const loadCounters = async () => {
       try {
-        const data = await counterApi.getOpenCounters();
+        const res = await api.get<{ data: Counter[] }>("/public/counters/open");
+        const data = res.data.data || [];
         setCounters(data);
         setSelectedCounterId((prev) => {
+          if (lockedCounterId) {
+            const matched = data.find((c) => c.id === lockedCounterId);
+            return matched ? matched.id : null;
+          }
           if (prev && data.some((c) => c.id === prev)) return prev;
           return data.length > 0 ? data[0].id : null;
         });
@@ -280,12 +312,14 @@ export default function KioskIndex() {
     void loadCounters();
     const interval = setInterval(loadCounters, 5000);
     return () => clearInterval(interval);
-  }, [toast]);
+  }, [lockedCounterId, toast]);
 
   const loadQueues = useCallback(async () => {
     try {
       const today = getLocalDateString();
-      const response = await queueApi.getAll({ date: today });
+      const response = await api.get<{ data: Queue[] }>("/public/queues", {
+        params: { date: today },
+      });
       setAllQueues(response.data.data || []);
     } catch (error) {
       console.error("Failed to load queues:", error);
@@ -352,8 +386,11 @@ export default function KioskIndex() {
     try {
       const today = getLocalDateString();
       const [staffRes, schedRes] = await Promise.all([
-        roomsApi.getStaff(room.id),
-        schedulesApi.getAvailableDoctorsByDate(room.id, today),
+        api.get<{ data: RoomStaff[] }>(`/public/rooms/${room.id}/staff`),
+        api.get<{ data: any[]; room_closed?: boolean }>(
+          "/public/schedules/available-doctors",
+          { params: { room_id: room.id, date: today } }
+        ),
       ]);
 
       const now = new Date();
@@ -438,16 +475,19 @@ export default function KioskIndex() {
 
     setSearchingNik(true);
     try {
-      const res = await patientsApi.search(nik, 5);
-      const list: Patient[] = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res)
-          ? res
-          : [];
-      const exactMatch =
-        list.find((p) => (p.nik || "").trim() === nik.trim()) ||
-        (list.length > 0 ? list[0] : null);
-      setFoundPatient(exactMatch);
+      const res = await api.get<{
+        data?: { id: number; nama_lengkap: string; no_rm: string };
+      }>("/public/check-nik", { params: { nik } });
+      const matched = res.data?.data;
+      setFoundPatient(
+        matched
+          ? ({
+            id: matched.id,
+            nama_lengkap: matched.nama_lengkap,
+            no_rm: matched.no_rm,
+          } as Patient)
+          : null
+      );
       setNikChecked(true);
     } catch {
       setFoundPatient(null);
@@ -482,10 +522,67 @@ export default function KioskIndex() {
     handleNikChange("");
   };
 
+  const printTicketPdf = useCallback(
+    async (targetQueueId: number) => {
+      const apiUrl =
+        import.meta.env.VITE_API_URL ||
+        `${window.location.protocol}//${window.location.hostname}:8080/api`;
+      const ticketUrl = `${apiUrl}/print-public/kiosk-ticket/${targetQueueId}`;
+
+      setPrinting(true);
+      try {
+        const response = await fetch(ticketUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        cleanupPrintResources();
+        printBlobUrlRef.current = blobUrl;
+
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        iframe.style.opacity = "0";
+        iframe.style.pointerEvents = "none";
+        iframe.setAttribute("aria-hidden", "true");
+
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+            } catch {
+              window.open(ticketUrl, "_blank");
+            }
+          }, 150);
+        };
+
+        iframe.src = blobUrl;
+        document.body.appendChild(iframe);
+        printIframeRef.current = iframe;
+      } catch {
+        window.open(ticketUrl, "_blank");
+      } finally {
+        setPrinting(false);
+      }
+    },
+    [cleanupPrintResources]
+  );
+
   const handleSubmitQueue = async () => {
     if (submitting || !selectedRoom) return;
 
-    const targetCounterId = selectedCounterId || counters[0]?.id;
+    const targetCounterId = lockedCounterId
+      ? counters.some((c) => c.id === lockedCounterId)
+        ? lockedCounterId
+        : undefined
+      : selectedCounterId || counters[0]?.id;
     if (!targetCounterId) {
       toast({
         variant: "destructive",
@@ -528,19 +625,23 @@ export default function KioskIndex() {
 
     setSubmitting(true);
     try {
-      const response = await queueApi.create({
+      const response = await api.post<{ data: Queue }>("/public/queues", {
         queue_type: "general",
         counter_id: targetCounterId,
         notes: noteParts.join(" | "),
       });
 
+      const createdQueueId = response.data.data.id;
       setSelectedCounterId(targetCounterId);
       setQueueNumber(response.data.data.queue_number);
-      setQueueId(response.data.data.id);
+      setQueueId(createdQueueId);
       setIssuedAt(new Date());
       setStep("success");
       startCountdown();
       void loadQueues();
+      if (createdQueueId) {
+        void printTicketPdf(createdQueueId);
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -554,18 +655,23 @@ export default function KioskIndex() {
   };
 
   const handlePrint = () => {
-    if (!queueId) return;
-    const apiUrl =
-      import.meta.env.VITE_API_URL ||
-      `${window.location.protocol}//${window.location.hostname}:8080/api`;
-    window.open(`${apiUrl}/print-public/kiosk-ticket/${queueId}`, "_blank");
+    if (!queueId || printing) return;
+    void printTicketPdf(queueId);
   };
 
-  const waitingQueues = allQueues.filter((q) => q.status === "waiting").length;
-  const servingQueues = allQueues.filter(
+  const scopedQueues = useMemo(
+    () =>
+      lockedCounterId
+        ? allQueues.filter((q) => q.counter_id === lockedCounterId)
+        : allQueues,
+    [allQueues, lockedCounterId]
+  );
+
+  const waitingQueues = scopedQueues.filter((q) => q.status === "waiting").length;
+  const servingQueues = scopedQueues.filter(
     (q) => q.status === "serving" || q.status === "called"
   ).length;
-  const activeCalledList = allQueues.filter(
+  const activeCalledList = scopedQueues.filter(
     (q) => q.status === "called" || q.status === "serving"
   );
 
@@ -613,6 +719,14 @@ export default function KioskIndex() {
         </div>
 
         <div className="flex items-center gap-3">
+          {(lockedCounterId || selectedCounterMeta) && (
+            <div className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1">
+              <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+                Loket: {selectedCounterMeta?.name || `#${lockedCounterId}`}
+              </span>
+            </div>
+          )}
           <div className="hidden lg:flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
               <Clock className="h-3.5 w-3.5 text-amber-600" />
@@ -725,7 +839,7 @@ export default function KioskIndex() {
               Menyiapkan layanan kiosk...
             </div>
           </div>
-        ) : counters.length === 0 ? (
+        ) : counters.length === 0 || (lockedCounterId !== null && !selectedCounterMeta) ? (
           <div className="m-auto flex max-w-lg flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600">
               <AlertCircle className="h-9 w-9" />
@@ -734,7 +848,9 @@ export default function KioskIndex() {
               Loket Pendaftaran Belum Dibuka
             </h2>
             <p className="text-sm text-slate-500">
-              Saat ini belum ada loket pendaftaran yang aktif. Silakan hubungi petugas kami.
+              {lockedCounterId
+                ? `Loket yang terhubung dengan KIOSK ini (#${lockedCounterId}) sedang tutup atau belum dibuka. Silakan buka loket di halaman Antrean.`
+                : "Saat ini belum ada loket pendaftaran yang aktif. Silakan hubungi petugas kami."}
             </p>
           </div>
         ) : step === "success" ? (
@@ -850,10 +966,15 @@ export default function KioskIndex() {
                   <button
                     type="button"
                     onClick={handlePrint}
-                    className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-red-600 px-5 py-3.5 text-base font-black text-white shadow-md transition-all hover:bg-red-700 active:scale-[0.98]"
+                    disabled={printing}
+                    className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-red-600 px-5 py-3.5 text-base font-black text-white shadow-md transition-all hover:bg-red-700 active:scale-[0.98] disabled:opacity-60"
                   >
-                    <Printer className="h-5 w-5" />
-                    CETAK TIKET SEKARANG
+                    {printing ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Printer className="h-5 w-5" />
+                    )}
+                    {printing ? "MENYIAPKAN CETAKAN..." : "CETAK TIKET SEKARANG"}
                   </button>
                   <button
                     type="button"
@@ -1087,8 +1208,8 @@ export default function KioskIndex() {
                   )}
                 </div>
 
-                {/* Counter selector if more than 1 counter is open */}
-                {counters.length > 1 && (
+                {/* Counter selector if more than 1 counter is open and KIOSK is not locked to a counter */}
+                {!lockedCounterId && counters.length > 1 && (
                   <div>
                     <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
                       Loket Pendaftaran

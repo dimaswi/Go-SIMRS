@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { queueApi, type Queue } from "@/lib/api/queue";
-import { counterApi, type Counter } from "@/lib/api/counters";
-import { settingsApi } from "@/lib/api";
+import type { Queue } from "@/lib/api/queue";
+import type { Counter } from "@/lib/api/counters";
+import { api, settingsApi } from "@/lib/api";
 import {
   disableSharedAnnouncementAudio,
   enableSharedAnnouncementAudio,
@@ -205,9 +205,11 @@ export default function CounterQueueDisplay() {
   const loadQueues = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await queueApi.getAll({
-        date: today,
-        counter_id: parseInt(counterId!, 10),
+      const response = await api.get<{ data: Queue[] }>("/public/queues", {
+        params: {
+          date: today,
+          counter_id: parseInt(counterId!, 10),
+        },
       });
       const allData = response.data.data || [];
       const filteredData = allData.filter(
@@ -261,9 +263,11 @@ export default function CounterQueueDisplay() {
   const loadAllQueues = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await queueApi.getAll({
-        date: today,
-        counter_id: parseInt(counterId!, 10),
+      const response = await api.get<{ data: Queue[] }>("/public/queues", {
+        params: {
+          date: today,
+          counter_id: parseInt(counterId!, 10),
+        },
       });
       setAllQueues(response.data.data || []);
     } catch (error) {
@@ -289,8 +293,8 @@ export default function CounterQueueDisplay() {
 
     const loadCounter = async () => {
       try {
-        const data = await counterApi.getCounter(parseInt(counterId!, 10));
-        setCounter(data);
+        const response = await api.get<{ data: Counter }>(`/public/counters/${counterId}`);
+        setCounter(response.data.data);
       } catch (error) {
         console.error("Failed to load counter:", error);
       }

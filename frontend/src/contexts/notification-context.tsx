@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuthStore } from "@/lib/store";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import {
   notificationsApi,
   type Notification,
@@ -31,8 +31,21 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
   undefined
 );
 
+const isStandaloneDisplayRoute = () => {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return (
+    path.startsWith("/kiosk") ||
+    path.startsWith("/queue-display") ||
+    path.startsWith("/room-queue/display") ||
+    path.startsWith("/display/") ||
+    path.startsWith("/antrean-online")
+  );
+};
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { token, isAuthenticated } = useAuthStore();
+  const { toast } = useToast();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -41,6 +54,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const seenNotifIdsRef = useRef<Set<number>>(new Set());
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
     audioRef.current = new Audio('/notifications.wav');
@@ -125,32 +140,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // Handle incoming SSE notification
   const handleSSENotification = useCallback(
     (data: NotificationData) => {
-      console.log("[handleSSENotification] Called with:", data);
-      
-      // Show toast using sonner
-      console.log("[handleSSENotification] Showing toast:", data.title, data.message);
-      
-      const toastOpts = {
-        description: data.message || "Ada notifikasi baru",
-        duration: 5000,
-      };
-
-      if (data.type === "success") {
-        toast.success(data.title || "Sukses", toastOpts);
-      } else if (data.type === "error") {
-        toast.error(data.title || "Error", toastOpts);
-      } else if (data.type === "warning") {
-        toast.warning(data.title || "Peringatan", toastOpts);
-      } else {
-        toast.info(data.title || "Notifikasi Baru", toastOpts);
+      if (data.id && seenNotifIdsRef.current.has(data.id)) {
+        return;
       }
+      if (data.id) {
+        seenNotifIdsRef.current.add(data.id);
+      }
+
+      toast({
+        variant: data.type === "error" ? "destructive" : "default",
+        title:
+          data.title ||
+          (data.type === "error"
+            ? "Error"
+            : data.type === "warning"
+              ? "Peringatan"
+              : "Notifikasi Baru"),
+        description: data.message || "Ada notifikasi baru",
+      });
 
       // Play sound
       if (audioRef.current) {
         audioRef.current.play().catch((err) => console.log('Audio play failed:', err));
       }
 
-      // Add to notifications list if has ID
+      // Add to notifications list if has ID (deduplicated)
       if (data.id) {
         const newNotif: Notification = {
           id: data.id,
@@ -162,13 +176,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           created_at: data.created_at,
         };
 
-        setNotifications((prev) => [newNotif, ...prev]);
+        setNotifications((prev) =>
+          prev.some((n) => n.id === newNotif.id) ? prev : [newNotif, ...prev]
+        );
       }
 
       // Increment unread count
       setUnreadCount((prev) => prev + 1);
     },
-    []
+    [toast]
   );
 
   // Connect to SSE
@@ -201,6 +217,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let currentEvent = "";
+        let currentData = "";
 
         if (!reader) return;
 
@@ -212,31 +230,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
-          let currentEvent = "";
-          let currentData = "";
-
-          for (const line of lines) {
+          for (const rawLine of lines) {
+            const line = rawLine.replace(/\r$/, "");
             if (line.startsWith("event:")) {
               currentEvent = line.slice(6).trim();
-              console.log("[SSE] Event:", currentEvent);
             } else if (line.startsWith("data:")) {
               currentData = line.slice(5).trim();
-              console.log("[SSE] Data:", currentData);
             } else if (line === "" && currentEvent && currentData) {
-              // Process event
-              console.log("[SSE] Processing event:", currentEvent, "data:", currentData);
               try {
                 if (currentEvent === "notification") {
                   const parsed = JSON.parse(currentData);
-                  console.log("[SSE] Parsed notification:", parsed);
                   const notifData = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
-                  console.log("[SSE] Final notifData:", notifData);
                   handleSSENotification(notifData);
-                } else if (currentEvent === "connected") {
-                  console.log("SSE connection confirmed");
-                } else if (currentEvent === "ping") {
-                  // Keep-alive ping
-                  console.log("[SSE] Ping received");
+                  broadcastChannelRef.current?.postMessage({
+                    type: "notification",
+                    payload: notifData,
+                  });
                 }
               } catch (e) {
                 console.error("Failed to parse SSE data:", e, "Raw data:", currentData);
@@ -278,21 +287,86 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setIsConnected(false);
   }, []);
 
-  // Connect when authenticated
+  // Connect when authenticated (skip public kiosk/display routes; 1 shared SSE leader across tabs)
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchNotifications();
-      connectSSE();
-    } else {
+    if (!isAuthenticated || !token || isStandaloneDisplayRoute()) {
       disconnectSSE();
       setNotifications([]);
       setUnreadCount(0);
+      return;
     }
 
-    return () => {
-      disconnectSSE();
+    fetchNotifications();
+
+    const channel =
+      typeof BroadcastChannel !== "undefined"
+        ? new BroadcastChannel("simrs_sse_notifications")
+        : null;
+    broadcastChannelRef.current = channel;
+
+    if (channel) {
+      channel.onmessage = (event) => {
+        if (event.data?.type === "notification" && event.data?.payload) {
+          handleSSENotification(event.data.payload);
+        }
+      };
+    }
+
+    let released = false;
+    let releaseLock: (() => void) | null = null;
+    const lockAbortController = new AbortController();
+
+    const startLeaderSSE = () => {
+      if (typeof navigator !== "undefined" && "locks" in navigator && channel) {
+        void navigator.locks
+          .request(
+            "simrs_sse_leader",
+            { signal: lockAbortController.signal },
+            () =>
+              new Promise<void>((resolve) => {
+                if (released) {
+                  resolve();
+                  return;
+                }
+                releaseLock = resolve;
+                connectSSE();
+              })
+          )
+          .catch(() => {
+            // Lock request aborted on unmount
+          });
+      } else {
+        connectSSE();
+      }
     };
-  }, [isAuthenticated, token, fetchNotifications, connectSSE, disconnectSSE]);
+
+    startLeaderSSE();
+
+    const handlePageHide = () => {
+      released = true;
+      lockAbortController.abort();
+      disconnectSSE();
+      releaseLock?.();
+      releaseLock = null;
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      released = true;
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+      lockAbortController.abort();
+      disconnectSSE();
+      releaseLock?.();
+      releaseLock = null;
+      channel?.close();
+      if (broadcastChannelRef.current === channel) {
+        broadcastChannelRef.current = null;
+      }
+    };
+  }, [isAuthenticated, token, fetchNotifications, connectSSE, disconnectSSE, handleSSENotification]);
 
   return (
     <NotificationContext.Provider

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, SkipForward, XCircle, UserPlus, Volume2 } from "lucide-react";
 import type { Queue } from "@/lib/api/queue";
-import { queueStatusLabels, queueTypeLabels } from "@/lib/api/queue";
+import { queueStatusLabels, queueTypeLabels, parseKioskNotes } from "@/lib/api/queue";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
@@ -41,6 +41,40 @@ export function createQueueColumns(options: ColumnOptions): ColumnDef<Queue>[] {
       cell: ({ row }) => (
         <span className="font-bold text-lg">{row.original.queue_number}</span>
       ),
+    },
+    {
+      id: "patient_or_nik",
+      header: "Pasien / NIK",
+      accessorFn: (row) => {
+        const parsed = parseKioskNotes(row.notes);
+        return [parsed.pasien, parsed.nik].filter(Boolean).join(" ");
+      },
+      cell: ({ row }) => {
+        const parsed = parseKioskNotes(row.original.notes);
+        if (parsed.pasien) {
+          return (
+            <div className="flex flex-col">
+              <span className="font-medium">{parsed.pasien}</span>
+              {parsed.nik && (
+                <span className="font-mono text-xs text-muted-foreground">
+                  NIK: {parsed.nik}
+                </span>
+              )}
+            </div>
+          );
+        }
+        if (parsed.nik) {
+          return (
+            <div className="flex flex-col">
+              <span className="font-mono font-medium">{parsed.nik}</span>
+              <span className="text-xs text-muted-foreground">
+                Pasien Baru / Belum Terdaftar
+              </span>
+            </div>
+          );
+        }
+        return <span className="text-muted-foreground">-</span>;
+      },
     },
     {
       accessorKey: "queue_type",

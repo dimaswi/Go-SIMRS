@@ -447,3 +447,36 @@ export const registrationTypeLabels: Record<string, string> = {
   emergency: "IGD",
   inpatient: "Rawat Inap",
 };
+
+export interface ParsedKioskNotes {
+  layanan?: string;
+  ruangan?: string;
+  dokter?: string;
+  dokterName?: string;
+  nik?: string;
+  pasien?: string;
+  status?: string;
+  raw?: string;
+}
+
+export function parseKioskNotes(notes?: string): ParsedKioskNotes {
+  if (!notes) return {};
+  const result: ParsedKioskNotes = { raw: notes };
+  for (const part of notes.split("|")) {
+    const trimmed = part.trim();
+    const colonIdx = trimmed.indexOf(":");
+    if (colonIdx === -1) continue;
+    const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+    const val = trimmed.slice(colonIdx + 1).trim();
+    if (!val) continue;
+    if (key === "layanan") result.layanan = val;
+    else if (key === "ruangan") result.ruangan = val;
+    else if (key === "dokter") {
+      result.dokter = val;
+      result.dokterName = val.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    } else if (key === "nik") result.nik = val;
+    else if (key === "pasien") result.pasien = val;
+    else if (key === "status") result.status = val;
+  }
+  return result;
+}

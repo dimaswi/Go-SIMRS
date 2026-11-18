@@ -15,12 +15,22 @@ import { CounterSelectionDialog } from "./counter-selection-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
   Loader2,
   RefreshCcw,
   Monitor,
   Tv,
   ExternalLink,
   ScreenShare,
+  DoorOpen,
+  DoorClosed,
 } from "lucide-react";
 import { queueSharedAnnouncement } from "@/lib/shared-queue-announcer";
 
@@ -111,6 +121,7 @@ export default function QueueIndex() {
     queueType?: Queue["queue_type"];
   } | null>(null);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
+  const [kioskDialogOpen, setKioskDialogOpen] = useState(false);
   const [togglingCounterId, setTogglingCounterId] = useState<number | null>(null);
 
   const buildCounterAnnouncementText = useCallback((queue: Queue) => {
@@ -153,6 +164,15 @@ export default function QueueIndex() {
       try {
         const data = await counterApi.getActiveCounters();
         setCounters(data);
+        setActiveCounterId((prev) => {
+          if (!prev || prev === "all") return prev;
+          const matched = data.find((c) => c.id.toString() === prev);
+          if (!matched || !matched.is_open) {
+            localStorage.removeItem("queues_active_counter");
+            return null;
+          }
+          return prev;
+        });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -379,13 +399,21 @@ export default function QueueIndex() {
                   variant="outline"
                   size="sm"
                   className="h-6 text-[10px] px-2 h-full py-1"
-                  onClick={() => setActiveCounterId(null)}
+                  onClick={() => {
+                    localStorage.removeItem("queues_active_counter");
+                    setActiveCounterId(null);
+                  }}
                 >
                   Ganti Loket
                 </Button>
               </div>
             )}
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/kiosk", "_blank")}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setKioskDialogOpen(true)}
+            >
               <Monitor className="mr-1 h-3.5 w-3.5" />
               KIOSK
               <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
@@ -529,9 +557,7 @@ export default function QueueIndex() {
         onSelect={(id) => {
           setActiveCounterId(id);
           localStorage.setItem("queues_active_counter", id);
-          if (id !== "all") {
-            setSelectedCounter(id);
-          }
+          setSelectedCounter(id);
         }}
       />
 
@@ -555,6 +581,69 @@ export default function QueueIndex() {
         cancelText="Tidak"
         variant="destructive"
       />
+
+      <Dialog open={kioskDialogOpen} onOpenChange={setKioskDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Buka KIOSK per Loket</DialogTitle>
+            <DialogDescription>
+              Pilih loket yang akan dihubungkan dengan layar KIOSK agar antrean tercatat ke loket tersebut.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {counters.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                Tidak ada loket aktif.
+              </div>
+            ) : (
+              counters.map((counter) => (
+                <button
+                  key={counter.id}
+                  type="button"
+                  disabled={!counter.is_open}
+                  onClick={() => {
+                    window.open(`/kiosk/${counter.id}`, "_blank");
+                    setKioskDialogOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-md border border-border p-3 text-left transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    {counter.is_open ? (
+                      <DoorOpen className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <DoorClosed className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <div>
+                      <div className="font-semibold text-sm">{counter.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {counter.is_open
+                          ? "Klik untuk membuka KIOSK loket ini"
+                          : "Loket sedang tutup"}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant={counter.is_open ? "default" : "secondary"} className="text-[10px]">
+                    {counter.is_open ? "BUKA" : "TUTUP"}
+                  </Badge>
+                </button>
+              ))
+            )}
+            <div className="border-t pt-3">
+              <Button
+                variant="secondary"
+                className="w-full text-xs h-9"
+                onClick={() => {
+                  window.open("/kiosk", "_blank");
+                  setKioskDialogOpen(false);
+                }}
+              >
+                <Monitor className="mr-2 h-4 w-4" />
+                Buka KIOSK Umum (Semua Loket)
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <RegistrationDialog
         open={registerQueue !== null}

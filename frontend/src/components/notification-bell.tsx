@@ -21,6 +21,7 @@ export function NotificationBell() {
     notifications,
     unreadCount,
     loading,
+    fetchNotifications,
     markAsRead,
     markAllAsRead,
     deleteNotification,
@@ -132,7 +133,15 @@ export function NotificationBell() {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          void fetchNotifications();
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8 relative">
           <Bell className="h-4 w-4" />

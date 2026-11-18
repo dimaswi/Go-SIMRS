@@ -490,8 +490,16 @@ func CreateProcedureOrder(c *gin.Context) {
 		var notifTitle string
 		var notifType models.NotificationType
 		patientName := ""
-		if order.Registration.Patient.NamaLengkap != "" {
+		if order.Registration != nil && order.Registration.Patient != nil {
 			patientName = order.Registration.Patient.NamaLengkap
+		}
+		sourceRoomName := ""
+		if order.SourceRoom != nil {
+			sourceRoomName = order.SourceRoom.Name
+		}
+		targetRoomName := ""
+		if order.TargetRoom != nil {
+			targetRoomName = order.TargetRoom.Name
 		}
 
 		switch input.OrderType {
@@ -510,7 +518,7 @@ func CreateProcedureOrder(c *gin.Context) {
 		}
 
 		notifMessage := fmt.Sprintf("Order %s untuk pasien %s dari %s",
-			order.OrderNumber, patientName, order.SourceRoom.Name)
+			order.OrderNumber, patientName, sourceRoomName)
 
 		NotifService.NotifyRoomUsers(
 			input.TargetRoomID,
@@ -522,8 +530,8 @@ func CreateProcedureOrder(c *gin.Context) {
 				"order_number":    order.OrderNumber,
 				"order_type":      input.OrderType,
 				"patient_name":    patientName,
-				"source_room":     order.SourceRoom.Name,
-				"target_room":     order.TargetRoom.Name,
+				"source_room":     sourceRoomName,
+				"target_room":     targetRoomName,
 				"target_visit_id": targetVisit.ID,
 			},
 		)

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { queueApi, type Queue } from "@/lib/api/queue";
-import { counterApi, type Counter } from "@/lib/api/counters";
-import { roomQueuesApi, type RoomQueue } from "@/lib/api/room-queues";
-import { roomsApi, type Room } from "@/lib/api/rooms";
-import { settingsApi } from "@/lib/api";
+import type { Queue } from "@/lib/api/queue";
+import type { Counter } from "@/lib/api/counters";
+import type { RoomQueue } from "@/lib/api/room-queues";
+import type { Room } from "@/lib/api/rooms";
+import { api, settingsApi } from "@/lib/api";
 import { billingApi, type CashierDisplayQueueItem } from "@/lib/api/billing";
 import {
   DisplayMediaPanel,
@@ -77,7 +77,9 @@ export default function QueueDisplay() {
   const loadRegistrationQueues = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await queueApi.getAll({ date: today });
+      const response = await api.get<{ data: Queue[] }>("/public/queues", {
+        params: { date: today },
+      });
       const allData = response.data.data || [];
       setRegistrationQueues(
         allData.filter((q) => q.status === "called" || q.status === "serving")
@@ -92,10 +94,12 @@ export default function QueueDisplay() {
     try {
       const today = new Date().toISOString().split("T")[0];
       const [roomRes, cashierRes] = await Promise.all([
-        roomQueuesApi.getAll({ date: today }),
+        api.get<RoomQueue[]>("/public/room-queues", {
+          params: { date: today },
+        }),
         billingApi.getCashierDisplay(today).catch(() => null),
       ]);
-      const allData = roomRes.data || [];
+      const allData = Array.isArray(roomRes.data) ? roomRes.data : [];
       setRoomQueues(
         allData.filter((q) => q.status === "called" || q.status === "serving")
       );
@@ -128,7 +132,9 @@ export default function QueueDisplay() {
 
     const loadRooms = async () => {
       try {
-        const response = await roomsApi.getAll({ is_active: "true", limit: 100 });
+        const response = await api.get<{ data: Room[] }>("/public/rooms", {
+          params: { is_active: "true", limit: 100 },
+        });
         setRooms(response.data.data || []);
       } catch (error) {
         console.error("Failed to load rooms:", error);
@@ -142,7 +148,8 @@ export default function QueueDisplay() {
   useEffect(() => {
     const loadCounters = async () => {
       try {
-        const data = await counterApi.getOpenCounters();
+        const response = await api.get<{ data: Counter[] }>("/public/counters/open");
+        const data = response.data.data || [];
         const savedCounters = localStorage.getItem("queueDisplay_selectedCounters");
         if (savedCounters) {
           const selectedIds = JSON.parse(savedCounters) as number[];
@@ -286,13 +293,13 @@ export default function QueueDisplay() {
                       <div
                         key={room.id}
                         className={cn(
-                          "flex min-h-[152px] flex-col overflow-hidden rounded-xl border transition-colors",
+                          "flex h-[176px] flex-col overflow-hidden rounded-xl border transition-colors",
                           latestQueue
                             ? "border-sky-300 bg-sky-50/40"
                             : "border-slate-200 bg-slate-50/50"
                         )}
                       >
-                        <div className="flex items-start justify-between border-b border-slate-200 bg-white px-3 py-2">
+                        <div className="flex h-[44px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3">
                           <div className="min-w-0">
                             <div className="truncate text-xs font-bold text-slate-900">{room.name}</div>
                           </div>
@@ -372,13 +379,13 @@ export default function QueueDisplay() {
                       <div
                         key={counter.id}
                         className={cn(
-                          "flex min-h-[152px] flex-col overflow-hidden rounded-xl border transition-colors",
+                          "flex h-[176px] flex-col overflow-hidden rounded-xl border transition-colors",
                           latestQueue
                             ? "border-emerald-300 bg-emerald-50/40"
                             : "border-slate-200 bg-slate-50/50"
                         )}
                       >
-                        <div className="flex items-start justify-between border-b border-slate-200 bg-white px-3 py-2">
+                        <div className="flex h-[44px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3">
                           <div className="min-w-0">
                             <div className="truncate text-xs font-bold text-slate-900">{counter.name}</div>
                             <div className="font-mono text-[10px] text-slate-500">{counter.code}</div>

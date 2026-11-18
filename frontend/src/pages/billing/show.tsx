@@ -870,7 +870,7 @@ export default function BillingShow() {
       />
 
       {/* ========== MAIN CONTENT ========== */}
-      <PageContent className="space-y-6">
+      <PageContent noPadding>
         <div>
 
           {/* Loading billing state */}
@@ -896,10 +896,10 @@ export default function BillingShow() {
 
           {/* ===== BILLING EXISTS ===== */}
           {!loadingBilling && billing && (
-            <div className="flex flex-col xl:flex-row gap-6 items-start">
+            <div className="flex flex-col xl:flex-row items-stretch">
 
               {/* RIGHT COLUMN: SUMMARY & PAYMENT HISTORY */}
-              <div className="w-full xl:w-[320px] 2xl:w-[380px] flex-shrink-0 flex flex-col gap-6 order-1 xl:order-2 xl:sticky xl:top-6 xl:border-l xl:border-neutral-200 dark:xl:border-neutral-800 xl:pl-6">
+              <div className="w-full xl:w-[320px] 2xl:w-[380px] flex-shrink-0 flex flex-col gap-5 order-1 xl:order-2 xl:sticky xl:top-0 border-b xl:border-b-0 xl:border-l border-neutral-200 dark:border-neutral-800 p-4">
 
                 {/* Patient Info */}
                 <div className="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -998,7 +998,7 @@ export default function BillingShow() {
               <div className="w-full flex-1 order-2 xl:order-1 min-w-0">
                 {/* ===== BILLING ITEMS GROUPED BY VISIT ===== */}
                 <div className="overflow-hidden">
-                  <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5 flex items-center justify-between">
+                  <div className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-2.5 flex items-center justify-between">
                     <h2 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       Detail Tagihan
