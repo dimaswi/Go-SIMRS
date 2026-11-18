@@ -543,36 +543,23 @@ func CreateMedicineOrder(c *gin.Context) {
 		queuePriority = "urgent"
 	}
 
-	queueCode := pharmacyRoom.QueueCode
-	if queueCode == "" {
-		queueCode = "F" // Default for Farmasi
+	defaultCode := pharmacyRoom.QueueCode
+	if defaultCode == "" {
+		defaultCode = "F" // Default for Farmasi
 	}
-
-	// Get next queue number for pharmacy room
-	var lastQueue models.RoomQueue
-	var queueSeq int
 
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	err = tx.Where("room_id = ? AND queue_date = ?", input.PharmacyRoomID, todayStart).
-		Order("created_at DESC").First(&lastQueue).Error
-
-	if err != nil {
-		queueSeq = 1
-	} else {
-		// Parse last queue number to get sequence
-		var lastNum int
-		if lastQueue.QueueNumber != "" {
-			fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-			// fallback if it fails for some reason
-			if lastNum == 0 && len(lastQueue.QueueNumber) > len(queueCode) {
-				fmt.Sscanf(lastQueue.QueueNumber[len(queueCode):], "%d", &lastNum)
-			}
+	queueNumber := resolvePatientUnifiedQueueNumber(tx, sourceVisit.RegistrationID, &sourceVisit)
+	if queueNumber == "" {
+		var genErr error
+		queueNumber, genErr = generateRoomQueueNumberByPrefix(tx, input.PharmacyRoomID, defaultCode, todayStart)
+		if genErr != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate queue number: " + genErr.Error()})
+			return
 		}
-		queueSeq = lastNum + 1
 	}
-
-	// Generate queue number
-	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueSeq)
+	queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 	roomQueue := models.RoomQueue{
 		RoomID:      input.PharmacyRoomID,

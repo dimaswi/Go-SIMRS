@@ -303,9 +303,7 @@ func CreateProcedureOrder(c *gin.Context) {
 
 	// Create room queue untuk radiology, laboratory, dan surgery (TIDAK untuk consultation)
 	if input.OrderType == models.ProcedureOrderTypeRadiology || input.OrderType == models.ProcedureOrderTypeLaboratory || input.OrderType == models.ProcedureOrderTypeSurgery {
-		queueNumber := generateProcedureQueueNumber(tx, input.TargetRoomID)
-
-		// Get room for queue code
+		// Get room for default queue code
 		var targetRoomData models.Room
 		if err := tx.First(&targetRoomData, input.TargetRoomID).Error; err != nil {
 			tx.Rollback()
@@ -313,10 +311,17 @@ func CreateProcedureOrder(c *gin.Context) {
 			return
 		}
 
-		queueCode := targetRoomData.QueueCode
-		if queueCode == "" {
-			queueCode = "Q"
+		defaultCode := targetRoomData.QueueCode
+		if defaultCode == "" {
+			defaultCode = "Q"
 		}
+
+		// Inherit patient's loket/poli queue number so 1 ticket works across poli -> lab/radiology/surgery
+		queueNumber := resolvePatientUnifiedQueueNumber(tx, sourceVisit.RegistrationID, &sourceVisit)
+		if queueNumber == "" {
+			queueNumber = generateProcedureQueueNumber(tx, input.TargetRoomID)
+		}
+		queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 		// Parse priority for queue
 		queuePriority := input.Priority
@@ -537,22 +542,11 @@ func generateProcedureQueueNumber(tx *gorm.DB, roomID uint) string {
 		prefix = "Q"
 	}
 
-	today := time.Now().Format("2006-01-02")
-	var lastQueue models.RoomQueue
-	var queueNum int
-
-	err := tx.Where("room_id = ? AND DATE(created_at) = ?", roomID, today).
-		Order("queue_number DESC").First(&lastQueue).Error
-
+	queueNumber, err := generateRoomQueueNumberByPrefix(tx, roomID, prefix, time.Now())
 	if err != nil {
-		queueNum = 1
-	} else {
-		var lastNum int
-		fmt.Sscanf(lastQueue.QueueNumber, prefix+"%d", &lastNum)
-		queueNum = lastNum + 1
+		return fmt.Sprintf("%s%03d", prefix, 1)
 	}
-
-	return fmt.Sprintf("%s%03d", prefix, queueNum)
+	return queueNumber
 }
 
 func ensureProcedureOrdersHaveParameters(tx *gorm.DB, orders []models.ProcedureOrder) (bool, error) {

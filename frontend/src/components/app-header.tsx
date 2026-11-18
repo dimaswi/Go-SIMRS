@@ -31,6 +31,7 @@ const routeLabels: Record<string, string> = {
   'roles': 'Daftar Role',
   'permissions': 'Daftar Permission',
   'settings': 'Pengaturan',
+  'display': 'Display Antrean',
   'audit-log': 'Audit Log',
   'account': 'Profil Akun',
   'signature-pin': 'PIN Tanda Tangan',

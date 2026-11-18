@@ -199,7 +199,10 @@ func CheckInBySuratKontrol(c *gin.Context) {
 			}
 			roomQueue = reg.Visit.RoomQueue
 		} else {
-			queueNumber := extractQueueNumberFromRegistration(reg.RegistrationNumber)
+			queueNumber := resolvePatientUnifiedQueueNumber(tx, reg.ID, reg.Visit)
+			if queueNumber == "" {
+				queueNumber = extractQueueNumberFromRegistration(reg.RegistrationNumber)
+			}
 			if queueNumber == "" {
 				var err error
 				queueNumber, err = generateRoomQueueNumber(tx, reg.DestinationRoomID, now)
@@ -212,6 +215,7 @@ func CheckInBySuratKontrol(c *gin.Context) {
 			rq := models.RoomQueue{
 				RoomID:      reg.DestinationRoomID,
 				QueueNumber: queueNumber,
+				QueueCode:   resolveQueueCodePrefix(queueNumber, "Q"),
 				QueueDate:   now,
 				VisitID:     reg.Visit.ID,
 				Status:      models.RoomQueueStatusWaiting,
@@ -254,15 +258,20 @@ func CheckInBySuratKontrol(c *gin.Context) {
 			return
 		}
 
-		queueNumber, err := generateRoomQueueNumber(tx, reg.DestinationRoomID, now)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
-			return
+		queueNumber := resolvePatientUnifiedQueueNumber(tx, reg.ID, nil)
+		if queueNumber == "" {
+			var err error
+			queueNumber, err = generateRoomQueueNumber(tx, reg.DestinationRoomID, now)
+			if err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian"})
+				return
+			}
 		}
 		rq := models.RoomQueue{
 			RoomID:      reg.DestinationRoomID,
 			QueueNumber: queueNumber,
+			QueueCode:   resolveQueueCodePrefix(queueNumber, "Q"),
 			QueueDate:   now,
 			VisitID:     visit.ID,
 			Status:      models.RoomQueueStatusWaiting,

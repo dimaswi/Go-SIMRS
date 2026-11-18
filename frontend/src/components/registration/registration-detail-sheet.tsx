@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { registrationApi, type Registration } from "@/lib/api/queue";
 import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
 import { formatPatientName } from "@/lib/print-utils";
-import { api } from "@/lib/api";
+import { api, printApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
@@ -133,10 +133,23 @@ export function RegistrationDetailSheet({
     }
   };
 
-  const handlePrintQueue = () => {
-    if (!registration) return;
-    const regId = registration.ID || registration.id;
-    window.open(`/print/queue/${regId}`, "_blank");
+  const handlePrintQueue = async () => {
+    const queueId = registration?.visit?.room_queue?.id || (bpjsQueue as any)?.room_queue_id;
+    const regId = registration?.ID || registration?.id;
+    if (!queueId && !regId) return;
+
+    try {
+      const url = queueId
+        ? await printApi.queueTicket(queueId)
+        : await printApi.registrationTicket(regId!);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+      });
+    }
   };
 
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
@@ -466,20 +479,32 @@ export function RegistrationDetailSheet({
                         </p>
                       </div>
                     </div>
-                    {bpjsQueue.status === "booking" && (
-                      <Button
-                        size="sm"
-                        onClick={handleActivateCheckin}
-                        disabled={activatingCheckin}
-                      >
-                        {activatingCheckin ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                        )}
-                        Aktifkan Check-in
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {(registration.visit?.room_queue?.id || (bpjsQueue as any)?.room_queue_id) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handlePrintQueue}
+                        >
+                          <Printer className="h-4 w-4 mr-2" />
+                          Cetak Tiket
+                        </Button>
+                      )}
+                      {bpjsQueue.status === "booking" && (
+                        <Button
+                          size="sm"
+                          onClick={handleActivateCheckin}
+                          disabled={activatingCheckin}
+                        >
+                          {activatingCheckin ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                          )}
+                          Aktifkan Check-in
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mt-4">

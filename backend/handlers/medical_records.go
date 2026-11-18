@@ -2110,28 +2110,24 @@ func createOutpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint,
 		return nil, fmt.Errorf("failed to create outpatient visit: %w", err)
 	}
 
-	// Create room queue for the new visit
-	queueCode := room.QueueCode
-	if queueCode == "" {
-		queueCode = "Q"
+	// Create room queue for the new visit (inherit existing queue number on same-day follow-up)
+	defaultCode := room.QueueCode
+	if defaultCode == "" {
+		defaultCode = "Q"
 	}
 
 	todayDate := time.Now().Format("2006-01-02")
 	parsedDate, _ := ParseLocalDate(todayDate)
-	var lastQueue models.RoomQueue
-	var queueNum int
 
-	err := tx.Where("room_id = ? AND queue_date = ?", *roomID, parsedDate).
-		Order("queue_number DESC").First(&lastQueue).Error
-	if err != nil {
-		queueNum = 1
-	} else {
-		var lastNum int
-		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-		queueNum = lastNum + 1
+	queueNumber := resolvePatientUnifiedQueueNumber(tx, sourceVisit.RegistrationID, sourceVisit)
+	if queueNumber == "" {
+		var genErr error
+		queueNumber, genErr = generateRoomQueueNumberByPrefix(tx, *roomID, defaultCode, parsedDate)
+		if genErr != nil {
+			return nil, fmt.Errorf("failed to generate queue number: %w", genErr)
+		}
 	}
-
-	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+	queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 	queue := models.RoomQueue{
 		QueueNumber: queueNumber,
 		QueueCode:   queueCode,
@@ -2311,22 +2307,10 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 		queueCode = "Q"
 	}
 
-	var lastQueue models.RoomQueue
-	var queueNum int
-
-	// Get the highest queue number for this room and date (including reserved ones)
-	err = database.DB.Where("room_id = ? AND queue_date = ?", *roomID, *followUpDate).
-		Order("queue_number DESC").First(&lastQueue).Error
-
+	queueNumber, err := generateRoomQueueNumberByPrefix(database.DB, *roomID, queueCode, *followUpDate)
 	if err != nil {
-		queueNum = 1
-	} else {
-		var lastNum int
-		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-		queueNum = lastNum + 1
+		return nil, fmt.Errorf("failed to generate follow-up queue number: %w", err)
 	}
-
-	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
 
 	// Create RoomQueue for follow-up with RESERVED status
 	// Queue number is allocated but not active until check-in
@@ -2399,10 +2383,11 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 			}
 
 			// Buat BPJSQueue dengan data dari Surat Kontrol
+			angkaAntrean := computeDailyRoomAngkaAntrean(db, *roomID, *followUpDate, roomQueue.ID)
 			bpjsQueue := models.BPJSQueue{
 				KodeBooking:    kodeBooking,
 				NomorAntrean:   queueNumber,
-				AngkaAntrean:   queueNum,
+				AngkaAntrean:   angkaAntrean,
 				NoKartu:        suratKontrol.NoKartu,
 				NIK:            patient.NIK,
 				NamaPasien:     patient.NamaLengkap,
@@ -2434,7 +2419,7 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 			// Hitung estimasi dilayani (milliseconds)
 			// Asumsi 10 menit per pasien
 			baseTime, _ := time.Parse("15:04", "08:00")
-			estimasiMenit := queueNum * 10
+			estimasiMenit := angkaAntrean * 10
 			estimasiTime := time.Date(
 				followUpDate.Year(), followUpDate.Month(), followUpDate.Day(),
 				baseTime.Hour(), baseTime.Minute()+estimasiMenit, 0, 0, time.Local)

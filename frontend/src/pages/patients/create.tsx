@@ -35,6 +35,7 @@ import {
   X,
   CheckCircle2,
   XCircle,
+  Search,
 } from "lucide-react";
 
 const initialFormData: PatientRequest = {
@@ -166,23 +167,18 @@ export default function PatientCreate() {
     calculateAgeFromDOB(value);
   };
 
-  // BPJS lookup when NIK reaches 16 digits
+  // Parse 16-digit NIK locally (gender, DOB, birthplace) without auto-calling BPJS endpoint
   useEffect(() => {
     const nik = formData.nik?.replace(/\D/g, "") || "";
+    setBpjsData(null);
+    setBpjsError(null);
+    setBpjsApplied(false);
+
     if (nik.length !== 16) {
-      setBpjsData(null);
-      setBpjsError(null);
-      setBpjsApplied(false);
       return;
     }
 
     const timer = setTimeout(async () => {
-      setBpjsLoading(true);
-      setBpjsError(null);
-      setBpjsData(null);
-      setBpjsApplied(false);
-
-      // Auto-extract info from NIK
       try {
         const regencyCode = nik.substring(0, 4);
         const dateStr = nik.substring(6, 8);
@@ -227,27 +223,44 @@ export default function PatientCreate() {
       } catch (e) {
         console.error("Failed to parse NIK:", e);
       }
-
-      // Fetch BPJS
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const res = await vclaimApi.getPesertaByNIK(nik, today);
-        const peserta = res.data.data;
-        if (peserta) {
-          setBpjsData(peserta);
-        } else {
-          setBpjsError("Data peserta tidak ditemukan di BPJS");
-        }
-      } catch (err: any) {
-        const msg = err.response?.data?.error || "Gagal mengambil data BPJS";
-        setBpjsError(msg);
-      } finally {
-        setBpjsLoading(false);
-      }
-    }, 600);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [formData.nik]);
+
+  // Manual BPJS lookup when NIK search button is clicked
+  const handleLookupBpjsByNik = useCallback(async () => {
+    const nik = formData.nik?.replace(/\D/g, "") || "";
+    if (nik.length !== 16) {
+      toast({
+        variant: "destructive",
+        title: "NIK Tidak Valid",
+        description: "Masukkan 16 digit NIK terlebih dahulu untuk mencari data BPJS",
+      });
+      return;
+    }
+
+    setBpjsLoading(true);
+    setBpjsError(null);
+    setBpjsData(null);
+    setBpjsApplied(false);
+
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const res = await vclaimApi.getPesertaByNIK(nik, today);
+      const peserta = res.data.data;
+      if (peserta) {
+        setBpjsData(peserta);
+      } else {
+        setBpjsError("Data peserta tidak ditemukan di BPJS");
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Gagal mengambil data BPJS";
+      setBpjsError(msg);
+    } finally {
+      setBpjsLoading(false);
+    }
+  }, [formData.nik, toast]);
 
   // Apply BPJS data to form
   const applyBpjsData = useCallback(() => {
@@ -741,7 +754,7 @@ export default function PatientCreate() {
                         <Label htmlFor="nik" className="text-xs font-medium">
                           NIK
                         </Label>
-                        <div className="relative">
+                        <div className="flex items-stretch">
                           <Input
                             id="nik"
                             placeholder="16 digit NIK"
@@ -753,14 +766,24 @@ export default function PatientCreate() {
                                 nik: e.target.value.replace(/\D/g, ""),
                               })
                             }
-                            className="h-9 text-sm pr-8 border-destructive"
+                            className="h-8 flex-1 text-sm rounded-r-none border-destructive"
                             tabIndex={1}
                           />
-                          {bpjsLoading && (
-                            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            </div>
-                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={handleLookupBpjsByNik}
+                            disabled={bpjsLoading || (formData.nik?.replace(/\D/g, "").length || 0) !== 16}
+                            title="Cari data peserta BPJS berdasarkan NIK"
+                            className="h-8 w-8 shrink-0 rounded-l-none border-l-0 border-destructive"
+                          >
+                            {bpjsLoading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Search className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
                         </div>
 
                         {/* BPJS Lookup Result */}

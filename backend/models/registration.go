@@ -32,6 +32,10 @@ type Registration struct {
 	Notes              string     `json:"notes" gorm:"type:text"`
 	VisitNumber        int        `json:"visit_number"` // Kunjungan ke-N untuk pasien ini (lifetime count)
 
+	// Cashier Queue Call tracking
+	CashierCalledAt   *time.Time `json:"cashier_called_at,omitempty"`
+	CashierCalledByID *uint      `json:"cashier_called_by_id,omitempty"`
+
 	// SEP (Surat Eligibilitas Peserta) untuk BPJS
 	SEPNumber   string `json:"sep_number" gorm:"size:50;index"` // Nomor SEP dari VClaim
 	NoRujukan   string `json:"no_rujukan" gorm:"size:50"`       // Nomor rujukan BPJS

@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   FileEdit,
   ExternalLink,
-  QrCode
+  QrCode,
+  Tv
 } from "lucide-react";
 import { settingsApi } from "@/lib/api";
 import { QRCodeSVG } from "qrcode.react";
@@ -578,7 +579,23 @@ export default function SettingsPage() {
 
                   <Separator />
 
-                  {/* Links/Audit Log */}
+                  {/* Links/Display & Audit Log */}
+                  <Link
+                    to="/settings/display"
+                    className="flex items-center justify-between py-3 border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 px-2 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
+                        <Tv className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Pengaturan Display Antrean</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Atur video, iklan banner, teks berjalan, dan pintasan layar antrean TV.</p>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
+                  </Link>
+
                   <Link
                     to="/settings/audit-log"
                     className="flex items-center justify-between py-3 border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 px-2 transition-colors group"

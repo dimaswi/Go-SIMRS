@@ -572,20 +572,24 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 		queueCode = "A"
 	}
 
-	// Hitung nomor antrian dari RoomQueue dengan row locking (SELECT FOR UPDATE) untuk hindari race condition
+	// Hitung nomor antrian MJKN dari RoomQueue dengan row locking (SELECT FOR UPDATE)
+	// Filter prefix queueCode saja agar tidak bentrok dengan nomor loket (A/B/E) di ruangan yang sama.
 	var lastRoomQueue models.RoomQueue
 	var queueNum int
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").
-		Where("room_id = ? AND queue_date = ?", poliMapping.RoomID, tanggal).
+		Where("room_id = ? AND queue_date = ? AND queue_number LIKE ?", poliMapping.RoomID, tanggal, queueCode+"%").
 		Order("queue_number DESC").First(&lastRoomQueue).Error; err != nil {
 		queueNum = 1
 	} else {
 		var lastNum int
-		fmt.Sscanf(lastRoomQueue.QueueNumber, queueCode+"%d", &lastNum)
-		queueNum = lastNum + 1
+		if n, _ := fmt.Sscanf(lastRoomQueue.QueueNumber, queueCode+"%d", &lastNum); n == 1 && lastNum > 0 {
+			queueNum = lastNum + 1
+		} else {
+			queueNum = 1
+		}
 	}
 	nomorAntrean := fmt.Sprintf("%s%03d", queueCode, queueNum)
-	angkaAntrean := queueNum
+	angkaAntrean := computeDailyRoomAngkaAntrean(tx, poliMapping.RoomID, tanggal, 0)
 
 	// 3. Estimasi dilayani
 	jamPraktekParts := strings.Split(req.JamPraktek, "-")

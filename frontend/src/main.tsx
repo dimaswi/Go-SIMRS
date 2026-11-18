@@ -49,6 +49,10 @@ void settingsApi
       localStorage.setItem('appName', settings.app_name)
     }
 
+    if (settings.app_subtitle) {
+      localStorage.setItem('appSubtitle', settings.app_subtitle)
+    }
+
     if (settings.app_logo) {
       localStorage.setItem('appLogo', settings.app_logo)
     }

@@ -16,13 +16,24 @@ import {
   Heart,
   CalendarDays,
   RefreshCw,
+  Volume2,
+  Monitor,
 } from 'lucide-react';
+import { queueSharedAnnouncement } from '@/lib/shared-queue-announcer';
+import { spellQueueNumberForSpeech } from '@/components/queue-display/display-media-panel';
 import { format, isToday, isYesterday } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
 interface BillableRegistration {
   id: number;
+  ID?: number;
   registration_number: string;
+  queue_number?: string;
+  queue?: {
+    id: number;
+    queue_number: string;
+  };
+  cashier_called_at?: string;
   registration_type: string;
   status: string;
   payment_method: string;
@@ -76,6 +87,7 @@ export default function BillingIndex() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<BillableRegistration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [callingRegId, setCallingRegId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<TabFilter>(() => normalizeBillingTab(searchParams.get('statusView')));
 
   useEffect(() => {
@@ -114,6 +126,43 @@ export default function BillingIndex() {
     setPageTitle('Kasir');
     loadData();
   }, [loadData]);
+
+  const handleCallCashier = useCallback(async (registration: BillableRegistration) => {
+    const regId = registration.id || registration.ID;
+    if (!regId) return;
+    setCallingRegId(regId);
+    try {
+      const response = await billingApi.callCashier(regId);
+      const queueNumber =
+        response.data?.queue_number ||
+        registration.queue_number ||
+        registration.queue?.queue_number ||
+        registration.registration_number;
+      const calledAt = response.data?.called_at || new Date().toISOString();
+
+      if (queueNumber) {
+        queueSharedAnnouncement({
+          id: `cashier-${regId}-${calledAt}`,
+          kind: 'counter',
+          speechText: `Nomor antrean ${spellQueueNumberForSpeech(queueNumber)}. Silakan menuju Kasir.`,
+        });
+      }
+
+      toast({
+        title: registration.cashier_called_at ? 'Antrian Kasir Dipanggil Ulang' : 'Antrian Kasir Dipanggil',
+        description: `Nomor antrean ${queueNumber} - ${registration.patient?.nama_lengkap || '-'}`,
+      });
+      loadData();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error?.response?.data?.error || 'Gagal memanggil antrean kasir',
+      });
+    } finally {
+      setCallingRegId(null);
+    }
+  }, [loadData, toast]);
 
   const formatCurrency = (amount?: number) => {
     if (!amount && amount !== 0) return '-';
@@ -240,8 +289,25 @@ export default function BillingIndex() {
 
   const billingColumns: ColumnDef<BillableRegistration>[] = [
     {
+      id: 'queue_number',
+      accessorFn: (registration) => registration.queue_number || registration.queue?.queue_number || '',
+      header: 'Antrian',
+      cell: ({ row }) => {
+        const queueNum = row.original.queue_number || row.original.queue?.queue_number;
+        if (!queueNum) {
+          return <span className="text-xs font-mono text-muted-foreground">-</span>;
+        }
+        return (
+          <Badge variant="outline" className="rounded-none font-mono text-sm font-bold px-2.5 py-0.5 border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            {queueNum}
+          </Badge>
+        );
+      },
+    },
+    {
       id: 'patient',
       accessorFn: (registration) => [
+        registration.queue_number || registration.queue?.queue_number,
         registration.patient?.nama_lengkap,
         registration.patient?.no_rm,
         registration.registration_number,
@@ -350,17 +416,39 @@ export default function BillingIndex() {
       header: 'Aksi',
       cell: ({ row }) => {
         const registration = row.original;
+        const regId = registration.id || registration.ID;
         const detailPath = registration.main_visit_id ? `/billing/${registration.main_visit_id}` : null;
-
-        if (!detailPath) {
-          return <span className="text-xs text-muted-foreground">Tidak tersedia</span>;
-        }
+        const canCall = registration.billing_status !== 'paid' && registration.billing_status !== 'cancelled' && Boolean(regId);
+        const isCalling = Boolean(regId && callingRegId === regId);
 
         return (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => navigate(detailPath)}>
-            Buka
-            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {canCall && (
+              <Button
+                variant={registration.cashier_called_at ? 'outline' : 'default'}
+                size="sm"
+                className="h-8 rounded-none text-xs"
+                onClick={() => handleCallCashier(registration)}
+                disabled={isCalling}
+                title={registration.cashier_called_at ? 'Panggil ulang ke Kasir' : 'Panggil pasien ke Kasir'}
+              >
+                {isCalling ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Volume2 className="mr-1 h-3.5 w-3.5" />
+                )}
+                {registration.cashier_called_at ? 'Ulang' : 'Panggil'}
+              </Button>
+            )}
+            {detailPath ? (
+              <Button variant="ghost" size="sm" className="h-8 rounded-none text-xs" onClick={() => navigate(detailPath)}>
+                Buka
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Tidak tersedia</span>
+            )}
+          </div>
         );
       },
     },
@@ -370,12 +458,23 @@ export default function BillingIndex() {
     <PageShell>
       <PageHeader
         title="Kasir"
-        description="Kelola tagihan dan pembayaran pasien"
+        description="Kelola tagihan, panggilan antrean, dan pembayaran pasien"
         count={filtered.length}
         actions={
-          <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={loadData}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-none text-xs"
+              onClick={() => window.open('/queue-display/cashier', '_blank')}
+            >
+              <Monitor className="mr-1.5 h-3.5 w-3.5" />
+              Display Kasir
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={loadData}>
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         }
       />
 
@@ -403,7 +502,7 @@ export default function BillingIndex() {
           <DataTable
             columns={billingColumns}
             data={filtered}
-            searchPlaceholder="Cari pasien, No. RM, no. registrasi, atau no. billing..."
+            searchPlaceholder="Cari antrian, pasien, No. RM, no. registrasi, atau no. billing..."
             hideRowCount
           />
         )}

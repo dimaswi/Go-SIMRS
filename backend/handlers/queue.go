@@ -240,7 +240,7 @@ func CallNextQueue(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	userIDUint := userID.(uint)
 
 	queue.Status = "called"
@@ -284,7 +284,7 @@ func CallQueue(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	userIDUint := userID.(uint)
 
 	// Set status to called and update timestamps

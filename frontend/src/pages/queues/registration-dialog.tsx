@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,18 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
-import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { masterDataApi, regionsApi, patientsApi, roomsApi, registrationApi, api } from "@/lib/api";
 import { roomClinicalPackagesApi, type RoomClinicalPackage } from "@/lib/api/clinical-packages";
 import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
-import type { PatientRequest, MasterData, Province, Regency, District, Village, Patient, Room, RoomStaff, Registration } from "@/lib/api";
+import type { PatientRequest, MasterData, Province, Regency, Patient, Room, RoomStaff, Registration } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, User, MapPin, Search, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, UserPlus, User, Search, FileText, CheckCircle2, AlertTriangle, ArrowLeft, X } from "lucide-react";
 import { formatPatientName } from "@/lib/print-utils";
 import {
   Table,
@@ -35,15 +31,103 @@ import {
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { ClinicalPackageSelector } from "@/components/registration/clinical-package-selector";
 import { OrderRoomSelection } from "@/components/registration/order-room-selection";
+import { PatientCreateFormFields } from "@/components/patient/patient-create-form-fields";
 import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 
 const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
+
+interface ParsedKioskNotes {
+  layanan?: string;
+  ruangan?: string;
+  dokter?: string;
+  dokterName?: string;
+  nik?: string;
+  pasien?: string;
+  status?: string;
+  raw?: string;
+}
+
+function parseKioskNotes(notes?: string): ParsedKioskNotes {
+  if (!notes) return {};
+  const result: ParsedKioskNotes = { raw: notes };
+  for (const part of notes.split("|")) {
+    const trimmed = part.trim();
+    const colonIdx = trimmed.indexOf(":");
+    if (colonIdx === -1) continue;
+    const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+    const val = trimmed.slice(colonIdx + 1).trim();
+    if (!val) continue;
+    if (key === "layanan") result.layanan = val;
+    else if (key === "ruangan") result.ruangan = val;
+    else if (key === "dokter") {
+      result.dokter = val;
+      result.dokterName = val.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    } else if (key === "nik") result.nik = val;
+    else if (key === "pasien") result.pasien = val;
+    else if (key === "status") result.status = val;
+  }
+  return result;
+}
+
+function FlatPanel({
+  title,
+  eyebrow,
+  actions,
+  className,
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  actions?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`space-y-4 ${className || ""}`.trim()}>
+      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {eyebrow && (
+              <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
+                {eyebrow}
+              </div>
+            )}
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">{title}</h2>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="space-y-1 border-l border-border/70 pl-3 first:border-l-0 first:pl-0">
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className={mono ? "font-mono text-sm font-medium text-foreground" : "text-sm font-medium text-foreground"}>
+        {value}
+      </div>
+    </div>
+  );
+}
 
 interface RegistrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   queueId: number;
   queueNumber: string;
+  queueNotes?: string;
+  queueType?: "general" | "bpjs" | "emergency";
   onSuccess: () => void;
 }
 
@@ -59,6 +143,8 @@ export function RegistrationDialog({
   onOpenChange,
   queueId,
   queueNumber,
+  queueNotes,
+  queueType,
   onSuccess,
 }: RegistrationDialogProps) {
   const { toast } = useToast();
@@ -119,6 +205,10 @@ export function RegistrationDialog({
   }[]>([]);
   const [loadingRoomItems, setLoadingRoomItems] = useState(false);
   const [scheduledFollowUps, setScheduledFollowUps] = useState<Registration[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
+  const kioskPrefillAppliedRef = useRef(false);
+  const kioskDoctorAppliedRef = useRef(false);
+  const parsedKiosk = useMemo(() => parseKioskNotes(queueNotes), [queueNotes]);
   const doctorRequired = !["farmasi", "penunjang_medis"].includes(selectedServiceType);
   const destinationRoom = rooms.find((room) => room.id === destinationRoomId);
 
@@ -134,26 +224,30 @@ export function RegistrationDialog({
 
   // Region data state
   const [provinces, setProvinces] = useState<Province[]>([]);
-  const [regenciesKTP, setRegenciesKTP] = useState<Regency[]>([]);
-  const [districtsKTP, setDistrictsKTP] = useState<District[]>([]);
-  const [villagesKTP, setVillagesKTP] = useState<Village[]>([]);
-  const [regenciesDomisili, setRegenciesDomisili] = useState<Regency[]>([]);
-  const [districtsDomisili, setDistrictsDomisili] = useState<District[]>([]);
-  const [villagesDomisili, setVillagesDomisili] = useState<Village[]>([]);
+  const [regencies, setRegencies] = useState<Regency[]>([]);
 
   useEffect(() => {
     if (open) {
+      const prefillNik = parsedKiosk.nik || "";
+
+      kioskPrefillAppliedRef.current = false;
+      kioskDoctorAppliedRef.current = false;
+      setHasSearched(false);
       setStep("search");
       setExistingPatient(null);
-      setSearchQuery("");
+      setSearchQuery(prefillNik);
       setSearchAddress("");
       setSearchBirthDate("");
       setSearchResults([]);
-      setFormData(initialFormData);
+      setFormData({
+        ...initialFormData,
+        nik: prefillNik || undefined,
+        jenis_jaminan: queueType === "bpjs" ? "BPJS" : "Umum",
+      });
       setSameAddress(false);
       setDestinationRoomId(null);
       setDoctorId(null);
-      setPaymentMethod("cash");
+      setPaymentMethod(queueType === "bpjs" ? "bpjs" : "cash");
       setBpjsNumber("");
       setInsuranceName("");
       setInsuranceNumber("");
@@ -173,8 +267,32 @@ export function RegistrationDialog({
       setSepSheetOpen(false);
       setSepNumber("");
       setSepData(null);
+
+      if (prefillNik) {
+        setSearchLoading(true);
+        patientsApi
+          .search(prefillNik, 10)
+          .then((response) => {
+            const raw = response.data?.data || response.data || [];
+            const data = Array.isArray(raw) ? raw : [];
+            setSearchResults(data);
+            if (data.length === 1) {
+              setExistingPatient(data[0]);
+            } else if (data.length === 0) {
+              setStep("form");
+              loadReferenceData();
+            }
+          })
+          .catch(() => {
+            setSearchResults([]);
+          })
+          .finally(() => {
+            setSearchLoading(false);
+            setHasSearched(true);
+          });
+      }
     }
-  }, [open]);
+  }, [open, parsedKiosk.nik, queueType]);
 
   const formatScheduledDate = (date?: string) => {
     if (!date) return "-";
@@ -224,6 +342,7 @@ export function RegistrationDialog({
       );
       const data = response.data?.data || response.data || [];
       setSearchResults(Array.isArray(data) ? data : []);
+      setHasSearched(true);
       
       if (Array.isArray(data) && data.length === 0) {
         toast({
@@ -251,7 +370,7 @@ export function RegistrationDialog({
   const loadReferenceData = async () => {
     setLoadingMaster(true);
     try {
-      const [masterDataRes, provincesRes, roomsRes] = await Promise.all([
+      const [masterDataRes, provincesRes, allRegenciesRes, roomsRes] = await Promise.all([
         masterDataApi.getMultiple([
           "gender",
           "religion",
@@ -266,11 +385,13 @@ export function RegistrationDialog({
           "bpjs_class",
         ]),
         regionsApi.getProvinces(),
+        regionsApi.getAllRegencies(),
         roomsApi.getAll({ limit: 1000, is_active: "true" }),
       ]);
 
       setMasterData(masterDataRes.data.data || {});
       setProvinces(provincesRes.data.data || []);
+      setRegencies(allRegenciesRes.data.data || []);
       // Show all active rooms excluding depo and gudang
       const allRooms = roomsRes.data.data || [];
       
@@ -566,14 +687,18 @@ export function RegistrationDialog({
     };
   }, [selectedMedicineIds]);
 
-  const handleUseExistingPatient = async () => {
-    if (!existingPatient) return;
+  const handleUseExistingPatient = async (patientOverride?: Patient) => {
+    const targetPatient = patientOverride || existingPatient;
+    if (!targetPatient) return;
+    if (patientOverride) {
+      setExistingPatient(patientOverride);
+    }
     
     // Check if patient has active registrations
     setLoading(true);
     try {
       const response = await registrationApi.getAll({
-        patient_id: existingPatient.id,
+        patient_id: targetPatient.id,
         limit: 20,
       });
       
@@ -615,6 +740,65 @@ export function RegistrationDialog({
     }
   };
 
+  // Auto-preselect room & doctor from Kiosk queueNotes when entering registration step
+  useEffect(() => {
+    if (!open || step !== "registration" || kioskPrefillAppliedRef.current || rooms.length === 0) {
+      return;
+    }
+
+    kioskPrefillAppliedRef.current = true;
+    if (parsedKiosk.ruangan) {
+      const targetRoom = parsedKiosk.ruangan.trim().toLowerCase();
+      const matchedRoom = rooms.find(
+        (room) => room.name.trim().toLowerCase() === targetRoom
+      );
+      if (matchedRoom) {
+        setSelectedServiceType(matchedRoom.service_type);
+        handleRoomChange(matchedRoom.id.toString());
+        return;
+      }
+    }
+
+    if (parsedKiosk.layanan) {
+      const serviceLower = parsedKiosk.layanan.toLowerCase();
+      if (serviceLower.includes("poli") || serviceLower.includes("rawat jalan")) {
+        setSelectedServiceType("rawat_jalan");
+      } else if (
+        serviceLower.includes("lab") ||
+        serviceLower.includes("radiologi") ||
+        serviceLower.includes("penunjang")
+      ) {
+        setSelectedServiceType("penunjang_medis");
+      }
+    }
+  }, [open, step, rooms, parsedKiosk]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      step !== "registration" ||
+      kioskDoctorAppliedRef.current ||
+      roomStaff.length === 0 ||
+      !parsedKiosk.dokterName
+    ) {
+      return;
+    }
+
+    const targetDoc = parsedKiosk.dokterName.trim().toLowerCase();
+    const matchedStaff = roomStaff.find((staff) => {
+      const fullName = (staff.employee?.nama_lengkap || "").trim().toLowerCase();
+      return (
+        fullName === targetDoc ||
+        (fullName.length > 0 && (fullName.includes(targetDoc) || targetDoc.includes(fullName)))
+      );
+    });
+
+    if (matchedStaff) {
+      kioskDoctorAppliedRef.current = true;
+      setDoctorId(matchedStaff.employee_id);
+    }
+  }, [open, step, roomStaff, parsedKiosk]);
+
   // Auto-load BPJS data when payment method is BPJS and patient has BPJS number
   useEffect(() => {
     if (paymentMethod === "bpjs" && existingPatient) {
@@ -653,125 +837,6 @@ export function RegistrationDialog({
       value: item.name,
       label: item.name,
     }));
-  };
-
-  // Convert regions to combobox options
-  const toRegionOptions = (data: { id: string; name: string }[] | undefined) => {
-    if (!data) return [];
-    return data.map((item) => ({
-      value: item.name,
-      label: item.name,
-    }));
-  };
-
-  // Handle province change for KTP
-  const handleProvinceKTPChange = async (value: string) => {
-    setFormData({ ...formData, provinsi_ktp: value, kota_ktp: "", kecamatan_ktp: "", kelurahan_ktp: "" });
-    setDistrictsKTP([]);
-    setVillagesKTP([]);
-    const province = provinces.find((p) => p.name === value);
-    if (province) {
-      try {
-        const res = await regionsApi.getRegencies(province.id);
-        setRegenciesKTP(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load regencies:", error);
-      }
-    }
-  };
-
-  // Handle regency change for KTP
-  const handleRegencyKTPChange = async (value: string) => {
-    setFormData({ ...formData, kota_ktp: value, kecamatan_ktp: "", kelurahan_ktp: "" });
-    setVillagesKTP([]);
-    const regency = regenciesKTP.find((r) => r.name === value);
-    if (regency) {
-      try {
-        const res = await regionsApi.getDistricts(regency.id);
-        setDistrictsKTP(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load districts:", error);
-      }
-    }
-  };
-
-  // Handle district change for KTP
-  const handleDistrictKTPChange = async (value: string) => {
-    setFormData({ ...formData, kecamatan_ktp: value, kelurahan_ktp: "" });
-    const district = districtsKTP.find((d) => d.name === value);
-    if (district) {
-      try {
-        const res = await regionsApi.getVillages(district.id);
-        setVillagesKTP(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load villages:", error);
-      }
-    }
-  };
-
-  // Handle province change for Domisili
-  const handleProvinceDomisiliChange = async (value: string) => {
-    setFormData({ ...formData, provinsi_domisili: value, kota_domisili: "", kecamatan_domisili: "", kelurahan_domisili: "" });
-    setDistrictsDomisili([]);
-    setVillagesDomisili([]);
-    const province = provinces.find((p) => p.name === value);
-    if (province) {
-      try {
-        const res = await regionsApi.getRegencies(province.id);
-        setRegenciesDomisili(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load regencies:", error);
-      }
-    }
-  };
-
-  // Handle regency change for Domisili
-  const handleRegencyDomisiliChange = async (value: string) => {
-    setFormData({ ...formData, kota_domisili: value, kecamatan_domisili: "", kelurahan_domisili: "" });
-    setVillagesDomisili([]);
-    const regency = regenciesDomisili.find((r) => r.name === value);
-    if (regency) {
-      try {
-        const res = await regionsApi.getDistricts(regency.id);
-        setDistrictsDomisili(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load districts:", error);
-      }
-    }
-  };
-
-  // Handle district change for Domisili
-  const handleDistrictDomisiliChange = async (value: string) => {
-    setFormData({ ...formData, kecamatan_domisili: value, kelurahan_domisili: "" });
-    const district = districtsDomisili.find((d) => d.name === value);
-    if (district) {
-      try {
-        const res = await regionsApi.getVillages(district.id);
-        setVillagesDomisili(res.data.data || []);
-      } catch (error) {
-        console.error("Failed to load villages:", error);
-      }
-    }
-  };
-
-  // Handle same address checkbox
-  const handleSameAddressChange = (checked: boolean) => {
-    setSameAddress(checked);
-    if (checked) {
-      setFormData({
-        ...formData,
-        alamat_domisili: formData.alamat_ktp,
-        rt_domisili: formData.rt_ktp,
-        rw_domisili: formData.rw_ktp,
-        kode_pos_domisili: formData.kode_pos_ktp,
-        provinsi_domisili: formData.provinsi_ktp,
-        kota_domisili: formData.kota_ktp,
-        kecamatan_domisili: formData.kecamatan_ktp,
-        kelurahan_domisili: formData.kelurahan_ktp,
-      });
-      // Load regions for domisili based on KTP
-      if (formData.provinsi_ktp) handleProvinceDomisiliChange(formData.provinsi_ktp);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -870,7 +935,8 @@ export function RegistrationDialog({
       };
 
       const registrationType = registrationTypeMap[selectedServiceType] || "outpatient";
-      const shouldCreateRoomQueue = selectedServiceType !== "rawat_inap";
+      const shouldCreateRoomQueue =
+        selectedServiceType !== "gawat_darurat" && selectedServiceType !== "rawat_inap";
 
       // Prepare registration data
       const registrationData: any = {
@@ -1047,809 +1113,823 @@ export function RegistrationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] flex flex-col p-6 m-0 rounded-none">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Pendaftaran Pasien - Antrean {queueNumber}</DialogTitle>
-          <DialogDescription>
-            {step === "search" 
-              ? "Cari nomor rekam medis pasien atau daftarkan pasien baru"
-              : step === "registration"
-              ? "Lengkapi data pendaftaran"
-              : "Lengkapi data pasien baru"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2">{/* Scrollable content */}
-
-        {step === "search" && (
-          <div className="space-y-4 flex flex-col h-full">
-            {/* Search Bar */}
-            <div className="space-y-2 flex-shrink-0">
-              <Label>Cari Pasien</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Cari Nama, NIK, No. RM, BPJS..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch();
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Input
-                  placeholder="Filter Alamat..."
-                  value={searchAddress}
-                  onChange={(e) => setSearchAddress(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch();
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Input
-                  type="date"
-                  placeholder="Tanggal Lahir..."
-                  value={searchBirthDate}
-                  onChange={(e) => setSearchBirthDate(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch();
-                    }
-                  }}
-                  className="w-[180px]"
-                />
-                {(searchAddress || searchBirthDate) && (
-                  <Button 
-                    variant="outline"
-                    onClick={() => {
-                      setSearchAddress("");
-                      setSearchBirthDate("");
-                    }}
-                  >
-                    Reset
-                  </Button>
-                )}
-                <Button onClick={handleSearch} disabled={searchLoading}>
-                  {searchLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">Cari</span>
-                </Button>
+      <DialogContent
+        hideClose
+        className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] flex flex-col p-0 m-0 gap-0 border-0 rounded-none sm:rounded-none bg-white dark:bg-neutral-950"
+      >
+        {/* Top Admin Header Bar */}
+        <div className="shrink-0 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+          <div className="px-5 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              {step !== "search" && (
+                <button
+                  type="button"
+                  onClick={() => setStep("search")}
+                  className="h-8 w-8 p-0 rounded-none border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 flex items-center justify-center shrink-0 transition-colors"
+                  title="Kembali ke Pencarian"
+                >
+                  <ArrowLeft className="size-4" />
+                </button>
+              )}
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center font-bold text-sm shrink-0">
+                <UserPlus className="size-4" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Ketik minimal 2 karakter pada pencarian, gunakan filter alamat dan tanggal lahir untuk hasil lebih spesifik
-              </p>
-            </div>
-
-            {/* Table Results */}
-            <div className="flex-1 border rounded-lg overflow-hidden">
-              {searchLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : searchResults.length > 0 ? (
-                <div className="overflow-auto max-h-[calc(100vh-300px)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[50px]">Pilih</TableHead>
-                        <TableHead>No. RM</TableHead>
-                        <TableHead>Nama Lengkap</TableHead>
-                        <TableHead>NIK</TableHead>
-                        <TableHead>No. BPJS</TableHead>
-                        <TableHead>Jenis Kelamin</TableHead>
-                        <TableHead>Tanggal Lahir</TableHead>
-                        <TableHead>Alamat</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {searchResults.map((patient) => (
-                        <TableRow
-                          key={patient.id}
-                          className={existingPatient?.id === patient.id ? "bg-primary/10" : "cursor-pointer hover:bg-muted/50"}
-                          onClick={() => handleSelectPatient(patient)}
-                        >
-                          <TableCell className="text-center">
-                            <input
-                              type="radio"
-                              name="patient-select"
-                              checked={existingPatient?.id === patient.id}
-                              onChange={() => handleSelectPatient(patient)}
-                              className="cursor-pointer"
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">{patient.no_rm}</TableCell>
-                          <TableCell className="font-medium">{patient.nama_lengkap}</TableCell>
-                          <TableCell>{patient.nik || "-"}</TableCell>
-                          <TableCell>{patient.no_bpjs || "-"}</TableCell>
-                          <TableCell>{patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
-                          <TableCell>{patient.tanggal_lahir || "-"}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">
-                            {patient.alamat_domisili || patient.alamat_ktp || "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                  <User className="h-12 w-12 mb-2" />
-                  <p>Gunakan pencarian untuk menemukan pasien</p>
-                  <p className="text-sm">atau klik tombol "Pasien Baru" di bawah</p>
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-2 flex-shrink-0 pt-2 border-t">
-              <Button onClick={handleNewPatient} variant="outline">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Pasien Baru
-              </Button>
-              {existingPatient && (
-                <Button onClick={handleUseExistingPatient} disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <UserPlus className="mr-2 h-4 w-4" />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <DialogTitle className="text-sm font-bold uppercase tracking-tight text-neutral-900 dark:text-white">
+                    Pendaftaran Pasien
+                  </DialogTitle>
+                  <Badge variant="outline" className="rounded-none font-mono text-[11px]">
+                    Antrean {queueNumber}
+                  </Badge>
+                  {queueType === "bpjs" && (
+                    <Badge variant="secondary" className="rounded-none font-mono text-[11px] bg-blue-50 text-blue-700 border border-blue-200">
+                      BPJS
+                    </Badge>
                   )}
-                  Gunakan Pasien: {existingPatient.nama_lengkap}
-                </Button>
-              )}
+                </div>
+                <DialogDescription className="text-xs text-neutral-500 font-mono mt-0.5 truncate">
+                  {step === "search"
+                    ? "Cari pasien berdasarkan Nama, NIK, No. RM, atau daftarkan sebagai pasien baru."
+                    : step === "form"
+                    ? "Lengkapi data master pasien baru sebelum melanjutkan ke tujuan kunjungan."
+                    : "Susun tujuan layanan, ruangan, dokter, penjamin, dan order pendukung."}
+                </DialogDescription>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Step Breadcrumb Pills */}
+              <div className="hidden md:flex items-center border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-[11px] font-mono">
+                <span
+                  className={`px-2.5 py-1 uppercase tracking-wider ${
+                    step === "search"
+                      ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  1. Cari Pasien
+                </span>
+                <span
+                  className={`px-2.5 py-1 border-l border-neutral-200 dark:border-neutral-800 uppercase tracking-wider ${
+                    step === "form"
+                      ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  2. Pasien Baru
+                </span>
+                <span
+                  className={`px-2.5 py-1 border-l border-neutral-200 dark:border-neutral-800 uppercase tracking-wider ${
+                    step === "registration"
+                      ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  3. Pendaftaran
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                className="h-8 w-8 rounded-none"
+                title="Tutup"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-        )}
 
-        {step === "form" && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {loadingMaster && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          {queueNotes && (
+            <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/40 px-5 py-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+              <span className="inline-flex items-center border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-blue-800">
+                Data Kiosk
+              </span>
+              {parsedKiosk.layanan || parsedKiosk.ruangan || parsedKiosk.nik || parsedKiosk.dokter || parsedKiosk.status || parsedKiosk.pasien ? (
+                <>
+                  {parsedKiosk.layanan && (
+                    <span className="text-muted-foreground">
+                      Layanan: <strong className="font-semibold text-foreground">{parsedKiosk.layanan}</strong>
+                    </span>
+                  )}
+                  {parsedKiosk.ruangan && (
+                    <span className="text-muted-foreground">
+                      Ruangan: <strong className="font-semibold text-foreground">{parsedKiosk.ruangan}</strong>
+                    </span>
+                  )}
+                  {parsedKiosk.dokter && (
+                    <span className="text-muted-foreground">
+                      Dokter: <strong className="font-semibold text-foreground">{parsedKiosk.dokter}</strong>
+                    </span>
+                  )}
+                  {parsedKiosk.nik && (
+                    <span className="text-muted-foreground">
+                      NIK: <strong className="font-mono font-semibold text-foreground">{parsedKiosk.nik}</strong>
+                    </span>
+                  )}
+                  {parsedKiosk.pasien && (
+                    <span className="text-muted-foreground">
+                      Pasien: <strong className="font-semibold text-foreground">{parsedKiosk.pasien}</strong>
+                    </span>
+                  )}
+                  {parsedKiosk.status && (
+                    <Badge variant="outline" className="rounded-none border-amber-300 bg-amber-50 text-amber-800 font-mono text-[10px]">
+                      {parsedKiosk.status}
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <span className="font-medium text-foreground">{queueNotes}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Main Scrollable Content Area */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50/40 dark:bg-neutral-950 p-4 sm:p-5">
+          <div className="w-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-4 sm:p-5">
+            {step === "search" && (
+              <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+                {/* Left Column: Quick Search + Selected Patient Review */}
+                <div className="space-y-6">
+                  <FlatPanel
+                    title="Pencarian Cepat"
+                    eyebrow="Intake"
+                    actions={
+                      <Badge variant="outline" className="rounded-none font-mono">
+                        {searchResults.length} hasil
+                      </Badge>
+                    }
+                  >
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="queue-search-query">Identitas Pasien</Label>
+                        <Input
+                          id="queue-search-query"
+                          placeholder="Nama, NIK, No. RM, atau BPJS"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSearch();
+                          }}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="queue-search-address">Filter Alamat</Label>
+                          <Input
+                            id="queue-search-address"
+                            placeholder="Kecamatan, desa, jalan"
+                            value={searchAddress}
+                            onChange={(e) => setSearchAddress(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSearch();
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="queue-search-dob">Tanggal Lahir</Label>
+                          <Input
+                            id="queue-search-dob"
+                            type="date"
+                            value={searchBirthDate}
+                            onChange={(e) => setSearchBirthDate(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSearch();
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button onClick={handleSearch} disabled={searchLoading} className="min-w-[130px] rounded-none">
+                          {searchLoading ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="mr-2 h-4 w-4" />
+                          )}
+                          Cari Pasien
+                        </Button>
+                        {(searchAddress || searchBirthDate || searchResults.length > 0 || existingPatient) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none"
+                            onClick={() => {
+                              setSearchAddress("");
+                              setSearchBirthDate("");
+                              setSearchResults([]);
+                              setExistingPatient(null);
+                              setHasSearched(false);
+                            }}
+                          >
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </FlatPanel>
+
+                  <FlatPanel title="Pasien Terpilih" eyebrow="Review">
+                    {existingPatient ? (
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <div className="text-sm font-semibold text-foreground">
+                            {formatPatientName(
+                              existingPatient.nama_lengkap,
+                              existingPatient.jenis_kelamin,
+                              existingPatient.status_perkawinan,
+                              existingPatient.tanggal_lahir
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <span className="font-mono font-semibold text-foreground">RM {existingPatient.no_rm}</span>
+                            <span>{existingPatient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</span>
+                            <span>{existingPatient.tanggal_lahir || "Tanggal lahir belum ada"}</span>
+                          </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 border-y border-neutral-200 dark:border-neutral-800 py-3">
+                          <SummaryItem label="NIK" value={existingPatient.nik || "-"} mono />
+                          <SummaryItem label="No. BPJS" value={existingPatient.no_bpjs || "-"} mono />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {existingPatient.alamat_domisili || existingPatient.alamat_ktp || "Alamat belum terisi"}
+                        </div>
+                      </div>
+                    ) : hasSearched && searchResults.length === 0 ? (
+                      <div className="space-y-1.5 border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+                        <p className="font-semibold">
+                          {parsedKiosk.nik
+                            ? `NIK ${parsedKiosk.nik} belum terdaftar di Rekam Medis.`
+                            : "Data pasien tidak ditemukan dengan kata kunci tersebut."}
+                        </p>
+                        <p className="text-amber-800">
+                          Klik tombol <strong>Pasien Baru</strong> di kanan bawah untuk membuat rekam medis baru.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 text-sm text-muted-foreground">
+                        <p>Pilih satu pasien dari tabel hasil pencarian di sebelah kanan.</p>
+                        <p className="text-xs">Double click pada baris pasien juga bisa langsung masuk ke tahap pendaftaran.</p>
+                      </div>
+                    )}
+                  </FlatPanel>
+                </div>
+
+                {/* Right Column: Search Results Table */}
+                <FlatPanel
+                  title="Hasil Pencarian"
+                  eyebrow="Registry"
+                  actions={
+                    <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+                      <span>Click untuk pilih</span>
+                      <span>•</span>
+                      <span>Double click untuk lanjut</span>
+                    </div>
+                  }
+                >
+                  {searchLoading ? (
+                    <div className="flex h-80 items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <div className="overflow-auto rounded-md border border-border shadow-sm max-h-[calc(100vh-300px)]">
+                      <Table
+                        containerClassName="border-none rounded-none shadow-none"
+                        className="border-collapse [&_th]:border-r-0 [&_td]:border-r-0 [&_tr+tr_td]:border-t-0 [&_tr]:border-b [&_tr:last-child]:border-b-0"
+                      >
+                        <TableHeader className="bg-muted/50">
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="w-[52px] text-center">Pilih</TableHead>
+                            <TableHead className="whitespace-nowrap">No. RM</TableHead>
+                            <TableHead className="whitespace-nowrap">Nama Lengkap</TableHead>
+                            <TableHead className="whitespace-nowrap">NIK</TableHead>
+                            <TableHead className="whitespace-nowrap">No. BPJS</TableHead>
+                            <TableHead className="whitespace-nowrap">Jenis Kelamin</TableHead>
+                            <TableHead className="whitespace-nowrap">Tanggal Lahir</TableHead>
+                            <TableHead className="whitespace-nowrap">Alamat</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {searchResults.map((patient) => (
+                            <TableRow
+                              key={patient.id}
+                              className={existingPatient?.id === patient.id ? "bg-muted/60" : "cursor-pointer hover:bg-muted/40"}
+                              onClick={() => handleSelectPatient(patient)}
+                              onDoubleClick={() => handleUseExistingPatient(patient)}
+                            >
+                              <TableCell className="text-center">
+                                <input
+                                  type="radio"
+                                  name="patient-select"
+                                  checked={existingPatient?.id === patient.id}
+                                  onChange={() => handleSelectPatient(patient)}
+                                  className="cursor-pointer"
+                                />
+                              </TableCell>
+                              <TableCell className="font-mono text-xs font-semibold">{patient.no_rm}</TableCell>
+                              <TableCell className="font-medium">
+                                {formatPatientName(
+                                  patient.nama_lengkap,
+                                  patient.jenis_kelamin,
+                                  patient.status_perkawinan,
+                                  patient.tanggal_lahir
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{patient.nik || "-"}</TableCell>
+                              <TableCell className="font-mono text-xs">{patient.no_bpjs || "-"}</TableCell>
+                              <TableCell>{patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
+                              <TableCell className="text-xs">{patient.tanggal_lahir || "-"}</TableCell>
+                              <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                                {patient.alamat_domisili || patient.alamat_ktp || "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 border border-dashed border-neutral-200 dark:border-neutral-800 px-6 text-center text-muted-foreground">
+                      <User className="h-10 w-10 text-neutral-400" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {hasSearched ? "Tidak ada data pasien yang cocok" : "Belum ada hasil pencarian"}
+                        </p>
+                        <p className="max-w-md text-xs">
+                          {hasSearched
+                            ? parsedKiosk.nik
+                              ? `NIK ${parsedKiosk.nik} dari Kiosk tidak ditemukan di database pasien. Coba cari dengan nama atau gunakan tombol Pasien Baru di kanan bawah.`
+                              : "Coba ubah kata kunci, filter alamat, atau gunakan tombol Pasien Baru di kanan bawah."
+                            : "Masukkan Nama, NIK, No. RM, atau No. BPJS di panel Pencarian Cepat untuk menemukan data pasien."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </FlatPanel>
               </div>
             )}
 
-            {!loadingMaster && (
-              <Tabs defaultValue="identitas" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="identitas">Identitas</TabsTrigger>
-                  <TabsTrigger value="alamat">Alamat</TabsTrigger>
-                  <TabsTrigger value="kontak">Kontak</TabsTrigger>
-                  <TabsTrigger value="jaminan">Jaminan</TabsTrigger>
-                </TabsList>
+        {step === "form" && (
+          <form id="queue-new-patient-form" onSubmit={handleSubmit} className="space-y-5">
+            <FlatPanel
+              title="Registrasi Master Pasien Baru"
+              eyebrow="Pasien Baru"
+              actions={
+                parsedKiosk.nik ? (
+                  <Badge variant="outline" className="rounded-none font-mono text-[11px]">
+                    Pre-fill NIK: {parsedKiosk.nik}
+                  </Badge>
+                ) : undefined
+              }
+            >
+              {loadingMaster && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
 
-                {/* Tab Identitas */}
-                <TabsContent value="identitas" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="nama_lengkap">Nama Lengkap *</Label>
-                      <Input
-                        id="nama_lengkap"
-                        value={formData.nama_lengkap}
-                        onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nik">NIK</Label>
-                      <Input
-                        id="nik"
-                        value={formData.nik || ""}
-                        onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="jenis_kelamin">Jenis Kelamin *</Label>
-                      <Combobox
-                        options={toOptions(masterData.gender)}
-                        value={formData.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}
-                        onValueChange={(value) => setFormData({ ...formData, jenis_kelamin: value === "Laki-laki" ? "L" : "P" })}
-                        placeholder="Pilih jenis kelamin"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tanggal_lahir">Tanggal Lahir</Label>
-                      <DatePickerDropdown
-                        value={formData.tanggal_lahir}
-                        onChange={(value) => setFormData({ ...formData, tanggal_lahir: value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="agama">Agama</Label>
-                      <Combobox
-                        options={toOptions(masterData.religion)}
-                        value={formData.agama || ""}
-                        onValueChange={(value) => setFormData({ ...formData, agama: value })}
-                        placeholder="Pilih agama"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="status_perkawinan">Status Kawin</Label>
-                      <Combobox
-                        options={toOptions(masterData.marital_status)}
-                        value={formData.status_perkawinan || ""}
-                        onValueChange={(value) => setFormData({ ...formData, status_perkawinan: value })}
-                        placeholder="Pilih status kawin"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pendidikan_terakhir">Pendidikan</Label>
-                      <Combobox
-                        options={toOptions(masterData.education_level)}
-                        value={formData.pendidikan_terakhir || ""}
-                        onValueChange={(value) => setFormData({ ...formData, pendidikan_terakhir: value })}
-                        placeholder="Pilih pendidikan"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pekerjaan">Pekerjaan</Label>
-                      <Combobox
-                        options={toOptions(masterData.occupation)}
-                        value={formData.pekerjaan || ""}
-                        onValueChange={(value) => setFormData({ ...formData, pekerjaan: value })}
-                        placeholder="Pilih pekerjaan"
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* Tab Alamat */}
-                <TabsContent value="alamat" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-6">
-                    {/* Alamat KTP */}
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-sm flex items-center gap-2 pb-2 border-b">
-                        <MapPin className="h-4 w-4" />
-                        Alamat KTP
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="col-span-2 space-y-2">
-                          <Label htmlFor="alamat_ktp" className="text-xs">Alamat</Label>
-                          <Textarea
-                            id="alamat_ktp"
-                            value={formData.alamat_ktp || ""}
-                            onChange={(e) => setFormData({ ...formData, alamat_ktp: e.target.value })}
-                            rows={2}
-                            className="text-sm"
-                          />
-                        </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Provinsi</Label>
-                        <Combobox
-                          options={toRegionOptions(provinces)}
-                          value={formData.provinsi_ktp || ""}
-                          onValueChange={handleProvinceKTPChange}
-                          placeholder="Pilih provinsi"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kota/Kabupaten</Label>
-                        <Combobox
-                          options={toRegionOptions(regenciesKTP)}
-                          value={formData.kota_ktp || ""}
-                          onValueChange={handleRegencyKTPChange}
-                          placeholder="Pilih kota"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kecamatan</Label>
-                        <Combobox
-                          options={toRegionOptions(districtsKTP)}
-                          value={formData.kecamatan_ktp || ""}
-                          onValueChange={handleDistrictKTPChange}
-                          placeholder="Pilih kecamatan"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kelurahan</Label>
-                        <Combobox
-                          options={toRegionOptions(villagesKTP)}
-                          value={formData.kelurahan_ktp || ""}
-                          onValueChange={(value) => setFormData({ ...formData, kelurahan_ktp: value })}
-                          placeholder="Pilih kelurahan"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="rt_ktp" className="text-xs">RT</Label>
-                        <Input
-                          id="rt_ktp"
-                          value={formData.rt_ktp || ""}
-                          onChange={(e) => setFormData({ ...formData, rt_ktp: e.target.value })}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="rw_ktp" className="text-xs">RW</Label>
-                        <Input
-                          id="rw_ktp"
-                          value={formData.rw_ktp || ""}
-                          onChange={(e) => setFormData({ ...formData, rw_ktp: e.target.value })}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>{/* End grid KTP */}
-                  </div>{/* End Alamat KTP */}
-
-                    {/* Alamat Domisili */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b">
-                        <h4 className="font-medium text-sm flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          Alamat Domisili
-                        </h4>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="same-address"
-                            checked={sameAddress}
-                            onCheckedChange={handleSameAddressChange}
-                          />
-                          <Label htmlFor="same-address" className="cursor-pointer text-xs">
-                            Sama dengan KTP
-                          </Label>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="col-span-2 space-y-2">
-                          <Label htmlFor="alamat_domisili" className="text-xs">Alamat</Label>
-                          <Textarea
-                            id="alamat_domisili"
-                            value={formData.alamat_domisili || ""}
-                            onChange={(e) => setFormData({ ...formData, alamat_domisili: e.target.value })}
-                            disabled={sameAddress}
-                            rows={2}
-                            className="text-sm"
-                          />
-                        </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Provinsi</Label>
-                        <Combobox
-                          options={toRegionOptions(provinces)}
-                          value={formData.provinsi_domisili || ""}
-                          onValueChange={handleProvinceDomisiliChange}
-                          placeholder="Pilih provinsi"
-                          disabled={sameAddress}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kota/Kabupaten</Label>
-                        <Combobox
-                          options={toRegionOptions(regenciesDomisili)}
-                          value={formData.kota_domisili || ""}
-                          onValueChange={handleRegencyDomisiliChange}
-                          placeholder="Pilih kota"
-                          disabled={sameAddress}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kecamatan</Label>
-                        <Combobox
-                          options={toRegionOptions(districtsDomisili)}
-                          value={formData.kecamatan_domisili || ""}
-                          onValueChange={handleDistrictDomisiliChange}
-                          placeholder="Pilih kecamatan"
-                          disabled={sameAddress}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Kelurahan</Label>
-                        <Combobox
-                          options={toRegionOptions(villagesDomisili)}
-                          value={formData.kelurahan_domisili || ""}
-                          onValueChange={(value) => setFormData({ ...formData, kelurahan_domisili: value })}
-                          placeholder="Pilih kelurahan"
-                          disabled={sameAddress}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="rt_domisili" className="text-xs">RT</Label>
-                        <Input
-                          id="rt_domisili"
-                          value={formData.rt_domisili || ""}
-                          onChange={(e) => setFormData({ ...formData, rt_domisili: e.target.value })}
-                          disabled={sameAddress}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="rw_domisili" className="text-xs">RW</Label>
-                        <Input
-                          id="rw_domisili"
-                          value={formData.rw_domisili || ""}
-                          onChange={(e) => setFormData({ ...formData, rw_domisili: e.target.value })}
-                          disabled={sameAddress}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>{/* End Alamat Domisili */}
-                  </div>{/* End grid 2 kolom alamat */}
-                </TabsContent>
-
-                {/* Tab Kontak */}
-                <TabsContent value="kontak" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="no_hp">No. HP</Label>
-                      <Input
-                        id="no_hp"
-                        value={formData.no_hp || ""}
-                        onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email || ""}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* Tab Jaminan */}
-                <TabsContent value="jaminan" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="jenis_jaminan">Jenis Jaminan *</Label>
-                      <Combobox
-                        options={toOptions(masterData.insurance_type)}
-                        value={formData.jenis_jaminan || "Umum"}
-                        onValueChange={(value) => setFormData({ ...formData, jenis_jaminan: value as any })}
-                        placeholder="Pilih jenis jaminan"
-                      />
-                    </div>
-                    {formData.jenis_jaminan === "BPJS" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="no_bpjs">No. BPJS</Label>
-                          <Input
-                            id="no_bpjs"
-                            value={formData.no_bpjs || ""}
-                            onChange={(e) => setFormData({ ...formData, no_bpjs: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="kelas_bpjs">Kelas BPJS</Label>
-                          <Combobox
-                            options={toOptions(masterData.bpjs_class)}
-                            value={formData.kelas_bpjs || ""}
-                            onValueChange={(value) => setFormData({ ...formData, kelas_bpjs: value })}
-                            placeholder="Pilih kelas BPJS"
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            )}
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setStep("search")}>
-                Kembali
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
-                )}
-                Lanjut ke Pendaftaran
-              </Button>
-            </div>
+              {!loadingMaster && (
+                <PatientCreateFormFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  masterData={masterData}
+                  provinces={provinces}
+                  regencies={regencies}
+                  sameAddress={sameAddress}
+                  setSameAddress={setSameAddress}
+                />
+              )}
+            </FlatPanel>
           </form>
         )}
 
         {step === "registration" && existingPatient && (
-          <form onSubmit={handleRegistration} className="space-y-4">
-            {/* Patient Info Summary */}
-            <div className="p-3 border rounded-lg bg-muted/50">
-              <div className="grid grid-cols-4 gap-2 text-sm">
-                <div>
-                  <span className="text-xs text-muted-foreground">Nama:</span>
-                  <p className="font-medium text-sm">{formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">No. RM:</span>
-                  <p className="font-medium text-sm">{existingPatient.no_rm}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">NIK:</span>
-                  <p className="font-medium text-sm">{existingPatient.nik || "-"}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Tgl Lahir:</span>
-                  <p className="font-medium text-sm">{existingPatient.tanggal_lahir || "-"}</p>
-                </div>
-              </div>
-            </div>
-
+          <form id="queue-registration-form" onSubmit={handleRegistration} className="space-y-6">
             {scheduledFollowUps.length > 0 && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Jadwal kontrol masih aktif</AlertTitle>
-                <AlertDescription>
-                  <div className="space-y-2 text-sm">
-                    <p>Pendaftaran baru tetap bisa dibuat. Jadwal kontrol berikut tidak dibatalkan:</p>
-                    <div className="space-y-1">
-                      {scheduledFollowUps.map((registration) => (
-                        <div key={registration.id} className="rounded border bg-background px-3 py-2">
-                          <p className="font-medium">
-                            {registration.registration_number || "Tanpa nomor pendaftaran"}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Tanggal: {formatScheduledDate(registration.scheduled_date)}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Status: {registration.status}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+              <Alert className="rounded-none border-amber-200 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4 text-amber-700" />
+                <AlertTitle className="text-amber-800">Jadwal kontrol masih aktif</AlertTitle>
+                <AlertDescription className="space-y-2 text-sm text-amber-800">
+                  <p>Pendaftaran baru tetap bisa dibuat. Jadwal kontrol berikut tidak dibatalkan:</p>
+                  <div className="space-y-1">
+                    {scheduledFollowUps.map((registration) => (
+                      <div key={registration.id} className="border border-amber-200 bg-white px-3 py-2">
+                        <p className="font-mono font-medium">
+                          {registration.registration_number || "Tanpa nomor pendaftaran"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tanggal: {formatScheduledDate(registration.scheduled_date)} • Status: {registration.status}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </AlertDescription>
               </Alert>
             )}
 
-            {/* Registration Form */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="service_type" className="text-sm">Tipe Layanan *</Label>
-                  <Combobox
-                    options={[
-                      { value: "rawat_jalan", label: "Rawat Jalan" },
-                      { value: "penunjang_medis", label: "Penunjang Medis" },
-                      { value: "farmasi", label: "Farmasi" },
-                    ]}
-                    value={selectedServiceType}
-                    onValueChange={(value) => {
-                      setSelectedServiceType(value || "");
-                      setDestinationRoomId(null);
-                      setDoctorId(null);
-                      setRoomStaff([]);
-                      setRoomProcedures([]);
-                      setRoomMedicines([]);
-                      setRoomClinicalPackages([]);
-                      setSelectedClinicalPackageId(null);
-                      setSelectedProcedures([]);
-                      setSelectedMedicines([]);
-                    }}
-                    placeholder="Pilih tipe layanan"
-                  />
-                </div>
+            <FlatPanel title="Ringkasan Pasien" eyebrow="Patient Snapshot">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/30 p-3.5">
+                <SummaryItem
+                  label="Nama"
+                  value={formatPatientName(
+                    existingPatient.nama_lengkap,
+                    existingPatient.jenis_kelamin,
+                    existingPatient.status_perkawinan,
+                    existingPatient.tanggal_lahir
+                  )}
+                />
+                <SummaryItem label="No. RM" value={existingPatient.no_rm} mono />
+                <SummaryItem label="NIK" value={existingPatient.nik || "-"} mono />
+                <SummaryItem label="Tgl Lahir" value={existingPatient.tanggal_lahir || "-"} />
+              </div>
+            </FlatPanel>
 
-                <div className="space-y-2">
-                  <Label htmlFor="destination_room" className="text-sm">Ruangan Tujuan *</Label>
-                  <Combobox
-                    options={!selectedServiceType || selectedServiceType === "all" ? [] : (rooms || [])
-                      .filter(room => room.service_type === selectedServiceType)
-                      .map(room => ({
-                        value: room.id.toString(),
-                        label: room.name,
-                      }))}
-                    value={destinationRoomId?.toString() || ""}
-                    onValueChange={handleRoomChange}
-                    placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
-                    disabled={!selectedServiceType || selectedServiceType === "all"}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="payment_method" className="text-sm">Metode Pembayaran *</Label>
-                  <Combobox
-                    options={[
-                      { value: "cash", label: "Tunai" },
-                      { value: "bpjs", label: "BPJS" },
-                      { value: "insurance", label: "Asuransi" },
-                    ]}
-                    value={paymentMethod}
-                    onValueChange={(value) => setPaymentMethod(value as any)}
-                    placeholder="Pilih metode"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="priority" className="text-sm">Prioritas</Label>
-                  <Combobox
-                    options={[
-                      { value: "normal", label: "Normal" },
-                      { value: "urgent", label: "Mendesak" },
-                      { value: "emergency", label: "Darurat" },
-                    ]}
-                    value={priority}
-                    onValueChange={(value) => setPriority(value as any)}
-                    placeholder="Pilih prioritas"
-                  />
-                </div>
-
-                {destinationRoomId && (
-                  <div className="col-span-3 space-y-2">
-                      <Label htmlFor="doctor" className="text-sm">Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
-                    {roomStaff.length > 0 ? (
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
+              {/* Left Column: Visit Setup, Orders, Narrative */}
+              <div className="space-y-6">
+                <FlatPanel title="Tujuan Kunjungan" eyebrow="Core Setup">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="service_type" className="text-sm">Tipe Layanan *</Label>
                       <Combobox
-                        options={roomStaff.map(staff => ({
-                          value: staff.employee_id.toString(),
-                          label: staff.employee?.nama_lengkap || "Unknown",
-                        }))}
-                        value={doctorId?.toString() || ""}
-                        onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
-                        placeholder="Pilih dokter"
+                        options={[
+                          { value: "rawat_jalan", label: "Rawat Jalan" },
+                          { value: "penunjang_medis", label: "Penunjang Medis" },
+                          { value: "farmasi", label: "Farmasi" },
+                        ]}
+                        value={selectedServiceType}
+                        onValueChange={(value) => {
+                          setSelectedServiceType(value || "");
+                          setDestinationRoomId(null);
+                          setDoctorId(null);
+                          setRoomStaff([]);
+                          setRoomProcedures([]);
+                          setRoomMedicines([]);
+                          setRoomClinicalPackages([]);
+                          setSelectedClinicalPackageId(null);
+                          setSelectedProcedures([]);
+                          setSelectedMedicines([]);
+                        }}
+                        placeholder="Pilih tipe layanan"
                       />
-                    ) : (
-                        <Input
-                          disabled
-                          placeholder={doctorRequired ? "Tidak ada dokter" : "Dokter tidak wajib untuk layanan ini"}
-                          className="bg-muted text-sm"
-                        />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="destination_room" className="text-sm">Ruangan Tujuan *</Label>
+                      <Combobox
+                        options={!selectedServiceType || selectedServiceType === "all" ? [] : (rooms || [])
+                          .filter(room => room.service_type === selectedServiceType)
+                          .map(room => ({
+                            value: room.id.toString(),
+                            label: room.name,
+                          }))}
+                        value={destinationRoomId?.toString() || ""}
+                        onValueChange={handleRoomChange}
+                        placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
+                        disabled={!selectedServiceType || selectedServiceType === "all"}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="payment_method" className="text-sm">Metode Pembayaran *</Label>
+                      <Combobox
+                        options={[
+                          { value: "cash", label: "Tunai" },
+                          { value: "bpjs", label: "BPJS" },
+                          { value: "insurance", label: "Asuransi" },
+                        ]}
+                        value={paymentMethod}
+                        onValueChange={(value) => setPaymentMethod(value as any)}
+                        placeholder="Pilih metode"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="priority" className="text-sm">Prioritas</Label>
+                      <Combobox
+                        options={[
+                          { value: "normal", label: "Normal" },
+                          { value: "urgent", label: "Mendesak" },
+                          { value: "emergency", label: "Darurat" },
+                        ]}
+                        value={priority}
+                        onValueChange={(value) => setPriority(value as any)}
+                        placeholder="Pilih prioritas"
+                      />
+                    </div>
+
+                    {destinationRoomId && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="doctor" className="text-sm">Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
+                        {roomStaff.length > 0 ? (
+                          <Combobox
+                            options={roomStaff.map(staff => ({
+                              value: staff.employee_id.toString(),
+                              label: staff.employee?.nama_lengkap || "Unknown",
+                            }))}
+                            value={doctorId?.toString() || ""}
+                            onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
+                            placeholder="Pilih dokter"
+                          />
+                        ) : (
+                          <Input
+                            disabled
+                            placeholder={doctorRequired ? "Tidak ada dokter" : "Dokter tidak wajib untuk layanan ini"}
+                            className="bg-muted text-sm"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                </FlatPanel>
 
                 {destinationRoomId && (
-                  <div className="col-span-3">
+                  <FlatPanel title="Paket & Order Ruangan" eyebrow="Direct Order">
                     <ClinicalPackageSelector
                       assignments={roomClinicalPackages}
                       selectedPackageId={selectedClinicalPackageId}
                       onValueChange={handleClinicalPackageChange}
                       loading={loadingRoomItems}
                     />
-                  </div>
+
+                    {(loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
+                      <OrderRoomSelection
+                        loading={loadingRoomItems}
+                        procedures={availableRoomProcedures}
+                        selectedProcedures={selectedProcedures}
+                        onToggleProcedure={toggleProcedure}
+                        onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
+                        orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
+                        medicines={availableRoomMedicines}
+                        selectedMedicines={selectedMedicines}
+                        onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
+                        pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
+                        onAddMedicine={addMedicine}
+                        onUpdateMedicineQuantity={updateMedicineQuantity}
+                        onRemoveMedicine={removeMedicine}
+                      />
+                    )}
+                  </FlatPanel>
                 )}
 
-                {destinationRoomId && (loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
-                  <div className="col-span-3">
-                    <OrderRoomSelection
-                      loading={loadingRoomItems}
-                      procedures={availableRoomProcedures}
-                      selectedProcedures={selectedProcedures}
-                      onToggleProcedure={toggleProcedure}
-                      onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
-                      orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
-                      medicines={availableRoomMedicines}
-                      selectedMedicines={selectedMedicines}
-                      onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
-                      pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
-                      onAddMedicine={addMedicine}
-                      onUpdateMedicineQuantity={updateMedicineQuantity}
-                      onRemoveMedicine={removeMedicine}
+                <FlatPanel title="Catatan Klinis" eyebrow="Narrative">
+                  <div className="space-y-2">
+                    <Label htmlFor="complaint" className="text-sm">Keluhan Utama (Opsional)</Label>
+                    <Textarea
+                      id="complaint"
+                      value={complaint}
+                      onChange={(e) => setComplaint(e.target.value)}
+                      placeholder="Tuliskan keluhan utama pasien atau catatan untuk poli/ruangan..."
+                      rows={3}
+                      className="text-sm"
                     />
                   </div>
-                )}
+                </FlatPanel>
+              </div>
 
-                {paymentMethod === "bpjs" && (
-                  <div className="col-span-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
-                        <Input
-                          id="bpjs_number"
-                          value={bpjsNumber}
-                          onChange={(e) => setBpjsNumber(e.target.value)}
-                          placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
-                          className="text-sm"
-                        />
-                      </div>
-                      {existingPatient?.kelas_bpjs && (
+              {/* Right Column: Billing & Access */}
+              <div className="space-y-6">
+                <FlatPanel title="Penjamin & Akses Layanan" eyebrow="Billing">
+                  <div className="grid gap-3 sm:grid-cols-2 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/30 p-3">
+                    <SummaryItem
+                      label="Metode"
+                      value={paymentMethod === "cash" ? "Tunai" : paymentMethod === "bpjs" ? "BPJS" : "Asuransi"}
+                    />
+                    <SummaryItem
+                      label="Prioritas"
+                      value={priority === "normal" ? "Normal" : priority === "urgent" ? "Mendesak" : "Darurat"}
+                    />
+                  </div>
+
+                  {paymentMethod === "cash" && (
+                    <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 p-3 text-xs text-muted-foreground">
+                      Pasien umum/tunai tidak memerlukan penerbitan SEP atau verifikasi polis asuransi.
+                    </div>
+                  )}
+
+                  {paymentMethod === "bpjs" && (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                          <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
                           <Input
-                            id="bpjs_class"
-                            value={existingPatient.kelas_bpjs}
-                            disabled
-                            className="bg-muted text-sm"
+                            id="bpjs_number"
+                            value={bpjsNumber}
+                            onChange={(e) => setBpjsNumber(e.target.value)}
+                            placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
+                            className="text-sm font-mono"
                           />
                         </div>
-                      )}
-                    </div>
-
-                    {/* SEP Section */}
-                    <div className="border rounded-lg p-3 bg-blue-50/50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-900">SEP (Surat Eligibilitas Peserta)</span>
-                        </div>
-                        {sepNumber ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            {sepNumber}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300">
-                            Belum Ada
-                          </Badge>
+                        {existingPatient?.kelas_bpjs && (
+                          <div className="space-y-2">
+                            <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                            <Input
+                              id="bpjs_class"
+                              value={existingPatient.kelas_bpjs}
+                              disabled
+                              className="bg-muted text-sm"
+                            />
+                          </div>
                         )}
                       </div>
-                      
-                      {sepNumber && sepData ? (
-                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                          <p>Poli: {sepData.poli?.nama || "-"}</p>
-                          <p>Dokter: {sepData.dokter?.nama || "-"}</p>
-                          <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+
+                      <div className="border border-blue-200 bg-blue-50/50 p-3.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-900">SEP (Surat Eligibilitas Peserta)</span>
+                          </div>
+                          {sepNumber ? (
+                            <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800 font-mono">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              {sepNumber}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="rounded-none text-orange-600 border-orange-300">
+                              Belum Ada
+                            </Badge>
+                          )}
                         </div>
-                      ) : (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          SEP wajib dibuat untuk pasien BPJS
-                        </p>
-                      )}
-                      
-                      <Button
-                        type="button"
-                        variant={sepNumber ? "outline" : "default"}
-                        size="sm"
-                        className="mt-3 w-full"
-                        onClick={() => setSepSheetOpen(true)}
-                        disabled={!bpjsNumber}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        {sepNumber ? "Lihat / Edit SEP" : "Buat SEP"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
 
-                {paymentMethod === "insurance" && (
-                  <div className="col-span-3 grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="insurance_name" className="text-sm">Nama Asuransi *</Label>
-                      <Combobox
-                        options={toOptions(masterData.insurance_company)}
-                        value={insuranceName}
-                        onValueChange={(value) => setInsuranceName(value)}
-                        placeholder="Pilih asuransi"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="insurance_number" className="text-sm">Nomor Polis *</Label>
-                      <Input
-                        id="insurance_number"
-                        value={insuranceNumber}
-                        onChange={(e) => setInsuranceNumber(e.target.value)}
-                        placeholder="Nomor polis"
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
+                        {sepNumber && sepData ? (
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <p>Poli: {sepData.poli?.nama || "-"}</p>
+                            <p>Dokter: {sepData.dokter?.nama || "-"}</p>
+                            <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            SEP wajib dibuat untuk pasien BPJS
+                          </p>
+                        )}
 
-                <div className="col-span-3 space-y-2">
-                  <Label htmlFor="complaint" className="text-sm">Keluhan (Opsional)</Label>
-                  <Textarea
-                    id="complaint"
-                    value={complaint}
-                    onChange={(e) => setComplaint(e.target.value)}
-                    placeholder="Keluhan pasien"
-                    rows={2}
-                    className="text-sm"
-                  />
-                </div>
+                        <Button
+                          type="button"
+                          variant={sepNumber ? "outline" : "default"}
+                          size="sm"
+                          className="mt-3 w-full rounded-none"
+                          onClick={() => setSepSheetOpen(true)}
+                          disabled={!bpjsNumber}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          {sepNumber ? "Lihat / Edit SEP" : "Buat SEP"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "insurance" && (
+                    <div className="grid gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="insurance_name" className="text-sm">Nama Asuransi *</Label>
+                        <Combobox
+                          options={toOptions(masterData.insurance_company)}
+                          value={insuranceName}
+                          onValueChange={(value) => setInsuranceName(value)}
+                          placeholder="Pilih asuransi"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="insurance_number" className="text-sm">Nomor Polis *</Label>
+                        <Input
+                          id="insurance_number"
+                          value={insuranceNumber}
+                          onChange={(e) => setInsuranceNumber(e.target.value)}
+                          placeholder="Nomor polis"
+                          className="text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </FlatPanel>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <Button type="button" variant="outline" onClick={() => setStep("search")} size="sm">
-                Kembali
-              </Button>
-              <Button type="submit" disabled={loading || loadingMaster} size="sm">
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
-                )}
-                Simpan Pendaftaran
-              </Button>
             </div>
           </form>
         )}
-        </div>{/* End scrollable content */}
+          </div>
+        </div>
+
+        {/* Sticky Admin Footer Bar */}
+        <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs font-mono text-muted-foreground flex flex-wrap items-center gap-2">
+            <span>Antrean {queueNumber}</span>
+            <span>•</span>
+            <span>
+              {step === "search"
+                ? existingPatient
+                  ? `Terpilih: ${existingPatient.nama_lengkap} (${existingPatient.no_rm})`
+                  : "Menunggu pemilihan pasien"
+                : step === "form"
+                ? "Input Master Pasien Baru"
+                : existingPatient
+                ? `${existingPatient.nama_lengkap} (${existingPatient.no_rm})`
+                : "Pendaftaran Kunjungan"}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-none"
+              onClick={() => onOpenChange(false)}
+            >
+              Batal
+            </Button>
+
+            {step === "search" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none"
+                  onClick={handleNewPatient}
+                >
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  Pasien Baru
+                </Button>
+                {existingPatient && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="rounded-none"
+                    onClick={() => handleUseExistingPatient()}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Lanjut: {existingPatient.nama_lengkap}
+                  </Button>
+                )}
+              </>
+            )}
+
+            {step === "form" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none"
+                  onClick={() => setStep("search")}
+                >
+                  Kembali
+                </Button>
+                <Button
+                  type="submit"
+                  form="queue-new-patient-form"
+                  size="sm"
+                  className="rounded-none"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Lanjut ke Pendaftaran
+                </Button>
+              </>
+            )}
+
+            {step === "registration" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none"
+                  onClick={() => setStep("search")}
+                >
+                  Kembali
+                </Button>
+                <Button
+                  type="submit"
+                  form="queue-registration-form"
+                  size="sm"
+                  className="rounded-none"
+                  disabled={loading || loadingMaster}
+                >
+                  {loading ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Simpan Pendaftaran
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </DialogContent>
 
       {/* SEP Form Sheet */}

@@ -519,9 +519,17 @@ func createProcedureOrderTargetVisit(tx *gorm.DB, sourceVisit *models.Visit, tar
 
 	if orderType == models.ProcedureOrderTypeRadiology || orderType == models.ProcedureOrderTypeLaboratory || orderType == models.ProcedureOrderTypeSurgery {
 		queueDate := time.Now()
-		queueNumber, err := generateRoomQueueNumber(tx, targetRoomID, queueDate)
-		if err != nil {
-			return nil, err
+		defaultCode := targetRoom.QueueCode
+		if defaultCode == "" {
+			defaultCode = "Q"
+		}
+		queueNumber := resolvePatientUnifiedQueueNumber(tx, sourceVisit.RegistrationID, sourceVisit)
+		if queueNumber == "" {
+			var err error
+			queueNumber, err = generateRoomQueueNumber(tx, targetRoomID, queueDate)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		queuePriority := strings.TrimSpace(priority)
@@ -529,10 +537,7 @@ func createProcedureOrderTargetVisit(tx *gorm.DB, sourceVisit *models.Visit, tar
 			queuePriority = "normal"
 		}
 
-		queueCode := targetRoom.QueueCode
-		if queueCode == "" {
-			queueCode = "Q"
-		}
+		queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 		roomQueue := models.RoomQueue{
 			VisitID:     targetVisit.ID,
@@ -597,9 +602,17 @@ func createMedicineOrderPharmacyVisit(tx *gorm.DB, sourceVisit *models.Visit, ph
 	}
 
 	queueDate := time.Now()
-	queueNumber, err := generateRoomQueueNumber(tx, pharmacyRoomID, queueDate)
-	if err != nil {
-		return nil, err
+	defaultCode := pharmacyRoom.QueueCode
+	if defaultCode == "" {
+		defaultCode = "F"
+	}
+	queueNumber := resolvePatientUnifiedQueueNumber(tx, sourceVisit.RegistrationID, sourceVisit)
+	if queueNumber == "" {
+		var err error
+		queueNumber, err = generateRoomQueueNumberByPrefix(tx, pharmacyRoomID, defaultCode, queueDate)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	queuePriority := strings.TrimSpace(priority)
@@ -607,10 +620,7 @@ func createMedicineOrderPharmacyVisit(tx *gorm.DB, sourceVisit *models.Visit, ph
 		queuePriority = "normal"
 	}
 
-	queueCode := pharmacyRoom.QueueCode
-	if queueCode == "" {
-		queueCode = "F"
-	}
+	queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 	roomQueue := models.RoomQueue{
 		VisitID:     pharmacyVisit.ID,
@@ -1049,30 +1059,30 @@ func CreateRegistration(c *gin.Context) {
 			return
 		}
 
-		// Create room queue if requested
-		if input.CreateRoomQueue {
-			queueCode := room.QueueCode
-			if queueCode == "" {
-				queueCode = "Q"
+		// Create room queue only for non-UGD / non-inpatient rooms (UGD & Rawat Inap do not have queues)
+		shouldCreateRoomQueue := input.CreateRoomQueue &&
+			room.ServiceType != "rawat_inap" &&
+			room.ServiceType != "gawat_darurat"
+		if shouldCreateRoomQueue {
+			defaultCode := room.QueueCode
+			if defaultCode == "" {
+				defaultCode = "Q"
 			}
 
 			todayDate := time.Now().Format("2006-01-02")
 			parsedDate, _ := ParseLocalDate(todayDate)
-			var lastQueue models.RoomQueue
-			var queueNum int
 
-			err := tx.Where("room_id = ? AND queue_date = ?", input.DestinationRoomID, parsedDate).
-				Order("queue_number DESC").First(&lastQueue).Error
-
-			if err != nil {
-				queueNum = 1
-			} else {
-				var lastNum int
-				fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-				queueNum = lastNum + 1
+			queueNumber := resolvePatientUnifiedQueueNumber(tx, registration.ID, nil)
+			if queueNumber == "" {
+				var genErr error
+				queueNumber, genErr = generateRoomQueueNumberByPrefix(tx, input.DestinationRoomID, defaultCode, parsedDate)
+				if genErr != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian ruangan"})
+					return
+				}
 			}
-
-			queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+			queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 			priority := input.QueuePriority
 			if priority == "" {
@@ -1572,8 +1582,8 @@ func registerBPJSAntreanOnSite(
 	tanggal := time.Now()
 	kodeBooking := generateKodeBookingOnSite(tanggal, poliMapping.KodePoliBPJS)
 
-	// 4. Extract angka antrean from queue number (e.g., "A001" -> 1)
-	angkaAntrean := extractAngkaAntrean(roomQueue.QueueNumber)
+	// 4. Compute sequential AngkaAntrean per room & date so mixed loket prefixes (A/B/E) never collide
+	angkaAntrean := computeDailyRoomAngkaAntrean(database.DB, room.ID, tanggal, roomQueue.ID)
 
 	// 5. Calculate estimasi dilayani (15 menit per pasien)
 	jamPraktek := dokterMapping.JamPraktek
@@ -2393,24 +2403,7 @@ func generateRoomQueueNumber(tx *gorm.DB, roomID uint, queueDate time.Time) (str
 		queueCode = "Q"
 	}
 
-	// Get last queue number for this room on this date
-	var lastQueue models.RoomQueue
-	var queueNum int
-
-	dateOnly := time.Date(queueDate.Year(), queueDate.Month(), queueDate.Day(), 0, 0, 0, 0, queueDate.Location())
-
-	err := tx.Where("room_id = ? AND queue_date >= ? AND queue_date < ?", roomID, dateOnly, dateOnly.AddDate(0, 0, 1)).
-		Order("created_at DESC").First(&lastQueue).Error
-
-	if err != nil {
-		queueNum = 1
-	} else {
-		var lastNum int
-		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-		queueNum = lastNum + 1
-	}
-
-	return fmt.Sprintf("%s%03d", queueCode, queueNum), nil
+	return generateRoomQueueNumberByPrefix(tx, roomID, queueCode, queueDate)
 }
 
 func extractQueueNumberFromRegistration(regNumber string) string {
@@ -2534,7 +2527,10 @@ func CheckInScheduledRegistration(c *gin.Context) {
 			}
 		} else {
 			// Create room queue for visit without queue
-			queueNumber := extractQueueNumberFromRegistration(registration.RegistrationNumber)
+			queueNumber := resolvePatientUnifiedQueueNumber(tx, registration.ID, registration.Visit)
+			if queueNumber == "" {
+				queueNumber = extractQueueNumberFromRegistration(registration.RegistrationNumber)
+			}
 			if queueNumber == "" {
 				var err error
 				queueNumber, err = generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
@@ -2547,6 +2543,7 @@ func CheckInScheduledRegistration(c *gin.Context) {
 			roomQueue := models.RoomQueue{
 				RoomID:      registration.DestinationRoomID,
 				QueueNumber: queueNumber,
+				QueueCode:   resolveQueueCodePrefix(queueNumber, "Q"),
 				QueueDate:   now,
 				VisitID:     registration.Visit.ID,
 				Status:      models.RoomQueueStatusWaiting,
@@ -3103,15 +3100,20 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 				return
 			}
 		} else {
-			qn, err := generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
-			if err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian", "step": "checkin"})
-				return
+			qn := resolvePatientUnifiedQueueNumber(tx, registration.ID, registration.Visit)
+			if qn == "" {
+				var err error
+				qn, err = generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
+				if err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian", "step": "checkin"})
+					return
+				}
 			}
 			roomQueue := models.RoomQueue{
 				RoomID:      registration.DestinationRoomID,
 				QueueNumber: qn,
+				QueueCode:   resolveQueueCodePrefix(qn, "Q"),
 				QueueDate:   now,
 				VisitID:     registration.Visit.ID,
 				Status:      models.RoomQueueStatusWaiting,
@@ -3159,15 +3161,20 @@ func BPJSCheckinWithSEP(c *gin.Context) {
 			return
 		}
 
-		qn, err := generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian", "step": "checkin"})
-			return
+		qn := resolvePatientUnifiedQueueNumber(tx, registration.ID, nil)
+		if qn == "" {
+			var err error
+			qn, err = generateRoomQueueNumber(tx, registration.DestinationRoomID, now)
+			if err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat nomor antrian", "step": "checkin"})
+				return
+			}
 		}
 		roomQueue := models.RoomQueue{
 			RoomID:      registration.DestinationRoomID,
 			QueueNumber: qn,
+			QueueCode:   resolveQueueCodePrefix(qn, "Q"),
 			QueueDate:   now,
 			VisitID:     visit.ID,
 			Status:      models.RoomQueueStatusWaiting,
@@ -3405,8 +3412,11 @@ func sendBPJSAntreanOnCheckInSync(registration *models.Registration, queueNumber
 	// Generate kode booking
 	kodeBooking := generateKodeBookingOnSite(checkInTime, poliMapping.KodePoliBPJS)
 
-	// Extract angka antrean from queue number
+	// Compute sequential AngkaAntrean per room & date when RoomQueue is present
 	angkaAntrean := extractAngkaAntrean(queueNumber)
+	if registration.Visit != nil && registration.Visit.RoomQueue != nil {
+		angkaAntrean = computeDailyRoomAngkaAntrean(database.DB, registration.DestinationRoomID, checkInTime, registration.Visit.RoomQueue.ID)
+	}
 
 	// Estimate dilayani time (30 minutes from now as default)
 	estimasiDilayani := checkInTime.Add(30 * time.Minute).UnixMilli()

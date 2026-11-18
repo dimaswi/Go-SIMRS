@@ -25,6 +25,7 @@ const AccountPage = lazy(() => import('./pages/account/index'));
 const SettingsPage = lazy(() => import('./pages/settings/index'));
 const SignaturePINSetupPage = lazy(() => import('./pages/account/signature-pin'));
 const AuditLogPage = lazy(() => import('./pages/settings/audit-log'));
+const DisplaySettingsPage = lazy(() => import('./pages/settings/display'));
 
 // Public Bed Monitoring
 const PublicBedMonitoring = lazy(() => import('./pages/rooms/public-monitoring'));
@@ -168,6 +169,13 @@ function App() {
             <ProtectedRoute>
               <PermissionGuard permission="settings.view">
                 <AuditLogPage />
+              </PermissionGuard>
+            </ProtectedRoute>
+          } />
+          <Route path="/settings/display" element={
+            <ProtectedRoute>
+              <PermissionGuard permission="settings.view">
+                <DisplaySettingsPage />
               </PermissionGuard>
             </ProtectedRoute>
           } />

@@ -31,6 +31,9 @@ func SetupBillingRoutes(router *gin.RouterGroup) {
 
 		// Legacy: Billable visits (visits ready to be billed)
 		billing.GET("/billable-visits", middleware.RequirePermission("billing.view"), handlers.GetBillableVisits)
+
+		// Cashier Queue Call
+		billing.POST("/registrations/:registration_id/call", middleware.RequirePermission("billing.view"), handlers.CallRegistrationForCashier)
 	}
 
 	// Registration Tariffs

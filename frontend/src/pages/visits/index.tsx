@@ -1053,10 +1053,9 @@ export default function VisitsIndex() {
               <h3 className="text-sm font-semibold">Display Per Ruangan</h3>
               <p className="text-xs text-muted-foreground">Buka display antrean per ruangan dengan suara pengumuman</p>
             </div>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate("/settings/display")}>
               <Tv className="mr-1 h-3 w-3" />
               Pengaturan Display
-              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1072,7 +1071,7 @@ export default function VisitsIndex() {
                   onClick={() => window.open(`/room-queue/display/${room.id}`, "_blank")}
                 >
                   <Volume2 className="mr-1.5 h-3 w-3" />
-                  {room.queue_code || room.code} - {room.name}
+                  {room.name}
                   <ExternalLink className="ml-1.5 h-2.5 w-2.5 text-muted-foreground" />
                 </Button>
               ))

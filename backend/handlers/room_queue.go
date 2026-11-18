@@ -6,9 +6,11 @@ import (
 	"starter/backend/database"
 	"starter/backend/models"
 	bpjsService "starter/backend/services/bpjs"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // RoomQueueResponse extends RoomQueue with MJKN info
@@ -44,8 +46,8 @@ func GetRoomQueues(c *gin.Context) {
 		query = query.Where("status = ?", status)
 	}
 
-	// Order by queue_number
-	query = query.Order("queue_number ASC")
+	// Order chronologically so inherited queue prefixes (e.g. A, B, MJKN) stay in arrival order
+	query = query.Order("created_at ASC, id ASC")
 
 	if err := query.Find(&queues).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -131,32 +133,24 @@ func CreateRoomQueue(c *gin.Context) {
 	}
 
 	// Get room's queue code
-	queueCode := visit.Room.QueueCode
-	if queueCode == "" {
-		queueCode = "Q" // Default queue code
+	defaultCode := visit.Room.QueueCode
+	if defaultCode == "" {
+		defaultCode = "Q" // Default queue code
 	}
 
-	// Get last queue number for this room today
 	today := time.Now().Format("2006-01-02")
 	todayDate, _ := ParseLocalDate(today)
-	var lastQueue models.RoomQueue
-	var queueNum int
 
-	err := database.DB.Where("room_id = ? AND queue_date = ?", visit.RoomID, todayDate).
-		Order("queue_number DESC").First(&lastQueue).Error
-
-	if err != nil {
-		// No queue yet today, start from 1
-		queueNum = 1
-	} else {
-		// Parse last queue number and increment
-		var lastNum int
-		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-		queueNum = lastNum + 1
+	queueNumber := resolvePatientUnifiedQueueNumber(database.DB, visit.RegistrationID, &visit)
+	if queueNumber == "" {
+		var genErr error
+		queueNumber, genErr = generateRoomQueueNumberByPrefix(database.DB, visit.RoomID, defaultCode, todayDate)
+		if genErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate queue number"})
+			return
+		}
 	}
-
-	// Format queue number (e.g., A001, L005)
-	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+	queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 	// Set default priority
 	priority := input.Priority
@@ -202,11 +196,11 @@ func CallNextRoomQueue(c *gin.Context) {
 	// Find next waiting queue with priority order:
 	// 1. Emergency first
 	// 2. Urgent
-	// 3. Normal by queue number
+	// 3. Normal by arrival order
 	var queue models.RoomQueue
 	err := database.DB.Where("room_id = ? AND queue_date = ? AND status = ?",
 		roomID, today, models.RoomQueueStatusWaiting).
-		Order("CASE WHEN priority = 'emergency' THEN 1 WHEN priority = 'urgent' THEN 2 ELSE 3 END, queue_number ASC").
+		Order("CASE WHEN priority = 'emergency' THEN 1 WHEN priority = 'urgent' THEN 2 ELSE 3 END, created_at ASC, id ASC").
 		First(&queue).Error
 
 	if err != nil {
@@ -215,7 +209,7 @@ func CallNextRoomQueue(c *gin.Context) {
 	}
 
 	// Update queue status
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	uid := userID.(uint)
 	queue.Status = models.RoomQueueStatusCalled
 	queue.CalledAt = &now
@@ -266,7 +260,7 @@ func CallSpecificQueue(c *gin.Context) {
 	}
 
 	// Update queue status to called
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	uid := userID.(uint)
 	queue.Status = models.RoomQueueStatusCalled
 
@@ -490,4 +484,119 @@ func GetCurrentRoomQueue(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, queue)
+}
+
+// resolvePatientUnifiedQueueNumber returns an existing queue number for the registration
+// or source visit so a single ticket number can flow from registration -> poli -> lab/radiology/pharmacy.
+func resolvePatientUnifiedQueueNumber(db *gorm.DB, registrationID uint, sourceVisit *models.Visit) string {
+	if registrationID == 0 && sourceVisit != nil {
+		registrationID = sourceVisit.RegistrationID
+	}
+
+	// 1. Prefer the registration counter ticket (kiosk Queue) when present.
+	if registrationID > 0 {
+		var reg models.Registration
+		if err := db.Preload("Queue").Select("id", "queue_id").First(&reg, registrationID).Error; err == nil {
+			if reg.Queue != nil && reg.Queue.QueueNumber != "" {
+				return reg.Queue.QueueNumber
+			}
+		}
+	}
+
+	// 2. Next prefer the source visit's own room queue number (e.g., MJKN or walk-in poli queue).
+	if sourceVisit != nil {
+		if sourceVisit.RoomQueue != nil && sourceVisit.RoomQueue.QueueNumber != "" {
+			return sourceVisit.RoomQueue.QueueNumber
+		}
+		if sourceVisit.ID > 0 {
+			var srcQueue models.RoomQueue
+			if err := db.Where("visit_id = ?", sourceVisit.ID).First(&srcQueue).Error; err == nil && srcQueue.QueueNumber != "" {
+				return srcQueue.QueueNumber
+			}
+		}
+	}
+
+	// 3. Fallback to any active room queue under the same registration (ordered earliest first).
+	if registrationID > 0 {
+		var existingQueue models.RoomQueue
+		err := db.Joins("JOIN visits ON visits.id = room_queues.visit_id").
+			Where("visits.registration_id = ? AND room_queues.status != ?", registrationID, models.RoomQueueStatusCancelled).
+			Order("room_queues.created_at ASC, room_queues.id ASC").
+			First(&existingQueue).Error
+		if err == nil && existingQueue.QueueNumber != "" {
+			return existingQueue.QueueNumber
+		}
+	}
+
+	return ""
+}
+
+// resolveQueueCodePrefix extracts the leading alphabetic prefix from a queue number (e.g., "B001" -> "B").
+func resolveQueueCodePrefix(queueNumber string, defaultCode string) string {
+	trimmed := strings.TrimSpace(queueNumber)
+	var prefix strings.Builder
+	for i := 0; i < len(trimmed); i++ {
+		ch := trimmed[i]
+		if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+			prefix.WriteByte(ch)
+		} else {
+			break
+		}
+	}
+	if prefix.Len() > 0 {
+		return strings.ToUpper(prefix.String())
+	}
+	if defaultCode != "" {
+		return defaultCode
+	}
+	return "Q"
+}
+
+// generateRoomQueueNumberByPrefix generates the next <queueCode>%03d number for a room on a date,
+// filtering strictly by the room's own prefix so inherited loket numbers (A/B/E) do not skew parsing.
+func generateRoomQueueNumberByPrefix(db *gorm.DB, roomID uint, queueCode string, queueDate time.Time) (string, error) {
+	if queueCode == "" {
+		queueCode = "Q"
+	}
+
+	dateOnly := time.Date(queueDate.Year(), queueDate.Month(), queueDate.Day(), 0, 0, 0, 0, queueDate.Location())
+	nextDate := dateOnly.AddDate(0, 0, 1)
+
+	var lastQueue models.RoomQueue
+	queueNum := 1
+	err := db.Where("room_id = ? AND queue_date >= ? AND queue_date < ? AND queue_number LIKE ?", roomID, dateOnly, nextDate, queueCode+"%").
+		Order("queue_number DESC").First(&lastQueue).Error
+	if err == nil {
+		var lastNum int
+		if n, _ := fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum); n == 1 && lastNum > 0 {
+			queueNum = lastNum + 1
+		}
+	}
+
+	return fmt.Sprintf("%s%03d", queueCode, queueNum), nil
+}
+
+// computeDailyRoomAngkaAntrean returns a collision-free 1-based sequential number per room & date
+// for BPJS Antrol AngkaAntrean/EstimasiDilayani, independent of inherited string prefixes.
+func computeDailyRoomAngkaAntrean(db *gorm.DB, roomID uint, queueDate time.Time, roomQueueID uint) int {
+	dateOnly := time.Date(queueDate.Year(), queueDate.Month(), queueDate.Day(), 0, 0, 0, 0, queueDate.Location())
+	nextDate := dateOnly.AddDate(0, 0, 1)
+
+	var count int64
+	query := db.Model(&models.RoomQueue{}).
+		Where("room_id = ? AND queue_date >= ? AND queue_date < ? AND status != ?",
+			roomID, dateOnly, nextDate, models.RoomQueueStatusCancelled)
+
+	if roomQueueID > 0 {
+		query = query.Where("id <= ?", roomQueueID)
+	}
+	query.Count(&count)
+
+	if roomQueueID == 0 {
+		return int(count) + 1
+	}
+	if count < 1 {
+		return 1
+	}
+	return int(count)
 }

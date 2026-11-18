@@ -1,6 +1,6 @@
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { DataTable } from "@/components/ui/data-table";
@@ -80,6 +80,7 @@ const getLocalTodayDateString = () => {
 };
 
 export default function QueueIndex() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,6 +107,8 @@ export default function QueueIndex() {
   const [registerQueue, setRegisterQueue] = useState<{
     id: number;
     number: string;
+    notes?: string;
+    queueType?: Queue["queue_type"];
   } | null>(null);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
   const [togglingCounterId, setTogglingCounterId] = useState<number | null>(null);
@@ -322,7 +325,12 @@ export default function QueueIndex() {
   };
 
   const handleRegister = (queue: Queue) => {
-    setRegisterQueue({ id: queue.id, number: queue.queue_number });
+    setRegisterQueue({
+      id: queue.id,
+      number: queue.queue_number,
+      notes: queue.notes,
+      queueType: queue.queue_type,
+    });
   };
 
   const columns = createQueueColumns({
@@ -382,10 +390,9 @@ export default function QueueIndex() {
               KIOSK
               <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate("/settings/display")}>
               <Tv className="mr-1 h-3.5 w-3.5" />
               Display
-              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
             <Button
               variant={displayPanelOpen ? "secondary" : "outline"}
@@ -411,10 +418,9 @@ export default function QueueIndex() {
               <h3 className="text-sm font-semibold">Display Antrean</h3>
               <p className="text-xs text-muted-foreground">Buka display utama atau per loket.</p>
             </div>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate("/settings/display")}>
               <Tv className="mr-1 h-3 w-3" />
               Pengaturan Lengkap
-              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -555,6 +561,8 @@ export default function QueueIndex() {
         onOpenChange={(open) => !open && setRegisterQueue(null)}
         queueId={registerQueue?.id || 0}
         queueNumber={registerQueue?.number || ""}
+        queueNotes={registerQueue?.notes}
+        queueType={registerQueue?.queueType}
         onSuccess={() => {
           setRegisterQueue(null);
           loadData();

@@ -14,5 +14,6 @@ func SetupPublicQueueRoutes(r *gin.Engine) {
 		public.GET("/schedules", handlers.PublicGetSchedules)
 		public.GET("/check-nik", handlers.PublicCheckNIK)
 		public.POST("/register-queue", handlers.PublicRegisterQueue)
+		public.GET("/cashier-display", handlers.GetCashierDisplay)
 	}
 }

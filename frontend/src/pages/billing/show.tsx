@@ -76,7 +76,10 @@ import {
   BadgeCheck,
   FileText,
   Hash,
+  Volume2,
 } from 'lucide-react';
+import { queueSharedAnnouncement } from '@/lib/shared-queue-announcer';
+import { spellQueueNumberForSpeech } from '@/components/queue-display/display-media-panel';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatPatientName } from '@/lib/print-utils';
@@ -106,6 +109,10 @@ interface VisitDetail {
     bpjs_number?: string;
     insurance_name?: string;
     insurance_number?: string;
+    queue?: {
+      id: number;
+      queue_number: string;
+    };
     patient?: {
       id: number;
       no_rm: string;
@@ -116,6 +123,10 @@ interface VisitDetail {
       no_hp?: string;
       no_telepon?: string;
     };
+  };
+  room_queue?: {
+    id: number;
+    queue_number: string;
   };
   room?: {
     id: number;
@@ -147,6 +158,7 @@ export default function BillingShow() {
   const [finalizing, setFinalizing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [callingCashier, setCallingCashier] = useState(false);
 
   // Dialogs
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
@@ -539,9 +551,50 @@ export default function BillingShow() {
 
   const changeAmount = paymentMethod === 'cash' ? Math.max(0, receivedAmount - paymentAmount) : 0;
 
+  const handleCallCashier = async () => {
+    if (!visit?.registration_id) return;
+    setCallingCashier(true);
+    try {
+      const response = await billingApi.callCashier(visit.registration_id);
+      const qNum =
+        response.data?.queue_number ||
+        unifiedQueueNumber ||
+        visit.registration?.registration_number ||
+        '';
+      const calledAt = response.data?.called_at || new Date().toISOString();
+
+      if (qNum) {
+        queueSharedAnnouncement({
+          id: `cashier-${visit.registration_id}-${calledAt}`,
+          kind: 'counter',
+          speechText: `Nomor antrean ${spellQueueNumberForSpeech(qNum)}. Silakan menuju Kasir.`,
+        });
+      }
+
+      toast({
+        title: 'Antrian Kasir Dipanggil',
+        description: `Nomor antrean ${qNum || '-'} dipanggil ke Kasir.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error?.response?.data?.error || 'Gagal memanggil pasien ke Kasir.',
+      });
+    } finally {
+      setCallingCashier(false);
+    }
+  };
+
   // === HELPERS ===
   const patient = visit?.registration?.patient;
   const reg = visit?.registration;
+  const unifiedQueueNumber =
+    reg?.queue?.queue_number ||
+    visit?.room_queue?.queue_number ||
+    billing?.registration?.queue?.queue_number ||
+    billing?.visit?.room_queue?.queue_number ||
+    '';
 
   const getPaymentLabel = (method?: string) => {
     switch (method) {
@@ -710,9 +763,34 @@ export default function BillingShow() {
         title={formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, undefined, patient?.tanggal_lahir) || '-'}
         description={`${patient?.no_rm || '-'} • ${patient?.jenis_kelamin === 'L' ? 'Laki-laki' : patient?.jenis_kelamin === 'P' ? 'Perempuan' : '-'}${patient?.tanggal_lahir ? ` • ${calculateAge(patient.tanggal_lahir)}` : ''} • ${getPaymentLabel(reg?.payment_method)} • ${visit.room?.name || '-'}`}
         onBack={() => navigate('/billing')}
-        badges={billing ? billingStatusBadge(billing.status) : undefined}
+        badges={
+          <div className="flex flex-wrap items-center gap-1.5">
+            {unifiedQueueNumber && (
+              <Badge variant="outline" className="rounded-none font-mono font-bold">
+                Antrian {unifiedQueueNumber}
+              </Badge>
+            )}
+            {billing ? billingStatusBadge(billing.status) : null}
+          </div>
+        }
         actions={
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {billing?.status !== 'paid' && billing?.status !== 'cancelled' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-none text-xs"
+                onClick={handleCallCashier}
+                disabled={callingCashier}
+              >
+                {callingCashier ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Volume2 className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Panggil Kasir
+              </Button>
+            )}
             {billing && (
               <>
                 <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setVisitsDialogOpen(true)}>
@@ -829,6 +907,14 @@ export default function BillingShow() {
                     <User className="h-3.5 w-3.5" /> Informasi Pasien
                   </div>
                   <div className="space-y-2">
+                    {unifiedQueueNumber && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">No. Antrian</span>
+                        <Badge variant="outline" className="rounded-none font-mono font-bold text-xs">
+                          {unifiedQueueNumber}
+                        </Badge>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">No. RM</span>
                       <span className="text-sm font-mono font-semibold">{patient?.no_rm || '-'}</span>

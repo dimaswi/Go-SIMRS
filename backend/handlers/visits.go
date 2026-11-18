@@ -18,7 +18,7 @@ import (
 func GetVisits(c *gin.Context) {
 	var visits []models.Visit
 
-	query := database.DB.Preload("Registration").Preload("Registration.Patient").
+	query := database.DB.Preload("Registration").Preload("Registration.Patient").Preload("Registration.Queue").
 		Preload("SEP"). // Preload SEP by visit_id (not registration_id)
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed")
 
@@ -119,7 +119,7 @@ func GetVisit(c *gin.Context) {
 	id := c.Param("id")
 	var visit models.Visit
 
-	if err := database.DB.Preload("Registration").Preload("Registration.Patient").
+	if err := database.DB.Preload("Registration").Preload("Registration.Patient").Preload("Registration.Queue").
 		Preload("SEP"). // Preload SEP by visit_id
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed").
 		First(&visit, id).Error; err != nil {
@@ -231,32 +231,28 @@ func CreateVisit(c *gin.Context) {
 		return
 	}
 
-	// Create room queue if requested
+	// Create room queue if requested (inherit loket/registration queue number when present)
 	var queue *models.RoomQueue
 	if input.CreateQueue {
-		queueCode := room.QueueCode
-		if queueCode == "" {
-			queueCode = "Q"
+		defaultCode := room.QueueCode
+		if defaultCode == "" {
+			defaultCode = "Q"
 		}
 
-		// Get last queue number for this room today
 		todayDate := time.Now().Format("2006-01-02")
 		parsedDate, _ := ParseLocalDate(todayDate)
-		var lastQueue models.RoomQueue
-		var queueNum int
 
-		err := tx.Where("room_id = ? AND queue_date = ?", input.RoomID, parsedDate).
-			Order("queue_number DESC").First(&lastQueue).Error
-
-		if err != nil {
-			queueNum = 1
-		} else {
-			var lastNum int
-			fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
-			queueNum = lastNum + 1
+		queueNumber := resolvePatientUnifiedQueueNumber(tx, input.RegistrationID, nil)
+		if queueNumber == "" {
+			var genErr error
+			queueNumber, genErr = generateRoomQueueNumberByPrefix(tx, input.RoomID, defaultCode, parsedDate)
+			if genErr != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate queue number"})
+				return
+			}
 		}
-
-		queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+		queueCode := resolveQueueCodePrefix(queueNumber, defaultCode)
 
 		priority := input.QueuePriority
 		if priority == "" {

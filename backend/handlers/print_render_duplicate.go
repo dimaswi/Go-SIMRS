@@ -392,9 +392,11 @@ func printBillingImpl(c *gin.Context) {
 	if err := database.DB.
 		Preload("Visit").
 		Preload("Visit.Room").
+		Preload("Visit.RoomQueue").
 		Preload("Visit.Doctor").
 		Preload("Registration").
 		Preload("Registration.Patient").
+		Preload("Registration.Queue").
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
 			return db.Order("source_visit_id ASC, item_type ASC")
 		}).
@@ -445,7 +447,16 @@ func printBillingImpl(c *gin.Context) {
 	pdf.AddPage()
 
 	// Header
+	queueNumber := ""
+	if billing.Registration != nil && billing.Registration.Queue != nil && billing.Registration.Queue.QueueNumber != "" {
+		queueNumber = billing.Registration.Queue.QueueNumber
+	} else if billing.Visit != nil && billing.Visit.RoomQueue != nil && billing.Visit.RoomQueue.QueueNumber != "" {
+		queueNumber = billing.Visit.RoomQueue.QueueNumber
+	}
 	headerSubtitle := "No: " + billing.BillingNumber
+	if queueNumber != "" {
+		headerSubtitle += " | Antrian: " + queueNumber
+	}
 	if visitFilter != "" {
 		headerSubtitle += " (Per Kunjungan)"
 	}

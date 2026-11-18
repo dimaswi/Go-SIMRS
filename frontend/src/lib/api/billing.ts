@@ -104,6 +104,33 @@ export interface Billing {
   updated_at: string;
 }
 
+export interface CashierDisplayQueueItem {
+  id: number;
+  registration_number: string;
+  queue_number: string;
+  patient_name: string;
+  no_rm: string;
+  payment_method: string;
+  main_room_name?: string;
+  billing_number?: string;
+  billing_status?: string;
+  total_amount?: number;
+  remaining_amount?: number;
+  called_at?: string;
+}
+
+export interface CashierDisplayResponse {
+  current: CashierDisplayQueueItem | null;
+  called_history: CashierDisplayQueueItem[];
+  waiting: CashierDisplayQueueItem[];
+  stats: {
+    total: number;
+    waiting: number;
+    called: number;
+    paid: number;
+  };
+}
+
 export interface RegistrationTariff {
   id: number;
   service_type: string;
@@ -214,6 +241,20 @@ export const billingApi = {
     limit?: number;
   }) => {
     return api.get<any[]>('/billing/billable-visits', { params });
+  },
+
+  // Call registration queue to cashier
+  callCashier: async (registrationId: number) => {
+    return api.post<{ data: any; queue_number: string; called_at: string }>(
+      `/billing/registrations/${registrationId}/call`
+    );
+  },
+
+  // Public display data for cashier queue TV
+  getCashierDisplay: async (date?: string) => {
+    return api.get<CashierDisplayResponse>('/public/cashier-display', {
+      params: date ? { date } : undefined,
+    });
   },
 };
 

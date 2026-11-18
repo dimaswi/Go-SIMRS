@@ -211,9 +211,16 @@ export default function BillingPayment() {
         description={`${billing.registration?.patient?.nama_lengkap} • No. RM: ${billing.registration?.patient?.no_rm}`}
         onBack={() => navigate(`/billing/${billing?.visit_id}`)}
         badges={
-          <Badge className="rounded-none bg-yellow-500 text-black">
-            Sisa: {formatCurrency(billing.remaining_amount)}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(billing.registration?.queue?.queue_number || billing.visit?.room_queue?.queue_number) && (
+              <Badge variant="outline" className="rounded-none font-mono font-bold">
+                Antrian {billing.registration?.queue?.queue_number || billing.visit?.room_queue?.queue_number}
+              </Badge>
+            )}
+            <Badge className="rounded-none bg-yellow-500 text-black">
+              Sisa: {formatCurrency(billing.remaining_amount)}
+            </Badge>
+          </div>
         }
       />
 

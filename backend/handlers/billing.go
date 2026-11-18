@@ -36,8 +36,10 @@ func GetBillings(c *gin.Context) {
 
 	query := database.DB.Preload("Visit").
 		Preload("Visit.Room").
+		Preload("Visit.RoomQueue").
 		Preload("Registration").
 		Preload("Registration.Patient").
+		Preload("Registration.Queue").
 		Preload("GeneratedBy").
 		Preload("FinalizedBy")
 
@@ -111,8 +113,10 @@ func GetBilling(c *gin.Context) {
 	if err := database.DB.
 		Preload("Visit").
 		Preload("Visit.Room").
+		Preload("Visit.RoomQueue").
 		Preload("Registration").
 		Preload("Registration.Patient").
+		Preload("Registration.Queue").
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
 			return db.Order(billingItemsOrderClause())
 		}).
@@ -147,8 +151,10 @@ func GetBillingByVisit(c *gin.Context) {
 	if err := database.DB.
 		Preload("Visit").
 		Preload("Visit.Room").
+		Preload("Visit.RoomQueue").
 		Preload("Registration").
 		Preload("Registration.Patient").
+		Preload("Registration.Queue").
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
 			return db.Order(billingItemsOrderClause())
 		}).
@@ -248,7 +254,7 @@ func GenerateBilling(c *gin.Context) {
 	billingNumber := generateBillingNumber()
 
 	// Create new billing - now based on registration, not single visit
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	userIDUint := userID.(uint)
 	billing := models.Billing{
 		BillingNumber:  billingNumber,
@@ -367,7 +373,7 @@ func regenerateBillingItemsFromRegistration(c *gin.Context, billing *models.Bill
 		totalAmount += item.Subtotal
 	}
 
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	billing.TotalAmount = totalAmount
 	billing.FinalAmount = totalAmount - billing.DiscountAmount + billing.AdjustAmount
 	billing.RemainingAmount = billing.FinalAmount - billing.PaidAmount
@@ -1312,7 +1318,7 @@ func FinalizeBilling(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	userIDUint := userID.(uint)
 
 	// Update billing status to pending (ready for payment)
@@ -1560,7 +1566,7 @@ func CreatePayment(c *gin.Context) {
 
 	if billing.RemainingAmount <= 0 {
 		billing.Status = models.BillingStatusPaid
-		now := time.Now()
+		now := time.Now().Truncate(time.Second)
 		billing.PaidAt = &now
 
 		// Update registration to discharged when billing is fully paid
@@ -1648,7 +1654,7 @@ func VoidPayment(c *gin.Context) {
 	tx := database.DB.Begin()
 
 	// Void payment
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	userIDUint := userID.(uint)
 	payment.Status = "voided"
 	payment.VoidedByID = &userIDUint
@@ -1843,7 +1849,7 @@ func DeleteRegistrationTariff(c *gin.Context) {
 
 // Helper functions
 func generateBillingNumber() string {
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	var count int64
 	database.DB.Model(&models.Billing{}).
 		Where("DATE(created_at) = DATE(?)", now).
@@ -1852,7 +1858,7 @@ func generateBillingNumber() string {
 }
 
 func generatePaymentNumber() string {
-	now := time.Now()
+	now := time.Now().Truncate(time.Second)
 	var count int64
 	database.DB.Model(&models.BillingPayment{}).
 		Where("DATE(created_at) = DATE(?)", now).
@@ -1885,7 +1891,9 @@ type BillableVisitResponse struct {
 
 // BillableRegistrationResponse represents a registration with billing info
 type BillableRegistrationResponse struct {
+	ID uint `json:"id"`
 	models.Registration
+	QueueNumber     string  `json:"queue_number,omitempty"`
 	VisitCount      int     `json:"visit_count"`
 	MainVisitID     *uint   `json:"main_visit_id,omitempty"`
 	MainVisitType   string  `json:"main_visit_type,omitempty"`
@@ -1903,7 +1911,8 @@ func GetBillableRegistrations(c *gin.Context) {
 	var registrations []models.Registration
 
 	query := database.DB.
-		Preload("Patient")
+		Preload("Patient").
+		Preload("Queue")
 
 	// Filter by payment_method
 	if paymentMethod := c.Query("payment_method"); paymentMethod != "" {
@@ -1926,8 +1935,9 @@ func GetBillableRegistrations(c *gin.Context) {
 	// Search
 	if search := c.Query("search"); search != "" {
 		query = query.Joins("LEFT JOIN patients ON patients.id = registrations.patient_id").
-			Where("registrations.registration_number LIKE ? OR patients.nama_lengkap LIKE ? OR patients.no_rm LIKE ?",
-				"%"+search+"%", "%"+search+"%", "%"+search+"%")
+			Joins("LEFT JOIN queues ON queues.id = registrations.queue_id").
+			Where("registrations.registration_number LIKE ? OR patients.nama_lengkap LIKE ? OR patients.no_rm LIKE ? OR queues.queue_number LIKE ?",
+				"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
 	// Order by created_at descending
@@ -1946,17 +1956,26 @@ func GetBillableRegistrations(c *gin.Context) {
 	result := make([]BillableRegistrationResponse, 0) // Initialize as empty slice, not nil
 	for _, reg := range registrations {
 		item := BillableRegistrationResponse{
+			ID:           reg.ID,
 			Registration: reg,
 			HasBilling:   false,
 		}
 
+		// Inherit unified registration/kiosk queue number first
+		if reg.Queue != nil && reg.Queue.QueueNumber != "" {
+			item.QueueNumber = reg.Queue.QueueNumber
+		}
+
 		// Get visit count and main visit info
 		var visits []models.Visit
-		database.DB.Preload("Room").Where("registration_id = ?", reg.ID).Find(&visits)
+		database.DB.Preload("Room").Preload("RoomQueue").Where("registration_id = ?", reg.ID).Find(&visits)
 		item.VisitCount = len(visits)
 
 		// Find main visit (the one without referral)
 		for _, v := range visits {
+			if item.QueueNumber == "" && v.RoomQueue != nil && v.RoomQueue.QueueNumber != "" {
+				item.QueueNumber = v.RoomQueue.QueueNumber
+			}
 			if v.ReferralFrom == nil {
 				item.MainVisitID = &v.ID
 				item.MainVisitType = string(v.VisitType)
@@ -1964,6 +1983,15 @@ func GetBillableRegistrations(c *gin.Context) {
 					item.MainRoomName = v.Room.Name
 				}
 				break
+			}
+		}
+		// Ensure queue number fallback checks all visits if main visit lacked one
+		if item.QueueNumber == "" {
+			for _, v := range visits {
+				if v.RoomQueue != nil && v.RoomQueue.QueueNumber != "" {
+					item.QueueNumber = v.RoomQueue.QueueNumber
+					break
+				}
 			}
 		}
 		// If no main visit found, use first visit
@@ -1990,6 +2018,198 @@ func GetBillableRegistrations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// CashierDisplayQueueItem represents an item shown on the Cashier Queue Display
+type CashierDisplayQueueItem struct {
+	ID                 uint       `json:"id"`
+	RegistrationNumber string     `json:"registration_number"`
+	QueueNumber        string     `json:"queue_number"`
+	PatientName        string     `json:"patient_name"`
+	NoRM               string     `json:"no_rm"`
+	PaymentMethod      string     `json:"payment_method"`
+	MainRoomName       string     `json:"main_room_name,omitempty"`
+	BillingNumber      string     `json:"billing_number,omitempty"`
+	BillingStatus      string     `json:"billing_status,omitempty"`
+	TotalAmount        float64    `json:"total_amount,omitempty"`
+	RemainingAmount    float64    `json:"remaining_amount,omitempty"`
+	CalledAt           *time.Time `json:"called_at,omitempty"`
+}
+
+// CallRegistrationForCashier marks a registration as called by the cashier and returns its unified queue number
+func CallRegistrationForCashier(c *gin.Context) {
+	regID := c.Param("registration_id")
+
+	var reg models.Registration
+	if err := database.DB.
+		Preload("Patient").
+		Preload("Queue").
+		First(&reg, regID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	now := time.Now().Truncate(time.Second)
+	updates := map[string]interface{}{
+		"cashier_called_at": &now,
+	}
+	if userIDVal, exists := c.Get("userID"); exists {
+		if uid, ok := userIDVal.(uint); ok {
+			updates["cashier_called_by_id"] = uid
+		}
+	}
+
+	if err := database.DB.Model(&reg).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memanggil antrean kasir"})
+		return
+	}
+
+	queueNumber := resolvePatientUnifiedQueueNumber(database.DB, reg.ID, nil)
+	reg.CashierCalledAt = &now
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":         reg,
+		"queue_number": queueNumber,
+		"called_at":    now,
+	})
+}
+
+// GetCashierDisplay returns today's cashier queue call data for TV display
+func GetCashierDisplay(c *gin.Context) {
+	dateStr := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
+	parsedDate, err := time.ParseInLocation("2006-01-02", dateStr, time.Local)
+	if err != nil {
+		parsedDate = time.Now()
+	}
+	startOfDay := time.Date(parsedDate.Year(), parsedDate.Month(), parsedDate.Day(), 0, 0, 0, 0, parsedDate.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	var registrations []models.Registration
+	if err := database.DB.
+		Preload("Patient").
+		Preload("Queue").
+		Preload("DestinationRoom").
+		Where("status != ?", "cancelled").
+		Where("(registration_date >= ? AND registration_date < ?) OR (created_at >= ? AND created_at < ?)", startOfDay, endOfDay, startOfDay, endOfDay).
+		Order("created_at ASC").
+		Find(&registrations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	regIDs := make([]uint, 0, len(registrations))
+	for _, r := range registrations {
+		regIDs = append(regIDs, r.ID)
+	}
+
+	visitQueueByReg := make(map[uint]string)
+	visitRoomByReg := make(map[uint]string)
+	billingByReg := make(map[uint]models.Billing)
+
+	if len(regIDs) > 0 {
+		var visits []models.Visit
+		database.DB.Preload("Room").Preload("RoomQueue").Where("registration_id IN ?", regIDs).Order("created_at ASC").Find(&visits)
+		for _, v := range visits {
+			if _, ok := visitRoomByReg[v.RegistrationID]; !ok && v.Room != nil {
+				visitRoomByReg[v.RegistrationID] = v.Room.Name
+			}
+			if _, ok := visitQueueByReg[v.RegistrationID]; !ok && v.RoomQueue != nil && v.RoomQueue.QueueNumber != "" {
+				visitQueueByReg[v.RegistrationID] = v.RoomQueue.QueueNumber
+			}
+		}
+
+		var billings []models.Billing
+		database.DB.Where("registration_id IN ?", regIDs).Find(&billings)
+		for _, b := range billings {
+			billingByReg[b.RegistrationID] = b
+		}
+	}
+
+	var current *CashierDisplayQueueItem
+	calledHistory := make([]CashierDisplayQueueItem, 0)
+	waiting := make([]CashierDisplayQueueItem, 0)
+	paidCount := 0
+
+	for _, reg := range registrations {
+		queueNum := ""
+		if reg.Queue != nil && reg.Queue.QueueNumber != "" {
+			queueNum = reg.Queue.QueueNumber
+		} else if rq, ok := visitQueueByReg[reg.ID]; ok {
+			queueNum = rq
+		}
+		if queueNum == "" {
+			queueNum = reg.RegistrationNumber
+		}
+
+		patientName := "-"
+		noRM := "-"
+		if reg.Patient != nil {
+			if reg.Patient.NamaLengkap != "" {
+				patientName = reg.Patient.NamaLengkap
+			}
+			if reg.Patient.NoRM != "" {
+				noRM = reg.Patient.NoRM
+			}
+		}
+
+		roomName := visitRoomByReg[reg.ID]
+		if roomName == "" && reg.DestinationRoom != nil {
+			roomName = reg.DestinationRoom.Name
+		}
+
+		item := CashierDisplayQueueItem{
+			ID:                 reg.ID,
+			RegistrationNumber: reg.RegistrationNumber,
+			QueueNumber:        queueNum,
+			PatientName:        patientName,
+			NoRM:               noRM,
+			PaymentMethod:      reg.PaymentMethod,
+			MainRoomName:       roomName,
+			CalledAt:           reg.CashierCalledAt,
+		}
+
+		if b, ok := billingByReg[reg.ID]; ok {
+			item.BillingNumber = b.BillingNumber
+			item.BillingStatus = string(b.Status)
+			item.TotalAmount = b.FinalAmount
+			item.RemainingAmount = b.RemainingAmount
+			if b.Status == models.BillingStatusPaid {
+				paidCount++
+			}
+		}
+
+		if reg.CashierCalledAt != nil {
+			calledHistory = append(calledHistory, item)
+		} else if item.BillingStatus != string(models.BillingStatusPaid) && item.BillingStatus != string(models.BillingStatusCancelled) {
+			waiting = append(waiting, item)
+		}
+	}
+
+	// Sort calledHistory newest first
+	for i := 0; i < len(calledHistory); i++ {
+		for j := i + 1; j < len(calledHistory); j++ {
+			if calledHistory[j].CalledAt != nil && (calledHistory[i].CalledAt == nil || calledHistory[j].CalledAt.After(*calledHistory[i].CalledAt)) {
+				calledHistory[i], calledHistory[j] = calledHistory[j], calledHistory[i]
+			}
+		}
+	}
+
+	if len(calledHistory) > 0 {
+		first := calledHistory[0]
+		current = &first
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"current":        current,
+		"called_history": calledHistory,
+		"waiting":        waiting,
+		"stats": gin.H{
+			"total":   len(registrations),
+			"waiting": len(waiting),
+			"called":  len(calledHistory),
+			"paid":    paidCount,
+		},
+	})
 }
 
 // GetBillableVisits returns all visits for billing page

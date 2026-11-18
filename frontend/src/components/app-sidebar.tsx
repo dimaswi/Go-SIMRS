@@ -27,6 +27,7 @@ import {
   ClipboardList,
   Truck,
   Monitor,
+  Tv,
   Activity,
   Receipt,
   BookMarked,
@@ -236,6 +237,7 @@ const menuItems: MenuItem[] = [
     icon: Settings,
     permission: 'settings.view',
     submenu: [
+      { path: '/settings/display', label: 'Display Antrean', icon: Tv, permission: 'settings.view' },
       { path: '/users', label: 'Users', icon: Users, permission: 'users.view' },
       { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles.view' },
       { path: '/permissions', label: 'Permissions', icon: Lock, permission: 'permissions.view' },

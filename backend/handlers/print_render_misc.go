@@ -208,6 +208,7 @@ func printRegistrationTicketImpl(c *gin.Context) {
 		Preload("Queue").
 		Preload("DestinationRoom").
 		Preload("Doctor").
+		Preload("Visit.RoomQueue").
 		First(&registration, registrationID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Registration not found"})
 		return
@@ -240,10 +241,12 @@ func printRegistrationTicketImpl(c *gin.Context) {
 	pdf.CellFormat(contentWidth, 6, strings.ToUpper(roomName), "", 1, "C", false, 0, "")
 	pdf.Ln(2)
 
-	// Queue Number
+	// Queue Number (prefer loket Queue, then RoomQueue e.g. MJKN, then RegistrationNumber)
 	queueNumber := "-"
 	if registration.Queue != nil && registration.Queue.QueueNumber != "" {
 		queueNumber = registration.Queue.QueueNumber
+	} else if registration.Visit != nil && registration.Visit.RoomQueue != nil && registration.Visit.RoomQueue.QueueNumber != "" {
+		queueNumber = registration.Visit.RoomQueue.QueueNumber
 	} else {
 		// Use registration number as fallback
 		queueNumber = registration.RegistrationNumber

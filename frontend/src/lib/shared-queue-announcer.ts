@@ -2,8 +2,11 @@ import { playQueueAudioFeedback, unlockQueueAudio } from "@/lib/queue-audio";
 
 const SHARED_ANNOUNCER_CHANNEL = "shared-queue-announcer";
 const SHARED_ANNOUNCER_QUEUE_KEY = "shared-queue-announcer-queue";
+const SHARED_ANNOUNCER_CLAIMED_KEY = "shared-queue-announcer-claimed";
+const SHARED_ANNOUNCER_SPEAKER_LOCK = "shared-queue-announcer-speaker";
 const SHARED_ANNOUNCEMENT_CLIP_GAP_MS = 500;
 const SHARED_ANNOUNCEMENT_QUEUE_DELAY_MS = 1000;
+const SHARED_ANNOUNCEMENT_SPEECH_DEDUP_MS = 3500;
 const SHARED_ANNOUNCEMENT_SPEECH_RATE = 0.8;
 const SHARED_ANNOUNCEMENT_SPEECH_PITCH = 1;
 const SHARED_ANNOUNCEMENT_SPEECH_VOLUME = 1;
@@ -124,6 +127,68 @@ const notifyStateListeners = () => {
   stateListeners.forEach((listener) => listener(state));
 };
 
+type ClaimedAnnouncementEntry = {
+  id: string;
+  speechText: string;
+  claimedAt: number;
+};
+
+const canonicalizeAnnouncementId = (id: string): string => {
+  const isoMatch = id.match(/^(.*?)(\d{4}-\d{2}-\d{2}T.+)$/);
+  if (!isoMatch) return id;
+  const parsedMs = Date.parse(isoMatch[2]);
+  if (Number.isNaN(parsedMs)) return id;
+  return `${isoMatch[1]}${Math.floor(parsedMs / 1000)}`;
+};
+
+const getClaimedAnnouncements = (): ClaimedAnnouncementEntry[] => {
+  const rawValue = window.localStorage.getItem(SHARED_ANNOUNCER_CLAIMED_KEY);
+  if (!rawValue) return [];
+
+  try {
+    const parsed = JSON.parse(rawValue) as ClaimedAnnouncementEntry[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const isAlreadyClaimed = (
+  claimed: ClaimedAnnouncementEntry[],
+  announcement: SharedQueueAnnouncement,
+  referenceTime: number
+) =>
+  claimed.some(
+    (entry) =>
+      entry.id === announcement.id ||
+      (entry.speechText === announcement.speechText &&
+        Math.abs(referenceTime - entry.claimedAt) < SHARED_ANNOUNCEMENT_SPEECH_DEDUP_MS)
+  );
+
+const markAnnouncementClaimed = (announcement: SharedQueueAnnouncement) => {
+  const existing = getClaimedAnnouncements();
+  const next = [
+    ...existing.filter((entry) => entry.id !== announcement.id),
+    {
+      id: announcement.id,
+      speechText: announcement.speechText,
+      claimedAt: Date.now(),
+    },
+  ].slice(-SHARED_ANNOUNCEMENT_MAX_ITEMS);
+
+  window.localStorage.setItem(SHARED_ANNOUNCER_CLAIMED_KEY, JSON.stringify(next));
+};
+
+const withCrossTabSpeakerLock = async (fn: () => Promise<void>) => {
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    await navigator.locks.request(SHARED_ANNOUNCER_SPEAKER_LOCK, async () => {
+      await fn();
+    });
+    return;
+  }
+  await fn();
+};
+
 const getStoredQueueSnapshot = (): SharedQueueAnnouncement[] => {
   const rawValue = window.localStorage.getItem(SHARED_ANNOUNCER_QUEUE_KEY);
   if (!rawValue) return [];
@@ -225,24 +290,34 @@ const processLocalAnnouncementQueue = async () => {
   isProcessingQueue = true;
 
   try {
-    while (pendingAnnouncements.length > 0 && isEnabled) {
-      const nextAnnouncement = pendingAnnouncements.shift();
-      if (!nextAnnouncement) {
-        continue;
-      }
+    await withCrossTabSpeakerLock(async () => {
+      syncAnnouncementsFromStorage();
+      while (pendingAnnouncements.length > 0 && isEnabled) {
+        const nextAnnouncement = pendingAnnouncements.shift();
+        if (!nextAnnouncement) {
+          continue;
+        }
 
-      isAnnouncing = true;
-      notifyStateListeners();
+        const claimed = getClaimedAnnouncements();
+        if (isAlreadyClaimed(claimed, nextAnnouncement, Date.now())) {
+          continue;
+        }
+        markAnnouncementClaimed(nextAnnouncement);
 
-      try {
-        await playSharedAnnouncement(nextAnnouncement);
-      } finally {
-        isAnnouncing = false;
+        isAnnouncing = true;
         notifyStateListeners();
-      }
 
-      await waitForDelay(SHARED_ANNOUNCEMENT_QUEUE_DELAY_MS);
-    }
+        try {
+          await playSharedAnnouncement(nextAnnouncement);
+        } finally {
+          isAnnouncing = false;
+          notifyStateListeners();
+        }
+
+        await waitForDelay(SHARED_ANNOUNCEMENT_QUEUE_DELAY_MS);
+        syncAnnouncementsFromStorage();
+      }
+    });
   } finally {
     isProcessingQueue = false;
     isAnnouncing = false;
@@ -321,13 +396,27 @@ export const subscribeSharedAnnouncementState = (
 export const queueSharedAnnouncement = (
   announcement: Omit<SharedQueueAnnouncement, "createdAt"> | SharedQueueAnnouncement
 ) => {
+  const createdAt = "createdAt" in announcement ? announcement.createdAt : Date.now();
   const nextAnnouncement: SharedQueueAnnouncement = {
     ...announcement,
-    createdAt: "createdAt" in announcement ? announcement.createdAt : Date.now(),
+    id: canonicalizeAnnouncementId(announcement.id),
+    createdAt,
   } as SharedQueueAnnouncement;
 
+  const claimed = getClaimedAnnouncements();
+  if (isAlreadyClaimed(claimed, nextAnnouncement, createdAt)) {
+    return;
+  }
+
   const currentQueue = getStoredQueueSnapshot();
-  if (currentQueue.some((currentAnnouncement) => currentAnnouncement.id === nextAnnouncement.id)) {
+  if (
+    currentQueue.some(
+      (currentAnnouncement) =>
+        currentAnnouncement.id === nextAnnouncement.id ||
+        (currentAnnouncement.speechText === nextAnnouncement.speechText &&
+          Math.abs(createdAt - currentAnnouncement.createdAt) < SHARED_ANNOUNCEMENT_SPEECH_DEDUP_MS)
+    )
+  ) {
     syncAnnouncementsFromStorage();
     return;
   }
