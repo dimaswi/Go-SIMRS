@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -20,6 +19,7 @@ import {
   History,
   Save,
   User,
+  RotateCcw,
 } from "lucide-react";
 import { roomsApi, type Room, type DoctorSchedule, type RoomStaff } from "@/lib/api/rooms";
 import { unitTransferApi, type UnitTransfer, type CreateUnitTransferInput } from "@/lib/api/inpatient";
@@ -206,186 +206,202 @@ export function UnitTransferForm({
 
   const serviceLabel = "Rawat Jalan / UGD";
 
+  const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
+  const selectedDoctorName =
+    selectedDoctorId
+      ? doctorSchedules.find((d) => d.employee_id === selectedDoctorId)?.employee?.nama_lengkap ||
+        roomStaffDoctors.find((d) => d.employee_id === selectedDoctorId)?.employee?.nama_lengkap
+      : undefined;
+
   if (loading) {
     return (
-      <div>
-        <div className="p-6 flex items-center justify-center min-h-[300px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[240px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="p-0">
-        {/* Inline Tabs */}
-        <div className="border-b">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab("form")}
-              className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
-                activeTab === "form"
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4" />
-                Form Mutasi
-              </span>
-              {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("history")}
-              className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
-                activeTab === "history"
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Riwayat Mutasi
-                {transfers.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {transfers.length}
-                  </Badge>
-                )}
-              </span>
-              {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-          </div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      {/* Inline Sub-Tabs */}
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5">
+        <div className="flex gap-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab("form")}
+            className={cn(
+              "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+              activeTab === "form"
+                ? "text-neutral-900 dark:text-neutral-100"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+            Form Mutasi
+            {activeTab === "form" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className={cn(
+              "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+              activeTab === "history"
+                ? "text-neutral-900 dark:text-neutral-100"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <History className="h-3.5 w-3.5" />
+            Riwayat Mutasi
+            {transfers.length > 0 && (
+              <Badge variant="secondary" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
+                {transfers.length}
+              </Badge>
+            )}
+            {activeTab === "history" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+            )}
+          </button>
         </div>
+      </div>
 
-        <div className="p-4 space-y-6">
-          {/* Form Tab */}
-          {activeTab === "form" && !readOnly && (
-            <fieldset disabled={saving}>
-              {/* Room Selection */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Pilih Ruangan Tujuan
-                </Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {rooms.map(room => {
-                    const isSelected = selectedRoomId === room.id;
-                    const isCurrent = room.id === currentRoomId;
+      {/* Form Tab */}
+      {activeTab === "form" && !readOnly && (
+        <fieldset disabled={saving} className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+          {/* Room Selection */}
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                Pilih Ruangan Tujuan
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">
+                {rooms.length} unit tersedia
+              </span>
+            </div>
 
-                    return (
-                      <button
-                        key={room.id}
-                        type="button"
-                        onClick={() => {
-                          if (!isCurrent) {
-                            setSelectedRoomId(room.id);
-                            setSelectedDoctorId(null);
-                          }
-                        }}
-                        disabled={isCurrent}
-                        className={cn(
-                          "p-4 rounded-lg border-2 text-left transition-all relative",
-                          isSelected
-                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                            : isCurrent
-                            ? "border-yellow-400 bg-yellow-50 cursor-not-allowed"
-                            : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                        )}
-                      >
-                        {isSelected && (
-                          <CheckCircle2 className="absolute top-2 right-2 h-5 w-5 text-primary" />
-                        )}
-                        {isCurrent && !isSelected && (
-                          <span className="absolute top-2 right-2 text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded font-medium">
-                            Sekarang
-                          </span>
-                        )}
-                        <div className="font-semibold text-sm mb-1">{room.name}</div>
-                        <div className="text-xs text-muted-foreground">{room.code}</div>
+            {rooms.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {rooms.map((room) => {
+                  const isSelected = selectedRoomId === room.id;
+                  const isCurrent = room.id === currentRoomId;
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => {
+                        if (!isCurrent) {
+                          setSelectedRoomId(room.id);
+                          setSelectedDoctorId(null);
+                        }
+                      }}
+                      disabled={isCurrent}
+                      className={cn(
+                        "p-3.5 rounded-none border text-left transition-all relative",
+                        isSelected
+                          ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] ring-1 ring-neutral-900 dark:ring-neutral-100"
+                          : isCurrent
+                          ? "border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30 cursor-not-allowed opacity-85"
+                          : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                      )}
+                    >
+                      {isSelected && (
+                        <CheckCircle2 className="absolute top-2.5 right-2.5 h-4 w-4 text-neutral-900 dark:text-neutral-100" />
+                      )}
+                      {isCurrent && !isSelected && (
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold uppercase tracking-wider bg-amber-500 text-white px-1.5 py-0.5">
+                          Sekarang
+                        </span>
+                      )}
+                      <div className="font-semibold text-xs text-foreground pr-12 truncate">
+                        {room.name}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="text-[11px] font-mono text-muted-foreground">{room.code}</span>
                         {room.service_type !== serviceType && (
-                          <Badge variant="outline" className="mt-1 text-[10px] px-1.5 py-0">
+                          <Badge variant="outline" className="rounded-none text-[10px] h-4 px-1">
                             {room.service_type === "gawat_darurat" ? "UGD" : "Poli"}
                           </Badge>
                         )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {rooms.length === 0 && (
-                  <Alert variant="destructive">
-                    <AlertDescription>Tidak ada ruangan {serviceLabel} yang tersedia</AlertDescription>
-                  </Alert>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="border border-destructive/40 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive">
+                Tidak ada ruangan {serviceLabel} yang tersedia
+              </div>
+            )}
+          </div>
+
+          {/* Detail Mutasi & Dokter */}
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Detail Mutasi & Dokter Tujuan
+            </div>
+
+            {selectedRoomId && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  Pilih Dokter Tujuan (Opsional)
+                </Label>
+                {loadingDoctors ? (
+                  <div className="flex items-center gap-2 h-9 px-3 border border-neutral-200 dark:border-neutral-800 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Memuat daftar dokter...
+                  </div>
+                ) : doctorSchedules.length > 0 ? (
+                  <Select
+                    value={selectedDoctorId?.toString() || "none"}
+                    onValueChange={(val) => setSelectedDoctorId(val === "none" ? null : Number(val))}
+                  >
+                    <SelectTrigger className="w-full h-9 text-xs rounded-none">
+                      <SelectValue placeholder="Pilih dokter (opsional)" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none">
+                      <SelectItem value="none">Tidak memilih dokter</SelectItem>
+                      {doctorSchedules.map((ds) => (
+                        <SelectItem key={ds.employee_id} value={ds.employee_id.toString()}>
+                          {ds.employee
+                            ? `${ds.employee.nama_lengkap}${ds.employee.spesialisasi ? ` - ${ds.employee.spesialisasi}` : ""}`
+                            : `Dokter ID ${ds.employee_id}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : roomStaffDoctors.length > 0 ? (
+                  <Select
+                    value={selectedDoctorId?.toString() || "none"}
+                    onValueChange={(val) => setSelectedDoctorId(val === "none" ? null : Number(val))}
+                  >
+                    <SelectTrigger className="w-full h-9 text-xs rounded-none">
+                      <SelectValue placeholder="Pilih dokter (opsional)" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none">
+                      <SelectItem value="none">Tidak memilih dokter</SelectItem>
+                      {roomStaffDoctors.map((staff) => (
+                        <SelectItem key={staff.employee_id} value={staff.employee_id.toString()}>
+                          {staff.employee
+                            ? `${staff.employee.nama_lengkap}${staff.employee.spesialisasi ? ` - ${staff.employee.spesialisasi}` : ""}`
+                            : `Dokter ID ${staff.employee_id}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-9 px-3 border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center text-xs text-muted-foreground">
+                    Tidak ada jadwal dokter di ruangan ini
+                  </div>
                 )}
               </div>
+            )}
 
-              {/* Doctor Selection */}
-              {selectedRoomId && (
-                <div className="space-y-3 mt-6">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Pilih Dokter Tujuan (Opsional)
-                  </Label>
-                  {loadingDoctors ? (
-                    <div className="flex items-center gap-2 py-4">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">Memuat daftar dokter...</span>
-                    </div>
-                  ) : doctorSchedules.length > 0 ? (
-                    <Select
-                      value={selectedDoctorId?.toString() || "none"}
-                      onValueChange={(val) => setSelectedDoctorId(val === "none" ? null : Number(val))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih dokter (opsional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Tidak memilih dokter</SelectItem>
-                        {doctorSchedules.map(ds => (
-                          <SelectItem key={ds.employee_id} value={ds.employee_id.toString()}>
-                            {ds.employee
-                              ? `${ds.employee.nama_lengkap}${ds.employee.spesialisasi ? ` - ${ds.employee.spesialisasi}` : ""}`
-                              : `Dokter ID ${ds.employee_id}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : roomStaffDoctors.length > 0 ? (
-                    <Select
-                      value={selectedDoctorId?.toString() || "none"}
-                      onValueChange={(val) => setSelectedDoctorId(val === "none" ? null : Number(val))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih dokter (opsional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Tidak memilih dokter</SelectItem>
-                        {roomStaffDoctors.map(staff => (
-                          <SelectItem key={staff.employee_id} value={staff.employee_id.toString()}>
-                            {staff.employee
-                              ? `${staff.employee.nama_lengkap}${staff.employee.spesialisasi ? ` - ${staff.employee.spesialisasi}` : ""}`
-                              : `Dokter ID ${staff.employee_id}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-2">
-                      Tidak ada jadwal dokter di ruangan ini
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Reason */}
-              <div className="space-y-2 mt-6">
-                <Label htmlFor="transfer_reason" className="text-sm font-semibold">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer_reason" className="text-xs font-medium">
                   Alasan Mutasi
                 </Label>
                 <Textarea
@@ -393,13 +409,12 @@ export function UnitTransferForm({
                   placeholder="Alasan memindahkan pasien ke ruangan lain..."
                   value={transferReason}
                   onChange={(e) => setTransferReason(e.target.value)}
-                  className="min-h-[80px] resize-none"
+                  className="min-h-[80px] text-xs rounded-none resize-none"
                 />
               </div>
 
-              {/* Notes */}
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="transfer_notes" className="text-sm">
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer_notes" className="text-xs font-medium">
                   Catatan Tambahan (Opsional)
                 </Label>
                 <Textarea
@@ -407,147 +422,166 @@ export function UnitTransferForm({
                   placeholder="Catatan tambahan..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[60px] resize-none"
+                  className="min-h-[80px] text-xs rounded-none resize-none"
                 />
               </div>
-
-              {/* Summary */}
-              {selectedRoomId && (
-                <Alert className="bg-blue-50 border-blue-200 mt-6">
-                  <Building className="h-4 w-4 text-blue-600" />
-                  <AlertTitle className="text-blue-700">Konfirmasi Mutasi Unit</AlertTitle>
-                  <AlertDescription className="text-blue-600">
-                    Pasien akan dipindahkan ke{" "}
-                    <strong>{rooms.find(r => r.id === selectedRoomId)?.name}</strong>
-                    {selectedDoctorId && doctorSchedules.find(d => d.employee_id === selectedDoctorId)?.employee && (
-                      <> - Dokter <strong>{doctorSchedules.find(d => d.employee_id === selectedDoctorId)!.employee!.nama_lengkap}</strong></>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-6 border-t mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleReset}
-                  disabled={saving}
-                >
-                  Reset
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={saving || !selectedRoomId}
-                  className="gap-2"
-                >
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  Simpan Mutasi
-                </Button>
-              </div>
-            </fieldset>
-          )}
-
-          {/* Form Tab - readOnly */}
-          {activeTab === "form" && readOnly && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <ArrowRightLeft className="h-12 w-12 text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground">Mode Hanya Baca</p>
-              <p className="text-sm text-muted-foreground">
-                Tidak dapat melakukan mutasi pada kunjungan ini
-              </p>
             </div>
-          )}
 
-          {/* History Tab */}
-          {activeTab === "history" && (
-            <div className="space-y-3">
-              {transfers.length > 0 ? (
-                transfers.map((transfer, index) => (
-                  <div
-                    key={transfer.id}
-                    className={cn(
-                      "p-3 rounded-lg border",
-                      index === 0 ? "bg-primary/5 border-primary/20" : "bg-muted/30"
+            {selectedRoom && (
+              <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/70 dark:bg-neutral-900/40 px-3.5 py-2.5 flex items-center gap-2.5 text-xs">
+                <Building className="h-4 w-4 text-neutral-700 dark:text-neutral-300 shrink-0" />
+                <div>
+                  <span className="font-semibold text-foreground">Konfirmasi Mutasi:</span>{" "}
+                  <span className="text-muted-foreground">
+                    Pasien akan dipindahkan ke{" "}
+                    <strong className="text-foreground">{selectedRoom.name}</strong>
+                    {selectedDoctorName && (
+                      <>
+                        {" "}— Dokter <strong className="text-foreground">{selectedDoctorName}</strong>
+                      </>
                     )}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {/* From */}
-                        <div className="flex flex-col p-2 rounded bg-background border text-sm min-w-[120px]">
-                          <span className="font-medium">{transfer.from_room?.name || "-"}</span>
-                          {transfer.from_doctor && (
-                            <span className="text-xs text-muted-foreground mt-0.5">
-                              {formatDoctorName(transfer.from_doctor)}
-                            </span>
-                          )}
-                        </div>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
-                        {/* Arrow */}
-                        <ArrowRightLeft className="h-4 w-4 text-muted-foreground shrink-0" />
+          {/* Action Buttons */}
+          <div className="px-4 sm:px-5 py-3 bg-neutral-50/40 dark:bg-neutral-900/20 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              disabled={saving}
+              className="h-8 rounded-none text-xs gap-1.5"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || !selectedRoomId}
+              className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              Simpan Mutasi
+            </Button>
+          </div>
+        </fieldset>
+      )}
 
-                        {/* To */}
-                        <div className="flex flex-col p-2 rounded bg-primary/10 border-primary/20 border text-sm min-w-[120px]">
-                          <span className="font-medium">{transfer.to_room?.name || "-"}</span>
-                          {transfer.to_doctor && (
-                            <span className="text-xs text-muted-foreground mt-0.5">
-                              {formatDoctorName(transfer.to_doctor)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+      {/* Form Tab - readOnly */}
+      {activeTab === "form" && readOnly && (
+        <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ArrowRightLeft className="h-4 w-4 opacity-50" />
+            <span>Mode hanya baca — tidak dapat melakukan mutasi unit pada kunjungan ini.</span>
+          </div>
+        </div>
+      )}
 
-                      {/* Info */}
-                      <div className="text-right text-sm shrink-0">
-                        <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(transfer.transfer_date).toLocaleDateString("id-ID", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                        {transfer.created_by && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            oleh {transfer.created_by.full_name || transfer.created_by.username}
-                          </p>
+      {/* History Tab */}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5 space-y-3 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center justify-between gap-2">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Riwayat Mutasi Unit
+            </div>
+            <span className="text-[11px] font-mono text-muted-foreground">
+              {transfers.length} entri
+            </span>
+          </div>
+
+          {transfers.length > 0 ? (
+            <div className="border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+              {transfers.map((transfer, index) => (
+                <div
+                  key={transfer.id}
+                  className={cn(
+                    "p-3.5 space-y-2.5",
+                    index === 0 ? "bg-neutral-50/70 dark:bg-neutral-900/30" : "bg-background"
+                  )}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className="border border-neutral-200 dark:border-neutral-800 bg-background px-2.5 py-1.5 min-w-[140px]">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Dari Unit</div>
+                        <div className="text-xs font-semibold">{transfer.from_room?.name || "-"}</div>
+                        {transfer.from_doctor && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            {formatDoctorName(transfer.from_doctor)}
+                          </div>
                         )}
                       </div>
+
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+
+                      <div className="border border-neutral-900/20 dark:border-neutral-100/20 bg-neutral-50 dark:bg-neutral-900/60 px-2.5 py-1.5 min-w-[140px]">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ke Unit</div>
+                        <div className="text-xs font-semibold">{transfer.to_room?.name || "-"}</div>
+                        {transfer.to_doctor && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            {formatDoctorName(transfer.to_doctor)}
+                          </div>
+                        )}
+                      </div>
+
+                      {index === 0 && (
+                        <Badge className="rounded-none text-[10px] h-5 px-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">
+                          Terbaru
+                        </Badge>
+                      )}
                     </div>
 
-                    {/* Reason */}
-                    {transfer.transfer_reason && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">Alasan:</span> {transfer.transfer_reason}
-                      </p>
-                    )}
-                    {transfer.notes && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <span className="font-medium">Catatan:</span> {transfer.notes}
-                      </p>
-                    )}
+                    <div className="text-left sm:text-right text-[11px] text-muted-foreground shrink-0">
+                      <div className="flex items-center sm:justify-end gap-1 font-mono">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(transfer.transfer_date).toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                      {transfer.created_by && (
+                        <p className="mt-0.5">
+                          oleh {transfer.created_by.full_name || transfer.created_by.username}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <History className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                  <p className="text-muted-foreground">Belum ada riwayat mutasi unit</p>
-                  <p className="text-sm text-muted-foreground">
-                    Pasien belum pernah dipindahkan ke ruangan lain
-                  </p>
+
+                  {(transfer.transfer_reason || transfer.notes) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs text-muted-foreground">
+                      {transfer.transfer_reason && (
+                        <p>
+                          <span className="font-semibold text-foreground">Alasan:</span> {transfer.transfer_reason}
+                        </p>
+                      )}
+                      {transfer.notes && (
+                        <p>
+                          <span className="font-semibold text-foreground">Catatan:</span> {transfer.notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
+            </div>
+          ) : (
+            <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <History className="h-4 w-4 opacity-50" />
+              <span>Belum ada riwayat mutasi unit — pasien belum pernah dipindahkan ke ruangan lain.</span>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Plus, Save, Trash2, X, Eye, ChevronDown, ChevronRight, ImageIcon, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, X, Eye, ChevronDown, ChevronRight, ImageIcon, ArrowLeft, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -321,6 +321,13 @@ export function BodyMarkerForm({
     setIsEditModalOpen(true);
   };
 
+  const openEditItemModal = (itemId: string) => {
+    setActiveItemId(itemId);
+    setSelectedMarkerId("");
+    setEditModalStep("canvas");
+    setIsEditModalOpen(true);
+  };
+
   const openViewModal = (itemId: string) => {
     setViewItemId(itemId);
     setSelectedMarkerId("");
@@ -346,25 +353,43 @@ export function BodyMarkerForm({
   }
 
   const renderCanvas = (item: BodyMarkerItem, imgUrl: string, interactive: boolean) => (
-    <div className="h-full w-full flex items-center justify-center bg-muted/10 overflow-hidden">
+    <div className="h-full w-full flex items-center justify-center bg-neutral-50/50 dark:bg-neutral-900/30 overflow-hidden">
       <div className="relative inline-block max-w-full max-h-full">
-        <img ref={interactive ? imageRef : undefined} src={imgUrl} alt={item.image_name}
-          className={cn("block w-auto h-auto max-w-full max-h-[calc(100vh-200px)]", interactive && !isFormDisabled ? "cursor-crosshair" : "cursor-default")}
+        <img
+          ref={interactive ? imageRef : undefined}
+          src={imgUrl}
+          alt={item.image_name}
+          className={cn(
+            "block w-auto h-auto max-w-full max-h-[calc(100vh-200px)]",
+            interactive && !isFormDisabled ? "cursor-crosshair" : "cursor-default",
+          )}
           onClick={interactive ? handleImageClick : undefined}
           onLoad={() => setImageLoadErrors((p) => ({ ...p, [String(item.id || "")]: false }))}
           onError={() => setImageLoadErrors((p) => ({ ...p, [String(item.id || "")]: true }))}
         />
         {imageLoadErrors[String(item.id || "")] && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/90"><p className="text-xs text-muted-foreground">Gambar tidak dapat ditampilkan.</p></div>
+          <div className="absolute inset-0 flex items-center justify-center bg-background/90">
+            <p className="text-xs text-muted-foreground">Gambar tidak dapat ditampilkan.</p>
+          </div>
         )}
         {item.markers.map((marker, index) => {
           const mid = String(marker.id || "");
           return (
-            <button key={mid} type="button"
-              className={cn("absolute -translate-x-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-white bg-rose-600 text-[10px] font-semibold text-white shadow", selectedMarkerId === mid && "ring-2 ring-rose-200")}
+            <button
+              key={mid}
+              type="button"
+              className={cn(
+                "absolute -translate-x-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-white bg-rose-600 text-[10px] font-bold text-white shadow",
+                selectedMarkerId === mid && "ring-2 ring-rose-200",
+              )}
               style={{ left: `${asPercent(marker.x)}%`, top: `${asPercent(marker.y)}%` }}
-              onClick={(e) => { e.stopPropagation(); setSelectedMarkerId(mid); }}
-            >{toMarkerLabel(marker.label, index + 1)}</button>
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedMarkerId(mid);
+              }}
+            >
+              {toMarkerLabel(marker.label, index + 1)}
+            </button>
           );
         })}
       </div>
@@ -372,18 +397,74 @@ export function BodyMarkerForm({
   );
 
   const renderMarkerTable = (item: BodyMarkerItem, editable: boolean) => (
-    <div className="rounded-md border">
+    <div className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
       <table className="w-full table-fixed text-xs">
-        <colgroup><col className="w-[60px]" /><col />{editable && <col className="w-[48px]" />}</colgroup>
-        <thead className="bg-muted/30"><tr className="border-b"><th className="px-2 py-2 text-left font-semibold">No</th><th className="px-2 py-2 text-left font-semibold">Catatan</th>{editable && <th className="px-2 py-2 text-center font-semibold">Aksi</th>}</tr></thead>
-        <tbody>
+        <colgroup>
+          <col className="w-[52px]" />
+          <col />
+          {editable && <col className="w-[44px]" />}
+        </colgroup>
+        <thead className="bg-neutral-50 dark:bg-neutral-900">
+          <tr className="border-b border-neutral-200 dark:border-neutral-800">
+            <th className="h-8 px-2.5 text-left font-bold uppercase tracking-wider text-muted-foreground">
+              No
+            </th>
+            <th className="h-8 px-2.5 text-left font-bold uppercase tracking-wider text-muted-foreground">
+              Catatan Temuan
+            </th>
+            {editable && (
+              <th className="h-8 px-2 text-center font-bold uppercase tracking-wider text-muted-foreground">
+                Aksi
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
           {item.markers.map((marker, index) => {
             const mid = String(marker.id || "");
             return (
-              <tr key={mid} className={cn("border-b last:border-0", selectedMarkerId === mid ? "bg-primary/5" : "bg-background")}>
-                <td className="px-2 py-2"><button type="button" className="font-semibold" onClick={() => setSelectedMarkerId(mid)}>{toMarkerLabel(marker.label, index + 1)}</button></td>
-                <td className="px-2 py-2 min-w-0">{editable ? <Input value={marker.note || ""} onChange={(e) => updateMarkerNote(mid, e.target.value)} placeholder="Catatan (opsional)" className="h-8 w-full text-xs" /> : <span className="text-xs text-muted-foreground">{marker.note || "-"}</span>}</td>
-                {editable && <td className="px-2 py-2 text-center"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMarker(mid)}><Trash2 className="h-3.5 w-3.5" /></Button></td>}
+              <tr
+                key={mid}
+                className={cn(
+                  selectedMarkerId === mid
+                    ? "bg-neutral-100/70 dark:bg-neutral-900/60"
+                    : "bg-white dark:bg-neutral-950",
+                )}
+              >
+                <td className="px-2.5 py-2 align-middle">
+                  <button
+                    type="button"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white"
+                    onClick={() => setSelectedMarkerId(mid)}
+                  >
+                    {toMarkerLabel(marker.label, index + 1)}
+                  </button>
+                </td>
+                <td className="px-2.5 py-2 min-w-0 align-middle">
+                  {editable ? (
+                    <Input
+                      value={marker.note || ""}
+                      onChange={(e) => updateMarkerNote(mid, e.target.value)}
+                      placeholder="Tulis keterangan lokasi / lesi / nyeri..."
+                      className="h-8 w-full text-xs rounded-none"
+                    />
+                  ) : (
+                    <span className="text-xs text-foreground">{marker.note || "-"}</span>
+                  )}
+                </td>
+                {editable && (
+                  <td className="px-2 py-2 text-center align-middle">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-none text-muted-foreground hover:text-destructive"
+                      onClick={() => removeMarker(mid)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -394,100 +475,305 @@ export function BodyMarkerForm({
 
   return (
     <>
-      <form
-        className="space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleSave();
-        }}
-      >
-        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>Marker Bagian Tubuh</span>
-              {!isFormDisabled && <Button type="button" onClick={openEditModal} size="sm" className="h-6 px-2 py-0 text-[10px]"><Plus className="h-3.5 w-3.5 mr-1" />Tambah</Button>}
-            </div>
-          </div>
-          {items.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
-                <div className="col-span-1"></div><div className="col-span-4">Gambar</div><div className="col-span-2">Kategori</div><div className="col-span-2">Marker</div><div className="col-span-3 text-right">Aksi</div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSave();
+          }}
+        >
+          <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Marker Bagian Tubuh
+                  </div>
+                  <Badge
+                    variant={items.length > 0 ? "default" : "secondary"}
+                    className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                  >
+                    {items.length} Gambar • {totalMarkers} Titik
+                  </Badge>
+                </div>
+
+                {!isFormDisabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openEditModal}
+                    className="h-8 rounded-none px-3 text-xs gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Tambah Marker Tubuh
+                  </Button>
+                )}
               </div>
-              <div className="divide-y">
-                {items.map((item) => {
-                  const iid = String(item.id || "");
-                  return (
-                    <Collapsible key={iid} className="group">
-                      <div className="flex items-center gap-2 px-4 py-2 hover:bg-muted/30 transition-colors">
-                        <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-none shrink-0"><ChevronRight className="h-4 w-4 group-data-[state=open]:hidden" /><ChevronDown className="h-4 w-4 hidden group-data-[state=open]:block" /></Button></CollapsibleTrigger>
-                        <div className="flex-1 grid grid-cols-12 gap-2 items-center text-sm">
-                          <div className="col-span-4 text-xs font-medium truncate">{item.image_name}</div>
-                          <div className="col-span-2 text-xs text-muted-foreground truncate">{item.category_name || "-"}</div>
-                          <div className="col-span-2"><Badge variant="secondary" className="text-[10px]">{item.markers.length}</Badge></div>
-                          <div className="col-span-4 flex items-center justify-end gap-1">
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 rounded-none" onClick={() => openViewModal(iid)}><Eye className="h-3.5 w-3.5" /></Button>
-                            {!isFormDisabled && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none" onClick={() => removeImageFromItems(iid)}><Trash2 className="h-3.5 w-3.5" /></Button>}
+
+              {items.length > 0 ? (
+                <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800">
+                  <div className="grid grid-cols-12 gap-2 px-3.5 h-9 items-center bg-neutral-50 dark:bg-neutral-900 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
+                    <div className="col-span-1"></div>
+                    <div className="col-span-4">Bagian / Gambar Anatomi</div>
+                    <div className="col-span-3">Kategori</div>
+                    <div className="col-span-2">Jumlah Titik</div>
+                    <div className="col-span-2 text-right">Aksi</div>
+                  </div>
+                  <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                    {items.map((item) => {
+                      const iid = String(item.id || "");
+                      return (
+                        <Collapsible key={iid} className="group">
+                          <div className="flex items-center gap-2 px-3.5 py-2.5 hover:bg-muted/30 transition-colors">
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 rounded-none shrink-0"
+                                title="Tampilkan Daftar Titik Marker"
+                              >
+                                <ChevronRight className="h-3.5 w-3.5 group-data-[state=open]:hidden" />
+                                <ChevronDown className="h-3.5 w-3.5 hidden group-data-[state=open]:block" />
+                              </Button>
+                            </CollapsibleTrigger>
+                            <div className="flex-1 grid grid-cols-12 gap-2 items-center text-xs">
+                              <div className="col-span-5 font-semibold text-foreground truncate">
+                                {item.image_name}
+                              </div>
+                              <div className="col-span-3 text-muted-foreground truncate">
+                                {item.category_name || "-"}
+                              </div>
+                              <div className="col-span-2">
+                                <Badge
+                                  variant={item.markers.length > 0 ? "default" : "secondary"}
+                                  className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                                >
+                                  {item.markers.length} Titik
+                                </Badge>
+                              </div>
+                              <div className="col-span-2 flex items-center justify-end gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none"
+                                  onClick={() => openViewModal(iid)}
+                                  title="Lihat Gambar & Marker"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                {!isFormDisabled && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 rounded-none"
+                                      onClick={() => openEditItemModal(iid)}
+                                      title="Edit Titik Marker"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 rounded-none text-muted-foreground hover:text-destructive"
+                                      onClick={() => removeImageFromItems(iid)}
+                                      title="Hapus Gambar Marker"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <CollapsibleContent>
-                        <div className="px-12 py-3 bg-muted/10 border-t border-border/50">
-                          {item.markers.length > 0 ? renderMarkerTable(item, false) : <p className="text-xs text-muted-foreground">Belum ada marker.</p>}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-muted-foreground">
-              <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium text-sm">Belum ada marker tubuh</p>
-              <p className="text-xs mt-1">{useExternalData ? "Tidak ada data marker tubuh pada RM asli." : 'Klik "Tambah" untuk memulai.'}</p>
-            </div>
-          )}
-        </div>
-      </form>
+                          <CollapsibleContent>
+                            <div className="px-4 py-3 bg-neutral-50/50 dark:bg-neutral-900/30 border-t border-neutral-200 dark:border-neutral-800">
+                              {item.markers.length > 0 ? (
+                                renderMarkerTable(item, false)
+                              ) : (
+                                <p className="text-xs text-muted-foreground">
+                                  Belum ada titik marker yang ditandai pada gambar ini.
+                                </p>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  {useExternalData
+                    ? "Tidak ada data marker tubuh yang tercatat pada rekam medis ini."
+                    : "Belum ada marker bagian tubuh yang tercatat."}
+                </div>
+              )}
+            </section>
+          </div>
+        </form>
+      </div>
 
       {/* EDIT MODAL */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
-          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
-              <ImageIcon className="h-4 w-4" />{editModalStep === "pick" ? "Pilih Gambar Tubuh" : activeItem?.image_name || "Marker"}
-            </DialogTitle>
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-white dark:bg-neutral-950 overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <ImageIcon className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  {editModalStep === "pick"
+                    ? "Pilih Gambar Anatomi Tubuh"
+                    : activeItem?.image_name || "Penandaan Marker Tubuh"}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground">
+                  {editModalStep === "pick"
+                    ? "Pilih kategori dan gambar bagian tubuh yang akan diberikan penanda klinis."
+                    : "Klik pada area gambar untuk menambahkan titik marker dan isi keterangannya di panel kanan."}
+                </p>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              {editModalStep === "canvas" && <Button type="button" variant="outline" size="sm" className="rounded-none h-7 text-[10px]" onClick={() => setEditModalStep("pick")}><ArrowLeft className="h-3 w-3 mr-1" />Ganti Gambar</Button>}
-              <Button type="button" variant="ghost" size="icon" onClick={() => setIsEditModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+              {editModalStep === "canvas" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none h-8 px-3 text-xs"
+                  onClick={() => setEditModalStep("pick")}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+                  Ganti Gambar
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setIsEditModalOpen(false)}
+                className="h-8 w-8 rounded-none"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </DialogHeader>
+
           {editModalStep === "pick" ? (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="w-full max-w-lg space-y-6">
-                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Kategori</Label><Combobox allowCustomValue options={categoryOptions} value={selectedCategoryId} onValueChange={(v) => setSelectedCategoryId(v || "all")} placeholder="Semua kategori" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" className="h-11" /></div>
-                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Gambar Tubuh</Label><Combobox allowCustomValue options={bodyPartOptions} value={selectedImageMasterId} onValueChange={(v) => setSelectedImageMasterId(v || "")} placeholder="Pilih bagian tubuh" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" disabled={filteredImages.length === 0} className="h-11" /></div>
-                <Button type="button" className="w-full h-11" onClick={addImageToItems} disabled={!selectedImageMasterId}><Plus className="mr-2 h-4 w-4" />Pilih & Lanjutkan</Button>
+            <div className="flex-1 flex items-center justify-center p-6 bg-neutral-50/40 dark:bg-neutral-900/20">
+              <div className="w-full max-w-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-5 space-y-4">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Pilih Gambar Bagian Tubuh
+                </div>
+
+                <div className="space-y-3 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Kategori Anatomi</Label>
+                    <Combobox
+                      allowCustomValue
+                      options={categoryOptions}
+                      value={selectedCategoryId}
+                      onValueChange={(v) => setSelectedCategoryId(v || "all")}
+                      placeholder="Semua kategori"
+                      searchPlaceholder="Cari kategori..."
+                      emptyText="Tidak ditemukan"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Gambar Bagian Tubuh</Label>
+                    <Combobox
+                      allowCustomValue
+                      options={bodyPartOptions}
+                      value={selectedImageMasterId}
+                      onValueChange={(v) => setSelectedImageMasterId(v || "")}
+                      placeholder="Pilih bagian tubuh"
+                      searchPlaceholder="Cari gambar bagian tubuh..."
+                      emptyText="Tidak ditemukan"
+                      disabled={filteredImages.length === 0}
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  className="w-full h-9 rounded-none text-xs"
+                  onClick={addImageToItems}
+                  disabled={!selectedImageMasterId}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Pilih &amp; Lanjutkan ke Kanvas Marker
+                </Button>
               </div>
             </div>
           ) : activeItem ? (
             <div className="flex-1 flex min-h-0">
-              <div className="flex-1 min-h-0 flex flex-col border-r border-border/70">
-                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-xs text-muted-foreground shrink-0">Klik gambar untuk menambahkan marker. Total: <span className="font-semibold text-foreground">{activeItem.markers.length}</span></div>
-                <div className="flex-1 min-h-0 p-2">{renderCanvas(activeItem, activeItemImageUrl, true)}</div>
+              <div className="flex-1 min-h-0 flex flex-col border-r border-neutral-200 dark:border-neutral-800">
+                <div className="px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 text-xs text-muted-foreground shrink-0 flex items-center justify-between">
+                  <span>Klik pada gambar untuk menambahkan titik marker baru.</span>
+                  <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                    Total Titik: {activeItem.markers.length}
+                  </Badge>
+                </div>
+                <div className="flex-1 min-h-0 p-2">
+                  {renderCanvas(activeItem, activeItemImageUrl, true)}
+                </div>
               </div>
-              <div className="w-[400px] flex flex-col min-h-0 shrink-0">
-                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Daftar Marker</div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-3">{activeItem.markers.length === 0 ? <p className="text-xs text-muted-foreground">Klik gambar di sebelah kiri.</p> : renderMarkerTable(activeItem, !isFormDisabled)}</div>
+              <div className="w-[420px] flex flex-col min-h-0 shrink-0 bg-white dark:bg-neutral-950">
+                <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 shrink-0">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Daftar Titik Marker ({activeItem.markers.length})
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3.5">
+                  {activeItem.markers.length === 0 ? (
+                    <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                      Klik area pada gambar di sebelah kiri untuk menambahkan titik marker.
+                    </div>
+                  ) : (
+                    renderMarkerTable(activeItem, !isFormDisabled)
+                  )}
+                </div>
               </div>
             </div>
           ) : null}
-          <div className="shrink-0 border-t bg-background p-3 flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
+
+          <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-4 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none px-4 text-xs h-8"
+              onClick={() => setIsEditModalOpen(false)}
+            >
+              Batal
+            </Button>
             {footerSaveOnly ? (
-              <Button type="button" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Selesai</Button>
+              <Button
+                type="button"
+                className="rounded-none px-4 text-xs h-8"
+                onClick={() => setIsEditModalOpen(false)}
+              >
+                Selesai
+              </Button>
             ) : (
-              <Button type="button" className="rounded-none w-28 text-xs h-9" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Simpan</Button>
+              <Button
+                type="button"
+                className="rounded-none px-4 text-xs h-8"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Simpan Marker
+              </Button>
             )}
           </div>
         </DialogContent>
@@ -495,17 +781,51 @@ export function BodyMarkerForm({
 
       {/* VIEW MODAL */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
-          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground"><Eye className="h-4 w-4" />{viewItem?.image_name || "Detail"}</DialogTitle>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setIsViewModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-white dark:bg-neutral-950 overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <Eye className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  {viewItem?.image_name || "Detail Marker Tubuh"}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground">
+                  {viewItem?.category_name ? `Kategori: ${viewItem.category_name}` : "Pratinjau gambar dan daftar catatan titik marker"}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setIsViewModalOpen(false)}
+              className="h-8 w-8 rounded-none"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </DialogHeader>
           {viewItem && (
             <div className="flex-1 flex min-h-0">
-              <div className="flex-1 min-h-0 p-2 border-r border-border/70">{renderCanvas(viewItem, viewItemImageUrl, false)}</div>
-              <div className="w-[400px] flex flex-col min-h-0 shrink-0">
-                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Daftar Marker ({viewItem.markers.length})</div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-3">{viewItem.markers.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada marker.</p> : renderMarkerTable(viewItem, false)}</div>
+              <div className="flex-1 min-h-0 p-2 border-r border-neutral-200 dark:border-neutral-800">
+                {renderCanvas(viewItem, viewItemImageUrl, false)}
+              </div>
+              <div className="w-[420px] flex flex-col min-h-0 shrink-0 bg-white dark:bg-neutral-950">
+                <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 shrink-0">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Daftar Titik Marker ({viewItem.markers.length})
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3.5">
+                  {viewItem.markers.length === 0 ? (
+                    <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                      Belum ada titik marker pada gambar ini.
+                    </div>
+                  ) : (
+                    renderMarkerTable(viewItem, false)
+                  )}
+                </div>
               </div>
             </div>
           )}

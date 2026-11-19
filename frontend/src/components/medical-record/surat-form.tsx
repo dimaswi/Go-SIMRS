@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import {
   Select,
@@ -56,14 +55,6 @@ import type {
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, differenceInDays } from "date-fns";
 import { id as localeId } from "date-fns/locale";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -196,12 +187,12 @@ export function SuratForm({ visitId, readOnly = false, initialType = null }: Sur
     setLetterCounts((prev) => ({ ...prev, [type]: count }));
   };
 
-  // const totalLetters = Object.values(letterCounts).reduce((total, count) => total + count, 0);
+  const totalLetters = Object.values(letterCounts).reduce((total, count) => total + count, 0);
 
   if (loadingCounts) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -209,44 +200,57 @@ export function SuratForm({ visitId, readOnly = false, initialType = null }: Sur
   // Show type selector or form content
   if (!selectedType) {
     return (
-      <div className="space-y-3">
-        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Pilih Jenis Surat
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+        {/* Header Strip */}
+        <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Pilih Jenis Surat
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Pilih jenis surat keterangan medis yang ingin dibuat atau dilihat riwayatnya.
+            </p>
           </div>
-          <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {letterTypes.map((lt) => {
-                const count = letterCounts[lt.id] || 0;
-                return (
-                  <button
-                    key={lt.id}
-                    type="button"
-                    onClick={() => setSelectedType(lt.id)}
-                    className={cn(
-                      "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2 group",
-                      "border-muted hover:border-primary/50 hover:bg-muted/30"
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <div className="flex items-center gap-2">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
+            {totalLetters} dokumen tersimpan
+          </span>
+        </div>
+
+        {/* Grid Selection */}
+        <div className="p-4 sm:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {letterTypes.map((lt) => {
+              const count = letterCounts[lt.id] || 0;
+              return (
+                <button
+                  key={lt.id}
+                  type="button"
+                  onClick={() => setSelectedType(lt.id)}
+                  className={cn(
+                    "p-4 rounded-none border text-left transition-all flex flex-col gap-2 group",
+                    "border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-neutral-100 hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 text-neutral-900 dark:text-neutral-100">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-muted-foreground group-hover:text-neutral-900 dark:group-hover:text-neutral-100 transition-colors">
                         {lt.icon}
-                        <span className="font-semibold text-sm">{lt.label}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {count > 0 && (
-                          <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                            {count}
-                          </Badge>
-                        )}
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
+                      </span>
+                      <span className="text-xs font-bold uppercase tracking-wider truncate">{lt.label}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{lt.description}</p>
-                  </button>
-                );
-              })}
-            </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {count > 0 && (
+                        <Badge variant="secondary" className="rounded-none font-mono text-[10px] h-5 px-1.5">
+                          {count}
+                        </Badge>
+                      )}
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{lt.description}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -257,78 +261,82 @@ export function SuratForm({ visitId, readOnly = false, initialType = null }: Sur
   const selectedCount = letterCounts[selectedType] || 0;
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedType(null)}
-              className="gap-1 -ml-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="h-5 w-px bg-border" />
-            <span className="p-1 rounded text-muted-foreground">{selectedTypeInfo.icon}</span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">{selectedTypeInfo.label}</p>
-              <p className="text-xs text-muted-foreground">Total dokumen: {selectedCount}</p>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      {/* Header Strip */}
+      <div className="px-4 sm:px-5 py-3 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setSelectedType(null)}
+            title="Kembali ke pilihan jenis surat"
+            className="h-7 w-7 rounded-none shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="h-5 w-px bg-neutral-200 dark:bg-neutral-800 shrink-0" />
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{selectedTypeInfo.icon}</span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100 truncate">
+                {selectedTypeInfo.label}
+              </h3>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              {selectedTypeInfo.description}
+            </p>
           </div>
         </div>
+
+        <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground shrink-0">
+          {selectedCount} dokumen
+        </span>
       </div>
 
-      <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Form Surat
-        </div>
-        <div className="p-3 sm:p-4">
-          {/* Render appropriate form */}
-          {selectedType === "sick-letter" && (
-            <SickLetterSubForm
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("sick-letter", c)}
-            />
-          )}
-          {selectedType === "health-certificate" && (
-            <HealthCertificateSubForm
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("health-certificate", c)}
-            />
-          )}
-          {selectedType === "birth-certificate" && (
-            <BirthCertificateSubForm
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("birth-certificate", c)}
-            />
-          )}
-          {selectedType === "leave-certificate" && (
-            <LeaveCertificateSubForm
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("leave-certificate", c)}
-            />
-          )}
-          {selectedType === "mcu-certificate" && (
-            <MCUCertificateSubForm
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("mcu-certificate", c)}
-            />
-          )}
-          {selectedType === "death-certificate" && (
-            <DeathCertificateSubFormWrapper
-              visitId={visitId}
-              readOnly={readOnly}
-              onCountChange={(c) => handleCountUpdate("death-certificate", c)}
-            />
-          )}
-        </div>
-      </div>
+      {/* Render appropriate form */}
+      {selectedType === "sick-letter" && (
+        <SickLetterSubForm
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("sick-letter", c)}
+        />
+      )}
+      {selectedType === "health-certificate" && (
+        <HealthCertificateSubForm
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("health-certificate", c)}
+        />
+      )}
+      {selectedType === "birth-certificate" && (
+        <BirthCertificateSubForm
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("birth-certificate", c)}
+        />
+      )}
+      {selectedType === "leave-certificate" && (
+        <LeaveCertificateSubForm
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("leave-certificate", c)}
+        />
+      )}
+      {selectedType === "mcu-certificate" && (
+        <MCUCertificateSubForm
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("mcu-certificate", c)}
+        />
+      )}
+      {selectedType === "death-certificate" && (
+        <DeathCertificateSubFormWrapper
+          visitId={visitId}
+          readOnly={readOnly}
+          onCountChange={(c) => handleCountUpdate("death-certificate", c)}
+        />
+      )}
     </div>
   );
 }
@@ -479,58 +487,153 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
     try { return format(new Date(d), "dd MMM yyyy", { locale: localeId }); } catch { return d; }
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8 min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <SubFormTabs activeTab={activeTab} setActiveTab={setActiveTab} editingId={editingId} count={letters.length} />
-      <div className="pt-4">
-        {activeTab === "form" && (
-          <fieldset disabled={readOnly} className="space-y-4">
+      {activeTab === "form" && (
+        <fieldset
+          disabled={readOnly}
+          className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
+        >
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Periode Istirahat & Keterangan
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Mulai</Label>
-                <Input type="date" value={formData.start_date} onChange={(e) => handleDateChange("start_date", e.target.value)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Mulai
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => handleDateChange("start_date", e.target.value)}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Selesai</Label>
-                <Input type="date" value={formData.end_date} onChange={(e) => handleDateChange("end_date", e.target.value)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Selesai
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => handleDateChange("end_date", e.target.value)}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Jumlah Hari</Label>
-                <Input type="number" min="1" value={formData.days} onChange={(e) => handleDaysChange(parseInt(e.target.value) || 1)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Clock className="h-3 w-3 inline mr-1" />
+                  Jumlah Hari
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.days}
+                  onChange={(e) => handleDaysChange(parseInt(e.target.value) || 1)}
+                  className="h-9 rounded-none text-xs font-mono"
+                />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Tujuan / Keperluan</Label>
-              <Input placeholder="Untuk dapat dipergunakan sebagaimana mestinya" value={formData.purpose} onChange={(e) => setFormData({ ...formData, purpose: e.target.value })} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Tujuan / Keperluan</Label>
+                <Input
+                  placeholder="Untuk dapat dipergunakan sebagaimana mestinya"
+                  value={formData.purpose}
+                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Instansi / Perusahaan</Label>
+                <Input
+                  placeholder="Nama instansi (opsional)"
+                  value={formData.institution}
+                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
             </div>
+
             <div className="space-y-1.5">
-              <Label>Instansi / Perusahaan</Label>
-              <Input placeholder="Nama instansi (opsional)" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} />
+              <Label className="text-[11px] font-medium text-muted-foreground">Catatan Tambahan</Label>
+              <Textarea
+                placeholder="Catatan tambahan (opsional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                className="rounded-none text-xs"
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label>Catatan Tambahan</Label>
-              <Textarea placeholder="Catatan tambahan (opsional)" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
-            </div>
-            {!readOnly && (
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {editingId ? "Update" : "Simpan"}
+          </div>
+
+          {!readOnly && (
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-end gap-2 bg-neutral-50/40 dark:bg-neutral-900/20">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFormData(defaultForm);
+                    setEditingId(null);
+                  }}
+                  className="h-8 rounded-none text-xs"
+                >
+                  Batal Edit
                 </Button>
-                {editingId && <Button variant="outline" onClick={() => { setFormData(defaultForm); setEditingId(null); }}>Batal</Button>}
-              </div>
-            )}
-          </fieldset>
-        )}
-        {activeTab === "history" && (
+              )}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Update" : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </fieldset>
+      )}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5">
           <HistoryTable
             items={letters}
             columns={[
               { key: "letter_number", label: "No. Surat" },
-              { key: "date", label: "Tanggal", render: (l: any) => <>{fmtDate(l.start_date)}{l.days > 1 && <span className="text-muted-foreground"> → {fmtDate(l.end_date)}</span>}</> },
-              { key: "days", label: "Lama", render: (l: any) => <Badge variant="secondary">{l.days} hari</Badge> },
+              {
+                key: "date",
+                label: "Tanggal",
+                render: (l: any) => (
+                  <>
+                    {fmtDate(l.start_date)}
+                    {l.days > 1 && <span className="text-muted-foreground"> → {fmtDate(l.end_date)}</span>}
+                  </>
+                ),
+              },
+              {
+                key: "days",
+                label: "Lama",
+                render: (l: any) => (
+                  <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                    {l.days} hari
+                  </Badge>
+                ),
+              },
               { key: "institution", label: "Tujuan", render: (l: any) => l.institution || l.purpose || "-" },
             ]}
             signatureStatuses={signatureStatuses}
@@ -538,12 +641,18 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
             printing={printing}
             onPrint={handlePrint}
             onEdit={handleEdit}
-            onDelete={(id) => { setDeletingId(id); setDeleteDialogOpen(true); }}
-            onSign={(id) => { setSignatureLetterId(id); setShowSignatureDialog(true); }}
+            onDelete={(id) => {
+              setDeletingId(id);
+              setDeleteDialogOpen(true);
+            }}
+            onSign={(id) => {
+              setSignatureLetterId(id);
+              setShowSignatureDialog(true);
+            }}
             emptyMessage="Belum ada surat sakit."
           />
-        )}
-      </div>
+        </div>
+      )}
       <DeleteDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleDelete} title="Hapus Surat Sakit?" />
       {signatureLetterId && (
         <SignaturePINDialog
@@ -666,60 +775,134 @@ function HealthCertificateSubForm({ visitId, readOnly = false, onCountChange }: 
     try { return format(new Date(d), "dd MMM yyyy", { locale: localeId }); } catch { return d; }
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8 min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <SubFormTabs activeTab={activeTab} setActiveTab={setActiveTab} editingId={editingId} count={items.length} />
-      <div className="pt-4">
-        {activeTab === "form" && (
-          <fieldset disabled={readOnly} className="space-y-4">
+      {activeTab === "form" && (
+        <fieldset
+          disabled={readOnly}
+          className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
+        >
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Hasil Pemeriksaan & Keperluan
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Pemeriksaan</Label>
-                <Input type="date" value={formData.exam_date} onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Pemeriksaan
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.exam_date}
+                  onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Hasil Pemeriksaan</Label>
+                <Label className="text-[11px] font-medium text-muted-foreground">Hasil Pemeriksaan</Label>
                 <Select value={formData.result} onValueChange={(v) => setFormData({ ...formData, result: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sehat">Sehat</SelectItem>
-                    <SelectItem value="sehat_dengan_catatan">Sehat dengan Catatan</SelectItem>
+                  <SelectTrigger className="h-9 rounded-none text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="sehat" className="text-xs">Sehat</SelectItem>
+                    <SelectItem value="sehat_dengan_catatan" className="text-xs">Sehat dengan Catatan</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Tujuan / Keperluan</Label>
-              <Input placeholder="Untuk dapat dipergunakan sebagaimana mestinya" value={formData.purpose} onChange={(e) => setFormData({ ...formData, purpose: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Instansi / Perusahaan</Label>
-              <Input placeholder="Nama instansi (opsional)" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan tambahan (opsional)" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
-            </div>
-            {!readOnly && (
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {editingId ? "Update" : "Simpan"}
-                </Button>
-                {editingId && <Button variant="outline" onClick={() => { setFormData(defaultForm); setEditingId(null); }}>Batal</Button>}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Tujuan / Keperluan</Label>
+                <Input
+                  placeholder="Untuk dapat dipergunakan sebagaimana mestinya"
+                  value={formData.purpose}
+                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
-            )}
-          </fieldset>
-        )}
-        {activeTab === "history" && (
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Instansi / Perusahaan</Label>
+                <Input
+                  placeholder="Nama instansi (opsional)"
+                  value={formData.institution}
+                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground">Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan (opsional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                className="rounded-none text-xs"
+              />
+            </div>
+          </div>
+
+          {!readOnly && (
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-end gap-2 bg-neutral-50/40 dark:bg-neutral-900/20">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFormData(defaultForm);
+                    setEditingId(null);
+                  }}
+                  className="h-8 rounded-none text-xs"
+                >
+                  Batal Edit
+                </Button>
+              )}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Update" : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </fieldset>
+      )}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5">
           <HistoryTable
             items={items}
             columns={[
               { key: "letter_number", label: "No. Surat" },
               { key: "date", label: "Tanggal", render: (l: any) => fmtDate(l.exam_date) },
-              { key: "result", label: "Hasil", render: (l: any) => <Badge variant={l.result === "sehat" ? "default" : "secondary"} className={l.result === "sehat" ? "bg-green-600" : ""}>{l.result === "sehat" ? "Sehat" : "Sehat (Catatan)"}</Badge> },
+              {
+                key: "result",
+                label: "Hasil",
+                render: (l: any) => (
+                  <Badge
+                    variant={l.result === "sehat" ? "default" : "secondary"}
+                    className={cn("rounded-none text-[10px] h-5 px-1.5", l.result === "sehat" && "bg-emerald-600 hover:bg-emerald-600")}
+                  >
+                    {l.result === "sehat" ? "Sehat" : "Sehat (Catatan)"}
+                  </Badge>
+                ),
+              },
               { key: "institution", label: "Tujuan", render: (l: any) => l.institution || l.purpose || "-" },
             ]}
             signatureStatuses={signatureStatuses}
@@ -727,12 +910,18 @@ function HealthCertificateSubForm({ visitId, readOnly = false, onCountChange }: 
             printing={printing}
             onPrint={handlePrint}
             onEdit={handleEdit}
-            onDelete={(id) => { setDeletingId(id); setDeleteDialogOpen(true); }}
-            onSign={(id) => { setSignatureLetterId(id); setShowSignatureDialog(true); }}
+            onDelete={(id) => {
+              setDeletingId(id);
+              setDeleteDialogOpen(true);
+            }}
+            onSign={(id) => {
+              setSignatureLetterId(id);
+              setShowSignatureDialog(true);
+            }}
             emptyMessage="Belum ada surat sehat."
           />
-        )}
-      </div>
+        </div>
+      )}
       <DeleteDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleDelete} title="Hapus Surat Sehat?" />
       {signatureLetterId && (
         <SignaturePINDialog
@@ -906,121 +1095,265 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
     try { return format(new Date(d), "dd MMM yyyy", { locale: localeId }); } catch { return d; }
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8 min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <SubFormTabs activeTab={activeTab} setActiveTab={setActiveTab} editingId={editingId} count={items.length} />
-      <div className="pt-4">
-        {activeTab === "form" && (
-          <fieldset disabled={readOnly} className="space-y-4">
+      {activeTab === "form" && (
+        <fieldset
+          disabled={readOnly}
+          className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
+        >
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Data Kelahiran Bayi
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Lahir</Label>
-                <Input type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Lahir
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.birth_date}
+                  onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Waktu Lahir</Label>
-                <Input type="time" value={formData.birth_time} onChange={(e) => setFormData({ ...formData, birth_time: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Clock className="h-3 w-3 inline mr-1" />
+                  Waktu Lahir
+                </Label>
+                <Input
+                  type="time"
+                  value={formData.birth_time}
+                  onChange={(e) => setFormData({ ...formData, birth_time: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Jenis Kelamin</Label>
+                <Label className="text-[11px] font-medium text-muted-foreground">Jenis Kelamin</Label>
                 <Select value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="laki-laki">Laki-laki</SelectItem>
-                    <SelectItem value="perempuan">Perempuan</SelectItem>
+                  <SelectTrigger className="h-9 rounded-none text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="laki-laki" className="text-xs">Laki-laki</SelectItem>
+                    <SelectItem value="perempuan" className="text-xs">Perempuan</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
             <div className="space-y-1.5">
-              <Label>Nama Bayi</Label>
-              <Input placeholder="Nama bayi (opsional jika belum ditentukan)" value={formData.baby_name} onChange={(e) => setFormData({ ...formData, baby_name: e.target.value })} />
+              <Label className="text-[11px] font-medium text-muted-foreground">Nama Bayi</Label>
+              <Input
+                placeholder="Nama bayi (opsional jika belum ditentukan)"
+                value={formData.baby_name}
+                onChange={(e) => setFormData({ ...formData, baby_name: e.target.value })}
+                className="h-9 rounded-none text-xs"
+              />
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Berat Lahir (gram)</Label>
-                <Input type="number" placeholder="cth: 3200" value={formData.birth_weight} onChange={(e) => setFormData({ ...formData, birth_weight: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">Berat Lahir (gram)</Label>
+                <Input
+                  type="number"
+                  placeholder="cth: 3200"
+                  value={formData.birth_weight}
+                  onChange={(e) => setFormData({ ...formData, birth_weight: e.target.value })}
+                  className="h-9 rounded-none text-xs font-mono"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Panjang Lahir (cm)</Label>
-                <Input type="number" placeholder="cth: 49" value={formData.birth_length} onChange={(e) => setFormData({ ...formData, birth_length: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">Panjang Lahir (cm)</Label>
+                <Input
+                  type="number"
+                  placeholder="cth: 49"
+                  value={formData.birth_length}
+                  onChange={(e) => setFormData({ ...formData, birth_length: e.target.value })}
+                  className="h-9 rounded-none text-xs font-mono"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Metode Persalinan</Label>
+                <Label className="text-[11px] font-medium text-muted-foreground">Metode Persalinan</Label>
                 <Select value={formData.birth_method} onValueChange={(v) => setFormData({ ...formData, birth_method: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Normal / Spontan</SelectItem>
-                    <SelectItem value="sectio_caesarea">Sectio Caesarea</SelectItem>
-                    <SelectItem value="vakum">Vakum Ekstraksi</SelectItem>
-                    <SelectItem value="forcep">Forcep</SelectItem>
+                  <SelectTrigger className="h-9 rounded-none text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="normal" className="text-xs">Normal / Spontan</SelectItem>
+                    <SelectItem value="sectio_caesarea" className="text-xs">Sectio Caesarea</SelectItem>
+                    <SelectItem value="vakum" className="text-xs">Vakum Ekstraksi</SelectItem>
+                    <SelectItem value="forcep" className="text-xs">Forcep</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Data Orang Tua & Penolong Persalinan
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Nama Ibu</Label>
-                <Input placeholder="Ny. Nama lengkap ibu" value={formData.mother_name} onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">Nama Ibu</Label>
+                <Input
+                  placeholder="Ny. Nama lengkap ibu"
+                  value={formData.mother_name}
+                  onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>NORM Ibu</Label>
-                <Input placeholder="Nomor rekam medis ibu" value={formData.mother_mrn} onChange={(e) => setFormData({ ...formData, mother_mrn: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">No. RM Ibu</Label>
+                <Input
+                  placeholder="Nomor rekam medis ibu"
+                  value={formData.mother_mrn}
+                  onChange={(e) => setFormData({ ...formData, mother_mrn: e.target.value })}
+                  className="h-9 rounded-none text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Nama Ayah</Label>
+                <Input
+                  placeholder="Nama lengkap ayah"
+                  value={formData.father_name}
+                  onChange={(e) => setFormData({ ...formData, father_name: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Nama Ayah</Label>
-                <Input placeholder="Nama lengkap ayah" value={formData.father_name} onChange={(e) => setFormData({ ...formData, father_name: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">Nama DPJP</Label>
+                <Input
+                  placeholder="Nama dokter penanggung jawab"
+                  value={formData.dpjp_name}
+                  onChange={(e) => setFormData({ ...formData, dpjp_name: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Nama Bidan</Label>
+                <Input
+                  placeholder="Nama bidan penolong"
+                  value={formData.midwife_name}
+                  onChange={(e) => setFormData({ ...formData, midwife_name: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nama DPJP</Label>
-                <Input placeholder="Nama dokter penanggung jawab" value={formData.dpjp_name} onChange={(e) => setFormData({ ...formData, dpjp_name: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Nama Bidan</Label>
-                <Input placeholder="Nama bidan penolong" value={formData.midwife_name} onChange={(e) => setFormData({ ...formData, midwife_name: e.target.value })} />
-              </div>
-            </div>
+
             <div className="space-y-1.5">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan tambahan (opsional)" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
+              <Label className="text-[11px] font-medium text-muted-foreground">Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan (opsional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                className="rounded-none text-xs"
+              />
             </div>
-            {!readOnly && (
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {editingId ? "Update" : "Simpan"}
+          </div>
+
+          {!readOnly && (
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-end gap-2 bg-neutral-50/40 dark:bg-neutral-900/20">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFormData(defaultForm);
+                    setEditingId(null);
+                  }}
+                  className="h-8 rounded-none text-xs"
+                >
+                  Batal Edit
                 </Button>
-                {editingId && <Button variant="outline" onClick={() => { setFormData(defaultForm); setEditingId(null); }}>Batal</Button>}
-              </div>
-            )}
-          </fieldset>
-        )}
-        {activeTab === "history" && (
+              )}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Update" : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </fieldset>
+      )}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5">
           <HistoryTable
             items={items}
             columns={[
               { key: "letter_number", label: "No. Surat" },
-              { key: "date", label: "Tanggal Lahir", render: (l: any) => <>{fmtDate(l.birth_date)}{l.birth_time && <span className="text-muted-foreground"> {l.birth_time}</span>}</> },
-              { key: "baby", label: "Bayi", render: (l: any) => <>{l.baby_name || "Belum diberi nama"} <Badge variant="secondary" className="ml-1">{l.gender === "laki-laki" ? "L" : "P"}</Badge></> },
-              { key: "weight", label: "BB / PB", render: (l: any) => <>{l.birth_weight ? `${l.birth_weight}g` : "-"} / {l.birth_length ? `${l.birth_length}cm` : "-"}</> },
+              {
+                key: "date",
+                label: "Tanggal Lahir",
+                render: (l: any) => (
+                  <>
+                    {fmtDate(l.birth_date)}
+                    {l.birth_time && <span className="text-muted-foreground"> {l.birth_time}</span>}
+                  </>
+                ),
+              },
+              {
+                key: "baby",
+                label: "Bayi",
+                render: (l: any) => (
+                  <>
+                    {l.baby_name || "Belum diberi nama"}{" "}
+                    <Badge variant="secondary" className="ml-1 rounded-none text-[10px] h-5 px-1.5 font-mono">
+                      {l.gender === "laki-laki" ? "L" : "P"}
+                    </Badge>
+                  </>
+                ),
+              },
+              {
+                key: "weight",
+                label: "BB / PB",
+                render: (l: any) => (
+                  <span className="font-mono">
+                    {l.birth_weight ? `${l.birth_weight}g` : "-"} / {l.birth_length ? `${l.birth_length}cm` : "-"}
+                  </span>
+                ),
+              },
             ]}
             signatureStatuses={signatureStatuses}
             readOnly={readOnly}
             printing={printing}
             onPrint={handlePrint}
             onEdit={handleEdit}
-            onDelete={(id) => { setDeletingId(id); setDeleteDialogOpen(true); }}
-            onSign={(id) => { setSignatureLetterId(id); setShowSignatureDialog(true); }}
+            onDelete={(id) => {
+              setDeletingId(id);
+              setDeleteDialogOpen(true);
+            }}
+            onSign={(id) => {
+              setSignatureLetterId(id);
+              setShowSignatureDialog(true);
+            }}
             emptyMessage="Belum ada surat kelahiran."
           />
-        )}
-      </div>
+        </div>
+      )}
       <DeleteDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleDelete} title="Hapus Surat Kelahiran?" />
       {signatureLetterId && (
         <SignaturePINDialog
@@ -1174,87 +1507,196 @@ function LeaveCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
     lainnya: "Lainnya",
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8 min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <SubFormTabs activeTab={activeTab} setActiveTab={setActiveTab} editingId={editingId} count={items.length} />
-      <div className="pt-4">
-        {activeTab === "form" && (
-          <fieldset disabled={readOnly} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Jenis Cuti</Label>
-              <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sakit">Cuti Sakit</SelectItem>
-                  <SelectItem value="hamil">Cuti Hamil</SelectItem>
-                  <SelectItem value="melahirkan">Cuti Melahirkan</SelectItem>
-                  <SelectItem value="lainnya">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
+      {activeTab === "form" && (
+        <fieldset
+          disabled={readOnly}
+          className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
+        >
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Jenis & Periode Cuti Medis
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Mulai</Label>
-                <Input type="date" value={formData.start_date} onChange={(e) => handleDateChange("start_date", e.target.value)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">Jenis Cuti</Label>
+                <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
+                  <SelectTrigger className="h-9 rounded-none text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="sakit" className="text-xs">Cuti Sakit</SelectItem>
+                    <SelectItem value="hamil" className="text-xs">Cuti Hamil</SelectItem>
+                    <SelectItem value="melahirkan" className="text-xs">Cuti Melahirkan</SelectItem>
+                    <SelectItem value="lainnya" className="text-xs">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Selesai</Label>
-                <Input type="date" value={formData.end_date} onChange={(e) => handleDateChange("end_date", e.target.value)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Mulai
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => handleDateChange("start_date", e.target.value)}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Jumlah Hari</Label>
-                <Input type="number" min="1" value={formData.days} onChange={(e) => handleDaysChange(parseInt(e.target.value) || 1)} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Selesai
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => handleDateChange("end_date", e.target.value)}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Clock className="h-3 w-3 inline mr-1" />
+                  Jumlah Hari
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.days}
+                  onChange={(e) => handleDaysChange(parseInt(e.target.value) || 1)}
+                  className="h-9 rounded-none text-xs font-mono"
+                />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Alasan</Label>
-              <Textarea placeholder="Alasan / keterangan cuti" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} rows={2} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Diagnosis</Label>
+                <Input
+                  placeholder="Diagnosis terkait (opsional)"
+                  value={formData.diagnosis}
+                  onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Instansi / Perusahaan</Label>
+                <Input
+                  placeholder="Nama instansi (opsional)"
+                  value={formData.institution}
+                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
             </div>
+
             <div className="space-y-1.5">
-              <Label>Diagnosis</Label>
-              <Input placeholder="Diagnosis terkait (opsional)" value={formData.diagnosis} onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })} />
+              <Label className="text-[11px] font-medium text-muted-foreground">Alasan</Label>
+              <Textarea
+                placeholder="Alasan / keterangan cuti"
+                value={formData.reason}
+                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                rows={2}
+                className="rounded-none text-xs"
+              />
             </div>
+
             <div className="space-y-1.5">
-              <Label>Instansi / Perusahaan</Label>
-              <Input placeholder="Nama instansi (opsional)" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} />
+              <Label className="text-[11px] font-medium text-muted-foreground">Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan (opsional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                className="rounded-none text-xs"
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan tambahan (opsional)" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
-            </div>
-            {!readOnly && (
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {editingId ? "Update" : "Simpan"}
+          </div>
+
+          {!readOnly && (
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-end gap-2 bg-neutral-50/40 dark:bg-neutral-900/20">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFormData(defaultForm);
+                    setEditingId(null);
+                  }}
+                  className="h-8 rounded-none text-xs"
+                >
+                  Batal Edit
                 </Button>
-                {editingId && <Button variant="outline" onClick={() => { setFormData(defaultForm); setEditingId(null); }}>Batal</Button>}
-              </div>
-            )}
-          </fieldset>
-        )}
-        {activeTab === "history" && (
+              )}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Update" : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </fieldset>
+      )}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5">
           <HistoryTable
             items={items}
             columns={[
               { key: "letter_number", label: "No. Surat" },
-              { key: "type", label: "Jenis", render: (l: any) => <Badge variant="secondary">{leaveTypeLabels[l.leave_type] || l.leave_type}</Badge> },
+              {
+                key: "type",
+                label: "Jenis",
+                render: (l: any) => (
+                  <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5">
+                    {leaveTypeLabels[l.leave_type] || l.leave_type}
+                  </Badge>
+                ),
+              },
               { key: "date", label: "Periode", render: (l: any) => <>{fmtDate(l.start_date)} → {fmtDate(l.end_date)}</> },
-              { key: "days", label: "Lama", render: (l: any) => <Badge variant="secondary">{l.days} hari</Badge> },
+              {
+                key: "days",
+                label: "Lama",
+                render: (l: any) => (
+                  <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                    {l.days} hari
+                  </Badge>
+                ),
+              },
             ]}
             signatureStatuses={signatureStatuses}
             readOnly={readOnly}
             printing={printing}
             onPrint={handlePrint}
             onEdit={handleEdit}
-            onDelete={(id) => { setDeletingId(id); setDeleteDialogOpen(true); }}
-            onSign={(id) => { setSignatureLetterId(id); setShowSignatureDialog(true); }}
+            onDelete={(id) => {
+              setDeletingId(id);
+              setDeleteDialogOpen(true);
+            }}
+            onSign={(id) => {
+              setSignatureLetterId(id);
+              setShowSignatureDialog(true);
+            }}
             emptyMessage="Belum ada surat cuti."
           />
-        )}
-      </div>
+        </div>
+      )}
       <DeleteDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleDelete} title="Hapus Surat Cuti?" />
       {signatureLetterId && (
         <SignaturePINDialog
@@ -1385,69 +1827,151 @@ function MCUCertificateSubForm({ visitId, readOnly = false, onCountChange }: Sub
     layak_dengan_catatan: "Layak (Catatan)",
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8 min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <SubFormTabs activeTab={activeTab} setActiveTab={setActiveTab} editingId={editingId} count={items.length} />
-      <div className="pt-4">
-        {activeTab === "form" && (
-          <fieldset disabled={readOnly} className="space-y-4">
+      {activeTab === "form" && (
+        <fieldset
+          disabled={readOnly}
+          className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
+        >
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Hasil Medical Check-Up
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Pemeriksaan</Label>
-                <Input type="date" value={formData.exam_date} onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })} />
+                <Label className="text-[11px] font-medium text-muted-foreground">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Tanggal Pemeriksaan
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.exam_date}
+                  onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Kesimpulan</Label>
+                <Label className="text-[11px] font-medium text-muted-foreground">Kesimpulan</Label>
                 <Select value={formData.conclusion} onValueChange={(v) => setFormData({ ...formData, conclusion: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="layak">Layak</SelectItem>
-                    <SelectItem value="tidak_layak">Tidak Layak</SelectItem>
-                    <SelectItem value="layak_dengan_catatan">Layak dengan Catatan</SelectItem>
+                  <SelectTrigger className="h-9 rounded-none text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="layak" className="text-xs">Layak</SelectItem>
+                    <SelectItem value="tidak_layak" className="text-xs">Tidak Layak</SelectItem>
+                    <SelectItem value="layak_dengan_catatan" className="text-xs">Layak dengan Catatan</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Tujuan / Keperluan MCU</Label>
-              <Input placeholder="cth: Pemeriksaan kesehatan calon karyawan" value={formData.purpose} onChange={(e) => setFormData({ ...formData, purpose: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Instansi / Perusahaan</Label>
-              <Input placeholder="Nama instansi (opsional)" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Rekomendasi</Label>
-              <Textarea placeholder="Rekomendasi dokter (opsional)" value={formData.recommendation} onChange={(e) => setFormData({ ...formData, recommendation: e.target.value })} rows={2} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan tambahan (opsional)" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
-            </div>
-            {!readOnly && (
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {editingId ? "Update" : "Simpan"}
-                </Button>
-                {editingId && <Button variant="outline" onClick={() => { setFormData(defaultForm); setEditingId(null); }}>Batal</Button>}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Tujuan / Keperluan MCU</Label>
+                <Input
+                  placeholder="cth: Pemeriksaan kesehatan calon karyawan"
+                  value={formData.purpose}
+                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
               </div>
-            )}
-          </fieldset>
-        )}
-        {activeTab === "history" && (
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Instansi / Perusahaan</Label>
+                <Input
+                  placeholder="Nama instansi (opsional)"
+                  value={formData.institution}
+                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  className="h-9 rounded-none text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Rekomendasi</Label>
+                <Textarea
+                  placeholder="Rekomendasi dokter (opsional)"
+                  value={formData.recommendation}
+                  onChange={(e) => setFormData({ ...formData, recommendation: e.target.value })}
+                  rows={2}
+                  className="rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground">Catatan</Label>
+                <Textarea
+                  placeholder="Catatan tambahan (opsional)"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  className="rounded-none text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {!readOnly && (
+            <div className="px-4 sm:px-5 py-3 flex items-center justify-end gap-2 bg-neutral-50/40 dark:bg-neutral-900/20">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFormData(defaultForm);
+                    setEditingId(null);
+                  }}
+                  className="h-8 rounded-none text-xs"
+                >
+                  Batal Edit
+                </Button>
+              )}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Update" : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </fieldset>
+      )}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5">
           <HistoryTable
             items={items}
             columns={[
               { key: "letter_number", label: "No. Surat" },
               { key: "date", label: "Tanggal", render: (l: any) => fmtDate(l.exam_date) },
               {
-                key: "conclusion", label: "Kesimpulan", render: (l: any) => {
-                  const color = l.conclusion === "layak" ? "bg-green-600" : l.conclusion === "tidak_layak" ? "bg-destructive" : "";
-                  return <Badge variant="default" className={color}>{conclusionLabels[l.conclusion] || l.conclusion}</Badge>;
-                }
+                key: "conclusion",
+                label: "Kesimpulan",
+                render: (l: any) => {
+                  const color =
+                    l.conclusion === "layak"
+                      ? "bg-emerald-600 hover:bg-emerald-600"
+                      : l.conclusion === "tidak_layak"
+                      ? "bg-destructive hover:bg-destructive"
+                      : "";
+                  return (
+                    <Badge variant="default" className={cn("rounded-none text-[10px] h-5 px-1.5", color)}>
+                      {conclusionLabels[l.conclusion] || l.conclusion}
+                    </Badge>
+                  );
+                },
               },
               { key: "institution", label: "Instansi", render: (l: any) => l.institution || l.purpose || "-" },
             ]}
@@ -1456,12 +1980,18 @@ function MCUCertificateSubForm({ visitId, readOnly = false, onCountChange }: Sub
             printing={printing}
             onPrint={handlePrint}
             onEdit={handleEdit}
-            onDelete={(id) => { setDeletingId(id); setDeleteDialogOpen(true); }}
-            onSign={(id) => { setSignatureLetterId(id); setShowSignatureDialog(true); }}
+            onDelete={(id) => {
+              setDeletingId(id);
+              setDeleteDialogOpen(true);
+            }}
+            onSign={(id) => {
+              setSignatureLetterId(id);
+              setShowSignatureDialog(true);
+            }}
             emptyMessage="Belum ada surat MCU."
           />
-        )}
-      </div>
+        </div>
+      )}
       <DeleteDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleDelete} title="Hapus Surat MCU?" />
       {signatureLetterId && (
         <SignaturePINDialog
@@ -1484,8 +2014,8 @@ function MCUCertificateSubForm({ visitId, readOnly = false, onCountChange }: Sub
 
 import { DeathCertificateForm } from "./death-certificate-form";
 
-function DeathCertificateSubFormWrapper({ visitId, readOnly = false }: SubFormProps) {
-  return <DeathCertificateForm visitId={visitId} readOnly={readOnly} />;
+function DeathCertificateSubFormWrapper({ visitId, readOnly = false, onCountChange }: SubFormProps) {
+  return <DeathCertificateForm visitId={visitId} readOnly={readOnly} onCountChange={onCountChange} />;
 }
 
 // ============================================================
@@ -1504,38 +2034,44 @@ function SubFormTabs({
   count: number;
 }) {
   return (
-    <div className="border-b">
-      <div className="flex">
+    <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5">
+      <div className="flex gap-6">
         <button
+          type="button"
           onClick={() => setActiveTab("form")}
           className={cn(
-            "px-4 py-2.5 text-sm font-medium transition-colors relative",
-            activeTab === "form" ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+            activeTab === "form"
+              ? "text-neutral-900 dark:text-neutral-100"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <span className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            {editingId ? "Edit Surat" : "Buat Surat"}
-          </span>
-          {activeTab === "form" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          <Plus className="h-3.5 w-3.5" />
+          {editingId ? "Edit Surat" : "Buat Surat"}
+          {activeTab === "form" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+          )}
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab("history")}
           className={cn(
-            "px-4 py-2.5 text-sm font-medium transition-colors relative",
-            activeTab === "history" ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+            activeTab === "history"
+              ? "text-neutral-900 dark:text-neutral-100"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <span className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Riwayat
-            {count > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {count}
-              </Badge>
-            )}
-          </span>
-          {activeTab === "history" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          <Clock className="h-3.5 w-3.5" />
+          Riwayat
+          {count > 0 && (
+            <Badge variant="secondary" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
+              {count}
+            </Badge>
+          )}
+          {activeTab === "history" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+          )}
         </button>
       </div>
     </div>
@@ -1573,71 +2109,113 @@ function HistoryTable({
 }) {
   if (items.length === 0) {
     return (
-      <Alert>
-        <FileText className="h-4 w-4" />
-        <AlertDescription>{emptyMessage}</AlertDescription>
-      </Alert>
+      <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-10 px-4 text-center">
+        <FileText className="h-7 w-7 text-muted-foreground mx-auto mb-2 opacity-60" />
+        <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+      </div>
     );
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {columns.map((col) => (
-            <TableHead key={col.key}>{col.label}</TableHead>
-          ))}
-          {signatureStatuses && <TableHead>Status</TableHead>}
-          <TableHead className="text-right">Aksi</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.map((item) => (
-          <TableRow key={item.id}>
+    <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-neutral-50 dark:bg-neutral-900 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
             {columns.map((col) => (
-              <TableCell key={col.key} className={col.key === "letter_number" ? "font-medium" : ""}>
-                {col.render ? col.render(item) : item[col.key] || "-"}
-              </TableCell>
+              <th key={col.key} className="px-3 py-2 text-left">
+                {col.label}
+              </th>
             ))}
-            {signatureStatuses && (
-              <TableCell>
-                {signatureStatuses[item.id]?.is_signed ? (
-                  <Badge variant="default" className="gap-1 bg-green-600">
-                    <ShieldCheck className="h-3 w-3" />Signed
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary">Belum</Badge>
-                )}
-              </TableCell>
-            )}
-            <TableCell className="text-right">
-              <div className="flex justify-end gap-1">
-                {onPrint && (
-                  <Button size="sm" variant="ghost" onClick={() => onPrint(item.id)} disabled={printing} title="Cetak">
-                    <Printer className="h-4 w-4" />
-                  </Button>
-                )}
-                {onSign && signatureStatuses && !signatureStatuses[item.id]?.is_signed && !readOnly && (
-                  <Button size="sm" variant="ghost" onClick={() => onSign(item.id)} title="Tanda Tangan" className="text-primary">
-                    <ShieldCheck className="h-4 w-4" />
-                  </Button>
-                )}
-                {!readOnly && (
-                  <>
-                    <Button size="sm" variant="ghost" onClick={() => onEdit(item)} title="Edit">
-                      <Edit className="h-4 w-4" />
+            {signatureStatuses && <th className="px-3 py-2 text-left">Status</th>}
+            <th className="w-32 px-3 py-2 text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr
+              key={item.id}
+              className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0 hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30 transition-colors"
+            >
+              {columns.map((col) => (
+                <td
+                  key={col.key}
+                  className={cn("px-3 py-2.5", col.key === "letter_number" && "font-mono font-medium text-foreground")}
+                >
+                  {col.render ? col.render(item) : item[col.key] || "-"}
+                </td>
+              ))}
+              {signatureStatuses && (
+                <td className="px-3 py-2.5 whitespace-nowrap">
+                  {signatureStatuses[item.id]?.is_signed ? (
+                    <Badge variant="default" className="rounded-none text-[10px] h-5 px-1.5 gap-1 bg-emerald-600 hover:bg-emerald-600">
+                      <ShieldCheck className="h-3 w-3" />
+                      Signed
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5">
+                      Belum
+                    </Badge>
+                  )}
+                </td>
+              )}
+              <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                <div className="flex justify-end gap-1">
+                  {onPrint && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 rounded-none"
+                      onClick={() => onPrint(item.id)}
+                      disabled={printing}
+                      title="Cetak"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onDelete(item.id)} title="Hapus" className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
+                  )}
+                  {onSign && signatureStatuses && !signatureStatuses[item.id]?.is_signed && !readOnly && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => onSign(item.id)}
+                      title="Tanda Tangan"
+                      className="h-7 w-7 rounded-none text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200/60 dark:hover:bg-neutral-800"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
                     </Button>
-                  </>
-                )}
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                  )}
+                  {!readOnly && (
+                    <>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-none"
+                        onClick={() => onEdit(item)}
+                        title="Edit"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onDelete(item.id)}
+                        title="Hapus"
+                        className="h-7 w-7 rounded-none text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1654,7 +2232,7 @@ function DeleteDialog({
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="rounded-none">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>
@@ -1662,8 +2240,8 @@ function DeleteDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Batal</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground">
+          <AlertDialogCancel className="rounded-none">Batal</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="rounded-none bg-destructive text-destructive-foreground">
             Hapus
           </AlertDialogAction>
         </AlertDialogFooter>

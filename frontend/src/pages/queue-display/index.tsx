@@ -265,7 +265,7 @@ export default function QueueDisplay() {
                 <div className="flex items-center gap-2.5">
                   <Building2 className="h-5 w-5 text-sky-600" />
                   <span className="text-base font-extrabold uppercase tracking-wider text-slate-900">
-                    Antrean Poli
+                    Ruangan
                   </span>
                 </div>
                 <div className="hidden xl:flex items-center gap-4">
@@ -351,7 +351,7 @@ export default function QueueDisplay() {
                 <div className="flex items-center gap-2.5">
                   <ClipboardList className="h-5 w-5 text-emerald-600" />
                   <span className="text-base font-extrabold uppercase tracking-wider text-slate-900">
-                    Antrean Pendaftaran
+                    Loket
                   </span>
                 </div>
                 <div className="hidden xl:flex items-center gap-4">

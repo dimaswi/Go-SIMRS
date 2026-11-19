@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Edit, Printer, Trash2 } from "lucide-react";
+import { Plus, Edit, Printer, Trash2, FileSignature, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import useSWR from "swr";
@@ -105,9 +105,9 @@ export function InformedConsentList({
       header: "Status",
       cell: ({ row }) => {
         const status = row.original.persetujuan_tindakan;
-        if (status === "menyetujui") return <Badge variant="default" className="bg-green-600 h-5 text-[10px] py-0">Setuju</Badge>;
-        if (status === "menolak") return <Badge variant="destructive" className="h-5 text-[10px] py-0">Tolak</Badge>;
-        return <Badge variant="outline" className="h-5 text-[10px] py-0">Belum Ditentukan</Badge>;
+        if (status === "menyetujui") return <Badge variant="default" className="rounded-none bg-emerald-600 h-5 text-[10px] py-0">Setuju</Badge>;
+        if (status === "menolak") return <Badge variant="destructive" className="rounded-none h-5 text-[10px] py-0">Tolak</Badge>;
+        return <Badge variant="outline" className="rounded-none h-5 text-[10px] py-0">Belum Ditentukan</Badge>;
       }
     },
     {
@@ -122,7 +122,7 @@ export function InformedConsentList({
               size="icon"
               onClick={() => onPrint(ic.id)}
               title="Cetak Form"
-              className="h-7 w-7"
+              className="h-7 w-7 rounded-none"
             >
               <Printer className="w-3.5 h-3.5" />
             </Button>
@@ -133,7 +133,7 @@ export function InformedConsentList({
                   size="icon"
                   onClick={() => onEdit(ic.id)}
                   title="Edit"
-                  className="h-7 w-7"
+                  className="h-7 w-7 rounded-none"
                 >
                   <Edit className="w-3.5 h-3.5" />
                 </Button>
@@ -141,7 +141,7 @@ export function InformedConsentList({
                   variant="outline"
                   size="icon"
                   onClick={() => setDeleteId(ic.id)}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 h-7 w-7"
+                  className="h-7 w-7 rounded-none text-destructive hover:text-destructive hover:bg-destructive/10"
                   title="Hapus"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -155,61 +155,78 @@ export function InformedConsentList({
   ], [onSign, onPrint, onEdit, setDeleteId, readOnly]);
 
   return (
-    <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-      <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        <div className="flex items-center justify-between">
-          <div>Persetujuan Tindakan (Informed COnsent)</div>
+    <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+      <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            Persetujuan Tindakan (Informed Consent)
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Daftar dokumen persetujuan atau penolakan tindakan kedokteran pada kunjungan ini.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
+            {consents.length} dokumen
+          </span>
           {!readOnly && (
-            <Button onClick={onCreateNew} variant="outline">
-              <Plus className="w-4 h-4 text-black font-bold" />
+            <Button
+              type="button"
+              onClick={onCreateNew}
+              className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Buat Persetujuan
             </Button>
           )}
         </div>
       </div>
-      <div className="p-3 sm:p-4">
+
+      <div className="p-4 sm:p-5">
         {isLoading ? (
-          <div className="flex items-center justify-center p-8 text-muted-foreground text-sm">
-            Memuat data...
+          <div className="flex items-center justify-center h-36 border border-dashed border-neutral-300 dark:border-neutral-700 text-muted-foreground text-xs gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Memuat data persetujuan tindakan...
           </div>
         ) : consents.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground bg-slate-50/50 rounded-lg border border-dashed">
-            Belum ada persetujuan tindakan.
-            {!readOnly && (
-              <div className="mt-3">
-                <Button onClick={onCreateNew} variant="outline" size="sm">
-                  Buat Persetujuan Pertama
-                </Button>
-              </div>
-            )}
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <FileSignature className="h-4 w-4 opacity-60 shrink-0" />
+            <span>Belum ada persetujuan tindakan pada kunjungan ini.</span>
           </div>
         ) : (
-          <DataTable
-            columns={columns}
-            data={consents}
-            showPagination={false}
-            showSearch={false}
-            className="[&_td]:py-2"
-          />
+          <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+            <DataTable
+              columns={columns}
+              data={consents}
+              showPagination={false}
+              showSearch={false}
+              className="[&_td]:py-2.5 [&_th]:bg-neutral-50 dark:[&_th]:bg-neutral-900 [&_th]:text-[11px] [&_th]:uppercase [&_th]:tracking-wider [&_th]:font-semibold"
+            />
+          </div>
         )}
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-none border-neutral-200 dark:border-neutral-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Persetujuan Tindakan?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Hapus Persetujuan Tindakan?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
               Tindakan ini tidak dapat dibatalkan. Data persetujuan beserta tanda tangan yang sudah ada akan dihapus permanen.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Batal</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-none text-xs" disabled={isDeleting}>
+              Batal
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 handleDelete();
               }}
               disabled={isDeleting}
-              className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+              className="h-8 rounded-none text-xs bg-destructive hover:bg-destructive/90"
             >
               {isDeleting ? "Menghapus..." : "Ya, Hapus"}
             </AlertDialogAction>

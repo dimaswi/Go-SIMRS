@@ -30,7 +30,7 @@ import type {
   MedicationTimesheetStatus,
 } from "@/lib/api";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
-import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Clock, Loader2, Pill, Plus, Trash2 } from "lucide-react";
 
 interface MedicineTimesheetFormProps {
   visitId: number;
@@ -82,6 +82,35 @@ const TIMESHEET_REASON_OPTIONS: TimesheetReasonOption[] = [
   { value: "other", label: "Lainnya" },
 ];
 
+const SIGNA_OPTIONS = [
+  "3 x 1 Setelah Makan",
+  "3 x 1 Sebelum Makan",
+  "3 x 1 Bersama Makan",
+  "2 x 1 Setelah Makan",
+  "2 x 1 Sebelum Makan",
+  "2 x 1 Pagi & Malam",
+  "1 x 1 Pagi Hari Setelah Makan",
+  "1 x 1 Malam Hari Setelah Makan",
+  "1 x 1 Sebelum Tidur",
+  "4 x 1 Setelah Makan",
+  "1 x 1 Tablet Bila Perlu (PRN)",
+  "3 x 1 Sendok Takar (5 ml)",
+  "2 x 1 Sendok Takar (5 ml)",
+  "1 x 1 Sendok Takar (5 ml)",
+  "1 x 1 Tetes Pada Mata/Telinga",
+  "2 x 1 Tetes Pada Mata/Telinga",
+  "3 x 1 Tetes Pada Mata/Telinga",
+  "Oleskan Tipis 2x Sehari (Topikal)",
+  "Oleskan Tipis 3x Sehari (Topikal)",
+  "Bila Perlu / Jika Demam (P.R.N)",
+  "Bila Nyeri (P.R.N)",
+  "Sebelum Makan",
+  "Setelah Makan",
+  "1x Sehari",
+  "2x Sehari",
+  "3x Sehari",
+].map((o) => ({ value: o, label: o }));
+
 const emptyEditorState: TimesheetEditorState = {
   status: "",
   reasonCode: "",
@@ -95,9 +124,8 @@ const emptyItemForm = {
   unit: "",
   dosage: "",
   frequency: "",
-  route: "",
-  duration: "",
   instructions: "",
+  notes: "",
 };
 
 const getTimesheetStatusShortLabel = (status?: MedicationTimesheetStatus) => {
@@ -144,7 +172,7 @@ const getAllowedReasonOptions = (status: MedicationTimesheetStatus | "") => {
 };
 
 const getCellButtonClassName = (status: MedicationTimesheetStatus | undefined, selected: boolean) => {
-  const base = "h-11 w-full rounded-md border p-1 text-[11px] font-semibold transition-colors";
+  const base = "h-10 w-full rounded-none border p-1 text-[11px] font-semibold transition-colors";
   const stateClass = (() => {
     switch (status) {
       case "given":
@@ -164,10 +192,10 @@ const getCellButtonClassName = (status: MedicationTimesheetStatus | undefined, s
       case "scheduled":
         return "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300";
       default:
-        return "bg-background text-muted-foreground border-dashed hover:bg-muted/30";
+        return "bg-background text-muted-foreground border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900/40";
     }
   })();
-  const selectedClass = selected ? "ring-2 ring-primary/60" : "";
+  const selectedClass = selected ? "ring-1 ring-neutral-900 dark:ring-neutral-100" : "";
   return cn(base, stateClass, selectedClass);
 };
 
@@ -327,6 +355,10 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
       return;
     }
 
+    const combinedInstructions = [itemForm.instructions.trim(), itemForm.notes.trim()]
+      .filter(Boolean)
+      .join(" • ");
+
     setItemSubmitting(true);
     try {
       await medicineOrdersApi.createTimesheetItem({
@@ -335,10 +367,8 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
         quantity: Number(itemForm.quantity) || 1,
         unit: itemForm.unit.trim() || undefined,
         dosage: itemForm.dosage.trim() || undefined,
-        frequency: itemForm.frequency.trim() || undefined,
-        route: itemForm.route.trim() || undefined,
-        duration: itemForm.duration.trim() || undefined,
-        instructions: itemForm.instructions.trim() || undefined,
+        frequency: (itemForm.frequency || itemForm.instructions).trim() || undefined,
+        instructions: combinedInstructions || undefined,
       });
       setIsItemDialogOpen(false);
       resetItemForm();
@@ -495,371 +525,433 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
   }, [loggedSlotCount]);
 
   return (
-    <div className="space-y-4">
-      <div className="border p-3 sm:p-4 space-y-3">
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+      {/* Header & Legend */}
+      <div className="p-4 sm:p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium">Timesheet Pemberian Obat Ruangan</p>
-            <p className="text-xs text-muted-foreground">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Timesheet Pemberian Obat Ruangan
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
               Pilih satu slot jam untuk mengisi status, alasan klinis, dan catatan pemberian obat.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="timesheet-date" className="text-xs text-muted-foreground">Tanggal</Label>
-            <Input
-              id="timesheet-date"
-              type="date"
-              value={timesheetDate}
-              onChange={(e) => setTimesheetDate(e.target.value)}
-              className="h-9 w-[170px]"
-            />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="timesheet-date" className="text-xs text-muted-foreground">
+                Tanggal
+              </Label>
+              <Input
+                id="timesheet-date"
+                type="date"
+                value={timesheetDate}
+                onChange={(e) => setTimesheetDate(e.target.value)}
+                className="h-8 text-xs rounded-none w-[160px]"
+              />
+            </div>
             {!readOnly && (
               <Button
                 type="button"
-                className="h-9"
+                className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                 onClick={() => {
                   resetItemForm();
                   setIsItemDialogOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 Tambah Obat
               </Button>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <span className="text-muted-foreground mr-1">Slot tercatat: {loggedSlotCount}</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("given"))}>OK: Diberikan</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("held"))}>HLD: Ditahan</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("skipped"))}>SKP: Dilewati</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("refused"))}>RFS: Ditolak</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("not_available"))}>N/A: Tidak tersedia</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("contraindicated"))}>KON: Kontraindikasi</span>
-          <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5", getStatusLegendClass("patient_absent"))}>ABS: Pasien tidak di ruangan</span>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2 py-0.5 font-mono text-muted-foreground">
+            Slot tercatat: {loggedSlotCount}
+          </span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("given"))}>OK: Diberikan</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("held"))}>HLD: Ditahan</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("skipped"))}>SKP: Dilewati</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("refused"))}>RFS: Ditolak</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("not_available"))}>N/A: Tidak tersedia</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("contraindicated"))}>KON: Kontraindikasi</span>
+          <span className={cn("inline-flex items-center rounded-none border px-1.5 py-0.5", getStatusLegendClass("patient_absent"))}>ABS: Pasien tidak di ruangan</span>
         </div>
       </div>
 
-      {timesheetLoading ? (
-        <div className="flex items-center justify-center h-44 border rounded-lg">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      ) : timesheetItems.length === 0 ? (
-        <div className="text-center py-10 border rounded-lg text-muted-foreground">
-          <CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Belum ada obat pada timesheet</p>
-          <p className="text-xs mt-1">Tambahkan obat dari master obat untuk mulai mencatat pemberian per jam.</p>
-          {!readOnly && (
-            <div className="mt-4">
-              <Button
-                type="button"
-                onClick={() => {
-                  resetItemForm();
-                  setIsItemDialogOpen(true);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Tambah Obat
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div ref={tableScrollRef} className="border rounded-lg overflow-x-auto overflow-y-hidden">
-            <table className="w-max min-w-full text-xs">
-              <thead className="bg-background border-b">
-                <tr>
-                  <th className="py-2 px-3 text-left font-medium sticky left-0 bg-gray-100 z-20 min-w-[320px] w-[320px] border-r">
-                    Obat
-                  </th>
-                  {TIMESHEET_HOURS.map((hour) => (
-                    <th key={`hour-head-${hour}`} className="py-2 px-1 text-center font-medium min-w-[56px] w-[56px] bg-gray-100">
-                      {String(hour).padStart(2, "0")}
+      {/* Table / Loading / Empty State */}
+      <div className="p-4 sm:p-5">
+        {timesheetLoading ? (
+          <div className="flex items-center justify-center h-40 border border-dashed border-neutral-300 dark:border-neutral-700">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : timesheetItems.length === 0 ? (
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <CalendarClock className="h-4 w-4 opacity-60 shrink-0" />
+            <span>
+              Belum ada obat pada timesheet — tambahkan obat dari master obat untuk mulai mencatat pemberian per jam.
+            </span>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <div ref={tableScrollRef} className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto overflow-y-hidden">
+              <table className="w-max min-w-full text-xs">
+                <thead className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+                  <tr>
+                    <th className="py-2 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sticky left-0 bg-neutral-50 dark:bg-neutral-900 z-20 min-w-[300px] w-[300px] border-r border-neutral-200 dark:border-neutral-800">
+                      Obat
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {timesheetItems.map((item) => (
-                  <tr key={`timesheet-row-${item.item_id}`} className="border-t align-top">
-                    <td className="py-3 px-3 align-top border-r sticky left-0 bg-background z-10 min-w-[320px] w-[320px]">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm leading-4">{item.medicine_name}</p>
-                        </div>
-                        {!readOnly && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 shrink-0 text-destructive"
-                            disabled={deletingItemId === item.item_id}
-                            onClick={() => handleDeleteItem(item.item_id)}
-                          >
-                            {deletingItemId === item.item_id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                    {TIMESHEET_HOURS.map((hour) => {
-                      const key = getCellKey(item.item_id, hour);
-                      const entry = getCellEntry(item.item_id, hour);
-                      const status = entry?.status;
-                      const isSelected = selectedCellKey === key;
-
-                      return (
-                        <td key={key} className="py-1 px-1 min-w-[56px] w-[56px]">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={cn(getCellButtonClassName(status, isSelected), "flex flex-col items-center justify-center")}
-                            disabled={readOnly || timesheetSavingKey === key}
-                            onClick={() => openCellEditor(item.item_id, hour)}
-                          >
-                            {timesheetSavingKey === key ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <>
-                                <span className="text-[10px] leading-none font-normal">{String(hour).padStart(2, "0")}</span>
-                                <span className="leading-none mt-1">{getTimesheetStatusShortLabel(status)}</span>
-                              </>
-                            )}
-                          </Button>
-                        </td>
-                      );
-                    })}
+                    {TIMESHEET_HOURS.map((hour) => (
+                      <th
+                        key={`hour-head-${hour}`}
+                        className="py-2 px-1 text-center text-[11px] font-semibold font-mono text-muted-foreground min-w-[54px] w-[54px] bg-neutral-50 dark:bg-neutral-900"
+                      >
+                        {String(hour).padStart(2, "0")}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {timesheetItems.map((item) => (
+                    <tr key={`timesheet-row-${item.item_id}`} className="align-middle hover:bg-neutral-50/40 dark:hover:bg-neutral-900/20">
+                      <td className="py-2.5 px-3 align-middle border-r border-neutral-200 dark:border-neutral-800 sticky left-0 bg-background z-10 min-w-[300px] w-[300px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-xs leading-snug truncate">{item.medicine_name}</p>
+                          </div>
+                          {!readOnly && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-none shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={deletingItemId === item.item_id}
+                              onClick={() => handleDeleteItem(item.item_id)}
+                            >
+                              {deletingItemId === item.item_id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                      {TIMESHEET_HOURS.map((hour) => {
+                        const key = getCellKey(item.item_id, hour);
+                        const entry = getCellEntry(item.item_id, hour);
+                        const status = entry?.status;
+                        const isSelected = selectedCellKey === key;
 
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => scrollTableHours("left")}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => scrollTableHours("right")}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                        return (
+                          <td key={key} className="py-1 px-1 min-w-[54px] w-[54px]">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className={cn(getCellButtonClassName(status, isSelected), "flex flex-col items-center justify-center")}
+                              disabled={readOnly || timesheetSavingKey === key}
+                              onClick={() => openCellEditor(item.item_id, hour)}
+                            >
+                              {timesheetSavingKey === key ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <span className="text-[10px] leading-none font-mono font-normal">{String(hour).padStart(2, "0")}</span>
+                                  <span className="leading-none mt-1">{getTimesheetStatusShortLabel(status)}</span>
+                                </>
+                              )}
+                            </Button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  onClick={() => scrollTableHours("left")}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  onClick={() => scrollTableHours("right")}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">
+                Rentang waktu: 00:00 – 23:00
+              </span>
+            </div>
+
+            <Dialog
+              open={Boolean(selectedCell && selectedItem)}
+              onOpenChange={(open) => {
+                if (!open) closeEditor();
+              }}
+            >
+              <DialogContent className="sm:max-w-lg rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                <DialogHeader className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-row items-center gap-3 space-y-0 text-left">
+                  <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                      Editor Slot Timesheet
+                    </DialogTitle>
+                    <DialogDescription className="text-xs mt-0.5">
+                      Isi status dan catatan klinis untuk slot jam yang dipilih.
+                    </DialogDescription>
+                  </div>
+                </DialogHeader>
+
+                {selectedCell && selectedItem ? (
+                  <>
+                    <div className="p-5 space-y-4">
+                      <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/70 dark:bg-neutral-900/40 px-3 py-2 space-y-0.5">
+                        <p className="text-xs font-semibold text-foreground">
+                          {selectedItem.medicine_name} • Jam {String(selectedCell.hour).padStart(2, "0")}:00
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Status saat ini: {getTimesheetStatusLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.status)}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Status Slot</Label>
+                          <Select
+                            disabled={readOnly}
+                            value={editorState.status || "none"}
+                            onValueChange={(value) => {
+                              const nextStatus = value === "none" ? "" : (value as MedicationTimesheetStatus);
+                              const nextReasons = getAllowedReasonOptions(nextStatus);
+                              const keepReason = nextReasons.some((option) => option.value === editorState.reasonCode);
+                              setEditorState((prev) => ({
+                                ...prev,
+                                status: nextStatus,
+                                reasonCode: keepReason ? prev.reasonCode : "",
+                                reasonDetail: keepReason ? prev.reasonDetail : "",
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs rounded-none">
+                              <SelectValue placeholder="Pilih status" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-none">
+                              <SelectItem value="none">Kosongkan slot</SelectItem>
+                              {TIMESHEET_STATUS_OPTIONS.map((option) => (
+                                <SelectItem key={`status-${option.value}`} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">
+                            Alasan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}
+                          </Label>
+                          <Select
+                            disabled={readOnly || !requiresReason(editorState.status)}
+                            value={editorState.reasonCode || "none"}
+                            onValueChange={(value) =>
+                              setEditorState((prev) => ({
+                                ...prev,
+                                reasonCode: value === "none" ? "" : (value as MedicationTimesheetReasonCode),
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-9 text-xs rounded-none">
+                              <SelectValue placeholder="Pilih alasan" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-none">
+                              <SelectItem value="none">Tidak ada</SelectItem>
+                              {allowedReasonOptions.map((option) => (
+                                <SelectItem key={`reason-${option.value}`} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {editorState.reasonCode === "other" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Rincian Alasan *</Label>
+                          <Input
+                            disabled={readOnly}
+                            value={editorState.reasonDetail}
+                            onChange={(event) => setEditorState((prev) => ({ ...prev, reasonDetail: event.target.value }))}
+                            placeholder="Tuliskan rincian alasan"
+                            className="h-9 text-xs rounded-none"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">
+                          Catatan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}
+                        </Label>
+                        <Textarea
+                          disabled={readOnly}
+                          value={editorState.notes}
+                          onChange={(event) => setEditorState((prev) => ({ ...prev, notes: event.target.value }))}
+                          placeholder="Contoh: TD 86/54, dosis ditahan, observasi ulang 30 menit"
+                          className="min-h-[84px] text-xs rounded-none resize-none"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Alasan dan catatan wajib untuk status selain Diberikan/Terjadwal.
+                        </p>
+                      </div>
+
+                      {selectedCellKey && getCellEntry(selectedCell.itemId, selectedCell.hour)?.status && (
+                        <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 p-2.5 text-[11px] text-muted-foreground space-y-1">
+                          <p>
+                            Alasan tersimpan: {getTimesheetReasonLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_code)}
+                          </p>
+                          {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail && (
+                            <p>
+                              Rincian: {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail}
+                            </p>
+                          )}
+                          {getCellEntry(selectedCell.itemId, selectedCell.hour)?.administered_at && (
+                            <p>
+                              Waktu eksekusi: {new Date(getCellEntry(selectedCell.itemId, selectedCell.hour)!.administered_at!).toLocaleString("id-ID")}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <DialogFooter className="px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 flex flex-wrap items-center justify-between gap-2 sm:justify-between">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-none text-xs"
+                        disabled={readOnly || (selectedCellKey !== null && timesheetSavingKey === selectedCellKey)}
+                        onClick={() => persistSelectedCell(true)}
+                      >
+                        Kosongkan Slot
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 rounded-none text-xs"
+                          onClick={closeEditor}
+                        >
+                          Tutup
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 rounded-none text-xs bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                          disabled={readOnly || (selectedCellKey !== null && timesheetSavingKey === selectedCellKey)}
+                          onClick={() => persistSelectedCell(false)}
+                        >
+                          {selectedCellKey !== null && timesheetSavingKey === selectedCellKey && (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          )}
+                          Simpan Slot
+                        </Button>
+                      </div>
+                    </DialogFooter>
+                  </>
+                ) : null}
+              </DialogContent>
+            </Dialog>
           </div>
-
-          <Dialog
-            open={Boolean(selectedCell && selectedItem)}
-            onOpenChange={(open) => {
-              if (!open) closeEditor();
-            }}
-          >
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Editor Slot Timesheet</DialogTitle>
-                <DialogDescription>
-                  Isi status dan catatan klinis untuk slot jam yang dipilih.
-                </DialogDescription>
-              </DialogHeader>
-
-              {selectedCell && selectedItem ? (
-                <>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      {selectedItem.medicine_name} • Jam {String(selectedCell.hour).padStart(2, "0")}:00
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Status saat ini: {getTimesheetStatusLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.status)}
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Status Slot</Label>
-                      <Select
-                        disabled={readOnly}
-                        value={editorState.status || "none"}
-                        onValueChange={(value) => {
-                          const nextStatus = value === "none" ? "" : (value as MedicationTimesheetStatus);
-                          const nextReasons = getAllowedReasonOptions(nextStatus);
-                          const keepReason = nextReasons.some((option) => option.value === editorState.reasonCode);
-                          setEditorState((prev) => ({
-                            ...prev,
-                            status: nextStatus,
-                            reasonCode: keepReason ? prev.reasonCode : "",
-                            reasonDetail: keepReason ? prev.reasonDetail : "",
-                          }));
-                        }}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Pilih status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Kosongkan slot</SelectItem>
-                          {TIMESHEET_STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={`status-${option.value}`} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Alasan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}</Label>
-                      <Select
-                        disabled={readOnly || !requiresReason(editorState.status)}
-                        value={editorState.reasonCode || "none"}
-                        onValueChange={(value) =>
-                          setEditorState((prev) => ({
-                            ...prev,
-                            reasonCode: value === "none" ? "" : (value as MedicationTimesheetReasonCode),
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Pilih alasan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Tidak ada</SelectItem>
-                          {allowedReasonOptions.map((option) => (
-                            <SelectItem key={`reason-${option.value}`} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {editorState.reasonCode === "other" && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Rincian Alasan *</Label>
-                      <Input
-                        disabled={readOnly}
-                        value={editorState.reasonDetail}
-                        onChange={(event) => setEditorState((prev) => ({ ...prev, reasonDetail: event.target.value }))}
-                        placeholder="Tuliskan rincian alasan"
-                        className="h-9"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">
-                      Catatan Klinis {requiresReason(editorState.status) ? "*" : "(opsional)"}
-                    </Label>
-                    <Textarea
-                      disabled={readOnly}
-                      value={editorState.notes}
-                      onChange={(event) => setEditorState((prev) => ({ ...prev, notes: event.target.value }))}
-                      placeholder="Contoh: TD 86/54, dosis ditahan, observasi ulang 30 menit"
-                      className="min-h-[88px] resize-y"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Alasan dan catatan wajib untuk status selain Diberikan/Terjadwal.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={readOnly || (selectedCellKey !== null && timesheetSavingKey === selectedCellKey)}
-                      onClick={() => persistSelectedCell(false)}
-                    >
-                      {selectedCellKey !== null && timesheetSavingKey === selectedCellKey && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Simpan Slot
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={readOnly || (selectedCellKey !== null && timesheetSavingKey === selectedCellKey)}
-                      onClick={() => persistSelectedCell(true)}
-                    >
-                      Kosongkan Slot
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={closeEditor}>
-                      Tutup
-                    </Button>
-                  </div>
-
-                  {selectedCellKey && getCellEntry(selectedCell.itemId, selectedCell.hour)?.status && (
-                    <div className="border rounded-md p-2 text-[11px] text-muted-foreground space-y-1">
-                      <p>
-                        Alasan tersimpan: {getTimesheetReasonLabel(getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_code)}
-                      </p>
-                      {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail && (
-                        <p>
-                          Rincian: {getCellEntry(selectedCell.itemId, selectedCell.hour)?.reason_detail}
-                        </p>
-                      )}
-                      {getCellEntry(selectedCell.itemId, selectedCell.hour)?.administered_at && (
-                        <p>
-                          Waktu eksekusi: {new Date(getCellEntry(selectedCell.itemId, selectedCell.hour)!.administered_at!).toLocaleString("id-ID")}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              ) : null}
-            </DialogContent>
-          </Dialog>
-        </div>
-      )}
+        )}
+      </div>
 
       <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Tambah Obat Timesheet</DialogTitle>
-            <DialogDescription>
-              Pilih obat langsung dari master obat, lalu lengkapi detail regimen bila diperlukan.
-            </DialogDescription>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <Pill className="h-4 w-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  Tambah Obat Timesheet
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Pilih obat dari master obat, lalu lengkapi jumlah, dosis, aturan pakai (signa), dan catatan tambahan.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="grid gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Obat *</Label>
-              <Combobox
-                options={medicineOptions}
-                value={itemForm.medicineId}
-                onValueChange={(value) => {
-                  const selectedMedicine = medicineResults.find((medicine: Medicine) => String(medicine.id) === value);
-                  setItemForm((prev) => ({
-                    ...prev,
-                    medicineId: value,
-                    unit: selectedMedicine?.unit || prev.unit,
-                  }));
-                }}
-                onSearchChange={setMedicineSearch}
-                placeholder="Pilih obat dari master obat..."
-                searchPlaceholder="Cari master obat..."
-                emptyText="Tidak ada obat yang cocok."
-                loading={medicineLoading}
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+            {(() => {
+              const selectedMedicine = medicineResults.find(
+                (medicine: Medicine) => String(medicine.id) === itemForm.medicineId,
+              );
+              if (!selectedMedicine) return null;
+              return (
+                <div className="border-l-4 border-l-neutral-900 dark:border-l-neutral-100 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 px-3.5 py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-xs text-foreground truncate">{selectedMedicine.name}</p>
+                    <p className="text-[11px] font-mono text-muted-foreground">
+                      {selectedMedicine.code}
+                      {selectedMedicine.form ? ` • ${selectedMedicine.form}` : ""}
+                      {selectedMedicine.strength ? ` • ${selectedMedicine.strength}` : ""}
+                    </p>
+                  </div>
+                  {selectedMedicine.unit && (
+                    <span className="border border-neutral-200 dark:border-neutral-700 bg-background text-[10px] h-5 px-1.5 font-mono inline-flex items-center shrink-0">
+                      Satuan: {selectedMedicine.unit}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs font-medium">Obat *</Label>
+                <Combobox
+                  options={medicineOptions}
+                  value={itemForm.medicineId}
+                  onValueChange={(value) => {
+                    const selectedMedicine = medicineResults.find((medicine: Medicine) => String(medicine.id) === value);
+                    setItemForm((prev) => ({
+                      ...prev,
+                      medicineId: value,
+                      unit: selectedMedicine?.unit || prev.unit,
+                      dosage: selectedMedicine?.strength || prev.dosage,
+                    }));
+                  }}
+                  onSearchChange={setMedicineSearch}
+                  placeholder="Pilih obat dari master obat..."
+                  searchPlaceholder="Cari master obat..."
+                  emptyText="Tidak ada obat yang cocok."
+                  loading={medicineLoading}
+                  className="w-full"
+                />
+              </div>
+
               <div className="space-y-1.5">
-                <Label className="text-xs">Jumlah</Label>
+                <Label className="text-xs font-medium">Jumlah *</Label>
                 <Input
                   type="number"
                   min={1}
@@ -867,68 +959,67 @@ export function MedicineTimesheetForm({ visitId, readOnly = false }: MedicineTim
                   onChange={(event) => setItemForm((prev) => ({ ...prev, quantity: event.target.value }))}
                 />
               </div>
+
               <div className="space-y-1.5">
-                <Label className="text-xs">Satuan</Label>
-                <Input
-                  value={itemForm.unit}
-                  onChange={(event) => setItemForm((prev) => ({ ...prev, unit: event.target.value }))}
-                  placeholder="ampul, vial, tablet"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Dosis</Label>
+                <Label className="text-xs font-medium">Dosis</Label>
                 <Input
                   value={itemForm.dosage}
                   onChange={(event) => setItemForm((prev) => ({ ...prev, dosage: event.target.value }))}
-                  placeholder="500 mg"
+                  placeholder="Misal: 500 mg / 1 tablet"
                 />
               </div>
-            </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Frekuensi</Label>
-                <Input
-                  value={itemForm.frequency}
-                  onChange={(event) => setItemForm((prev) => ({ ...prev, frequency: event.target.value }))}
-                  placeholder="3x1, q8h"
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs font-medium">Signa / Aturan Pakai</Label>
+                <Combobox
+                  allowCustomValue
+                  options={SIGNA_OPTIONS}
+                  value={itemForm.instructions}
+                  onValueChange={(value) =>
+                    setItemForm((prev) => ({
+                      ...prev,
+                      instructions: value,
+                      frequency: value,
+                    }))
+                  }
+                  placeholder="Pilih atau ketik signa (contoh: 3 x 1 Setelah Makan)"
+                  searchPlaceholder="Cari atau ketik signa..."
+                  emptyText="Tekan enter untuk menggunakan signa ini"
+                  className="w-full"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Rute</Label>
-                <Input
-                  value={itemForm.route}
-                  onChange={(event) => setItemForm((prev) => ({ ...prev, route: event.target.value }))}
-                  placeholder="PO, IV, IM"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Durasi</Label>
-                <Input
-                  value={itemForm.duration}
-                  onChange={(event) => setItemForm((prev) => ({ ...prev, duration: event.target.value }))}
-                  placeholder="3 hari"
-                />
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Instruksi</Label>
-              <Textarea
-                value={itemForm.instructions}
-                onChange={(event) => setItemForm((prev) => ({ ...prev, instructions: event.target.value }))}
-                placeholder="Contoh: berikan sesudah makan"
-                className="min-h-[88px] resize-y"
-              />
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs font-medium">Catatan Tambahan</Label>
+                <Textarea
+                  value={itemForm.notes}
+                  onChange={(event) => setItemForm((prev) => ({ ...prev, notes: event.target.value }))}
+                  placeholder="Catatan khusus pemakaian obat ini (opsional)..."
+                  className="min-h-[68px] resize-none text-xs rounded-none"
+                />
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} disabled={itemSubmitting}>
-              Tutup
+          <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-none px-4 text-xs"
+              onClick={() => setIsItemDialogOpen(false)}
+              disabled={itemSubmitting}
+            >
+              Batal
             </Button>
-            <Button type="button" onClick={() => void handleCreateItem()} disabled={itemSubmitting}>
-              {itemSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-none px-4 text-xs bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              onClick={() => void handleCreateItem()}
+              disabled={itemSubmitting}
+            >
+              {itemSubmitting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               Simpan Obat
             </Button>
           </DialogFooter>

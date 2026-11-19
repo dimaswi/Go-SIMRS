@@ -20,6 +20,7 @@ import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -384,11 +385,12 @@ export function ProcedureForm({
             placeholder={param.description || `Masukkan ${param.name}`}
             disabled={isDisabled}
             rows={3}
+            className="text-xs rounded-none bg-white dark:bg-neutral-950 resize-none"
           />
         );
       case "number":
         return (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -410,29 +412,32 @@ export function ProcedureForm({
                 placeholder={param.description || `Masukkan ${param.name}`}
                 disabled={isDisabled}
                 step={1 / Math.pow(10, param.decimal_places || 2)}
+                className="h-9 text-xs rounded-none bg-white dark:bg-neutral-950"
               />
-              {param.unit && <span className="text-sm text-muted-foreground">{param.unit}</span>}
+              {param.unit && <span className="text-xs text-muted-foreground shrink-0">{param.unit}</span>}
             </div>
             {(param.normal_min !== undefined || param.normal_max !== undefined || param.normal_text) && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Nilai Normal: {param.normal_text || `${param.normal_min} - ${param.normal_max} ${param.unit || ""}`}
               </p>
             )}
-            {value.is_abnormal && (
-              <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                Abnormal
-              </Badge>
-            )}
-            {value.is_critical && (
-              <Badge variant="destructive">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                Kritis
-              </Badge>
-            )}
+            <div className="flex flex-wrap gap-1.5">
+              {value.is_abnormal && (
+                <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-yellow-100 text-yellow-800">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Abnormal
+                </Badge>
+              )}
+              {value.is_critical && (
+                <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Kritis
+                </Badge>
+              )}
+            </div>
           </div>
         );
-      case "select":
+      case "select": {
         const options = param.options ? JSON.parse(param.options) : [];
         return (
           <Select
@@ -440,18 +445,19 @@ export function ProcedureForm({
             onValueChange={(v) => handleResultChange(param.id, "value", v)}
             disabled={isDisabled}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-9 text-xs rounded-none bg-white dark:bg-neutral-950">
               <SelectValue placeholder={`Pilih ${param.name}`} />
             </SelectTrigger>
             <SelectContent>
               {options.map((opt: string) => (
-                <SelectItem key={opt} value={opt}>
+                <SelectItem key={opt} value={opt} className="text-xs">
                   {opt}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         );
+      }
       case "checkbox":
         return (
           <div className="flex items-center space-x-2">
@@ -460,10 +466,11 @@ export function ProcedureForm({
               checked={value.value === "true" || value.value === "1"}
               onCheckedChange={(checked) => handleResultChange(param.id, "value", checked ? "true" : "false")}
               disabled={isDisabled}
+              className="rounded-none"
             />
             <label
               htmlFor={`param-${param.id}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
               {param.description || param.name}
             </label>
@@ -476,6 +483,7 @@ export function ProcedureForm({
             onChange={(e) => handleResultChange(param.id, "value", e.target.value)}
             placeholder={param.description || `Masukkan ${param.name}`}
             disabled={isDisabled}
+            className="h-9 text-xs rounded-none bg-white dark:bg-neutral-950"
           />
         );
     }
@@ -529,144 +537,180 @@ export function ProcedureForm({
     );
   }
 
-  if (availableProcedures.length === 0) {
+  if (!useExternalData && availableProcedures.length === 0 && scopedVisitProcedures.length === 0) {
     return (
-      <div>
-        <div className="py-12">
-          <div className="text-center text-muted-foreground">
-            <Scissors className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Tidak ada tindakan yang tersedia untuk ruangan ini.</p>
-            <p className="text-sm mt-2">
-              Silakan tambahkan tindakan ke ruangan melalui menu Manajemen Ruangan.
-            </p>
-          </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+        <div className="px-4 sm:px-5 py-8 border-b border-neutral-200 dark:border-neutral-800 text-center text-muted-foreground">
+          <Scissors className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          <p className="text-xs font-semibold text-foreground">
+            Tidak ada tindakan yang tersedia untuk ruangan ini.
+          </p>
+          <p className="text-[11px] mt-1">
+            Silakan tambahkan tindakan ke ruangan melalui menu Manajemen Ruangan.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <fieldset disabled={readOnly}>
-      <div className="space-y-6">
-        <div className="grid gap-4 xl:grid-cols-2 items-start">
-          <div className="rounded-lg border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Kolom 1 - Assign Tindakan
-            </div>
-            <div className="border-b p-3 space-y-2 bg-muted/10">
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      <fieldset
+        disabled={readOnly}
+        className="[&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+      >
+        <div className="grid grid-cols-1 xl:grid-cols-12 divide-y xl:divide-y-0 xl:divide-x divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+          {/* Column 1: Katalog & Assign Tindakan */}
+          <section className="xl:col-span-5 flex flex-col min-w-0">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Katalog Tindakan</p>
-                <Badge variant="secondary" className="text-xs">{filteredProcedures.length} item</Badge>
+                <div className="flex items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Katalog Tindakan
+                  </div>
+                  <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                    {filteredProcedures.length} Item
+                  </Badge>
+                </div>
+                <span className="text-[11px] text-muted-foreground">Klik + untuk assign cepat</span>
               </div>
+
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari tindakan (nama/kode)..."
-                  className="pl-9"
+                  placeholder="Cari nama atau kode tindakan..."
+                  className="pl-8"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">Klik tombol plus pada tindakan untuk assign cepat.</p>
             </div>
 
             {canCreate ? (
               filteredProcedures.length > 0 ? (
-                <div>
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-background z-10 border-b">
+                <div className="max-h-[560px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-neutral-50 dark:bg-neutral-900 z-10 border-b border-neutral-200 dark:border-neutral-800">
                       <tr>
-                        <th className="py-2 px-3 text-left">Tindakan</th>
-                        <th className="py-2 px-3 w-16 text-left">Aksi</th>
+                        <th className="h-9 px-4 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                          Nama Tindakan
+                        </th>
+                        <th className="h-9 px-3 w-16 text-center font-bold uppercase tracking-wider text-muted-foreground">
+                          Aksi
+                        </th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {filteredProcedures.map((proc) => {
-                        return (
-                          <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
-                            <td className="py-2 px-3">
-                              <div className="flex flex-col items-start gap-1">
-                                <p className="font-medium text-sm truncate max-w-[200px]">{proc.name}</p>
-                                {proc.is_mandatory && (
-                                  <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Wajib</Badge>
-                                )}
-                                {proc.is_prescription_fee && (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40">Jasa Resep</Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8"
-                                disabled={saving}
-                                onClick={() => handleQuickAddProcedure(proc.id)}
-                                title="Tambah cepat"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                      {filteredProcedures.map((proc) => (
+                        <tr key={proc.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-2 px-4">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-semibold text-foreground">{proc.name}</span>
+                              {proc.is_mandatory && (
+                                <Badge variant="destructive" className="rounded-none text-[9px] h-4 px-1">
+                                  Wajib
+                                </Badge>
+                              )}
+                              {proc.is_prescription_fee && (
+                                <Badge
+                                  variant="outline"
+                                  className="rounded-none text-[9px] h-4 px-1 border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40"
+                                >
+                                  Jasa Resep
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{proc.code}</p>
+                          </td>
+                          <td className="py-2 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 rounded-none"
+                              disabled={saving}
+                              onClick={() => handleQuickAddProcedure(proc.id)}
+                              title="Tambah cepat tindakan"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <div className="py-12 text-center text-muted-foreground">
-                  <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">Tidak ada tindakan yang cocok</p>
-                  <p className="text-sm mt-1">Ubah kata kunci pencarian untuk melihat tindakan lain.</p>
+                <div className="p-4">
+                  <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                    Tidak ada tindakan yang cocok dengan kata kunci pencarian.
+                  </div>
                 </div>
               )
             ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p>Anda tidak memiliki izin untuk menambahkan tindakan.</p>
-              </div>
-            )}
-
-          </div>
-
-          <div className="rounded-lg border border-border/70 bg-background">
-            <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Kolom 2 - Verifikasi dan Isi Hasil
-            </div>
-            <div className="border-b p-3 space-y-2 bg-muted/10">
-              <div className="flex flex-wrap items-center gap-2 justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
-                    Semua ({queueCounts.all})
-                  </Button>
-                  <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
-                    Menunggu ({queueCounts.pending})
-                  </Button>
-                  <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
-                    Proses ({queueCounts.in_progress})
-                  </Button>
-                  <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
-                    Selesai ({queueCounts.completed})
-                  </Button>
-                  <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
-                    Batal ({queueCounts.cancelled})
-                  </Button>
+              <div className="p-4">
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  Anda tidak memiliki izin untuk menambahkan tindakan.
                 </div>
               </div>
+            )}
+          </section>
+
+          {/* Column 2: Antrian Verifikasi & Isi Hasil */}
+          <section className="xl:col-span-7 flex flex-col min-w-0">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Daftar &amp; Hasil Tindakan
+                  </div>
+                  <Badge
+                    variant={queueCounts.all > 0 ? "default" : "secondary"}
+                    className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                  >
+                    {queueCounts.all} Tindakan
+                  </Badge>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex flex-wrap items-center gap-1">
+                  {(
+                    [
+                      { key: "all", label: "Semua", count: queueCounts.all },
+                      { key: "pending", label: "Menunggu", count: queueCounts.pending },
+                      { key: "in_progress", label: "Proses", count: queueCounts.in_progress },
+                      { key: "completed", label: "Selesai", count: queueCounts.completed },
+                      { key: "cancelled", label: "Batal", count: queueCounts.cancelled },
+                    ] as const
+                  ).map((item) => (
+                    <Button
+                      key={item.key}
+                      type="button"
+                      variant={statusFilter === item.key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 rounded-none px-2 text-[11px] gap-1"
+                      onClick={() => setStatusFilter(item.key)}
+                    >
+                      <span>{item.label}</span>
+                      <span className="font-mono text-[10px] opacity-80">({item.count})</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   value={queueSearchQuery}
                   onChange={(e) => setQueueSearchQuery(e.target.value)}
-                  placeholder="Cari di antrian tindakan..."
-                  className="pl-9"
+                  placeholder="Cari di daftar tindakan kunjungan..."
+                  className="pl-8"
                 />
               </div>
             </div>
 
             {filteredVisitProcedures.length > 0 ? (
-              <div className="divide-y">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
                 {filteredVisitProcedures.map((vp) => {
                   const isExpanded = expandedProcedure === vp.id;
                   const hasParams = procedureHasParameters(vp);
@@ -679,26 +723,29 @@ export function ProcedureForm({
                       onOpenChange={() => handleExpandProcedure(vp.id)}
                     >
                       {/* Row Header */}
-                      <div className={`hover:bg-muted/50 ${isExpanded ? "bg-primary/5" : ""}`}>
-                        <CollapsibleTrigger className="w-full">
-                          <div className="flex items-center gap-3 p-3">
+                      <div className={`hover:bg-muted/30 transition-colors ${isExpanded ? "bg-neutral-50/70 dark:bg-neutral-900/40" : ""}`}>
+                        <CollapsibleTrigger className="w-full text-left">
+                          <div className="flex items-center gap-2.5 px-4 sm:px-5 py-2.5">
                             {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             )}
-                            <div className="flex-1 text-left">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-sm">{vp.procedure?.name}</span>
-                                <Badge className={getVisitProcedureStatusColor(vp.status)} variant="secondary">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-xs text-foreground">{vp.procedure?.name}</span>
+                                <Badge
+                                  className={`rounded-none text-[10px] h-5 px-1.5 ${getVisitProcedureStatusColor(vp.status)}`}
+                                  variant="secondary"
+                                >
                                   {getVisitProcedureStatusLabel(vp.status)}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                                <span>{vp.procedure?.code}</span>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
+                                <span className="font-mono">{vp.procedure?.code}</span>
                                 {vp.created_by && (
                                   <>
-                                    <span>&bull;</span>
+                                    <span>•</span>
                                     <span className="flex items-center gap-1" title="Dibuat oleh">
                                       <Plus className="h-3 w-3" />
                                       {vp.created_by.full_name}
@@ -707,7 +754,7 @@ export function ProcedureForm({
                                 )}
                                 {vp.filled_by && vp.filled_by.id !== vp.created_by?.id && (
                                   <>
-                                    <span>&bull;</span>
+                                    <span>•</span>
                                     <span className="flex items-center gap-1" title="Dikerjakan oleh">
                                       <User className="h-3 w-3" />
                                       {vp.filled_by.full_name}
@@ -716,189 +763,198 @@ export function ProcedureForm({
                                 )}
                                 {vp.performed_at && (
                                   <>
-                                    <span>&bull;</span>
+                                    <span>•</span>
                                     <span>{format(new Date(vp.performed_at), "dd MMM HH:mm", { locale: idLocale })}</span>
                                   </>
                                 )}
                               </div>
                             </div>
-                            {canDelete && vp.status === "pending" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive flex-shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setProcedureToDelete(vp.id);
-                                  setDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && !isDisabled && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-blue-600 flex-shrink-0"
-                                title="Pengaturan Diskon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openDiscountDialog(vp.id);
-                                }}
-                              >
-                                <Tag className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && vp.status !== "completed" && vp.status !== "cancelled" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-orange-600 flex-shrink-0"
-                                title="Batalkan Tindakan"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSaveResults(vp.id, "cancelled");
-                                }}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && (vp.status === "pending" || vp.status === "in_progress") && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-600 flex-shrink-0"
-                                title="Selesaikan Tindakan"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSaveResults(vp.id, "completed");
-                                }}
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && vp.status === "completed" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-blue-600 flex-shrink-0"
-                                title="Ubah ke Proses"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSaveResults(vp.id, "in_progress");
-                                }}
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && vp.status === "cancelled" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-600 flex-shrink-0"
-                                title="Aktifkan Kembali"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSaveResults(vp.id, "pending");
-                                }}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                            )}
+
+                            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              {canDelete && vp.status === "pending" && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-destructive"
+                                  title="Hapus Tindakan"
+                                  onClick={() => {
+                                    setProcedureToDelete(vp.id);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canEdit && !isDisabled && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-blue-600"
+                                  title="Pengaturan Diskon"
+                                  onClick={() => openDiscountDialog(vp.id)}
+                                >
+                                  <Tag className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canEdit && vp.status !== "completed" && vp.status !== "cancelled" && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-orange-600"
+                                  title="Batalkan Tindakan"
+                                  onClick={() => handleSaveResults(vp.id, "cancelled")}
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canEdit && (vp.status === "pending" || vp.status === "in_progress") && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-emerald-600"
+                                  title="Selesaikan Tindakan"
+                                  onClick={() => handleSaveResults(vp.id, "completed")}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canEdit && vp.status === "completed" && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-blue-600"
+                                  title="Ubah ke Proses"
+                                  onClick={() => handleSaveResults(vp.id, "in_progress")}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {canEdit && vp.status === "cancelled" && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-emerald-600"
+                                  title="Aktifkan Kembali"
+                                  onClick={() => handleSaveResults(vp.id, "pending")}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </CollapsibleTrigger>
                       </div>
 
                       {/* Collapsible Content - Form */}
                       <CollapsibleContent>
-                        <div className="border-t bg-muted/20 p-4 space-y-4">
-                          {/* Info Section */}
-                          <div className="bg-background rounded-lg p-3 border">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Kode:</span>{" "}
-                                <span className="font-medium">{vp.procedure?.code}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Jenis:</span>{" "}
-                                <span className="font-medium">{vp.procedure?.procedure_type || "-"}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Dibuat:</span>{" "}
-                                <span className="font-medium">{vp.created_by?.full_name || "-"}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Diisi:</span>{" "}
-                                <span className="font-medium">{vp.filled_by?.full_name || "-"}</span>
-                              </div>
+                        <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 px-4 sm:px-5 py-3.5 space-y-3">
+                          {/* Info Strip */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-2.5 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                                Kode
+                              </span>
+                              <span className="font-mono font-semibold text-foreground">{vp.procedure?.code || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                                Jenis
+                              </span>
+                              <span className="font-semibold text-foreground">{vp.procedure?.procedure_type || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                                Dibuat Oleh
+                              </span>
+                              <span className="font-medium text-foreground">{vp.created_by?.full_name || "-"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                                Diisi Oleh
+                              </span>
+                              <span className="font-medium text-foreground">{vp.filled_by?.full_name || "-"}</span>
                             </div>
                           </div>
 
                           {/* Parameters Form */}
                           {hasParams ? (
-                            <div className="space-y-3">
-                              <Label className="text-sm font-medium">Parameter Hasil</Label>
-                              {vp.procedure?.parameters?.map((param) => (
-                                <div key={param.id} className="space-y-1">
-                                  <Label className="text-sm">
-                                    {param.name}
-                                    {param.is_required && <span className="text-destructive ml-1">*</span>}
-                                  </Label>
-                                  {renderParameterInput(param, isDisabled)}
-                                </div>
-                              ))}
+                            <div className="space-y-3 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-3">
+                              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-[11px] font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+                                Parameter Hasil Tindakan
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {vp.procedure?.parameters?.map((param) => (
+                                  <div key={param.id} className="space-y-1.5">
+                                    <Label className="text-xs font-medium">
+                                      {param.name}
+                                      {param.is_required && <span className="text-destructive ml-1">*</span>}
+                                    </Label>
+                                    {renderParameterInput(param, isDisabled)}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ) : (
-                            <div className="border-2 border-dashed rounded-lg p-4 text-center text-muted-foreground">
-                              <AlertCircle className="h-6 w-6 mx-auto mb-2 opacity-50" />
-                              <p className="text-sm">Tindakan ini tidak memiliki parameter hasil.</p>
-                              <p className="text-xs mt-1">Klik "Selesai" untuk menyelesaikan tindakan.</p>
+                            <div className="flex items-center gap-2 border border-dashed border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 px-3 py-2 text-xs text-muted-foreground">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                              <span>Tindakan ini tidak memiliki parameter hasil. Klik "Selesai" untuk menyelesaikan tindakan.</span>
                             </div>
                           )}
 
                           {/* Action Buttons */}
                           {canEdit && !isDisabled && (
-                            <div className="flex flex-wrap justify-end gap-2 pt-2">
+                            <div className="flex flex-wrap justify-end gap-1.5 pt-1">
                               {vp.status === "pending" && hasParams && (
                                 <Button
+                                  type="button"
                                   variant="outline"
                                   size="sm"
+                                  className="h-8 rounded-none text-xs"
                                   onClick={() => handleSaveResults(vp.id, "in_progress")}
                                   disabled={saving}
                                 >
-                                  <Play className="h-4 w-4 mr-1" />
+                                  <Play className="h-3.5 w-3.5 mr-1" />
                                   Mulai
                                 </Button>
                               )}
                               <Button
+                                type="button"
                                 variant="outline"
                                 size="sm"
-                                className="text-destructive border-destructive hover:bg-destructive/10"
+                                className="h-8 rounded-none text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
                                 onClick={() => handleSaveResults(vp.id, "cancelled")}
                                 disabled={saving}
                               >
-                                <XCircle className="h-4 w-4 mr-1" />
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
                                 Batal
                               </Button>
                               {hasParams && (
                                 <Button
+                                  type="button"
                                   variant="outline"
                                   size="sm"
+                                  className="h-8 rounded-none text-xs"
                                   onClick={() => handleSaveResults(vp.id)}
                                   disabled={saving}
                                 >
-                                  {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                                   Simpan
                                 </Button>
                               )}
                               <Button
+                                type="button"
                                 size="sm"
-                                className="bg-green-600 hover:bg-green-700"
+                                className="h-8 rounded-none text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                                 onClick={() => handleSaveResults(vp.id, "completed")}
                                 disabled={saving}
                               >
-                                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                                {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
                                 Selesai
                               </Button>
                             </div>
@@ -906,62 +962,68 @@ export function ProcedureForm({
 
                           {/* Completed/Cancelled Status Display */}
                           {vp.status === "completed" && (
-                            <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2 text-sm">
-                                    <CheckCircle className="h-4 w-4" />
-                                    Tindakan Selesai
-                                  </p>
-                                  {vp.performed_at && (
-                                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                      {format(new Date(vp.performed_at), "dd MMMM yyyy HH:mm", { locale: idLocale })}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
+                            <div className="border border-emerald-200 bg-emerald-50/70 dark:bg-emerald-950/30 px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                              <span className="font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                Tindakan Selesai
+                              </span>
+                              {vp.performed_at && (
+                                <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
+                                  {format(new Date(vp.performed_at), "dd MMMM yyyy HH:mm", { locale: idLocale })}
+                                </span>
+                              )}
                             </div>
                           )}
 
                           {vp.status === "cancelled" && (
-                            <div className="bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="font-medium text-red-700 dark:text-red-300 flex items-center gap-2 text-sm">
-                                  <XCircle className="h-4 w-4" />
-                                  Tindakan Dibatalkan
-                                </p>
-                              </div>
+                            <div className="border border-red-200 bg-red-50/70 dark:bg-red-950/30 px-3 py-2 text-xs">
+                              <span className="font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                                <XCircle className="h-3.5 w-3.5" />
+                                Tindakan Dibatalkan
+                              </span>
                             </div>
                           )}
 
                           {/* Results Display (for completed) */}
                           {vp.status === "completed" && vp.results && vp.results.length > 0 && (
-                            <div className="border rounded-lg">
-                              <table className="w-full text-sm">
-                                <thead className="bg-muted/50">
+                            <div className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
                                   <tr>
-                                    <th className="py-2 px-3 text-left font-medium">Parameter</th>
-                                    <th className="py-2 px-3 text-left font-medium">Hasil</th>
-                                    <th className="py-2 px-3 text-left font-medium">Status</th>
+                                    <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                                      Parameter
+                                    </th>
+                                    <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                                      Hasil
+                                    </th>
+                                    <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[110px]">
+                                      Status
+                                    </th>
                                   </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                                   {vp.results.map((result, idx) => (
-                                    <tr key={idx} className="border-t">
+                                    <tr key={idx}>
                                       <td className="py-2 px-3">
-                                        <p className="font-medium">{result.parameter?.name}</p>
+                                        <p className="font-semibold text-foreground">{result.parameter?.name}</p>
                                         {result.parameter?.unit && (
-                                          <p className="text-xs text-muted-foreground">Unit: {result.parameter.unit}</p>
+                                          <p className="text-[11px] text-muted-foreground">Unit: {result.parameter.unit}</p>
                                         )}
                                       </td>
-                                      <td className="py-2 px-3">{result.num_value || result.value || "-"}</td>
+                                      <td className="py-2 px-3 font-mono">{result.num_value || result.value || "-"}</td>
                                       <td className="py-2 px-3">
                                         {result.is_critical ? (
-                                          <Badge variant="destructive" className="text-xs">Kritis</Badge>
+                                          <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">
+                                            Kritis
+                                          </Badge>
                                         ) : result.is_abnormal ? (
-                                          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">Abnormal</Badge>
+                                          <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-yellow-100 text-yellow-800">
+                                            Abnormal
+                                          </Badge>
                                         ) : (
-                                          <Badge variant="secondary" className="text-xs">Normal</Badge>
+                                          <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5">
+                                            Normal
+                                          </Badge>
                                         )}
                                       </td>
                                     </tr>
@@ -977,28 +1039,28 @@ export function ProcedureForm({
                 })}
               </div>
             ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p className="font-medium">Tidak ada data pada filter ini</p>
-                <p className="text-sm mt-1">Coba ubah status filter atau kata kunci pencarian.</p>
+              <div className="p-4">
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  Tidak ada tindakan pada filter atau pencarian ini.
+                </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-sm rounded-none">
             <AlertDialogHeader>
-              <AlertDialogTitle>Hapus Tindakan?</AlertDialogTitle>
-              <AlertDialogDescription>
+              <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">Hapus Tindakan?</AlertDialogTitle>
+              <AlertDialogDescription className="text-xs">
                 Tindakan ini akan dihapus dari daftar. Tindakan hanya dapat dihapus jika statusnya masih "Menunggu".
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogCancel className="h-8 rounded-none text-xs">Batal</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="h-8 rounded-none text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={handleDeleteProcedure}
               >
                 Hapus
@@ -1009,72 +1071,112 @@ export function ProcedureForm({
 
         {/* Discount Modal */}
         <Dialog open={discountDialogOpen} onOpenChange={setDiscountDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Pengaturan Diskon</DialogTitle>
+          <DialogContent className="sm:max-w-md rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+            <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                  <Tag className="h-4 w-4" />
+                </div>
+                <div className="text-left min-w-0">
+                  <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                    Pengaturan Diskon Tindakan
+                  </DialogTitle>
+                  <DialogDescription className="text-xs mt-0.5">
+                    Atur jenis, nominal/persentase, serta keterangan diskon untuk tindakan ini.
+                  </DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Jenis Diskon</Label>
+
+            <div className="p-4 space-y-3 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Jenis Diskon</Label>
                 <Select
                   value={discountState.discount_type || "none"}
-                  onValueChange={(v) => setDiscountState((prev) => ({ ...prev, discount_type: v, discount_value: v === "full" ? 0 : prev.discount_value }))}
+                  onValueChange={(v) =>
+                    setDiscountState((prev) => ({
+                      ...prev,
+                      discount_type: v,
+                      discount_value: v === "full" ? 0 : prev.discount_value,
+                    }))
+                  }
                 >
-                  <SelectTrigger className="h-9 text-sm">
+                  <SelectTrigger className="h-9 text-xs rounded-none">
                     <SelectValue placeholder="Pilih Jenis" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Tidak Ada</SelectItem>
-                    <SelectItem value="percentage">Persentase (%)</SelectItem>
-                    <SelectItem value="fixed">Nominal (Rp)</SelectItem>
-                    <SelectItem value="full">Gratis (100%)</SelectItem>
+                    <SelectItem value="none" className="text-xs">Tidak Ada</SelectItem>
+                    <SelectItem value="percentage" className="text-xs">Persentase (%)</SelectItem>
+                    <SelectItem value="fixed" className="text-xs">Nominal (Rp)</SelectItem>
+                    <SelectItem value="full" className="text-xs">Gratis (100%)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {discountState.discount_type !== "" && discountState.discount_type !== "none" && discountState.discount_type !== "full" && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    {discountState.discount_type === "percentage" ? "Nilai Persentase (%)" : "Nominal Diskon (Rp)"}
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max={discountState.discount_type === "percentage" ? "100" : undefined}
-                    value={discountState.discount_value || ""}
-                    onChange={(e) => setDiscountState((prev) => ({ ...prev, discount_value: parseFloat(e.target.value) || 0 }))}
-                    className="h-9 text-sm"
-                  />
-                </div>
-              )}
+              {discountState.discount_type !== "" &&
+                discountState.discount_type !== "none" &&
+                discountState.discount_type !== "full" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">
+                      {discountState.discount_type === "percentage" ? "Nilai Persentase (%)" : "Nominal Diskon (Rp)"}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={discountState.discount_type === "percentage" ? "100" : undefined}
+                      value={discountState.discount_value || ""}
+                      onChange={(e) =>
+                        setDiscountState((prev) => ({
+                          ...prev,
+                          discount_value: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
               {discountState.discount_type !== "" && discountState.discount_type !== "none" && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Catatan / Alasan</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Catatan / Alasan Diskon</Label>
                   <Combobox
                     options={[
                       { value: "Diskon Jasa Dokter", label: "Diskon Jasa Dokter" },
                       { value: "Diskon Jasa Perawat", label: "Diskon Jasa Perawat" },
                       { value: "Diskon Manajemen", label: "Diskon Manajemen" },
-                      { value: "Promo / Gratis", label: "Promo / Gratis" }
+                      { value: "Promo / Gratis", label: "Promo / Gratis" },
                     ]}
                     value={discountState.discount_note}
                     onValueChange={(v) => setDiscountState((prev) => ({ ...prev, discount_note: v }))}
-                    placeholder="Pilih/ketik manual..."
+                    placeholder="Pilih atau ketik alasan diskon..."
                     allowCustomValue={true}
                     className="w-full"
                   />
                 </div>
               )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDiscountDialogOpen(false)}>Batal</Button>
-              <Button onClick={handleSaveDiscount} disabled={saving}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simpan
+
+            <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-none px-4 text-xs"
+                onClick={() => setDiscountDialogOpen(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 rounded-none px-4 text-xs"
+                onClick={handleSaveDiscount}
+                disabled={saving}
+              >
+                {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                Simpan Diskon
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </fieldset>
+      </fieldset>
+    </div>
   );
 }

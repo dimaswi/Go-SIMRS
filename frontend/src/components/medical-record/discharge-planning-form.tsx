@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CheckSquare, Loader2, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { employeesApi } from "@/lib/api";
 import { type DischargePlanning, type DischargePlanningItem, medicalRecordsApi } from "@/lib/api/medical-records";
 import { useAuthStore } from "@/lib/store";
@@ -382,99 +382,143 @@ export function DischargePlanningForm({
 
   if (loading) {
     return (
-      <div className="p-4 border rounded-md">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Memuat discharge planning...
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
     <form
-      className="space-y-4"
+      className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800"
       onSubmit={(event) => {
         event.preventDefault();
         handleSave();
       }}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-base font-semibold">Discharge Planning Rawat Inap</p>
-          <p className="text-xs text-muted-foreground">
+      {/* Header Section */}
+      <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            Discharge Planning Rawat Inap
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Checklist pemulangan pasien. Nama petugas terisi otomatis dari data pegawai saat item dicentang.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
             {checkedItems}/{totalItems} selesai
           </span>
           {!readOnly && !useExternalData && (
             <>
-              <Button type="button" size="sm" onClick={handleSave} disabled={saving} className={footerSaveOnly ? "hidden" : undefined}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simpan
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                className="h-8 rounded-none text-xs gap-1.5"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleCheckAll}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCheckAll}
+                className="h-8 rounded-none text-xs gap-1.5"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
                 Tandai Semua
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleReset}>
-                Reset
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className={cn(
+                  "h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200",
+                  footerSaveOnly && "hidden",
+                )}
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Simpan
               </Button>
             </>
           )}
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[920px] text-sm">
-          <thead className="sticky top-0 z-10 border-b bg-background">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold w-[90px]">No</th>
-              <th className="px-4 py-3 text-left font-semibold">Kriteria Pemulangan</th>
-              <th className="px-4 py-3 text-left font-semibold w-[180px]">Checklist</th>
-              <th className="px-4 py-3 text-left font-semibold w-[320px]">Nama Petugas / TTD</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groupedRows.map(({ section, rows: sectionRows }) => (
-              <Fragment key={`section-${section.code}`}>
-                <tr className="border-b">
-                  <td className="px-4 py-2.5 font-semibold">{section.code}</td>
-                  <td className="px-4 py-2.5 font-semibold" colSpan={3}>
-                    {section.title}
-                  </td>
-                </tr>
-                {sectionRows.map((row) => (
-                  <tr key={row.id} className="border-b align-top last:border-b-0">
-                    <td className="px-4 py-3 text-muted-foreground">{row.no}</td>
-                    <td className="px-4 py-3 leading-relaxed">{row.criteria}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 rounded-md border px-2.5 py-2">
-                        <Checkbox
-                          checked={row.checked}
-                          disabled={readOnly || useExternalData}
-                          onCheckedChange={(value) => handleCheckChange(row.id, Boolean(value))}
-                        />
-                        <Label className="text-xs text-muted-foreground">{row.checked ? "Sudah" : "Belum"}</Label>
-                      </div>
+      {/* Checklist Table Section */}
+      <div className="p-4 sm:p-5">
+        <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+          <table className="w-full min-w-[820px] text-xs">
+            <thead>
+              <tr className="bg-neutral-50 dark:bg-neutral-900 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
+                <th className="w-14 px-3 py-2 text-left">No</th>
+                <th className="px-3 py-2 text-left">Kriteria Pemulangan</th>
+                <th className="w-36 px-3 py-2 text-left">Checklist</th>
+                <th className="w-72 px-3 py-2 text-left">Nama Petugas / TTD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedRows.map(({ section, rows: sectionRows }) => (
+                <Fragment key={`section-${section.code}`}>
+                  <tr className="bg-neutral-50/80 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
+                    <td className="px-3 py-2 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                      {section.code}
                     </td>
-                    <td className="px-4 py-3">
-                      <Input
-                        value={row.officerName}
-                        disabled={readOnly || useExternalData || !row.checked}
-                        onChange={(event) => updateRow(row.id, { officerName: event.target.value })}
-                        placeholder={row.checked ? "Nama petugas / TTD" : "Centang checklist untuk isi otomatis"}
-                        className="h-9"
-                      />
+                    <td
+                      className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100"
+                      colSpan={3}
+                    >
+                      {section.title}
                     </td>
                   </tr>
-                ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+                  {sectionRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0 hover:bg-neutral-50/40 dark:hover:bg-neutral-900/20 align-middle transition-colors"
+                    >
+                      <td className="px-3 py-2.5 font-mono text-muted-foreground">{row.no}</td>
+                      <td className="px-3 py-2.5 text-xs text-foreground leading-relaxed">{row.criteria}</td>
+                      <td className="px-3 py-2.5">
+                        <label
+                          className={cn(
+                            "inline-flex w-full items-center gap-2 border px-2.5 py-1.5 text-xs cursor-pointer transition-colors",
+                            row.checked
+                              ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-medium"
+                              : "border-neutral-200 dark:border-neutral-800 bg-background text-muted-foreground",
+                            (readOnly || useExternalData) && "cursor-default opacity-75",
+                          )}
+                        >
+                          <Checkbox
+                            checked={row.checked}
+                            disabled={readOnly || useExternalData}
+                            onCheckedChange={(value) => handleCheckChange(row.id, Boolean(value))}
+                            className="rounded-none"
+                          />
+                          <span>{row.checked ? "Sudah" : "Belum"}</span>
+                        </label>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <Input
+                          value={row.officerName}
+                          disabled={readOnly || useExternalData || !row.checked}
+                          onChange={(event) => updateRow(row.id, { officerName: event.target.value })}
+                          placeholder={row.checked ? "Nama petugas / TTD" : "Centang checklist untuk isi otomatis"}
+                          className="h-8 rounded-none text-xs"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </form>
   );

@@ -27,6 +27,77 @@ func GetPharmacyRooms(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": rooms})
 }
 
+// PublicGetBedMonitoring returns active rooms with beds and bed availability without requiring authentication or exposing patient identities
+func PublicGetBedMonitoring(c *gin.Context) {
+	roomIDParam := c.Param("id")
+	if roomIDParam == "" {
+		roomIDParam = c.Query("room_id")
+	}
+
+	var allRooms []models.Room
+	if err := database.DB.
+		Preload("Units", func(db *gorm.DB) *gorm.DB {
+			return db.Where("deleted_at IS NULL AND is_active = ?", true).Order("floor ASC, name ASC, code ASC")
+		}).
+		Preload("Units.Beds", func(db *gorm.DB) *gorm.DB {
+			return db.Where("deleted_at IS NULL").Order("bed_number ASC, id ASC")
+		}).
+		Where("has_bed = ? AND is_active = ? AND (service_type = ? OR room_type = ?)", true, true, "rawat_inap", "rawat_inap").
+		Order("name ASC, code ASC").
+		Find(&allRooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bed monitoring data"})
+		return
+	}
+
+	var filteredRooms []models.Room
+	for i := range allRooms {
+		allRooms[i].ComputeBedStats(database.DB)
+		if roomIDParam == "" || fmt.Sprintf("%d", allRooms[i].ID) == roomIDParam {
+			filteredRooms = append(filteredRooms, allRooms[i])
+		}
+	}
+
+	if roomIDParam != "" && len(filteredRooms) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	var masterItems []models.MasterData
+	database.DB.Where("category IN ? AND is_active = ?", []string{"room_type", "room_class", "bed_status", "bed_type"}, true).
+		Order("sort_order ASC, name ASC").
+		Find(&masterItems)
+
+	masterMap := make(map[string][]models.MasterData)
+	for _, item := range masterItems {
+		cat := string(item.Category)
+		masterMap[cat] = append(masterMap[cat], item)
+	}
+
+	type roomSummary struct {
+		ID            uint   `json:"id"`
+		Code          string `json:"code"`
+		Name          string `json:"name"`
+		TotalBeds     int    `json:"total_beds"`
+		AvailableBeds int    `json:"available_beds"`
+	}
+	summaries := make([]roomSummary, 0, len(allRooms))
+	for _, r := range allRooms {
+		summaries = append(summaries, roomSummary{
+			ID:            r.ID,
+			Code:          r.Code,
+			Name:          r.Name,
+			TotalBeds:     r.TotalBeds,
+			AvailableBeds: r.AvailableBeds,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":        filteredRooms,
+		"all_rooms":   summaries,
+		"master_data": masterMap,
+	})
+}
+
 
 // GetRooms returns all rooms with pagination and filtering
 func GetRooms(c *gin.Context) {

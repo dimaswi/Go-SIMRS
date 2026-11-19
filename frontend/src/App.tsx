@@ -134,6 +134,7 @@ function App() {
           <Route path="/queue-display/*" element={<QueueDisplayRoutes />} />
           
           {/* Public Bed Monitoring Display (for TV/public display) */}
+          <Route path="/display/bed-monitoring" element={<PublicBedMonitoring />} />
           <Route path="/display/bed-monitoring/:id" element={<PublicBedMonitoring />} />
           
           {/* Public Signature Verification */}

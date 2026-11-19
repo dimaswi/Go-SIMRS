@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -20,6 +19,7 @@ import {
   Calendar,
   History,
   Save,
+  RotateCcw,
 } from "lucide-react";
 import { roomsApi, type Room, type RoomUnit } from "@/lib/api/rooms";
 import { bedTransferApi, type BedTransfer, type CreateBedTransferInput, TRANSFER_TYPES, getTransferTypeLabel } from "@/lib/api/inpatient";
@@ -174,478 +174,520 @@ export function BedTransferForm({
   const selectedUnit = roomUnits.find(u => u.id === selectedUnitId);
   const bedsInUnit = selectedUnit?.beds || [];
 
+  const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
+  const selectedBed = bedsInUnit.find((b) => b.id === selectedBedId);
+
   if (loading) {
     return (
-      <div>
-        <div className="p-6 flex items-center justify-center min-h-[300px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[240px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="space-y-3">
-        <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Mutasi Pasien</p>
-              <p className="text-xs text-muted-foreground">Kelola perpindahan kamar/bed dan pantau riwayat mutasi pasien.</p>
-            </div>
-            <div className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background p-1">
-              <button
-                type="button"
-                onClick={() => setActiveTab("form")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors",
-                  activeTab === "form"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-                Form Mutasi
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("history")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors",
-                  activeTab === "history"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <History className="h-3.5 w-3.5" />
-                Riwayat
-                {transfers.length > 0 && (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                    {transfers.length}
-                  </Badge>
-                )}
-              </button>
-            </div>
-          </div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      {/* Inline Sub-Tabs */}
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5">
+        <div className="flex gap-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab("form")}
+            className={cn(
+              "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+              activeTab === "form"
+                ? "text-neutral-900 dark:text-neutral-100"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+            Form Mutasi
+            {activeTab === "form" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className={cn(
+              "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-2",
+              activeTab === "history"
+                ? "text-neutral-900 dark:text-neutral-100"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <History className="h-3.5 w-3.5" />
+            Riwayat Mutasi
+            {transfers.length > 0 && (
+              <Badge variant="secondary" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
+                {transfers.length}
+              </Badge>
+            )}
+            {activeTab === "history" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white" />
+            )}
+          </button>
         </div>
+      </div>
 
-        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {activeTab === "form" ? "Form Mutasi Pasien" : "Riwayat Mutasi Pasien"}
-          </div>
+      {/* Form Tab */}
+      {activeTab === "form" && !readOnly && (
+        <fieldset disabled={saving} className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+          {/* Room Selection */}
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                Pilih Ruangan Tujuan
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">
+                {rooms.length} ruangan tersedia
+              </span>
+            </div>
 
-          <div className="p-4 space-y-6">
-            {/* Form Tab */}
-            {activeTab === "form" && !readOnly && (
-              <fieldset disabled={saving}>
-                {/* Room Selection */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Pilih Ruangan Tujuan
-                  </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {rooms.map(room => {
-                      const isSelected = selectedRoomId === room.id;
-                      const isCurrent = room.id === currentRoomId;
-                      const availableBedCount = room.available_beds || 0;
-                      const totalBedCount = room.total_beds || 0;
-                      
-                      return (
-                        <button
-                          key={room.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedRoomId(room.id);
-                            setSelectedUnitId(null);
-                            setSelectedBedId(null);
-                          }}
-                          disabled={availableBedCount === 0 && !isCurrent}
+            {rooms.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {rooms.map((room) => {
+                  const isSelected = selectedRoomId === room.id;
+                  const isCurrent = room.id === currentRoomId;
+                  const availableBedCount = room.available_beds || 0;
+                  const totalBedCount = room.total_beds || 0;
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomId(room.id);
+                        setSelectedUnitId(null);
+                        setSelectedBedId(null);
+                      }}
+                      disabled={availableBedCount === 0 && !isCurrent}
+                      className={cn(
+                        "p-3.5 rounded-none border text-left transition-all relative",
+                        isSelected
+                          ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] ring-1 ring-neutral-900 dark:ring-neutral-100"
+                          : isCurrent
+                          ? "border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30"
+                          : availableBedCount === 0
+                          ? "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 opacity-50 cursor-not-allowed"
+                          : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                      )}
+                    >
+                      {isSelected && (
+                        <CheckCircle2 className="absolute top-2.5 right-2.5 h-4 w-4 text-neutral-900 dark:text-neutral-100" />
+                      )}
+                      {isCurrent && !isSelected && (
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold uppercase tracking-wider bg-amber-500 text-white px-1.5 py-0.5">
+                          Sekarang
+                        </span>
+                      )}
+                      <div className="font-semibold text-xs text-foreground pr-12 truncate">
+                        {room.name}
+                      </div>
+                      <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
+                        {room.code}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span
                           className={cn(
-                            "p-4 rounded-lg border-2 text-left transition-all relative",
-                            isSelected
-                              ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                              : isCurrent
-                              ? "border-yellow-400 bg-yellow-50"
-                              : availableBedCount === 0
-                              ? "border-muted bg-muted/30 opacity-50 cursor-not-allowed"
-                              : "border-muted hover:border-primary/50 hover:bg-muted/30"
+                            "text-[11px] font-mono font-medium inline-flex items-center gap-1",
+                            availableBedCount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                           )}
                         >
-                          {isSelected && (
-                            <CheckCircle2 className="absolute top-2 right-2 h-5 w-5 text-primary" />
+                          <Bed className="h-3 w-3" />
+                          {availableBedCount} / {totalBedCount} bed
+                        </span>
+                        {room.room_class && (
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {room.room_class.replace(/_/g, " ")}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="border border-destructive/40 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive">
+                Tidak ada ruangan rawat inap yang tersedia
+              </div>
+            )}
+          </div>
+
+          {/* Unit and Bed Selection */}
+          {selectedRoomId && (
+            <div className="p-4 sm:p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Pilih Kamar & Tempat Tidur
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 bg-emerald-500"></div>
+                    <span>Tersedia</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 bg-red-400"></div>
+                    <span>Terisi</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 bg-amber-400"></div>
+                    <span>Saat Ini</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 bg-neutral-900 dark:bg-white ring-1 ring-neutral-900 dark:ring-white ring-offset-1"></div>
+                    <span>Dipilih</span>
+                  </div>
+                </div>
+              </div>
+
+              {loadingBeds ? (
+                <div className="flex items-center justify-center py-8 border border-dashed border-neutral-300 dark:border-neutral-700 gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Memuat data tempat tidur...</span>
+                </div>
+              ) : roomUnits.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Unit/Kamar Selection */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                    {roomUnits.map((unit) => {
+                      const availableCount = unit.beds?.filter((b) => b.status === "available").length || 0;
+                      const totalCount = unit.beds?.length || 0;
+                      const isSelected = selectedUnitId === unit.id;
+
+                      return (
+                        <button
+                          key={unit.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedUnitId(unit.id);
+                            setSelectedBedId(null);
+                          }}
+                          disabled={availableCount === 0}
+                          className={cn(
+                            "p-3 rounded-none border text-left transition-all",
+                            isSelected
+                              ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] ring-1 ring-neutral-900 dark:ring-neutral-100"
+                              : availableCount === 0
+                              ? "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 opacity-50 cursor-not-allowed"
+                              : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
                           )}
-                          {isCurrent && !isSelected && (
-                            <span className="absolute top-2 right-2 text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded font-medium">
-                              Sekarang
-                            </span>
-                          )}
-                          <div className="font-semibold text-sm mb-1">{room.name}</div>
-                          <div className="text-xs text-muted-foreground">{room.code}</div>
-                          <div className={cn(
-                            "text-xs font-medium mt-2 flex items-center gap-1",
-                            availableBedCount > 0 ? "text-green-600" : "text-red-600"
-                          )}>
-                            <Bed className="h-3 w-3" />
-                            {availableBedCount} / {totalBedCount} tersedia
+                        >
+                          <div className="font-semibold text-xs text-foreground truncate">{unit.name}</div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">Lantai {unit.floor || 1}</div>
+                          <div
+                            className={cn(
+                              "text-[11px] font-mono font-medium mt-1.5",
+                              availableCount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                            )}
+                          >
+                            {availableCount} / {totalCount} bed
                           </div>
-                          {room.room_class && (
-                            <div className="text-xs text-muted-foreground mt-1 capitalize">
-                              {room.room_class.replace(/_/g, ' ')}
-                            </div>
-                          )}
                         </button>
                       );
                     })}
                   </div>
-                  {rooms.length === 0 && (
-                    <Alert variant="destructive">
-                      <AlertDescription>Tidak ada ruangan rawat inap yang tersedia</AlertDescription>
-                    </Alert>
-                  )}
-                </div>
 
-                {/* Unit and Bed Selection */}
-                {selectedRoomId && (
-                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30 mt-6">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label className="text-sm font-semibold flex items-center gap-2">
-                        <Bed className="h-4 w-4" />
-                        Pilih Tempat Tidur
-                      </Label>
-                      <div className="flex items-center gap-4 text-xs">
-                        <div className="flex items-center gap-1">
-                          <div className="w-4 h-4 rounded bg-green-500"></div>
-                          <span>Tersedia</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-4 h-4 rounded bg-red-400"></div>
-                          <span>Terisi</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-4 h-4 rounded bg-yellow-400"></div>
-                          <span>Saat Ini</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-4 h-4 rounded bg-primary ring-2 ring-primary ring-offset-2"></div>
-                          <span>Dipilih</span>
-                        </div>
+                  {/* Bed Grid */}
+                  {selectedUnit && (
+                    <div className="border border-neutral-200 dark:border-neutral-800 bg-background">
+                      <div className="bg-neutral-50 dark:bg-neutral-900 px-3.5 py-2 border-b border-neutral-200 dark:border-neutral-800 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {selectedUnit.name} — Lantai {selectedUnit.floor || 1}
                       </div>
-                    </div>
+                      <div className="p-3.5">
+                        <TooltipProvider delayDuration={200}>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                            {bedsInUnit.map((bed) => {
+                              const isAvailable = bed.status === "available";
+                              const isSelected = selectedBedId === bed.id;
+                              const isCurrent = bed.id === currentBedId;
+                              const canSelect = isAvailable && !isCurrent;
 
-                    {loadingBeds ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                        <span className="ml-2 text-sm text-muted-foreground">Memuat data bed...</span>
-                      </div>
-                    ) : roomUnits.length > 0 ? (
-                      <div className="space-y-4">
-                        {/* Unit/Kamar Tabs */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                          {roomUnits.map(unit => {
-                            const availableCount = unit.beds?.filter(b => b.status === 'available').length || 0;
-                            const totalCount = unit.beds?.length || 0;
-                            const isSelected = selectedUnitId === unit.id;
-                            
-                            return (
-                              <button
-                                key={unit.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedUnitId(unit.id);
-                                  setSelectedBedId(null);
-                                }}
-                                disabled={availableCount === 0}
-                                className={cn(
-                                  "p-3 rounded-lg border-2 text-left transition-all",
-                                  isSelected
-                                    ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                    : availableCount === 0
-                                    ? "border-muted bg-muted/30 opacity-50 cursor-not-allowed"
-                                    : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                )}
-                              >
-                                <div className="font-semibold text-sm mb-1">{unit.name}</div>
-                                <div className="text-xs text-muted-foreground">Lantai {unit.floor || 1}</div>
-                                <div className={cn(
-                                  "text-xs font-medium mt-1.5",
-                                  availableCount > 0 ? "text-green-600" : "text-red-600"
-                                )}>
-                                  {availableCount} / {totalCount} bed
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Bed Grid */}
-                        {selectedUnit && (
-                          <div className="bg-background rounded-lg p-4 border">
-                            <div className="text-center text-xs text-muted-foreground mb-4 pb-2 border-b">
-                              {selectedUnit.name} - Lantai {selectedUnit.floor || 1}
-                            </div>
-                            <TooltipProvider delayDuration={200}>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                                {bedsInUnit.map(bed => {
-                                  const isAvailable = bed.status === 'available';
-                                  const isSelected = selectedBedId === bed.id;
-                                  const isCurrent = bed.id === currentBedId;
-                                  const canSelect = isAvailable && !isCurrent;
-                                  
-                                  return (
-                                    <Tooltip key={bed.id}>
-                                      <TooltipTrigger asChild>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            if (canSelect) {
-                                              setSelectedBedId(isSelected ? null : bed.id);
-                                            }
-                                          }}
-                                          className={cn(
-                                            "aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-all",
-                                            isSelected
-                                              ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 cursor-pointer"
-                                              : isCurrent
-                                              ? "bg-yellow-400 text-yellow-900 cursor-not-allowed"
-                                              : canSelect
-                                              ? "bg-green-500 text-white hover:bg-green-600 cursor-pointer"
-                                              : "bg-red-400 text-white cursor-not-allowed"
-                                          )}
-                                        >
-                                          <Bed className="h-4 w-4 mb-0.5" />
-                                          <span>{bed.bed_number}</span>
-                                          {isSelected && <Check className="h-3 w-3 mt-0.5" />}
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="max-w-xs">
-                                        <div className="space-y-1">
-                                          <p className="font-semibold">Bed {bed.bed_number}</p>
-                                          {isCurrent ? (
-                                            <p className="text-yellow-600">★ Bed saat ini (pasien ini)</p>
-                                          ) : isAvailable ? (
-                                            <p className="text-green-600 dark:text-green-400">✓ Tersedia</p>
-                                          ) : (
-                                            <>
-                                              <p className="text-red-600 dark:text-red-400">✗ Terisi</p>
-                                              {bed.current_patient && (
-                                                <div className="text-sm space-y-0.5 pt-1 border-t mt-1">
-                                                  <p><span className="font-medium">Pasien:</span> {bed.current_patient.name || 'N/A'}</p>
-                                                  <p><span className="font-medium">RM:</span> {bed.current_patient.medical_record_number || 'N/A'}</p>
-                                                  {bed.current_patient.admission_date && (
-                                                    <p><span className="font-medium">Masuk:</span> {new Date(bed.current_patient.admission_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                                  )}
-                                                </div>
+                              return (
+                                <Tooltip key={bed.id}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (canSelect) {
+                                          setSelectedBedId(isSelected ? null : bed.id);
+                                        }
+                                      }}
+                                      className={cn(
+                                        "aspect-square rounded-none flex flex-col items-center justify-center text-xs font-medium transition-all",
+                                        isSelected
+                                          ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 ring-2 ring-neutral-900 dark:ring-white ring-offset-2 cursor-pointer"
+                                          : isCurrent
+                                          ? "bg-amber-400 text-amber-950 cursor-not-allowed"
+                                          : canSelect
+                                          ? "bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer"
+                                          : "bg-red-400 text-white cursor-not-allowed"
+                                      )}
+                                    >
+                                      <Bed className="h-4 w-4 mb-0.5" />
+                                      <span className="font-mono text-[11px]">{bed.bed_number}</span>
+                                      {isSelected && <Check className="h-3 w-3 mt-0.5" />}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs rounded-none">
+                                    <div className="space-y-1">
+                                      <p className="font-semibold">Bed {bed.bed_number}</p>
+                                      {isCurrent ? (
+                                        <p className="text-amber-600">★ Bed saat ini (pasien ini)</p>
+                                      ) : isAvailable ? (
+                                        <p className="text-emerald-600 dark:text-emerald-400">✓ Tersedia</p>
+                                      ) : (
+                                        <>
+                                          <p className="text-red-600 dark:text-red-400">✗ Terisi</p>
+                                          {bed.current_patient && (
+                                            <div className="text-xs space-y-0.5 pt-1 border-t mt-1">
+                                              <p><span className="font-medium">Pasien:</span> {bed.current_patient.name || "N/A"}</p>
+                                              <p><span className="font-medium">RM:</span> {bed.current_patient.medical_record_number || "N/A"}</p>
+                                              {bed.current_patient.admission_date && (
+                                                <p>
+                                                  <span className="font-medium">Masuk:</span>{" "}
+                                                  {new Date(bed.current_patient.admission_date).toLocaleDateString("id-ID", {
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                    year: "numeric",
+                                                  })}
+                                                </p>
                                               )}
-                                            </>
+                                            </div>
                                           )}
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
-                              </div>
-                            </TooltipProvider>
-                            {bedsInUnit.length === 0 && (
-                              <p className="text-center text-sm text-muted-foreground py-4">
-                                Tidak ada bed di kamar ini
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <Alert variant="destructive" className="py-2">
-                        <AlertDescription>
-                          Tidak ada unit/kamar di ruangan ini
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                )}
-
-                {/* Transfer Type */}
-                <div className="space-y-3 mt-6">
-                  <Label className="text-sm font-semibold">Tipe Mutasi</Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
-                    {TRANSFER_TYPES.map(type => (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => setTransferType(type.value)}
-                        className={cn(
-                          "p-3 rounded-lg border-2 text-sm transition-all",
-                          transferType === type.value
-                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                            : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                        )}
-                      >
-                        {type.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Reason */}
-                <div className="space-y-2 mt-6">
-                  <Label htmlFor="transfer_reason" className="text-sm font-semibold">
-                    Alasan Mutasi
-                  </Label>
-                  <Textarea
-                    id="transfer_reason"
-                    placeholder="Alasan memindahkan pasien ke kamar/bed lain..."
-                    value={transferReason}
-                    onChange={(e) => setTransferReason(e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-2 mt-4">
-                  <Label htmlFor="transfer_notes" className="text-sm">
-                    Catatan Tambahan (Opsional)
-                  </Label>
-                  <Textarea
-                    id="transfer_notes"
-                    placeholder="Catatan tambahan..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="min-h-[60px] resize-none"
-                  />
-                </div>
-
-                {/* Summary */}
-                {selectedRoomId && selectedBedId && (
-                  <Alert className="bg-blue-50 border-blue-200 mt-6">
-                    <Building className="h-4 w-4 text-blue-600" />
-                    <AlertTitle className="text-blue-700">Konfirmasi Mutasi</AlertTitle>
-                    <AlertDescription className="text-blue-600">
-                      Pasien akan dipindahkan ke{' '}
-                      <strong>{rooms.find(r => r.id === selectedRoomId)?.name}</strong>
-                      {' '}- Bed <strong>{bedsInUnit.find(b => b.id === selectedBedId)?.bed_number}</strong>
-                      {transferType && <> ({getTransferTypeLabel(transferType)})</>}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-6 border-t mt-6">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={handleReset}
-                    disabled={saving}
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={saving || !selectedRoomId || !selectedBedId}
-                    className="gap-2"
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    Simpan Mutasi
-                  </Button>
-                </div>
-              </fieldset>
-            )}
-
-            {/* Form Tab - readOnly empty state */}
-            {activeTab === "form" && readOnly && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <ArrowRightLeft className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                <p className="text-muted-foreground">Mode Hanya Baca</p>
-                <p className="text-sm text-muted-foreground">
-                  Tidak dapat melakukan mutasi pada kunjungan ini
-                </p>
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === "history" && (
-              <div className="space-y-3">
-                {transfers.length > 0 ? (
-                  transfers.map((transfer, index) => (
-                    <div
-                      key={transfer.id}
-                      className={cn(
-                        "p-3 rounded-lg border",
-                        index === 0 ? "bg-primary/5 border-primary/20" : "bg-muted/30"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {/* From */}
-                          <div className="flex items-center gap-2 p-2 rounded bg-background border text-sm">
-                            <Building className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <span className="font-medium">{transfer.from_room?.name || "Penempatan Awal"}</span>
-                              {transfer.from_bed && (
-                                <span className="text-muted-foreground"> - Bed {transfer.from_bed.bed_number}</span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Arrow */}
-                          <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                          
-                          {/* To */}
-                          <div className="flex items-center gap-2 p-2 rounded bg-primary/10 border-primary/20 border text-sm">
-                            <Building className="h-4 w-4 text-primary" />
-                            <div>
-                              <span className="font-medium">{transfer.to_room?.name}</span>
-                              <span className="text-muted-foreground"> - Bed {transfer.to_bed?.bed_number}</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Info */}
-                        <div className="text-right text-sm shrink-0">
-                          <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(transfer.transfer_date).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
+                                        </>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
                             })}
                           </div>
-                          {transfer.transfer_type && (
-                            <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
-                              {getTransferTypeLabel(transfer.transfer_type)}
-                            </span>
-                          )}
-                        </div>
+                        </TooltipProvider>
+                        {bedsInUnit.length === 0 && (
+                          <p className="text-center text-xs text-muted-foreground py-4">
+                            Tidak ada bed di kamar ini
+                          </p>
+                        )}
                       </div>
-                      
-                      {/* Reason */}
-                      {transfer.transfer_reason && (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">Alasan:</span> {transfer.transfer_reason}
-                        </p>
-                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <History className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                    <p className="text-muted-foreground">Belum ada riwayat mutasi</p>
-                    <p className="text-sm text-muted-foreground">
-                      Pasien belum pernah dipindahkan ke kamar/bed lain
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
+              ) : (
+                <div className="border border-destructive/40 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive">
+                  Tidak ada unit/kamar di ruangan ini
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Transfer Type, Reason & Notes */}
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Detail Mutasi Kamar
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Tipe Mutasi</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                {TRANSFER_TYPES.map((type) => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => setTransferType(type.value)}
+                    className={cn(
+                      "px-3 py-2 rounded-none border text-xs font-medium transition-colors text-left sm:text-center",
+                      transferType === type.value
+                        ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                        : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer_reason" className="text-xs font-medium">
+                  Alasan Mutasi
+                </Label>
+                <Textarea
+                  id="transfer_reason"
+                  placeholder="Alasan memindahkan pasien ke kamar/bed lain..."
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
+                  className="min-h-[80px] text-xs rounded-none resize-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer_notes" className="text-xs font-medium">
+                  Catatan Tambahan (Opsional)
+                </Label>
+                <Textarea
+                  id="transfer_notes"
+                  placeholder="Catatan tambahan..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-[80px] text-xs rounded-none resize-none"
+                />
+              </div>
+            </div>
+
+            {selectedRoom && selectedBed && (
+              <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/70 dark:bg-neutral-900/40 px-3.5 py-2.5 flex items-center gap-2.5 text-xs">
+                <Building className="h-4 w-4 text-neutral-700 dark:text-neutral-300 shrink-0" />
+                <div>
+                  <span className="font-semibold text-foreground">Konfirmasi Mutasi:</span>{" "}
+                  <span className="text-muted-foreground">
+                    Pasien akan dipindahkan ke{" "}
+                    <strong className="text-foreground">{selectedRoom.name}</strong> — Bed{" "}
+                    <strong className="text-foreground">{selectedBed.bed_number}</strong>
+                    {transferType && <> ({getTransferTypeLabel(transferType)})</>}
+                  </span>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Action Buttons */}
+          <div className="px-4 sm:px-5 py-3 bg-neutral-50/40 dark:bg-neutral-900/20 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              disabled={saving}
+              className="h-8 rounded-none text-xs gap-1.5"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || !selectedRoomId || !selectedBedId}
+              className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              Simpan Mutasi
+            </Button>
+          </div>
+        </fieldset>
+      )}
+
+      {/* Form Tab - readOnly empty state */}
+      {activeTab === "form" && readOnly && (
+        <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ArrowRightLeft className="h-4 w-4 opacity-50" />
+            <span>Mode hanya baca — tidak dapat melakukan mutasi kamar pada kunjungan ini.</span>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === "history" && (
+        <div className="p-4 sm:p-5 space-y-3 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center justify-between gap-2">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Riwayat Mutasi Kamar
+            </div>
+            <span className="text-[11px] font-mono text-muted-foreground">
+              {transfers.length} entri
+            </span>
+          </div>
+
+          {transfers.length > 0 ? (
+            <div className="border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+              {transfers.map((transfer, index) => (
+                <div
+                  key={transfer.id}
+                  className={cn(
+                    "p-3.5 space-y-2.5",
+                    index === 0 ? "bg-neutral-50/70 dark:bg-neutral-900/30" : "bg-background"
+                  )}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className="border border-neutral-200 dark:border-neutral-800 bg-background px-2.5 py-1.5 min-w-[160px]">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Dari Kamar / Bed</div>
+                        <div className="text-xs font-semibold">
+                          {transfer.from_room?.name || "Penempatan Awal"}
+                          {transfer.from_bed && (
+                            <span className="font-normal text-muted-foreground"> — Bed {transfer.from_bed.bed_number}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+
+                      <div className="border border-neutral-900/20 dark:border-neutral-100/20 bg-neutral-50 dark:bg-neutral-900/60 px-2.5 py-1.5 min-w-[160px]">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ke Kamar / Bed</div>
+                        <div className="text-xs font-semibold">
+                          {transfer.to_room?.name || "-"}
+                          {transfer.to_bed && (
+                            <span className="font-normal text-muted-foreground"> — Bed {transfer.to_bed.bed_number}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {index === 0 && (
+                        <Badge className="rounded-none text-[10px] h-5 px-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">
+                          Terbaru
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="text-left sm:text-right text-[11px] text-muted-foreground shrink-0">
+                      <div className="flex items-center sm:justify-end gap-1 font-mono">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(transfer.transfer_date).toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                      {transfer.transfer_type && (
+                        <Badge variant="outline" className="mt-1 rounded-none text-[10px] h-5 px-1.5">
+                          {getTransferTypeLabel(transfer.transfer_type)}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {(transfer.transfer_reason || transfer.notes) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-xs text-muted-foreground">
+                      {transfer.transfer_reason && (
+                        <p>
+                          <span className="font-semibold text-foreground">Alasan:</span> {transfer.transfer_reason}
+                        </p>
+                      )}
+                      {transfer.notes && (
+                        <p>
+                          <span className="font-semibold text-foreground">Catatan:</span> {transfer.notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <History className="h-4 w-4 opacity-50" />
+              <span>Belum ada riwayat mutasi kamar — pasien belum pernah dipindahkan ke kamar/bed lain.</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

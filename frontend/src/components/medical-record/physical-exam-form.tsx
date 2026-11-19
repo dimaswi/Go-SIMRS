@@ -32,6 +32,7 @@ import {
   X,
   Activity,
   Stethoscope,
+  CheckCircle2,
 } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -1048,1755 +1049,1572 @@ export function PhysicalExamForm({
   }
 
   return (
-    <div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
       <div>
         {!useExternalData && (
-          <EditModeBanner
-            isPatientDischarged={isPatientDischarged}
-            isEditing={isEditing}
-            onRequestEdit={handleRequestEdit}
-            recordTypeLabel="Pemeriksaan Fisik"
-          />
+          <div className="px-4 sm:px-5 pt-3 empty:hidden">
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Pemeriksaan Fisik"
+            />
+          </div>
         )}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit}>
           <fieldset
             disabled={isFormDisabled}
-            className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11"
+            className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
           >
             {/* Section 1: Kondisi Umum & Tanda Vital */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Kondisi Umum, Vital, dan Antropometri
-              </div>
-              <div className="space-y-7 p-3 sm:p-4">
-                {/* Kondisi Umum */}
-                <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="general_condition" className="text-sm">
-                        Keadaan Umum
-                      </Label>
-                      <Combobox allowCustomValue
-                        options={getOptions("general_condition")}
-                        value={formData.general_condition}
-                        onValueChange={(v) =>
-                          handleChange("general_condition", v)
-                        }
-                        placeholder="Pilih keadaan umum"
-                        searchPlaceholder="Cari keadaan umum..."
-                        disabled={isFormDisabled}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="consciousness" className="text-sm">
-                        Kesadaran
-                      </Label>
-                      <Combobox allowCustomValue
-                        options={getOptions("consciousness_level")}
-                        value={formData.consciousness}
-                        onValueChange={(v) => handleChange("consciousness", v)}
-                        placeholder="Pilih tingkat kesadaran"
-                        searchPlaceholder="Cari tingkat kesadaran..."
-                        disabled={isFormDisabled}
-                      />
-                    </div>
-                  </div>
+            <section className="px-4 sm:px-5 py-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Kondisi Umum &amp; Tanda Vital
                 </div>
-
-                {/* Tanda Vital */}
-                <div>
-                  {isEmergency && !isFormDisabled && (
-                    <div className="mb-3 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full sm:w-auto"
-                        onClick={handleLoadFromTriage}
-                      >
-                        Ambil Data Triase
-                      </Button>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="blood_pressure_systolic"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        Sistolik{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(systolicStatus) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(systolicStatus),
-                            )}
-                          >
-                            {getVitalStatusLabel(systolicStatus)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="blood_pressure_systolic"
-                          type="number"
-                          placeholder="120"
-                          value={formData.blood_pressure_systolic === "" ? "" : formData.blood_pressure_systolic}
-                          onChange={(e) =>
-                            handleChange(
-                              "blood_pressure_systolic",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-12",
-                            getVitalStatusInputClass(systolicStatus),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          mmHg
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="blood_pressure_diastolic"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        Diastolik{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(diastolicStatus) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(diastolicStatus),
-                            )}
-                          >
-                            {getVitalStatusLabel(diastolicStatus)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="blood_pressure_diastolic"
-                          type="number"
-                          placeholder="80"
-                          value={formData.blood_pressure_diastolic === "" ? "" : formData.blood_pressure_diastolic}
-                          onChange={(e) =>
-                            handleChange(
-                              "blood_pressure_diastolic",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-12",
-                            getVitalStatusInputClass(diastolicStatus),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          mmHg
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="heart_rate"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        Nadi{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(heartRateStatus) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(heartRateStatus),
-                            )}
-                          >
-                            {getVitalStatusLabel(heartRateStatus)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="heart_rate"
-                          type="number"
-                          placeholder="80"
-                          value={formData.heart_rate === "" ? "" : formData.heart_rate}
-                          onChange={(e) =>
-                            handleChange(
-                              "heart_rate",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-10",
-                            getVitalStatusInputClass(heartRateStatus),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          x/m
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="respiratory_rate"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        Napas{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(respiratoryStatus) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(respiratoryStatus),
-                            )}
-                          >
-                            {getVitalStatusLabel(respiratoryStatus)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="respiratory_rate"
-                          type="number"
-                          placeholder="20"
-                          value={formData.respiratory_rate === "" ? "" : formData.respiratory_rate}
-                          onChange={(e) =>
-                            handleChange(
-                              "respiratory_rate",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-10",
-                            getVitalStatusInputClass(respiratoryStatus),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          x/m
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="temperature"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        Suhu{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(temperatureStatus) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(temperatureStatus),
-                            )}
-                          >
-                            {getVitalStatusLabel(temperatureStatus)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="temperature"
-                          type="number"
-                          step="0.1"
-                          placeholder="36.5"
-                          value={formData.temperature === "" ? "" : formData.temperature}
-                          onChange={(e) =>
-                            handleChange(
-                              "temperature",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-8",
-                            getVitalStatusInputClass(temperatureStatus),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          °C
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="oxygen_saturation"
-                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
-                      >
-                        SpO2{" "}
-                        {isEmergency && (
-                          <span className="text-destructive">*</span>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                        {getVitalStatusLabel(spo2Status) && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] px-1 py-0 h-4",
-                              getVitalStatusBadgeClass(spo2Status),
-                            )}
-                          >
-                            {getVitalStatusLabel(spo2Status)}
-                          </Badge>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="oxygen_saturation"
-                          type="number"
-                          placeholder="98"
-                          value={formData.oxygen_saturation === "" ? "" : formData.oxygen_saturation}
-                          onChange={(e) =>
-                            handleChange(
-                              "oxygen_saturation",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          required={isEmergency}
-                          className={cn(
-                            "pr-6",
-                            getVitalStatusInputClass(spo2Status),
-                          )}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          %
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Skala Nyeri */}
-                <div>
-                  <div className="flex items-center justify-between mb-4 bg-muted/20 p-3 px-4 rounded-lg border border-border/70">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="no_pain" className="text-sm font-semibold cursor-pointer">
-                        Tidak Ada Nyeri
-                      </Label>
-                      <p className="text-[11px] text-muted-foreground">
-                        Aktifkan jika pasien tidak mengalami nyeri
-                      </p>
-                    </div>
-                    <Switch
-                      id="no_pain"
-                      checked={formData.pain_location === "Tidak ada nyeri"}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          handleChange("pain_location", "Tidak ada nyeri");
-                          handleChange("pain_scale", 0);
-                        } else {
-                          handleChange("pain_location", "");
-                        }
-                      }}
-                      disabled={isFormDisabled}
-                    />
-                  </div>
-                  {formData.pain_location !== "Tidak ada nyeri" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="pain_method" className="text-xs">
-                        Metode Penilaian Nyeri
-                      </Label>
-                      <Select
-                        value={formData.pain_method}
-                        onValueChange={(value) =>
-                          handleChange("pain_method", value)
-                        }
-                        disabled={isFormDisabled}
-                      >
-                        <SelectTrigger id="pain_method">
-                          <SelectValue placeholder="Pilih metode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="nrs">
-                            NRS (Numeric Rating Scale)
-                          </SelectItem>
-                          <SelectItem value="wong_baker">
-                            Wong-Baker FACES
-                          </SelectItem>
-                          <SelectItem value="vas">
-                            VAS (Visual Analog Scale)
-                          </SelectItem>
-                          <SelectItem value="flacc">
-                            FLACC (bayi/anak non-verbal)
-                          </SelectItem>
-                          <SelectItem value="bps">
-                            BPS (pasien ICU/ventilator)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pain_location" className="text-xs">
-                        Lokasi Nyeri
-                      </Label>
-                      <Combobox allowCustomValue
-                        options={painLocationOptions}
-                        value={formData.pain_location || ""}
-                        onValueChange={(value) =>
-                          handleChange("pain_location", value)
-                        }
-                        placeholder="Pilih lokasi nyeri"
-                        searchPlaceholder="Cari lokasi nyeri..."
-                        emptyText="Lokasi tidak ditemukan"
-                        disabled={isFormDisabled}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pain_scale" className="text-xs">
-                        Skala Nyeri (0-10)
-                      </Label>
-                      {/* Wong-Baker FACES visual */}
-                      {formData.pain_method === "wong_baker" && (
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pb-1">
-                          {[0, 2, 4, 6, 8, 10].map((v) => (
-                            <TooltipProvider key={v}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    disabled={isFormDisabled}
-                                    onClick={() =>
-                                      handleChange("pain_scale", v)
-                                    }
-                                    className={cn(
-                                      "h-10 w-full text-2xl cursor-pointer rounded-lg transition-all",
-                                      formData.pain_scale === v
-                                        ? "bg-primary/10 ring-2 ring-primary"
-                                        : "hover:bg-muted",
-                                    )}
-                                  >
-                                    {v === 0
-                                      ? "😊"
-                                      : v === 2
-                                        ? "🙂"
-                                        : v === 4
-                                          ? "😐"
-                                          : v === 6
-                                            ? "🙁"
-                                            : v === 8
-                                              ? "😢"
-                                              : "😭"}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>
-                                    {v === 0
-                                      ? "Tidak nyeri"
-                                      : v === 2
-                                        ? "Nyeri ringan"
-                                        : v === 4
-                                          ? "Nyeri sedang"
-                                          : v === 6
-                                            ? "Nyeri cukup berat"
-                                            : v === 8
-                                              ? "Nyeri berat"
-                                              : "Nyeri sangat berat"}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ))}
-                        </div>
-                      )}
-                      {/* NRS / VAS numeric bar */}
-                      {(formData.pain_method === "nrs" ||
-                        formData.pain_method === "vas") && (
-                        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 pb-1">
-                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
-                            <button
-                              key={v}
-                              type="button"
-                              disabled={isFormDisabled}
-                              onClick={() => handleChange("pain_scale", v)}
-                              className={cn(
-                                "h-9 w-full text-xs font-medium rounded transition-all",
-                                formData.pain_scale === v
-                                  ? "ring-2 ring-primary text-primary-foreground " +
-                                      (v <= 3
-                                        ? "bg-green-500"
-                                        : v <= 6
-                                          ? "bg-yellow-500"
-                                          : "bg-red-500")
-                                  : v <= 3
-                                    ? "bg-green-100 hover:bg-green-200 text-green-800"
-                                    : v <= 6
-                                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
-                                      : "bg-red-100 hover:bg-red-200 text-red-800",
-                              )}
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {/* FLACC / BPS numeric bar */}
-                      {(formData.pain_method === "flacc" ||
-                        formData.pain_method === "bps") && (
-                        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 pb-1">
-                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
-                            <button
-                              key={v}
-                              type="button"
-                              disabled={isFormDisabled}
-                              onClick={() => handleChange("pain_scale", v)}
-                              className={cn(
-                                "h-9 w-full text-xs font-medium rounded transition-all",
-                                formData.pain_scale === v
-                                  ? "ring-2 ring-primary text-primary-foreground " +
-                                      (v <= 3
-                                        ? "bg-green-500"
-                                        : v <= 6
-                                          ? "bg-yellow-500"
-                                          : "bg-red-500")
-                                  : v <= 3
-                                    ? "bg-green-100 hover:bg-green-200 text-green-800"
-                                    : v <= 6
-                                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
-                                      : "bg-red-100 hover:bg-red-200 text-red-800",
-                              )}
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {formData.pain_method === "flacc"
-                          ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara"
-                          : formData.pain_method === "bps"
-                            ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator"
-                            : formData.pain_method === "wong_baker"
-                              ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
-                              : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
-                      </p>
-                    </div>
-                  </div>
-                  )}
-                </div>
-
-                {/* Antropometri */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[11px] text-muted-foreground">
-                      Input dalam satuan cm/kg
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="weight"
-                        className="text-xs flex items-center gap-1.5"
-                      >
-                        Berat Badan
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="weight"
-                          type="number"
-                          step="0.1"
-                          placeholder="70"
-                          value={formData.weight === "" ? "" : formData.weight}
-                          onChange={(e) =>
-                            handleChange(
-                              "weight",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          className="pr-8"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          kg
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="height"
-                        className="text-xs flex items-center gap-1.5"
-                      >
-                        Tinggi Badan
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          SatuSehat
-                        </Badge>
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="height"
-                          type="number"
-                          step="0.1"
-                          placeholder="170"
-                          value={formData.height === "" ? "" : formData.height}
-                          onChange={(e) =>
-                            handleChange(
-                              "height",
-                              e.target.value === "" ? "" : Number(e.target.value),
-                            )
-                          }
-                          className="pr-8"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          cm
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="upper_arm_circum"
-                        className="text-xs flex items-center gap-1.5"
-                      >
-                        Lingkar Lengan Atas
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="upper_arm_circum"
-                          type="number"
-                          step="0.1"
-                          placeholder="24"
-                          value={formData.upper_arm_circum || ""}
-                          onChange={(e) =>
-                            handleChange("upper_arm_circum", e.target.value)
-                          }
-                          className="pr-8"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          cm
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="head_circum"
-                        className="text-xs flex items-center gap-1.5"
-                      >
-                        Lingkar Kepala
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="head_circum"
-                          type="number"
-                          step="0.1"
-                          placeholder="52"
-                          value={formData.head_circum || ""}
-                          onChange={(e) =>
-                            handleChange("head_circum", e.target.value)
-                          }
-                          className="pr-8"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          cm
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="waist"
-                        className="text-xs flex items-center gap-1.5"
-                      >
-                        Lingkar Perut
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="waist"
-                          type="number"
-                          step="0.1"
-                          placeholder="80"
-                          value={formData.waist || ""}
-                          onChange={(e) =>
-                            handleChange("waist", e.target.value)
-                          }
-                          className="pr-8"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          cm
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1 sm:col-span-2 lg:col-span-2">
-                      <Label className="text-xs flex items-center gap-1.5">
-                        BMI
-                      </Label>
-                      <div className="flex items-center gap-2 h-10 px-3 bg-muted rounded-md">
-                        <span className="font-medium">
-                          {formData.bmi || "-"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          kg/m²
-                        </span>
-                        {formData.bmi > 0 && (
-                          <Badge
-                            variant="outline"
-                            className={cn("ml-auto text-xs", bmiCategory.color)}
-                          >
-                            {bmiCategory.label}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Pemeriksaan Fisik - Table with Checkbox Column */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <div className="flex flex-col justify-between sm:flex-row sm:items-center sm:gap-2">
-                  <div>Pemeriksaan Fisik</div>
+                {isEmergency && !isFormDisabled && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={handleSetAllNormal}
-                    disabled={isFormDisabled}
-                    className="gap-2"
+                    className="h-8 rounded-none px-3 text-xs"
+                    onClick={handleLoadFromTriage}
                   >
-                    {allPhysicalChecked ? (
-                      <>
-                        <X className="h-4 w-4" />
-                        Hapus Semua
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        Semua Normal
-                      </>
-                    )}
+                    Ambil Data Triase
                   </Button>
-                </div>
+                )}
               </div>
-              <div className="space-y-4 p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"></div>
-                <div className="w-full overflow-x-auto">
-                  <div className="space-y-3 md:hidden">
-                    {physicalExamSections.map((section) => {
-                      const isChecked = checkedSections[section.id] || false;
-                      const value = formData[
-                        section.id as keyof typeof formData
-                      ] as string;
 
-                      return (
-                        <div
-                          key={`mobile-${section.id}`}
-                          className={cn(
-                            "rounded-lg border p-3",
-                            isChecked && "bg-green-50/50 dark:bg-green-950/10",
-                          )}
-                        >
-                          <div className="flex items-start gap-2">
-                            <Checkbox
-                              id={`mobile-check-${section.id}`}
-                              checked={isChecked}
-                              onCheckedChange={(checked) =>
-                                handleCheckSection(
-                                  section.id,
-                                  checked as boolean,
-                                )
-                              }
-                              disabled={isFormDisabled}
-                              className="mt-1"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <Label
-                                htmlFor={`mobile-check-${section.id}`}
-                                className="text-sm font-medium"
-                              >
-                                {section.label}
-                              </Label>
-                              {isChecked ? (
-                                <Textarea
-                                  id={`mobile-field-${section.id}`}
-                                  placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
-                                  value={value || ""}
-                                  onChange={(e) =>
-                                    handleChange(section.id, e.target.value)
-                                  }
-                                  className="mt-2 min-h-[96px] resize-none text-sm"
-                                  disabled={isFormDisabled}
-                                />
-                              ) : (
-                                <p className="mt-1 text-xs text-muted-foreground italic">
-                                  Belum diperiksa
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="hidden md:block w-full overflow-x-auto">
-                    <table className="w-full min-w-[680px] caption-bottom text-sm">
-                      <thead className="[&_tr]:border-b">
-                        <tr className="bg-muted/50 border-b">
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">
-                            ✓
-                          </th>
-                          <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[130px]">
-                            Bagian
-                          </th>
-                          <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
-                            Hasil Pemeriksaan
-                          </th>
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px]"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="[&_tr:last-child]:border-0">
-                        {physicalExamSections.map((section) => {
-                          const isChecked =
-                            checkedSections[section.id] || false;
-                          const isExpanded = expandedRows[section.id] || false;
-                          const value = formData[
-                            section.id as keyof typeof formData
-                          ] as string;
-
-                          return (
-                            <Fragment key={section.id}>
-                              <tr
-                                className={cn(
-                                  "border-b transition-colors hover:bg-muted/50",
-                                  isChecked &&
-                                    "bg-green-50/50 dark:bg-green-950/10",
-                                  isChecked &&
-                                    "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/20",
-                                )}
-                                onClick={() =>
-                                  isChecked && toggleRowExpand(section.id)
-                                }
-                              >
-                                <td
-                                  className="p-2 align-middle text-center"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Checkbox
-                                    id={`check-${section.id}`}
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) =>
-                                      handleCheckSection(
-                                        section.id,
-                                        checked as boolean,
-                                      )
-                                    }
-                                    disabled={isFormDisabled}
-                                  />
-                                </td>
-                                <td className="p-4 align-middle font-medium">
-                                  {section.label}
-                                </td>
-                                <td className="p-4 align-middle">
-                                  {isChecked ? (
-                                    <span className="text-sm text-muted-foreground line-clamp-1">
-                                      {value || "-"}
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground/50 italic">
-                                      Belum diperiksa
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-2 align-middle">
-                                  {isChecked && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleRowExpand(section.id);
-                                      }}
-                                    >
-                                      {isExpanded ? (
-                                        <ChevronUp className="h-4 w-4" />
-                                      ) : (
-                                        <ChevronDown className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  )}
-                                </td>
-                              </tr>
-                              {isExpanded && (
-                                <tr>
-                                  <td colSpan={4} className="p-0">
-                                    <div className="px-4 py-3 bg-muted/30 border-t">
-                                      <Textarea
-                                        id={section.id}
-                                        placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
-                                        value={value || ""}
-                                        onChange={(e) =>
-                                          handleChange(
-                                            section.id,
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="min-h-[80px] resize-none text-sm"
-                                        disabled={isFormDisabled}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Temuan Lain */}
-                <div className="pt-4">
-                  <Label
-                    htmlFor="other_findings"
-                    className="text-sm font-medium"
-                  >
-                    Temuan Lain
+              {/* Kondisi Umum & Kesadaran */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="general_condition" className="text-xs font-medium">
+                    Keadaan Umum
                   </Label>
-                  <Textarea
-                    id="other_findings"
-                    placeholder="Temuan pemeriksaan fisik lainnya..."
-                    value={formData.other_findings}
-                    onChange={(e) =>
-                      handleChange("other_findings", e.target.value)
-                    }
-                    className="mt-2 min-h-[60px] resize-none"
+                  <Combobox
+                    allowCustomValue
+                    options={getOptions("general_condition")}
+                    value={formData.general_condition}
+                    onValueChange={(v) => handleChange("general_condition", v)}
+                    placeholder="Pilih keadaan umum"
+                    searchPlaceholder="Cari keadaan umum..."
+                    disabled={isFormDisabled}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="consciousness" className="text-xs font-medium">
+                    Tingkat Kesadaran
+                  </Label>
+                  <Combobox
+                    allowCustomValue
+                    options={getOptions("consciousness_level")}
+                    value={formData.consciousness}
+                    onValueChange={(v) => handleChange("consciousness", v)}
+                    placeholder="Pilih tingkat kesadaran"
+                    searchPlaceholder="Cari tingkat kesadaran..."
+                    disabled={isFormDisabled}
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Pemeriksaan Penunjang Terkait
-              </div>
-              <div className="space-y-4 p-3 sm:p-4">
-                <div className="md:hidden space-y-3">
-                  <div
-                    className={cn(
-                      "rounded-lg border p-3",
-                      formData.ecg_performed &&
-                        "bg-purple-50/50 dark:bg-purple-950/10",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="mobile-ecg-performed"
-                        checked={formData.ecg_performed}
-                        onCheckedChange={(checked) => {
-                          handleChange("ecg_performed", checked as boolean);
-                          if (!checked) {
-                            handleChange("ecg_result", "");
-                            handleChange("ecg_interpretation", "");
-                            handleChange("ecg_notes", "");
-                          }
-                        }}
-                        disabled={isFormDisabled}
-                      />
-                      <Label
-                        htmlFor="mobile-ecg-performed"
-                        className="text-sm font-medium"
-                      >
-                        EKG / ECG
-                      </Label>
+              {/* Tanda Vital (6 Kolom Sejajar) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="blood_pressure_systolic" className="text-xs font-medium">
+                      Sistolik {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(systolicStatus) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(systolicStatus),
+                          )}
+                        >
+                          {getVitalStatusLabel(systolicStatus)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
                     </div>
-                    {formData.ecg_performed && (
-                      <div className="mt-3 space-y-2">
-                        <Input
-                          placeholder="Hasil EKG"
-                          value={formData.ecg_result}
-                          onChange={(e) =>
-                            handleChange("ecg_result", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                        <Input
-                          placeholder="Interpretasi"
-                          value={formData.ecg_interpretation}
-                          onChange={(e) =>
-                            handleChange("ecg_interpretation", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                        <Textarea
-                          placeholder="Catatan detail EKG"
-                          value={formData.ecg_notes}
-                          onChange={(e) =>
-                            handleChange("ecg_notes", e.target.value)
-                          }
-                          className="min-h-[96px] resize-none text-sm"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    )}
                   </div>
-
-                  <div
-                    className={cn(
-                      "rounded-lg border p-3",
-                      formData.ctg_performed &&
-                        "bg-blue-50/50 dark:bg-blue-950/10",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="mobile-ctg-performed"
-                        checked={formData.ctg_performed}
-                        onCheckedChange={(checked) => {
-                          handleChange("ctg_performed", checked as boolean);
-                          if (!checked) {
-                            handleChange("ctg_result", "");
-                            handleChange("ctg_interpretation", "");
-                            handleChange("ctg_notes", "");
-                          }
-                        }}
-                        disabled={isFormDisabled}
-                      />
-                      <Label
-                        htmlFor="mobile-ctg-performed"
-                        className="text-sm font-medium"
-                      >
-                        CTG
-                      </Label>
-                    </div>
-                    {formData.ctg_performed && (
-                      <div className="mt-3 space-y-2">
-                        <Input
-                          placeholder="Hasil CTG"
-                          value={formData.ctg_result}
-                          onChange={(e) =>
-                            handleChange("ctg_result", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                        <Input
-                          placeholder="Interpretasi"
-                          value={formData.ctg_interpretation}
-                          onChange={(e) =>
-                            handleChange("ctg_interpretation", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                        <Textarea
-                          placeholder="Catatan detail CTG"
-                          value={formData.ctg_notes}
-                          onChange={(e) =>
-                            handleChange("ctg_notes", e.target.value)
-                          }
-                          className="min-h-[96px] resize-none text-sm"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={cn(
-                      "rounded-lg border p-3",
-                      formData.pelvic_performed &&
-                        "bg-orange-50/50 dark:bg-orange-950/10",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="mobile-pelvic-performed"
-                        checked={formData.pelvic_performed}
-                        onCheckedChange={(checked) => {
-                          handleChange("pelvic_performed", checked as boolean);
-                          if (!checked) {
-                            handleChange("pelvic_result", "");
-                            handleChange("pelvic_notes", "");
-                          }
-                        }}
-                        disabled={isFormDisabled}
-                      />
-                      <Label
-                        htmlFor="mobile-pelvic-performed"
-                        className="text-sm font-medium"
-                      >
-                        Pemeriksaan Pelvis
-                      </Label>
-                    </div>
-                    {formData.pelvic_performed && (
-                      <div className="mt-3 space-y-2">
-                        <Input
-                          placeholder="Hasil pemeriksaan pelvis"
-                          value={formData.pelvic_result}
-                          onChange={(e) =>
-                            handleChange("pelvic_result", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                        <Textarea
-                          placeholder="Catatan detail pelvis"
-                          value={formData.pelvic_notes}
-                          onChange={(e) =>
-                            handleChange("pelvic_notes", e.target.value)
-                          }
-                          className="min-h-[96px] resize-none text-sm"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    )}
+                  <div className="relative">
+                    <Input
+                      id="blood_pressure_systolic"
+                      type="number"
+                      placeholder="120"
+                      value={formData.blood_pressure_systolic === "" ? "" : formData.blood_pressure_systolic}
+                      onChange={(e) =>
+                        handleChange(
+                          "blood_pressure_systolic",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-11", getVitalStatusInputClass(systolicStatus))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      mmHg
+                    </span>
                   </div>
                 </div>
 
-                <div className="hidden md:block w-full overflow-x-auto">
-                  <table className="w-full min-w-[760px] caption-bottom text-sm">
-                    <thead className="[&_tr]:border-b">
-                      <tr className="bg-muted/50 border-b">
-                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="blood_pressure_diastolic" className="text-xs font-medium">
+                      Diastolik {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(diastolicStatus) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(diastolicStatus),
+                          )}
+                        >
+                          {getVitalStatusLabel(diastolicStatus)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="blood_pressure_diastolic"
+                      type="number"
+                      placeholder="80"
+                      value={formData.blood_pressure_diastolic === "" ? "" : formData.blood_pressure_diastolic}
+                      onChange={(e) =>
+                        handleChange(
+                          "blood_pressure_diastolic",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-11", getVitalStatusInputClass(diastolicStatus))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      mmHg
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="heart_rate" className="text-xs font-medium">
+                      Nadi {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(heartRateStatus) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(heartRateStatus),
+                          )}
+                        >
+                          {getVitalStatusLabel(heartRateStatus)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="heart_rate"
+                      type="number"
+                      placeholder="80"
+                      value={formData.heart_rate === "" ? "" : formData.heart_rate}
+                      onChange={(e) =>
+                        handleChange(
+                          "heart_rate",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-9", getVitalStatusInputClass(heartRateStatus))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      x/m
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="respiratory_rate" className="text-xs font-medium">
+                      Napas {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(respiratoryStatus) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(respiratoryStatus),
+                          )}
+                        >
+                          {getVitalStatusLabel(respiratoryStatus)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="respiratory_rate"
+                      type="number"
+                      placeholder="20"
+                      value={formData.respiratory_rate === "" ? "" : formData.respiratory_rate}
+                      onChange={(e) =>
+                        handleChange(
+                          "respiratory_rate",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-9", getVitalStatusInputClass(respiratoryStatus))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      x/m
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="temperature" className="text-xs font-medium">
+                      Suhu {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(temperatureStatus) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(temperatureStatus),
+                          )}
+                        >
+                          {getVitalStatusLabel(temperatureStatus)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="temperature"
+                      type="number"
+                      step="0.1"
+                      placeholder="36.5"
+                      value={formData.temperature === "" ? "" : formData.temperature}
+                      onChange={(e) =>
+                        handleChange(
+                          "temperature",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-8", getVitalStatusInputClass(temperatureStatus))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      °C
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="oxygen_saturation" className="text-xs font-medium">
+                      SpO2 {isEmergency && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      {getVitalStatusLabel(spo2Status) ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-none text-[9px] px-1 py-0 h-4",
+                            getVitalStatusBadgeClass(spo2Status),
+                          )}
+                        >
+                          {getVitalStatusLabel(spo2Status)}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="oxygen_saturation"
+                      type="number"
+                      placeholder="98"
+                      value={formData.oxygen_saturation === "" ? "" : formData.oxygen_saturation}
+                      onChange={(e) =>
+                        handleChange(
+                          "oxygen_saturation",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      required={isEmergency}
+                      className={cn("pr-7", getVitalStatusInputClass(spo2Status))}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 2: Penilaian Skala Nyeri */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Penilaian Skala Nyeri
+                </div>
+                <label
+                  htmlFor="no_pain"
+                  className="flex items-center gap-2.5 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 px-2.5 h-8 cursor-pointer select-none"
+                >
+                  <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    Tidak Ada Nyeri
+                  </span>
+                  <Switch
+                    id="no_pain"
+                    checked={formData.pain_location === "Tidak ada nyeri"}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        handleChange("pain_location", "Tidak ada nyeri");
+                        handleChange("pain_scale", 0);
+                      } else {
+                        handleChange("pain_location", "");
+                      }
+                    }}
+                    disabled={isFormDisabled}
+                  />
+                </label>
+              </div>
+
+              {formData.pain_location === "Tidak ada nyeri" ? (
+                <div className="flex items-center gap-2 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>
+                    Pasien dikonfirmasi <strong className="text-foreground">tidak mengalami keluhan nyeri</strong> (Skala Nyeri: 0).
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-start">
+                  <div className="lg:col-span-3 space-y-1.5">
+                    <Label htmlFor="pain_method" className="text-xs font-medium">
+                      Metode Penilaian Nyeri
+                    </Label>
+                    <Select
+                      value={formData.pain_method}
+                      onValueChange={(value) => handleChange("pain_method", value)}
+                      disabled={isFormDisabled}
+                    >
+                      <SelectTrigger id="pain_method" className="h-9 text-xs rounded-none">
+                        <SelectValue placeholder="Pilih metode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nrs" className="text-xs">NRS (Numeric Rating Scale)</SelectItem>
+                        <SelectItem value="wong_baker" className="text-xs">Wong-Baker FACES</SelectItem>
+                        <SelectItem value="vas" className="text-xs">VAS (Visual Analog Scale)</SelectItem>
+                        <SelectItem value="flacc" className="text-xs">FLACC (bayi/anak non-verbal)</SelectItem>
+                        <SelectItem value="bps" className="text-xs">BPS (pasien ICU/ventilator)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="lg:col-span-4 space-y-1.5">
+                    <Label htmlFor="pain_location" className="text-xs font-medium">
+                      Lokasi Nyeri
+                    </Label>
+                    <Combobox
+                      allowCustomValue
+                      options={painLocationOptions}
+                      value={formData.pain_location || ""}
+                      onValueChange={(value) => handleChange("pain_location", value)}
+                      placeholder="Pilih lokasi nyeri"
+                      searchPlaceholder="Cari lokasi nyeri..."
+                      emptyText="Lokasi tidak ditemukan"
+                      disabled={isFormDisabled}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 lg:col-span-5 space-y-1.5">
+                    <Label htmlFor="pain_scale" className="text-xs font-medium">
+                      Skala Nyeri (0-10)
+                    </Label>
+                    {formData.pain_method === "wong_baker" ? (
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {[0, 2, 4, 6, 8, 10].map((v) => (
+                          <TooltipProvider key={v}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  disabled={isFormDisabled}
+                                  onClick={() => handleChange("pain_scale", v)}
+                                  className={cn(
+                                    "h-9 w-full text-lg cursor-pointer rounded-none border border-neutral-200 dark:border-neutral-800 transition-all",
+                                    formData.pain_scale === v
+                                      ? "bg-primary/10 ring-1 ring-primary border-primary"
+                                      : "hover:bg-muted",
+                                  )}
+                                >
+                                  {v === 0
+                                    ? "😊"
+                                    : v === 2
+                                      ? "🙂"
+                                      : v === 4
+                                        ? "😐"
+                                        : v === 6
+                                          ? "🙁"
+                                          : v === 8
+                                            ? "😢"
+                                            : "😭"}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">
+                                  {v === 0
+                                    ? "Tidak nyeri"
+                                    : v === 2
+                                      ? "Nyeri ringan"
+                                      : v === 4
+                                        ? "Nyeri sedang"
+                                        : v === 6
+                                          ? "Nyeri cukup berat"
+                                          : v === 8
+                                            ? "Nyeri berat"
+                                            : "Nyeri sangat berat"}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-11 gap-1">
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            disabled={isFormDisabled}
+                            onClick={() => handleChange("pain_scale", v)}
+                            className={cn(
+                              "h-9 w-full text-xs font-semibold rounded-none transition-all",
+                              formData.pain_scale === v
+                                ? "ring-1 ring-neutral-900 dark:ring-white text-white " +
+                                    (v <= 3
+                                      ? "bg-green-600"
+                                      : v <= 6
+                                        ? "bg-yellow-500"
+                                        : "bg-red-600")
+                                : v <= 3
+                                  ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                  : v <= 6
+                                    ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                    : "bg-red-100 hover:bg-red-200 text-red-800",
+                            )}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">
+                      {formData.pain_method === "flacc"
+                        ? "FLACC: Face, Legs, Activity, Cry, Consolability"
+                        : formData.pain_method === "bps"
+                          ? "BPS: Behavioral Pain Scale (pasien sedasi/ventilator)"
+                          : formData.pain_method === "wong_baker"
+                            ? "Pilih ekspresi wajah yang sesuai dengan nyeri pasien"
+                            : "0 = Tidak nyeri • 1-3 = Ringan • 4-6 = Sedang • 7-10 = Berat"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* Section 3: Antropometri & Status Gizi */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Antropometri &amp; Status Gizi
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Input ukuran dalam satuan kg dan cm
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="weight" className="text-xs font-medium">
+                      Berat Badan
+                    </Label>
+                    <Badge
+                      variant="outline"
+                      className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                    >
+                      SatuSehat
+                    </Badge>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="weight"
+                      type="number"
+                      step="0.1"
+                      placeholder="70"
+                      value={formData.weight === "" ? "" : formData.weight}
+                      onChange={(e) =>
+                        handleChange(
+                          "weight",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      className="pr-8"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      kg
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="height" className="text-xs font-medium">
+                      Tinggi Badan
+                    </Label>
+                    <Badge
+                      variant="outline"
+                      className="hidden sm:inline-flex rounded-none text-[9px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                    >
+                      SatuSehat
+                    </Badge>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="height"
+                      type="number"
+                      step="0.1"
+                      placeholder="170"
+                      value={formData.height === "" ? "" : formData.height}
+                      onChange={(e) =>
+                        handleChange(
+                          "height",
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      className="pr-8"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      cm
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center min-h-[20px]">
+                    <Label htmlFor="upper_arm_circum" className="text-xs font-medium">
+                      Lingkar Lengan Atas
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="upper_arm_circum"
+                      type="number"
+                      step="0.1"
+                      placeholder="24"
+                      value={formData.upper_arm_circum || ""}
+                      onChange={(e) => handleChange("upper_arm_circum", e.target.value)}
+                      className="pr-8"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      cm
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center min-h-[20px]">
+                    <Label htmlFor="head_circum" className="text-xs font-medium">
+                      Lingkar Kepala
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="head_circum"
+                      type="number"
+                      step="0.1"
+                      placeholder="52"
+                      value={formData.head_circum || ""}
+                      onChange={(e) => handleChange("head_circum", e.target.value)}
+                      className="pr-8"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      cm
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center min-h-[20px]">
+                    <Label htmlFor="waist" className="text-xs font-medium">
+                      Lingkar Perut
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="waist"
+                      type="number"
+                      step="0.1"
+                      placeholder="80"
+                      value={formData.waist || ""}
+                      onChange={(e) => handleChange("waist", e.target.value)}
+                      className="pr-8"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                      cm
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label className="text-xs font-medium">IMT / BMI</Label>
+                    {formData.bmi > 0 && (
+                      <Badge
+                        variant="outline"
+                        className={cn("rounded-none text-[9px] px-1 py-0 h-4", bmiCategory.color)}
+                      >
+                        {bmiCategory.label}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between h-9 px-3 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 rounded-none">
+                    <span className="font-mono text-xs font-bold">
+                      {formData.bmi || "-"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      kg/m²
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 4: Pemeriksaan Fisik Sistem Organ */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Pemeriksaan Fisik Sistem Organ
+                  </div>
+                  <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                    {filledBodySections}/{physicalExamSections.length} Diperiksa
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSetAllNormal}
+                  disabled={isFormDisabled}
+                  className="h-8 rounded-none px-3 text-xs gap-1.5"
+                >
+                  {allPhysicalChecked ? (
+                    <>
+                      <X className="h-3.5 w-3.5" />
+                      Hapus Semua
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Semua Normal
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="w-full overflow-x-auto">
+                {/* Mobile View */}
+                <div className="space-y-2 md:hidden">
+                  {physicalExamSections.map((section) => {
+                    const isChecked = checkedSections[section.id] || false;
+                    const value = formData[
+                      section.id as keyof typeof formData
+                    ] as string;
+
+                    return (
+                      <div
+                        key={`mobile-${section.id}`}
+                        className={cn(
+                          "border border-neutral-200 dark:border-neutral-800 p-2.5",
+                          isChecked && "bg-green-50/40 dark:bg-green-950/10",
+                        )}
+                      >
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id={`mobile-check-${section.id}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) =>
+                              handleCheckSection(section.id, checked as boolean)
+                            }
+                            disabled={isFormDisabled}
+                            className="mt-0.5 rounded-none"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <Label
+                              htmlFor={`mobile-check-${section.id}`}
+                              className="text-xs font-semibold cursor-pointer"
+                            >
+                              {section.label}
+                            </Label>
+                            {isChecked ? (
+                              <Textarea
+                                id={`mobile-field-${section.id}`}
+                                placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
+                                value={value || ""}
+                                onChange={(e) =>
+                                  handleChange(section.id, e.target.value)
+                                }
+                                className="mt-1.5 min-h-[72px] resize-none text-xs rounded-none"
+                                disabled={isFormDisabled}
+                              />
+                            ) : (
+                              <p className="mt-0.5 text-[11px] text-muted-foreground italic">
+                                Belum diperiksa
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block w-full overflow-x-auto border border-neutral-200 dark:border-neutral-800">
+                  <table className="w-full min-w-[680px] caption-bottom text-xs">
+                    <thead>
+                      <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+                        <th className="h-9 px-2 text-center align-middle font-bold uppercase tracking-wider text-muted-foreground w-[44px]">
                           ✓
                         </th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[180px]">
-                          Pemeriksaan
+                        <th className="h-9 px-3 text-left align-middle font-bold uppercase tracking-wider text-muted-foreground w-[150px]">
+                          Bagian
                         </th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
+                        <th className="h-9 px-3 text-left align-middle font-bold uppercase tracking-wider text-muted-foreground">
                           Hasil Pemeriksaan
                         </th>
-                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px]"></th>
+                        <th className="h-9 px-2 text-center align-middle font-bold uppercase tracking-wider text-muted-foreground w-[44px]"></th>
                       </tr>
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
-                      {/* ECG Row */}
-                      <>
-                        <tr
-                          className={cn(
-                            "border-b transition-colors hover:bg-muted/50",
-                            formData.ecg_performed &&
-                              "bg-purple-50/50 dark:bg-purple-950/10",
-                            formData.ecg_performed &&
-                              "cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-950/20",
-                          )}
-                          onClick={() =>
-                            formData.ecg_performed &&
-                            setExpandedRows((prev) => ({
-                              ...prev,
-                              ecg: !prev.ecg,
-                            }))
-                          }
-                        >
-                          <td
-                            className="p-2 align-middle text-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              id="ecg_performed"
-                              checked={formData.ecg_performed}
-                              onCheckedChange={(checked) => {
-                                handleChange(
-                                  "ecg_performed",
-                                  checked as boolean,
-                                );
-                                if (checked) {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ecg: true,
-                                  }));
-                                } else {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ecg: false,
-                                  }));
-                                  handleChange("ecg_result", "");
-                                  handleChange("ecg_interpretation", "");
-                                  handleChange("ecg_notes", "");
-                                }
-                              }}
-                              disabled={isFormDisabled}
-                            />
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div className="flex items-center gap-2">
-                              <Heart
-                                className={cn(
-                                  "h-4 w-4",
-                                  formData.ecg_performed
-                                    ? "text-red-500"
-                                    : "text-muted-foreground",
-                                )}
-                              />
-                              <div>
-                                <span className="font-medium">EKG / ECG</span>
-                                <p className="text-xs text-muted-foreground">
-                                  Elektrokardiogram
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle">
-                            {formData.ecg_performed ? (
-                              <div className="text-sm">
-                                {formData.ecg_result ||
-                                formData.ecg_interpretation ? (
-                                  <div className="space-y-0.5">
-                                    {formData.ecg_result && (
-                                      <p className="text-muted-foreground line-clamp-1">
-                                        <span className="font-medium">
-                                          Hasil:
-                                        </span>{" "}
-                                        {formData.ecg_result}
-                                      </p>
-                                    )}
-                                    {formData.ecg_interpretation && (
-                                      <p className="text-muted-foreground line-clamp-1">
-                                        <span className="font-medium">
-                                          Interpretasi:
-                                        </span>{" "}
-                                        {formData.ecg_interpretation}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground/50 italic">
-                                    Klik untuk mengisi detail
+                      {physicalExamSections.map((section) => {
+                        const isChecked = checkedSections[section.id] || false;
+                        const isExpanded = expandedRows[section.id] || false;
+                        const value = formData[
+                          section.id as keyof typeof formData
+                        ] as string;
+
+                        return (
+                          <Fragment key={section.id}>
+                            <tr
+                              className={cn(
+                                "border-b border-neutral-200 dark:border-neutral-800 transition-colors hover:bg-muted/40",
+                                isChecked &&
+                                  "bg-green-50/40 dark:bg-green-950/10 cursor-pointer hover:bg-green-100/40 dark:hover:bg-green-950/20",
+                              )}
+                              onClick={() =>
+                                isChecked && toggleRowExpand(section.id)
+                              }
+                            >
+                              <td
+                                className="px-2 py-2 align-middle text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Checkbox
+                                  id={`check-${section.id}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) =>
+                                    handleCheckSection(
+                                      section.id,
+                                      checked as boolean,
+                                    )
+                                  }
+                                  disabled={isFormDisabled}
+                                  className="rounded-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2 align-middle font-semibold text-foreground">
+                                {section.label}
+                              </td>
+                              <td className="px-3 py-2 align-middle">
+                                {isChecked ? (
+                                  <span className="text-xs text-muted-foreground line-clamp-1">
+                                    {value || "-"}
                                   </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground/50 italic">
+                                    Belum diperiksa
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-2 py-1.5 align-middle text-center">
+                                {isChecked && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 rounded-none"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleRowExpand(section.id);
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="border-b border-neutral-200 dark:border-neutral-800">
+                                <td colSpan={4} className="p-0">
+                                  <div className="px-3.5 py-2.5 bg-neutral-50/60 dark:bg-neutral-900/40">
+                                    <Textarea
+                                      id={section.id}
+                                      placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
+                                      value={value || ""}
+                                      onChange={(e) =>
+                                        handleChange(section.id, e.target.value)
+                                      }
+                                      className="min-h-[68px] resize-none text-xs rounded-none bg-white dark:bg-neutral-950"
+                                      disabled={isFormDisabled}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Temuan Lain */}
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="other_findings" className="text-xs font-medium">
+                  Temuan Pemeriksaan Fisik Lainnya
+                </Label>
+                <Textarea
+                  id="other_findings"
+                  placeholder="Catat temuan pemeriksaan fisik tambahan atau spesifik lainnya..."
+                  value={formData.other_findings}
+                  onChange={(e) => handleChange("other_findings", e.target.value)}
+                  className="min-h-[68px] resize-none text-xs rounded-none"
+                />
+              </div>
+            </section>
+
+            {/* Section 5: Pemeriksaan Penunjang Terkait */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Pemeriksaan Penunjang Terkait
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Centang pemeriksaan yang dilakukan untuk mengisi hasil
+                </span>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden space-y-2">
+                <div
+                  className={cn(
+                    "border border-neutral-200 dark:border-neutral-800 p-2.5",
+                    formData.ecg_performed &&
+                      "bg-purple-50/40 dark:bg-purple-950/10",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="mobile-ecg-performed"
+                      checked={formData.ecg_performed}
+                      onCheckedChange={(checked) => {
+                        handleChange("ecg_performed", checked as boolean);
+                        if (!checked) {
+                          handleChange("ecg_result", "");
+                          handleChange("ecg_interpretation", "");
+                          handleChange("ecg_notes", "");
+                        }
+                      }}
+                      disabled={isFormDisabled}
+                      className="rounded-none"
+                    />
+                    <Label
+                      htmlFor="mobile-ecg-performed"
+                      className="text-xs font-semibold cursor-pointer"
+                    >
+                      EKG / ECG
+                    </Label>
+                  </div>
+                  {formData.ecg_performed && (
+                    <div className="mt-2.5 space-y-2">
+                      <Input
+                        placeholder="Hasil EKG"
+                        value={formData.ecg_result}
+                        onChange={(e) => handleChange("ecg_result", e.target.value)}
+                        disabled={isFormDisabled}
+                      />
+                      <Input
+                        placeholder="Interpretasi"
+                        value={formData.ecg_interpretation}
+                        onChange={(e) => handleChange("ecg_interpretation", e.target.value)}
+                        disabled={isFormDisabled}
+                      />
+                      <Textarea
+                        placeholder="Catatan detail EKG"
+                        value={formData.ecg_notes}
+                        onChange={(e) => handleChange("ecg_notes", e.target.value)}
+                        className="min-h-[80px] resize-none text-xs rounded-none"
+                        disabled={isFormDisabled}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  className={cn(
+                    "border border-neutral-200 dark:border-neutral-800 p-2.5",
+                    formData.ctg_performed &&
+                      "bg-blue-50/40 dark:bg-blue-950/10",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="mobile-ctg-performed"
+                      checked={formData.ctg_performed}
+                      onCheckedChange={(checked) => {
+                        handleChange("ctg_performed", checked as boolean);
+                        if (!checked) {
+                          handleChange("ctg_result", "");
+                          handleChange("ctg_interpretation", "");
+                          handleChange("ctg_notes", "");
+                        }
+                      }}
+                      disabled={isFormDisabled}
+                      className="rounded-none"
+                    />
+                    <Label
+                      htmlFor="mobile-ctg-performed"
+                      className="text-xs font-semibold cursor-pointer"
+                    >
+                      CTG
+                    </Label>
+                  </div>
+                  {formData.ctg_performed && (
+                    <div className="mt-2.5 space-y-2">
+                      <Input
+                        placeholder="Hasil CTG"
+                        value={formData.ctg_result}
+                        onChange={(e) => handleChange("ctg_result", e.target.value)}
+                        disabled={isFormDisabled}
+                      />
+                      <Input
+                        placeholder="Interpretasi"
+                        value={formData.ctg_interpretation}
+                        onChange={(e) => handleChange("ctg_interpretation", e.target.value)}
+                        disabled={isFormDisabled}
+                      />
+                      <Textarea
+                        placeholder="Catatan detail CTG"
+                        value={formData.ctg_notes}
+                        onChange={(e) => handleChange("ctg_notes", e.target.value)}
+                        className="min-h-[80px] resize-none text-xs rounded-none"
+                        disabled={isFormDisabled}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  className={cn(
+                    "border border-neutral-200 dark:border-neutral-800 p-2.5",
+                    formData.pelvic_performed &&
+                      "bg-orange-50/40 dark:bg-orange-950/10",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="mobile-pelvic-performed"
+                      checked={formData.pelvic_performed}
+                      onCheckedChange={(checked) => {
+                        handleChange("pelvic_performed", checked as boolean);
+                        if (!checked) {
+                          handleChange("pelvic_result", "");
+                          handleChange("pelvic_notes", "");
+                        }
+                      }}
+                      disabled={isFormDisabled}
+                      className="rounded-none"
+                    />
+                    <Label
+                      htmlFor="mobile-pelvic-performed"
+                      className="text-xs font-semibold cursor-pointer"
+                    >
+                      Pemeriksaan Pelvis
+                    </Label>
+                  </div>
+                  {formData.pelvic_performed && (
+                    <div className="mt-2.5 space-y-2">
+                      <Input
+                        placeholder="Hasil pemeriksaan pelvis"
+                        value={formData.pelvic_result}
+                        onChange={(e) => handleChange("pelvic_result", e.target.value)}
+                        disabled={isFormDisabled}
+                      />
+                      <Textarea
+                        placeholder="Catatan detail pelvis"
+                        value={formData.pelvic_notes}
+                        onChange={(e) => handleChange("pelvic_notes", e.target.value)}
+                        className="min-h-[80px] resize-none text-xs rounded-none"
+                        disabled={isFormDisabled}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block w-full overflow-x-auto border border-neutral-200 dark:border-neutral-800">
+                <table className="w-full min-w-[760px] caption-bottom text-xs">
+                  <thead>
+                    <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+                      <th className="h-9 px-2 text-center align-middle font-bold uppercase tracking-wider text-muted-foreground w-[44px]">
+                        ✓
+                      </th>
+                      <th className="h-9 px-3 text-left align-middle font-bold uppercase tracking-wider text-muted-foreground w-[210px]">
+                        Pemeriksaan
+                      </th>
+                      <th className="h-9 px-3 text-left align-middle font-bold uppercase tracking-wider text-muted-foreground">
+                        Hasil Pemeriksaan
+                      </th>
+                      <th className="h-9 px-2 text-center align-middle font-bold uppercase tracking-wider text-muted-foreground w-[44px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="[&_tr:last-child]:border-0">
+                    {/* ECG Row */}
+                    <>
+                      <tr
+                        className={cn(
+                          "border-b border-neutral-200 dark:border-neutral-800 transition-colors hover:bg-muted/40",
+                          formData.ecg_performed &&
+                            "bg-purple-50/40 dark:bg-purple-950/10 cursor-pointer hover:bg-purple-100/40 dark:hover:bg-purple-950/20",
+                        )}
+                        onClick={() =>
+                          formData.ecg_performed &&
+                          setExpandedRows((prev) => ({
+                            ...prev,
+                            ecg: !prev.ecg,
+                          }))
+                        }
+                      >
+                        <td
+                          className="px-2 py-2.5 align-middle text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            id="ecg_performed"
+                            checked={formData.ecg_performed}
+                            onCheckedChange={(checked) => {
+                              handleChange("ecg_performed", checked as boolean);
+                              if (checked) {
+                                setExpandedRows((prev) => ({ ...prev, ecg: true }));
+                              } else {
+                                setExpandedRows((prev) => ({ ...prev, ecg: false }));
+                                handleChange("ecg_result", "");
+                                handleChange("ecg_interpretation", "");
+                                handleChange("ecg_notes", "");
+                              }
+                            }}
+                            disabled={isFormDisabled}
+                            className="rounded-none"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          <div className="flex items-center gap-2">
+                            <Heart
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0",
+                                formData.ecg_performed
+                                  ? "text-red-500"
+                                  : "text-muted-foreground",
+                              )}
+                            />
+                            <div>
+                              <span className="font-semibold text-foreground">EKG / ECG</span>
+                              <p className="text-[11px] text-muted-foreground">
+                                Elektrokardiogram
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          {formData.ecg_performed ? (
+                            formData.ecg_result || formData.ecg_interpretation ? (
+                              <div className="space-y-0.5 text-xs">
+                                {formData.ecg_result && (
+                                  <p className="text-muted-foreground line-clamp-1">
+                                    <span className="font-semibold text-foreground">Hasil:</span>{" "}
+                                    {formData.ecg_result}
+                                  </p>
+                                )}
+                                {formData.ecg_interpretation && (
+                                  <p className="text-muted-foreground line-clamp-1">
+                                    <span className="font-semibold text-foreground">Interpretasi:</span>{" "}
+                                    {formData.ecg_interpretation}
+                                  </p>
                                 )}
                               </div>
                             ) : (
-                              <span className="text-sm text-muted-foreground/50 italic">
-                                Belum dilakukan
+                              <span className="text-xs text-muted-foreground/50 italic">
+                                Klik untuk mengisi detail
                               </span>
-                            )}
-                          </td>
-                          <td className="p-2 align-middle">
-                            {formData.ecg_performed && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ecg: !prev.ecg,
-                                  }));
-                                }}
-                              >
-                                {expandedRows.ecg ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedRows.ecg && (
-                          <tr>
-                            <td colSpan={4} className="p-0">
-                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ecg_result"
-                                    className="text-sm font-medium"
-                                  >
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50 italic">
+                              Belum dilakukan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-middle text-center">
+                          {formData.ecg_performed && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 rounded-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRows((prev) => ({
+                                  ...prev,
+                                  ecg: !prev.ecg,
+                                }));
+                              }}
+                            >
+                              {expandedRows.ecg ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                      {expandedRows.ecg && (
+                        <tr className="border-b border-neutral-200 dark:border-neutral-800">
+                          <td colSpan={4} className="p-0">
+                            <div className="px-3.5 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 space-y-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="ecg_result" className="text-xs font-medium">
                                     Hasil EKG
                                   </Label>
                                   <Input
                                     id="ecg_result"
                                     placeholder="Sinus rhythm, HR 80x/menit..."
                                     value={formData.ecg_result}
-                                    onChange={(e) =>
-                                      handleChange("ecg_result", e.target.value)
-                                    }
+                                    onChange={(e) => handleChange("ecg_result", e.target.value)}
                                     disabled={isFormDisabled}
-                                    className="text-sm"
+                                    className="bg-white dark:bg-neutral-950"
                                   />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ecg_interpretation"
-                                    className="text-sm font-medium"
-                                  >
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="ecg_interpretation" className="text-xs font-medium">
                                     Interpretasi
                                   </Label>
                                   <Input
                                     id="ecg_interpretation"
                                     placeholder="Normal / Abnormal"
                                     value={formData.ecg_interpretation}
-                                    onChange={(e) =>
-                                      handleChange(
-                                        "ecg_interpretation",
-                                        e.target.value,
-                                      )
-                                    }
+                                    onChange={(e) => handleChange("ecg_interpretation", e.target.value)}
                                     disabled={isFormDisabled}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ecg_notes"
-                                    className="text-sm font-medium flex items-center gap-2"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Catatan Detail EKG
-                                  </Label>
-                                  <Textarea
-                                    id="ecg_notes"
-                                    placeholder={`Irama: Sinus rhythm
-Rate: 80x/menit
-Axis: Normal
-Gelombang P: Normal
-Interval PR: 0.16 detik
-Kompleks QRS: 0.08 detik
-Segmen ST: Isoelektrik
-Gelombang T: Normal
-Kesimpulan: EKG dalam batas normal`}
-                                    value={formData.ecg_notes}
-                                    onChange={(e) =>
-                                      handleChange("ecg_notes", e.target.value)
-                                    }
-                                    className="min-h-[120px] resize-none font-mono text-sm"
-                                    disabled={isFormDisabled}
+                                    className="bg-white dark:bg-neutral-950"
                                   />
                                 </div>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-
-                      {/* Pelvis Row */}
-                      <>
-                        <tr
-                          className={cn(
-                            "border-b transition-colors hover:bg-muted/50",
-                            formData.pelvic_performed &&
-                              "bg-pink-50/50 dark:bg-pink-950/10",
-                            formData.pelvic_performed &&
-                              "cursor-pointer hover:bg-pink-100/50 dark:hover:bg-pink-950/20",
-                          )}
-                          onClick={() =>
-                            formData.pelvic_performed &&
-                            setExpandedRows((prev) => ({
-                              ...prev,
-                              pelvic: !prev.pelvic,
-                            }))
-                          }
-                        >
-                          <td
-                            className="p-2 align-middle text-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              id="pelvic_performed"
-                              checked={formData.pelvic_performed}
-                              onCheckedChange={(checked) => {
-                                handleChange(
-                                  "pelvic_performed",
-                                  checked as boolean,
-                                );
-                                if (checked) {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    pelvic: true,
-                                  }));
-                                } else {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    pelvic: false,
-                                  }));
-                                  handleChange("pelvic_result", "");
-                                  handleChange("pelvic_notes", "");
-                                }
-                              }}
-                              disabled={isFormDisabled}
-                            />
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div className="flex items-center gap-2">
-                              <Stethoscope
-                                className={cn(
-                                  "h-4 w-4",
-                                  formData.pelvic_performed
-                                    ? "text-pink-500"
-                                    : "text-muted-foreground",
-                                )}
-                              />
-                              <div>
-                                <span className="font-medium">
-                                  Pemeriksaan Pelvis
-                                </span>
-                                <p className="text-xs text-muted-foreground">
-                                  Pemeriksaan panggul / ginekologi
-                                </p>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="ecg_notes" className="text-xs font-medium flex items-center gap-1.5">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Catatan Detail EKG
+                                </Label>
+                                <Textarea
+                                  id="ecg_notes"
+                                  placeholder={`Irama: Sinus rhythm\nRate: 80x/menit\nAxis: Normal\nKesimpulan: EKG dalam batas normal`}
+                                  value={formData.ecg_notes}
+                                  onChange={(e) => handleChange("ecg_notes", e.target.value)}
+                                  className="min-h-[88px] resize-none font-mono text-xs rounded-none bg-white dark:bg-neutral-950"
+                                  disabled={isFormDisabled}
+                                />
                               </div>
                             </div>
                           </td>
-                          <td className="p-4 align-middle">
-                            {formData.pelvic_performed ? (
-                              formData.pelvic_result ? (
-                                <p className="text-sm text-muted-foreground line-clamp-1">
-                                  {formData.pelvic_result}
-                                </p>
+                        </tr>
+                      )}
+                    </>
+
+                    {/* Pelvis Row */}
+                    <>
+                      <tr
+                        className={cn(
+                          "border-b border-neutral-200 dark:border-neutral-800 transition-colors hover:bg-muted/40",
+                          formData.pelvic_performed &&
+                            "bg-pink-50/40 dark:bg-pink-950/10 cursor-pointer hover:bg-pink-100/40 dark:hover:bg-pink-950/20",
+                        )}
+                        onClick={() =>
+                          formData.pelvic_performed &&
+                          setExpandedRows((prev) => ({
+                            ...prev,
+                            pelvic: !prev.pelvic,
+                          }))
+                        }
+                      >
+                        <td
+                          className="px-2 py-2.5 align-middle text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            id="pelvic_performed"
+                            checked={formData.pelvic_performed}
+                            onCheckedChange={(checked) => {
+                              handleChange("pelvic_performed", checked as boolean);
+                              if (checked) {
+                                setExpandedRows((prev) => ({ ...prev, pelvic: true }));
+                              } else {
+                                setExpandedRows((prev) => ({ ...prev, pelvic: false }));
+                                handleChange("pelvic_result", "");
+                                handleChange("pelvic_notes", "");
+                              }
+                            }}
+                            disabled={isFormDisabled}
+                            className="rounded-none"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          <div className="flex items-center gap-2">
+                            <Stethoscope
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0",
+                                formData.pelvic_performed
+                                  ? "text-pink-500"
+                                  : "text-muted-foreground",
+                              )}
+                            />
+                            <div>
+                              <span className="font-semibold text-foreground">
+                                Pemeriksaan Pelvis
+                              </span>
+                              <p className="text-[11px] text-muted-foreground">
+                                Pemeriksaan panggul / ginekologi
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          {formData.pelvic_performed ? (
+                            formData.pelvic_result ? (
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {formData.pelvic_result}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50 italic">
+                                Klik untuk mengisi detail
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50 italic">
+                              Belum dilakukan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-middle text-center">
+                          {formData.pelvic_performed && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 rounded-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRows((prev) => ({
+                                  ...prev,
+                                  pelvic: !prev.pelvic,
+                                }));
+                              }}
+                            >
+                              {expandedRows.pelvic ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
                               ) : (
-                                <span className="text-sm text-muted-foreground/50 italic">
-                                  Klik untuk mengisi detail
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-sm text-muted-foreground/50 italic">
-                                Belum dilakukan
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2 align-middle">
-                            {formData.pelvic_performed && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    pelvic: !prev.pelvic,
-                                  }));
-                                }}
-                              >
-                                {expandedRows.pelvic ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedRows.pelvic && (
-                          <tr>
-                            <td colSpan={4} className="p-0">
-                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="pelvic_result"
-                                    className="text-sm font-medium"
-                                  >
-                                    Hasil Pemeriksaan Pelvis
-                                  </Label>
-                                  <Input
-                                    id="pelvic_result"
-                                    placeholder="Inspekulo: portio livide, OUE tertutup..."
-                                    value={formData.pelvic_result}
-                                    onChange={(e) =>
-                                      handleChange(
-                                        "pelvic_result",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={isFormDisabled}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="pelvic_notes"
-                                    className="text-sm font-medium flex items-center gap-2"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Catatan Detail Pelvis
-                                  </Label>
-                                  <Textarea
-                                    id="pelvic_notes"
-                                    placeholder={`Inspekulo: ...\nVaginal Toucher: ...\nKesimpulan: ...`}
-                                    value={formData.pelvic_notes}
-                                    onChange={(e) =>
-                                      handleChange(
-                                        "pelvic_notes",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="min-h-[80px] resize-none font-mono text-sm"
-                                    disabled={isFormDisabled}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-
-                      {/* CTG Row */}
-                      <>
-                        <tr
-                          className={cn(
-                            "border-b transition-colors hover:bg-muted/50",
-                            formData.ctg_performed &&
-                              "bg-blue-50/50 dark:bg-blue-950/10",
-                            formData.ctg_performed &&
-                              "cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/20",
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
                           )}
-                          onClick={() =>
-                            formData.ctg_performed &&
-                            setExpandedRows((prev) => ({
-                              ...prev,
-                              ctg: !prev.ctg,
-                            }))
-                          }
-                        >
-                          <td
-                            className="p-2 align-middle text-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              id="ctg_performed"
-                              checked={formData.ctg_performed}
-                              onCheckedChange={(checked) => {
-                                handleChange(
-                                  "ctg_performed",
-                                  checked as boolean,
-                                );
-                                if (checked) {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ctg: true,
-                                  }));
-                                } else {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ctg: false,
-                                  }));
-                                  handleChange("ctg_result", "");
-                                  handleChange("ctg_interpretation", "");
-                                  handleChange("ctg_notes", "");
-                                }
-                              }}
-                              disabled={isFormDisabled}
-                            />
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div className="flex items-center gap-2">
-                              <Activity
-                                className={cn(
-                                  "h-4 w-4",
-                                  formData.ctg_performed
-                                    ? "text-blue-500"
-                                    : "text-muted-foreground",
-                                )}
-                              />
-                              <div>
-                                <span className="font-medium">CTG</span>
-                                <p className="text-xs text-muted-foreground">
-                                  Cardiotocography (monitoring janin)
-                                </p>
+                        </td>
+                      </tr>
+                      {expandedRows.pelvic && (
+                        <tr className="border-b border-neutral-200 dark:border-neutral-800">
+                          <td colSpan={4} className="p-0">
+                            <div className="px-3.5 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 space-y-3">
+                              <div className="space-y-1.5">
+                                <Label htmlFor="pelvic_result" className="text-xs font-medium">
+                                  Hasil Pemeriksaan Pelvis
+                                </Label>
+                                <Input
+                                  id="pelvic_result"
+                                  placeholder="Inspekulo: portio livide, OUE tertutup..."
+                                  value={formData.pelvic_result}
+                                  onChange={(e) => handleChange("pelvic_result", e.target.value)}
+                                  disabled={isFormDisabled}
+                                  className="bg-white dark:bg-neutral-950"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="pelvic_notes" className="text-xs font-medium flex items-center gap-1.5">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Catatan Detail Pelvis
+                                </Label>
+                                <Textarea
+                                  id="pelvic_notes"
+                                  placeholder={`Inspekulo: ...\nVaginal Toucher: ...\nKesimpulan: ...`}
+                                  value={formData.pelvic_notes}
+                                  onChange={(e) => handleChange("pelvic_notes", e.target.value)}
+                                  className="min-h-[76px] resize-none font-mono text-xs rounded-none bg-white dark:bg-neutral-950"
+                                  disabled={isFormDisabled}
+                                />
                               </div>
                             </div>
                           </td>
-                          <td className="p-4 align-middle">
-                            {formData.ctg_performed ? (
-                              <div className="text-sm">
-                                {formData.ctg_result ||
-                                formData.ctg_interpretation ? (
-                                  <div className="space-y-0.5">
-                                    {formData.ctg_result && (
-                                      <p className="text-muted-foreground line-clamp-1">
-                                        <span className="font-medium">
-                                          Hasil:
-                                        </span>{" "}
-                                        {formData.ctg_result}
-                                      </p>
-                                    )}
-                                    {formData.ctg_interpretation && (
-                                      <p className="text-muted-foreground line-clamp-1">
-                                        <span className="font-medium">
-                                          Interpretasi:
-                                        </span>{" "}
-                                        {formData.ctg_interpretation}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground/50 italic">
-                                    Klik untuk mengisi detail
-                                  </span>
+                        </tr>
+                      )}
+                    </>
+
+                    {/* CTG Row */}
+                    <>
+                      <tr
+                        className={cn(
+                          "border-b border-neutral-200 dark:border-neutral-800 transition-colors hover:bg-muted/40",
+                          formData.ctg_performed &&
+                            "bg-blue-50/40 dark:bg-blue-950/10 cursor-pointer hover:bg-blue-100/40 dark:hover:bg-blue-950/20",
+                        )}
+                        onClick={() =>
+                          formData.ctg_performed &&
+                          setExpandedRows((prev) => ({
+                            ...prev,
+                            ctg: !prev.ctg,
+                          }))
+                        }
+                      >
+                        <td
+                          className="px-2 py-2.5 align-middle text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            id="ctg_performed"
+                            checked={formData.ctg_performed}
+                            onCheckedChange={(checked) => {
+                              handleChange("ctg_performed", checked as boolean);
+                              if (checked) {
+                                setExpandedRows((prev) => ({ ...prev, ctg: true }));
+                              } else {
+                                setExpandedRows((prev) => ({ ...prev, ctg: false }));
+                                handleChange("ctg_result", "");
+                                handleChange("ctg_interpretation", "");
+                                handleChange("ctg_notes", "");
+                              }
+                            }}
+                            disabled={isFormDisabled}
+                            className="rounded-none"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          <div className="flex items-center gap-2">
+                            <Activity
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0",
+                                formData.ctg_performed
+                                  ? "text-blue-500"
+                                  : "text-muted-foreground",
+                              )}
+                            />
+                            <div>
+                              <span className="font-semibold text-foreground">CTG</span>
+                              <p className="text-[11px] text-muted-foreground">
+                                Cardiotocography (monitoring janin)
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 align-middle">
+                          {formData.ctg_performed ? (
+                            formData.ctg_result || formData.ctg_interpretation ? (
+                              <div className="space-y-0.5 text-xs">
+                                {formData.ctg_result && (
+                                  <p className="text-muted-foreground line-clamp-1">
+                                    <span className="font-semibold text-foreground">Hasil:</span>{" "}
+                                    {formData.ctg_result}
+                                  </p>
+                                )}
+                                {formData.ctg_interpretation && (
+                                  <p className="text-muted-foreground line-clamp-1">
+                                    <span className="font-semibold text-foreground">Interpretasi:</span>{" "}
+                                    {formData.ctg_interpretation}
+                                  </p>
                                 )}
                               </div>
                             ) : (
-                              <span className="text-sm text-muted-foreground/50 italic">
-                                Belum dilakukan
+                              <span className="text-xs text-muted-foreground/50 italic">
+                                Klik untuk mengisi detail
                               </span>
-                            )}
-                          </td>
-                          <td className="p-2 align-middle">
-                            {formData.ctg_performed && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    ctg: !prev.ctg,
-                                  }));
-                                }}
-                              >
-                                {expandedRows.ctg ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                        {expandedRows.ctg && (
-                          <tr>
-                            <td colSpan={4} className="p-0">
-                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ctg_result"
-                                    className="text-sm font-medium"
-                                  >
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50 italic">
+                              Belum dilakukan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-middle text-center">
+                          {formData.ctg_performed && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 rounded-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRows((prev) => ({
+                                  ...prev,
+                                  ctg: !prev.ctg,
+                                }));
+                              }}
+                            >
+                              {expandedRows.ctg ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                      {expandedRows.ctg && (
+                        <tr>
+                          <td colSpan={4} className="p-0">
+                            <div className="px-3.5 py-3 bg-neutral-50/60 dark:bg-neutral-900/40 space-y-3 border-t border-neutral-200 dark:border-neutral-800">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="ctg_result" className="text-xs font-medium">
                                     Hasil CTG
                                   </Label>
                                   <Input
                                     id="ctg_result"
                                     placeholder="Baseline FHR: 140 bpm, Variabilitas: moderate..."
                                     value={formData.ctg_result}
-                                    onChange={(e) =>
-                                      handleChange("ctg_result", e.target.value)
-                                    }
+                                    onChange={(e) => handleChange("ctg_result", e.target.value)}
                                     disabled={isFormDisabled}
-                                    className="text-sm"
+                                    className="bg-white dark:bg-neutral-950"
                                   />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ctg_interpretation"
-                                    className="text-sm font-medium"
-                                  >
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="ctg_interpretation" className="text-xs font-medium">
                                     Interpretasi
                                   </Label>
                                   <Input
                                     id="ctg_interpretation"
                                     placeholder="Reaktif / Non-Reaktif"
                                     value={formData.ctg_interpretation}
-                                    onChange={(e) =>
-                                      handleChange(
-                                        "ctg_interpretation",
-                                        e.target.value,
-                                      )
-                                    }
+                                    onChange={(e) => handleChange("ctg_interpretation", e.target.value)}
                                     disabled={isFormDisabled}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor="ctg_notes"
-                                    className="text-sm font-medium flex items-center gap-2"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Catatan Detail CTG
-                                  </Label>
-                                  <Textarea
-                                    id="ctg_notes"
-                                    placeholder={`Baseline FHR: ...\nVariabilitas: ...\nAkselerasi: ...\nDeselerasi: ...\nKontraksi: ...\nKesimpulan: ...`}
-                                    value={formData.ctg_notes}
-                                    onChange={(e) =>
-                                      handleChange("ctg_notes", e.target.value)
-                                    }
-                                    className="min-h-[100px] resize-none font-mono text-sm"
-                                    disabled={isFormDisabled}
+                                    className="bg-white dark:bg-neutral-950"
                                   />
                                 </div>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="p-4 border-t">
-                  <p className="text-xs text-muted-foreground italic">
-                    * Pemeriksaan penunjang lainnya (EEG, USG, dll) akan
-                    ditambahkan kemudian
-                  </p>
-                </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="ctg_notes" className="text-xs font-medium flex items-center gap-1.5">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Catatan Detail CTG
+                                </Label>
+                                <Textarea
+                                  id="ctg_notes"
+                                  placeholder={`Baseline FHR: ...\nVariabilitas: ...\nAkselerasi: ...\nDeselerasi: ...\nKontraksi: ...\nKesimpulan: ...`}
+                                  value={formData.ctg_notes}
+                                  onChange={(e) => handleChange("ctg_notes", e.target.value)}
+                                  className="min-h-[88px] resize-none font-mono text-xs rounded-none bg-white dark:bg-neutral-950"
+                                  disabled={isFormDisabled}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </section>
 
-            {/* Submit Button */}
+            {/* Submit Button (only if not using footerSaveOnly) */}
             {!isFormDisabled && !footerSaveOnly && (
-              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
-                <Button type="submit" className="gap-2 w-full sm:w-auto">
-                  <Save className="h-4 w-4" />
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 px-4 sm:px-5 py-3">
+                <Button type="submit" size="sm" className="h-8 rounded-none text-xs gap-1.5 w-full sm:w-auto">
+                  <Save className="h-3.5 w-3.5" />
                   Simpan Pemeriksaan Fisik
                 </Button>
               </div>

@@ -7,11 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,10 +16,12 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -193,168 +190,190 @@ function NursingCareCollapsibleRow({
   const sikiCount = countNumberedItems(record.nursing_intervention);
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="hover:bg-muted/30">
-        {/* Table Row */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm">
-          <div className="col-span-1">
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
+    <tbody className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
+      <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30 transition-colors align-middle">
+        <td className="px-3 py-2.5 w-10">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-none"
+            onClick={() => setIsOpen((prev) => !prev)}
+          >
+            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </Button>
+        </td>
+        <td className="px-3 py-2.5 whitespace-nowrap">
+          <div className="font-mono font-medium text-foreground">
+            {format(new Date(record.record_date), "dd MMM yyyy", { locale: idLocale })}
           </div>
-          <div className="col-span-2">
-            <div className="flex flex-col">
-              <span className="font-medium">{format(new Date(record.record_date), "dd MMM yyyy", { locale: idLocale })}</span>
-              <span className="text-xs text-muted-foreground">{format(new Date(record.record_date), "HH:mm")}</span>
-            </div>
+          <div className="text-[11px] font-mono text-muted-foreground">
+            {format(new Date(record.record_date), "HH:mm")}
           </div>
-          <div className="col-span-2">
-            {record.shift_type && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                {getShiftTypeLabel(record.shift_type)}
+        </td>
+        <td className="px-3 py-2.5 whitespace-nowrap">
+          {record.shift_type ? (
+            <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/40">
+              {getShiftTypeLabel(record.shift_type)}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </td>
+        <td className="px-3 py-2.5 max-w-[320px]">
+          <p className="text-xs font-medium text-foreground truncate">{getDiagnosisSummary()}</p>
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            {record.nursing_diagnosis_code && (
+              <Badge variant="outline" className="rounded-none h-4 px-1.5 text-[10px] font-mono">
+                {record.nursing_diagnosis_code}
+              </Badge>
+            )}
+            {slkiCount > 0 && (
+              <Badge variant="outline" className="rounded-none h-4 px-1.5 text-[10px] font-mono">
+                SLKI {slkiCount}
+              </Badge>
+            )}
+            {sikiCount > 0 && (
+              <Badge variant="outline" className="rounded-none h-4 px-1.5 text-[10px] font-mono">
+                SIKI {sikiCount}
               </Badge>
             )}
           </div>
-          <div className="col-span-4">
-            <p className="text-xs text-muted-foreground truncate">{getDiagnosisSummary()}</p>
-            <div className="flex items-center gap-1 mt-0.5">
-              {record.nursing_diagnosis_code && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                  {record.nursing_diagnosis_code}
+        </td>
+        <td className="px-3 py-2.5">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1 flex-wrap">
+              {record.problem_status && record.problem_status !== "-" ? (
+                <Badge className={cn("rounded-none text-[10px] h-5 px-1.5", getProblemStatusColor(record.problem_status))}>
+                  {getProblemStatusLabel(record.problem_status)}
                 </Badge>
-              )}
-              {slkiCount > 0 && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                  SLKI {slkiCount}
-                </Badge>
-              )}
-              {sikiCount > 0 && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                  SIKI {sikiCount}
+              ) : null}
+              {record.is_verified && (
+                <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40">
+                  <ShieldCheck className="h-3 w-3" />
                 </Badge>
               )}
             </div>
-          </div>
-          <div className="col-span-2">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1">
-                {record.problem_status && record.problem_status !== "-" ? (
-                  <Badge className={getProblemStatusColor(record.problem_status)}>
-                    {getProblemStatusLabel(record.problem_status)}
-                  </Badge>
-                ) : null}
-                {record.is_verified && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    <ShieldCheck className="h-3 w-3" />
-                  </Badge>
-                )}
-              </div>
-              <div className="text-[10px] text-muted-foreground truncate">
-                {record.created_by && <span>{record.created_by.full_name}</span>}
-                {record.is_verified && record.verified_by && <span className="ml-1">• {record.verified_by.full_name}</span>}
-              </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {record.created_by && <span>{record.created_by.full_name}</span>}
+              {record.is_verified && record.verified_by && <span className="ml-1">• {record.verified_by.full_name}</span>}
             </div>
           </div>
-          <div className="col-span-1 flex items-center gap-1">
+        </td>
+        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1">
             {canVerify && !record.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => onVerify(record.id)}>
-                <CheckCircle className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none text-emerald-600 hover:bg-emerald-50" title="Verifikasi" onClick={() => onVerify(record.id)}>
+                <CheckCircle className="h-3.5 w-3.5" />
               </Button>
             )}
             {canEdit && !record.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(record)}>
-                <Pencil className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Edit" onClick={() => onEdit(record)}>
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
             )}
             {canDelete && !record.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(record.id)}>
-                <Trash2 className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none text-destructive hover:bg-destructive/10" title="Hapus" onClick={() => onDelete(record.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
             {onSetCreatedBy && staffOptions && staffOptions.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
-                <User className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
+                <User className="h-3.5 w-3.5" />
               </Button>
             )}
             {onSetApprovedBy && staffOptions && staffOptions.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Approval" onClick={() => openStaffModal("approval")}>
-                <UserCheck className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Set Approval" onClick={() => openStaffModal("approval")}>
+                <UserCheck className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
-        </div>
 
-        {/* Staff Picker Modal */}
-        <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>
-                {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Cari nama..."
-                value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
-              {filteredStaff.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Tidak ada hasil</p>
-              ) : (
-                filteredStaff.map((s) => (
-                  <button
-                    key={s.id}
-                    className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
-                    onClick={() => handlePickStaff(s.name)}
-                  >
-                    {s.name}
-                  </button>
-                ))
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStaffModalOpen(false)}>Batal</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+            <DialogContent className="max-w-sm rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+              <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-row items-center gap-2.5 space-y-0 text-left">
+                <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                  {staffModalMode === "pembuat" ? <User className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                </div>
+                <div>
+                  <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                    {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs mt-0.5">
+                    Pilih perawat atau petugas penanggung jawab asuhan ini.
+                  </DialogDescription>
+                </div>
+              </DialogHeader>
+              <div className="p-4 space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8 h-9 text-xs rounded-none"
+                    placeholder="Cari nama..."
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
+                  {filteredStaff.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-muted-foreground">Tidak ada hasil</p>
+                  ) : (
+                    filteredStaff.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition-colors"
+                        onClick={() => handlePickStaff(s.name)}
+                      >
+                        {s.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40">
+                <Button type="button" variant="outline" size="sm" className="h-8 rounded-none text-xs" onClick={() => setStaffModalOpen(false)}>
+                  Batal
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </td>
+      </tr>
 
-        {/* Expanded Content */}
-        <CollapsibleContent>
-          <div className="px-4 pb-4 pt-0 ml-8 mr-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm">
-              <div className="bg-blue-50/40 border border-blue-100 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold flex items-center gap-1.5 text-blue-900">
-                    <FileText className="h-3.5 w-3.5" /> SDKI
+      {isOpen && (
+        <tr className="bg-neutral-50/30 dark:bg-neutral-900/20">
+          <td colSpan={6} className="px-4 pb-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 text-xs">
+              <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-blue-600 bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" /> SDKI
                   </p>
                   {record.nursing_diagnosis_code && (
-                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-800">
+                    <Badge variant="outline" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
                       {record.nursing_diagnosis_code}
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs font-medium text-blue-900 mb-1">Diagnosis Keperawatan</p>
-                <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-blue-950/90">
-                  {record.nursing_diagnosis || "-"}
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Diagnosis Keperawatan</p>
+                  <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-foreground">
+                    {record.nursing_diagnosis || "-"}
+                  </div>
                 </div>
                 {record.problem_etiology && (
-                  <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
-                    <p className="text-[11px] font-medium text-blue-800 mb-1">Etiologi</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Etiologi</p>
                     <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                       {record.problem_etiology}
                     </div>
                   </div>
                 )}
                 {record.signs_symptoms && (
-                  <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
-                    <p className="text-[11px] font-medium text-blue-800 mb-1">Tanda dan Gejala</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Tanda dan Gejala</p>
                     <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                       {record.signs_symptoms}
                     </div>
@@ -362,128 +381,127 @@ function NursingCareCollapsibleRow({
                 )}
               </div>
 
-              <div className="bg-emerald-50/40 border border-emerald-100 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold flex items-center gap-1.5 text-emerald-900">
-                    <Target className="h-3.5 w-3.5" /> SLKI
+              <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-emerald-600 bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                    <Target className="h-3.5 w-3.5 text-emerald-600" /> SLKI
                   </p>
-                  <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-800">
+                  <Badge variant="outline" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
                     Item {slkiCount || 0}
                   </Badge>
                 </div>
-                <p className="text-xs font-medium text-emerald-900 mb-1">Luaran Keperawatan</p>
-                <div className="max-h-[230px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-emerald-950/90">
-                  {record.nursing_outcome || "-"}
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Luaran Keperawatan</p>
+                  <div className="max-h-[220px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-foreground">
+                    {record.nursing_outcome || "-"}
+                  </div>
                 </div>
                 {record.outcome_target && (
-                  <div className="mt-2 rounded-md border border-emerald-100 bg-white p-2 text-xs text-muted-foreground">
-                    <strong>Target:</strong> {record.outcome_target}
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2 text-xs text-muted-foreground">
+                    <strong className="text-foreground">Target:</strong> {record.outcome_target}
                   </div>
                 )}
               </div>
 
-              <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold flex items-center gap-1.5 text-amber-900">
-                    <ClipboardList className="h-3.5 w-3.5" /> SIKI
+              <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-amber-600 bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-foreground">
+                    <ClipboardList className="h-3.5 w-3.5 text-amber-600" /> SIKI
                   </p>
-                  <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-800">
+                  <Badge variant="outline" className="rounded-none text-[10px] h-4 px-1.5 font-mono">
                     Item {sikiCount || 0}
                   </Badge>
                 </div>
-                <p className="text-xs font-medium text-amber-900 mb-1">Intervensi Keperawatan</p>
-                <div className="max-h-[260px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-amber-950/90">
-                  {record.nursing_intervention || "-"}
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Intervensi Keperawatan</p>
+                  <div className="max-h-[250px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-foreground">
+                    {record.nursing_intervention || "-"}
+                  </div>
                 </div>
               </div>
 
-              {/* Implementasi */}
               {record.implementation && (
-                <div className="bg-muted/50 border rounded-lg p-3 lg:col-span-3">
-                  <p className="font-medium mb-1 flex items-center gap-1">
-                    <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" /> Implementasi
+                <div className="border border-neutral-200 dark:border-neutral-800 bg-background p-3 lg:col-span-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
+                    <Stethoscope className="h-3.5 w-3.5" /> Implementasi
                   </p>
-                  <p className="whitespace-pre-wrap">{record.implementation}</p>
+                  <p className="whitespace-pre-wrap text-foreground leading-relaxed">{record.implementation}</p>
                   {record.patient_response && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <strong>Respon:</strong> {record.patient_response}
+                    <p className="text-xs text-muted-foreground mt-1.5 pt-1.5 border-t border-neutral-200 dark:border-neutral-800">
+                      <strong className="text-foreground">Respon:</strong> {record.patient_response}
                     </p>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Evaluasi SOAP */}
             {(record.evaluation_subjective || record.evaluation_objective || record.evaluation_analysis || record.evaluation_planning) && (
-              <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                 {record.evaluation_subjective && (
-                  <div className="bg-muted/50 border rounded p-2">
-                    <span className="font-medium">S:</span>
-                    <p>{record.evaluation_subjective}</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-background p-2.5">
+                    <span className="font-bold font-mono text-[11px] text-muted-foreground">S:</span>
+                    <p className="mt-0.5">{record.evaluation_subjective}</p>
                   </div>
                 )}
                 {record.evaluation_objective && (
-                  <div className="bg-muted/50 border rounded p-2">
-                    <span className="font-medium">O:</span>
-                    <p>{record.evaluation_objective}</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-background p-2.5">
+                    <span className="font-bold font-mono text-[11px] text-muted-foreground">O:</span>
+                    <p className="mt-0.5">{record.evaluation_objective}</p>
                   </div>
                 )}
                 {record.evaluation_analysis && (
-                  <div className="bg-muted/50 border rounded p-2">
-                    <span className="font-medium">A:</span>
-                    <p>{record.evaluation_analysis}</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-background p-2.5">
+                    <span className="font-bold font-mono text-[11px] text-muted-foreground">A:</span>
+                    <p className="mt-0.5">{record.evaluation_analysis}</p>
                   </div>
                 )}
                 {record.evaluation_planning && (
-                  <div className="bg-muted/50 border rounded p-2">
-                    <span className="font-medium">P:</span>
-                    <p>{record.evaluation_planning}</p>
+                  <div className="border border-neutral-200 dark:border-neutral-800 bg-background p-2.5">
+                    <span className="font-bold font-mono text-[11px] text-muted-foreground">P:</span>
+                    <p className="mt-0.5">{record.evaluation_planning}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Vital Signs */}
-            {(record.blood_pressure || record.heart_rate || record.temperature) && (
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {(record.blood_pressure || record.heart_rate || record.temperature || record.oxygen_saturation || record.pain_scale) && (
+              <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
                 {record.blood_pressure && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Activity className="h-3 w-3" /> TD: {record.blood_pressure} mmHg
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Activity className="h-3 w-3 text-muted-foreground" /> TD: {record.blood_pressure} mmHg
                   </span>
                 )}
                 {record.heart_rate ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Heart className="h-3 w-3" /> HR: {record.heart_rate} x/mnt
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Heart className="h-3 w-3 text-muted-foreground" /> HR: {record.heart_rate} x/mnt
                   </span>
                 ) : null}
                 {record.temperature && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Thermometer className="h-3 w-3" /> T: {record.temperature}°C
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Thermometer className="h-3 w-3 text-muted-foreground" /> T: {record.temperature}°C
                   </span>
                 )}
                 {record.oxygen_saturation ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
                     SpO2: {record.oxygen_saturation}%
                   </span>
                 ) : null}
                 {record.pain_scale ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
                     Nyeri: {record.pain_scale}/10
                   </span>
                 ) : null}
               </div>
             )}
 
-            {/* Notes */}
             {record.notes && (
-              <div className="mt-3 p-2 bg-muted rounded text-sm">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Catatan:</p>
-                <p>{record.notes}</p>
+              <div className="p-2.5 border border-neutral-200 dark:border-neutral-800 bg-background text-xs">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Catatan: </span>
+                <span className="text-foreground">{record.notes}</span>
               </div>
             )}
 
-            {/* Footer */}
-            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
               {record.created_by && (
                 <span className="flex items-center gap-1">
                   <User className="h-3 w-3" />
@@ -491,16 +509,16 @@ function NursingCareCollapsibleRow({
                 </span>
               )}
               {record.is_verified && record.verified_by && (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                   <ShieldCheck className="h-3 w-3" />
                   Diverifikasi: {record.verified_by.full_name}
                 </span>
               )}
             </div>
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
@@ -842,98 +860,123 @@ export function NursingCareForm({
 
   if (loading) {
     return (
-      <div>
-        <div className="p-4">
-          <div className="flex items-center justify-center py-8 gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-muted-foreground">Memuat data...</span>
-          </div>
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <>
-      <div>
-        <div className="space-y-3">
-          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <div className="flex items-center justify-between">
-                <span>Asuhan Keperawatan</span>
-                {canCreate && !readOnly && (
-                  <Button onClick={handleOpenCreate} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            {records.length > 0 ? (
-              <div className="overflow-x-auto">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
-                  <div className="col-span-1"></div>
-                  <div className="col-span-2">Tanggal/Waktu</div>
-                  <div className="col-span-2">Shift</div>
-                  <div className="col-span-4">Diagnosis Keperawatan</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-1">Aksi</div>
-                </div>
-                <div className="divide-y">
-                  {records.map((record) => (
-                    <NursingCareCollapsibleRow
-                      key={record.id}
-                      record={record}
-                      canVerify={canVerify}
-                      canEdit={canEdit}
-                      canDelete={canDelete}
-                      onVerify={handleVerify}
-                      onEdit={handleOpenEdit}
-                      onDelete={(id) => {
-                        setRecordToDelete(id);
-                        setDeleteDialogOpen(true);
-                      }}
-                      staffOptions={staffOptions}
-                      onSetCreatedBy={onSetCreatedBy}
-                      onSetApprovedBy={onSetApprovedBy}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                <HeartPulse className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="font-medium">Belum ada catatan asuhan keperawatan</p>
-                <p className="text-sm mt-1">
-                  {readOnly
-                    ? "Belum ada catatan asuhan keperawatan pada RM duplikat."
-                    : 'Klik "Tambah Asuhan" untuk menambahkan asuhan baru.'}
-                </p>
-              </div>
-            )}
-          </div>
-          </div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+      {/* Header Section */}
+      <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            Asuhan Keperawatan
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Dokumentasi diagnosis (SDKI), luaran (SLKI), dan intervensi keperawatan (SIKI).
+          </p>
         </div>
 
-      {/* Create/Edit Modal - Fullscreen Monolithic, No Scroll */}
+        <div className="flex items-center gap-2">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
+            {records.length} catatan
+          </span>
+          {canCreate && !readOnly && (
+            <Button
+              type="button"
+              onClick={handleOpenCreate}
+              className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Tambah Asuhan
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Table / Empty Section */}
+      <div className="p-4 sm:p-5">
+        {records.length > 0 ? (
+          <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-neutral-50 dark:bg-neutral-900 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
+                  <th className="w-10 px-3 py-2 text-left"></th>
+                  <th className="px-3 py-2 text-left">Tanggal/Waktu</th>
+                  <th className="px-3 py-2 text-left">Shift</th>
+                  <th className="px-3 py-2 text-left">Diagnosis Keperawatan</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="w-28 px-3 py-2 text-right">Aksi</th>
+                </tr>
+              </thead>
+              {records.map((record) => (
+                <NursingCareCollapsibleRow
+                  key={record.id}
+                  record={record}
+                  canVerify={canVerify}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  onVerify={handleVerify}
+                  onEdit={handleOpenEdit}
+                  onDelete={(id) => {
+                    setRecordToDelete(id);
+                    setDeleteDialogOpen(true);
+                  }}
+                  staffOptions={staffOptions}
+                  onSetCreatedBy={onSetCreatedBy}
+                  onSetApprovedBy={onSetApprovedBy}
+                />
+              ))}
+            </table>
+          </div>
+        ) : (
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <HeartPulse className="h-4 w-4 opacity-60 shrink-0" />
+            <span>
+              {readOnly
+                ? "Belum ada catatan asuhan keperawatan pada RM duplikat."
+                : "Belum ada catatan asuhan keperawatan — klik Tambah Asuhan untuk mulai mencatat."}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Create/Edit Modal - Fullscreen Monolithic */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
-          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
-              <HeartPulse className="h-4 w-4" />
-              {editingId ? "Edit Asuhan Keperawatan" : "Tambah Asuhan Keperawatan Baru"}
-            </DialogTitle>
-            <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-6 w-6 rounded-none text-muted-foreground hover:bg-muted/50">
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !gap-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 sm:px-5 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0 flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-2.5 text-left">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <HeartPulse className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  {editingId ? "Edit Asuhan Keperawatan" : "Tambah Asuhan Keperawatan Baru"}
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Pilih diagnosis master SDKI untuk mengisi referensi luaran (SLKI) & intervensi (SIKI) secara otomatis.
+                </DialogDescription>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsModalOpen(false)}
+              className="h-8 w-8 rounded-none text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900"
+            >
               <X className="h-4 w-4" />
             </Button>
           </DialogHeader>
 
-          <div className="flex-1 flex flex-col overflow-y-auto px-4 py-3 gap-3">
-            <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex-1 flex flex-col overflow-hidden gap-3">
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex-1 flex flex-col overflow-hidden gap-0 divide-y divide-neutral-200 dark:divide-neutral-800">
               {/* Top Section: Master Selection */}
-              <div className="shrink-0 flex items-center gap-4 bg-muted/10 border border-border/70 p-2">
-                <Label className="whitespace-nowrap text-xs">Pilih SDKI dari Master:</Label>
-                <div className="w-[320px] sm:w-[420px]">
+              <div className="shrink-0 flex flex-wrap items-center gap-3 bg-neutral-50/40 dark:bg-neutral-900/20 px-4 py-2.5">
+                <Label className="whitespace-nowrap text-xs font-medium">Pilih SDKI dari Master:</Label>
+                <div className="w-full sm:w-[380px] [&_[role=combobox]]:h-9 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:text-xs">
                   <Combobox
                     options={nursingMasterOptions}
                     value={currentMasterCode || ""}
@@ -941,57 +984,57 @@ export function NursingCareForm({
                     placeholder="Pilih diagnosis SDKI..."
                     searchPlaceholder="Cari kode atau nama (mis. D.0001, napas)..."
                     emptyText="Diagnosis tidak ditemukan."
-                    className="h-8 text-xs rounded-none border-border/70 bg-background"
+                    className="w-full"
                   />
                 </div>
                 {selectedMasterItem && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-auto">
-                    <Badge variant="outline" className="rounded-none font-normal text-[10px] border-border/70">
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground sm:ml-auto">
+                    <Badge variant="outline" className="rounded-none font-mono text-[10px] h-5 px-1.5">
                       SLKI: {(selectedMasterItem.slki?.luaran_utama || []).length} / {(selectedMasterItem.slki?.luaran_tambahan || []).length}
                     </Badge>
-                    <Badge variant="outline" className="rounded-none font-normal text-[10px] border-border/70">
+                    <Badge variant="outline" className="rounded-none font-mono text-[10px] h-5 px-1.5">
                       SIKI: {(selectedMasterItem.siki?.intervensi_utama || []).length} / {(selectedMasterItem.siki?.intervensi_pendukung || []).length}
                     </Badge>
                   </div>
                 )}
               </div>
 
-              <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col gap-3 min-h-0">
+              <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col gap-0 divide-y divide-neutral-200 dark:divide-neutral-800 min-h-0">
                 {/* Info Row */}
-                <div className="grid grid-cols-3 gap-3 shrink-0">
-                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
-                    <Label className="text-[10px] uppercase text-muted-foreground w-20">Waktu</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0 px-4 py-3 bg-background">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Waktu</Label>
                     <Input
                       type="datetime-local"
                       value={formData.record_date}
                       onChange={(e) => handleChange("record_date", e.target.value)}
-                      className="h-7 text-[10px] rounded-none border-border/70 w-full"
+                      className="h-9 text-xs rounded-none"
                     />
                   </div>
-                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
-                    <Label className="text-[10px] uppercase text-muted-foreground w-12">Shift</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Shift</Label>
                     <Select value={formData.shift_type} onValueChange={(v) => handleChange("shift_type", v)}>
-                      <SelectTrigger className="h-7 text-[10px] rounded-none border-border/70 w-full">
-                        <SelectValue placeholder="Shift" />
+                      <SelectTrigger className="h-9 text-xs rounded-none">
+                        <SelectValue placeholder="Pilih shift" />
                       </SelectTrigger>
                       <SelectContent className="rounded-none">
                         {SHIFT_TYPES.map((s) => (
-                          <SelectItem key={s.value} value={s.value} className="text-[10px]">
+                          <SelectItem key={s.value} value={s.value} className="text-xs">
                             {s.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
-                    <Label className="text-[10px] uppercase text-muted-foreground w-20">Status</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Status Masalah</Label>
                     <Select value={formData.problem_status} onValueChange={(v) => handleChange("problem_status", v)}>
-                      <SelectTrigger className="h-7 text-[10px] rounded-none border-border/70 w-full">
-                        <SelectValue placeholder="Status" />
+                      <SelectTrigger className="h-9 text-xs rounded-none">
+                        <SelectValue placeholder="Pilih status" />
                       </SelectTrigger>
                       <SelectContent className="rounded-none">
                         {PROBLEM_STATUS.map((s) => (
-                          <SelectItem key={s.value} value={s.value} className="text-[10px]">
+                          <SelectItem key={s.value} value={s.value} className="text-xs">
                             {s.label}
                           </SelectItem>
                         ))}
@@ -1000,68 +1043,74 @@ export function NursingCareForm({
                   </div>
                 </div>
 
-                {/* 3 Columns Layout for Data */}
-                <div className="flex-1 grid grid-cols-3 gap-3 min-h-0">
+                {/* 3 Columns Flat Split (no card inside card) */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 lg:divide-x divide-y lg:divide-y-0 divide-neutral-200 dark:divide-neutral-800 min-h-0">
                   {/* Column 1: SDKI */}
-                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
-                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between shrink-0">
-                      <span>SDKI (Diagnosis)</span>
-                      <span className="font-mono text-primary bg-primary/10 px-1">{formData.nursing_diagnosis_code || "D.----"}</span>
+                  <div className="flex flex-col bg-background overflow-hidden">
+                    <div className="bg-neutral-50 dark:bg-neutral-900 px-4 h-9 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0">
+                      <span className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                        SDKI (Diagnosis)
+                      </span>
+                      <span className="font-mono text-[11px] border border-neutral-200 dark:border-neutral-700 bg-background px-1.5 py-0.5 leading-none">
+                        {formData.nursing_diagnosis_code || "D.----"}
+                      </span>
                     </div>
-                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
-                      <div className="flex flex-col shrink-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1">Diagnosis</Label>
+                    <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
+                      <div className="flex flex-col shrink-0 space-y-1">
+                        <Label className="text-xs font-medium">Diagnosis</Label>
                         <Textarea
                           value={formData.nursing_diagnosis}
                           onChange={(e) => handleChange("nursing_diagnosis", e.target.value)}
-                          className="h-16 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="h-16 text-xs rounded-none resize-none"
                         />
                       </div>
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Etiologi (Penyebab)</Label>
+                      <div className="flex-1 flex flex-col min-h-0 space-y-1">
+                        <Label className="text-xs font-medium shrink-0">Etiologi (Penyebab)</Label>
                         <Textarea
                           value={formData.problem_etiology}
                           onChange={(e) => handleChange("problem_etiology", e.target.value)}
-                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="flex-1 text-xs rounded-none resize-none"
                         />
                       </div>
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Tanda & Gejala</Label>
+                      <div className="flex-1 flex flex-col min-h-0 space-y-1">
+                        <Label className="text-xs font-medium shrink-0">Tanda & Gejala</Label>
                         <Textarea
                           value={formData.signs_symptoms}
                           onChange={(e) => handleChange("signs_symptoms", e.target.value)}
-                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="flex-1 text-xs rounded-none resize-none"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Column 2: SLKI & Notes */}
-                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
-                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
-                      SLKI (Luaran)
+                  <div className="flex flex-col bg-background overflow-hidden">
+                    <div className="bg-neutral-50 dark:bg-neutral-900 px-4 h-9 border-b border-neutral-200 dark:border-neutral-800 flex items-center shrink-0">
+                      <span className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                        SLKI (Luaran)
+                      </span>
                     </div>
-                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
-                      <div className="flex flex-col shrink-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1">Luaran Keperawatan</Label>
+                    <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
+                      <div className="flex flex-col shrink-0 space-y-1">
+                        <Label className="text-xs font-medium">Luaran Keperawatan</Label>
                         <Textarea
                           value={formData.nursing_outcome}
                           onChange={(e) => handleChange("nursing_outcome", e.target.value)}
-                          className="h-16 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="h-16 text-xs rounded-none resize-none"
                         />
                       </div>
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Indikator Luaran</Label>
+                      <div className="flex-1 flex flex-col min-h-0 space-y-1">
+                        <Label className="text-xs font-medium shrink-0">Indikator Luaran</Label>
                         <Textarea
                           value={formData.outcome_indicators}
                           onChange={(e) => handleChange("outcome_indicators", e.target.value)}
-                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="flex-1 text-xs rounded-none resize-none"
                         />
                       </div>
-                      <div className="flex flex-col shrink-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1">Target Pencapaian</Label>
+                      <div className="flex flex-col shrink-0 space-y-1">
+                        <Label className="text-xs font-medium">Target Pencapaian</Label>
                         <Select value={formData.outcome_target} onValueChange={(v) => handleChange("outcome_target", v)}>
-                          <SelectTrigger className="h-7 text-xs rounded-none border-border/70">
+                          <SelectTrigger className="h-9 text-xs rounded-none">
                             <SelectValue placeholder="Pilih target..." />
                           </SelectTrigger>
                           <SelectContent className="rounded-none">
@@ -1073,66 +1122,67 @@ export function NursingCareForm({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex flex-col shrink-0 mt-2">
-                        <div className="flex items-center gap-1 mb-1">
-                          <Label className="text-[10px] text-muted-foreground font-bold uppercase">Catatan</Label>
-                        </div>
+                      <div className="flex flex-col shrink-0 space-y-1">
+                        <Label className="text-xs font-medium">Catatan</Label>
                         <Textarea
                           value={formData.notes}
                           onChange={(e) => handleChange("notes", e.target.value)}
-                          className="h-12 text-xs rounded-none border-border/70 resize-none bg-muted/10 focus-visible:bg-background"
+                          className="h-14 text-xs rounded-none resize-none"
+                          placeholder="Catatan tambahan (opsional)..."
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Column 3: SIKI */}
-                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
-                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
-                      SIKI (Intervensi)
+                  <div className="flex flex-col bg-background overflow-hidden">
+                    <div className="bg-neutral-50 dark:bg-neutral-900 px-4 h-9 border-b border-neutral-200 dark:border-neutral-800 flex items-center shrink-0">
+                      <span className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                        SIKI (Intervensi)
+                      </span>
                     </div>
-                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Intervensi Utama / Pendukung</Label>
+                    <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
+                      <div className="flex-1 flex flex-col min-h-0 space-y-1">
+                        <Label className="text-xs font-medium shrink-0">Intervensi Utama / Pendukung</Label>
                         <Textarea
                           value={formData.nursing_intervention}
                           onChange={(e) => handleChange("nursing_intervention", e.target.value)}
-                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          className="flex-1 text-xs rounded-none resize-none"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
-                        <div className="flex flex-col min-h-0">
-                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Observasi</Label>
+                      <div className="grid grid-cols-2 gap-2.5 flex-1 min-h-0">
+                        <div className="flex flex-col min-h-0 space-y-1">
+                          <Label className="text-xs font-medium shrink-0">Observasi</Label>
                           <Textarea
                             value={formData.observation_actions}
                             onChange={(e) => handleChange("observation_actions", e.target.value)}
-                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                            className="flex-1 text-xs rounded-none resize-none"
                           />
                         </div>
-                        <div className="flex flex-col min-h-0">
-                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Terapeutik</Label>
+                        <div className="flex flex-col min-h-0 space-y-1">
+                          <Label className="text-xs font-medium shrink-0">Terapeutik</Label>
                           <Textarea
                             value={formData.therapeutic_actions}
                             onChange={(e) => handleChange("therapeutic_actions", e.target.value)}
-                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                            className="flex-1 text-xs rounded-none resize-none"
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
-                        <div className="flex flex-col min-h-0">
-                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Edukasi</Label>
+                      <div className="grid grid-cols-2 gap-2.5 flex-1 min-h-0">
+                        <div className="flex flex-col min-h-0 space-y-1">
+                          <Label className="text-xs font-medium shrink-0">Edukasi</Label>
                           <Textarea
                             value={formData.education_actions}
                             onChange={(e) => handleChange("education_actions", e.target.value)}
-                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                            className="flex-1 text-xs rounded-none resize-none"
                           />
                         </div>
-                        <div className="flex flex-col min-h-0">
-                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Kolaborasi</Label>
+                        <div className="flex flex-col min-h-0 space-y-1">
+                          <Label className="text-xs font-medium shrink-0">Kolaborasi</Label>
                           <Textarea
                             value={formData.collaboration_actions}
                             onChange={(e) => handleChange("collaboration_actions", e.target.value)}
-                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                            className="flex-1 text-xs rounded-none resize-none"
                           />
                         </div>
                       </div>
@@ -1143,14 +1193,20 @@ export function NursingCareForm({
             </Tabs>
           </div>
 
-          <DialogFooter className="px-4 py-3 border-t bg-muted/30 shrink-0">
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="rounded-none text-xs">
+          <DialogFooter className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="h-8 rounded-none text-xs px-4">
               Batal
             </Button>
-            <Button onClick={handleSave} disabled={saving} size="sm" className="rounded-none text-xs">
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              size="sm"
+              className="h-8 rounded-none text-xs px-4 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
               {saving ? (
                 <>
-                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   Menyimpan...
                 </>
               ) : (
@@ -1161,26 +1217,28 @@ export function NursingCareForm({
         </DialogContent>
       </Dialog>
 
-        {/* Delete Confirmation */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Hapus Asuhan Keperawatan?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Data asuhan keperawatan ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Batal</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDelete}
-              >
-                Hapus
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-    </>
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-none border-neutral-200 dark:border-neutral-800">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Hapus Asuhan Keperawatan?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Data asuhan keperawatan ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 rounded-none text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 rounded-none text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDelete}
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

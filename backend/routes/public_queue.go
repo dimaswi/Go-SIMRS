@@ -24,6 +24,8 @@ func SetupPublicQueueRoutes(r *gin.Engine) {
 		public.GET("/room-queues", handlers.GetRoomQueues)
 		public.GET("/rooms", handlers.GetRooms)
 		public.GET("/rooms/:id/staff", handlers.GetRoomStaff)
+		public.GET("/bed-monitoring", handlers.PublicGetBedMonitoring)
+		public.GET("/bed-monitoring/:id", handlers.PublicGetBedMonitoring)
 		public.GET("/schedules/available-doctors", handlers.GetAvailableDoctorsByDate)
 	}
 }

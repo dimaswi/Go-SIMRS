@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -1169,237 +1167,328 @@ export function DispositionForm({
 
   if (loading) {
     return (
-      <div>
-        <div className="p-6 flex items-center justify-center min-h-[300px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
     <>
-      <div>
-        <div className="space-y-3">
-          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Pengaturan Disposisi
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+        {/* Header Strip */}
+        <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Pasien Pulang & Disposisi
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Atur status pemulangan pasien, tindak lanjut kontrol, rujukan, atau rawat inap.
+            </p>
+          </div>
+          {!useExternalData && (
+            <span
+              className={cn(
+                "border px-2.5 py-1 text-[11px] font-mono",
+                isDisabled
+                  ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300"
+                  : "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-muted-foreground"
+              )}
+            >
+              {isDisabled ? "Sudah Dipulangkan" : `${dispositionOptions.length} opsi disposisi`}
+            </span>
+          )}
+        </div>
+
+        {/* Pending Orders Warning */}
+        {!useExternalData && pendingOrdersInfo?.has_pending_orders && (
+          <div className="p-4 sm:p-5">
+            <div className="border-l-4 border-destructive bg-destructive/5 border border-destructive/30 px-4 py-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2 font-semibold text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Perhatian: Ada Order yang Belum Selesai</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-destructive/90 pl-1">
+                {pendingOrdersInfo.pending_medicine_orders > 0 && (
+                  <li>{pendingOrdersInfo.pending_medicine_orders} order obat belum diserahkan</li>
+                )}
+                {pendingOrdersInfo.pending_procedure_orders > 0 && (
+                  <li>{pendingOrdersInfo.pending_procedure_orders} order tindakan belum selesai</li>
+                )}
+                {pendingOrdersInfo.pending_pharmacy_visits > 0 && (
+                  <li>{pendingOrdersInfo.pending_pharmacy_visits} kunjungan farmasi belum selesai</li>
+                )}
+              </ul>
+              <p className="text-[11px] text-destructive/80">
+                Pasien tidak dapat dipulangkan sampai semua order diselesaikan atau dibatalkan.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Saved Disposition Summary */}
+        {!useExternalData && isDisabled && (
+          <div className="p-4 sm:p-5 space-y-4">
+            <div className="border-l-4 border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-4 py-3 flex items-center gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Pasien Sudah Dipulangkan</span>
             </div>
 
-            <div className="p-4">
-              {/* Pending Orders Warning */}
-              {!useExternalData && pendingOrdersInfo?.has_pending_orders && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Perhatian: Ada Order yang Belum Selesai</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc list-inside mt-2">
-                      {pendingOrdersInfo.pending_medicine_orders > 0 && (
-                        <li>{pendingOrdersInfo.pending_medicine_orders} order obat belum diserahkan</li>
-                      )}
-                      {pendingOrdersInfo.pending_procedure_orders > 0 && (
-                        <li>{pendingOrdersInfo.pending_procedure_orders} order tindakan belum selesai</li>
-                      )}
-                      {pendingOrdersInfo.pending_pharmacy_visits > 0 && (
-                        <li>{pendingOrdersInfo.pending_pharmacy_visits} kunjungan farmasi belum selesai</li>
-                      )}
-                    </ul>
-                    <p className="mt-2 text-sm">
-                      Pasien tidak dapat dipulangkan sampai semua order diselesaikan atau dibatalkan.
+            <div className="border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+              <div className="p-3.5 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[11px] font-medium text-muted-foreground">Status Disposisi</span>
+                  <p className="text-xs font-semibold text-foreground mt-0.5">
+                    {dispositionOptions.find((o) => o.value === formData.disposition_type)?.label ||
+                      formData.disposition_type ||
+                      "-"}
+                  </p>
+                </div>
+                {formData.discharge_condition && (
+                  <div>
+                    <span className="text-[11px] font-medium text-muted-foreground">Kondisi Pulang</span>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">
+                      {formData.discharge_condition}
                     </p>
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Alert when form is already saved */}
-              {!useExternalData && isDisabled && (
-                <Alert className="mb-4 bg-green-50 border-green-200">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-700">Pasien Sudah Dipulangkan</AlertTitle>
-                  <AlertDescription className="text-green-600">
-                    <div className="mt-2 p-3 bg-white rounded-lg border space-y-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-xs text-muted-foreground">Status Disposisi</span>
-                          <p className="font-medium">{dispositionOptions.find(o => o.value === formData.disposition_type)?.label || formData.disposition_type || "-"}</p>
-                        </div>
-                        {formData.discharge_condition && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Kondisi Pulang</span>
-                            <p className="font-medium">{formData.discharge_condition}</p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Surat Kontrol */}
-                      {suratKontrolResult && (
-                        <div className="pt-2 border-t flex justify-between items-center">
-                          <div>
-                            <span className="text-xs text-muted-foreground">
-                              Surat Kontrol {(!suratKontrolResult.noSuratKontrol?.includes("LOCAL") && !suratKontrolResult.noSuratKontrol?.startsWith("SK-") && suratKontrolResult.noSuratKontrol?.length >= 18) ? "BPJS" : "Umum"}
-                            </span>
-                            <p className="font-medium">{suratKontrolResult.noSuratKontrol}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            {suratKontrolResult.id && (
-                              <>
-                                <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
-                                  setSignDoc({ id: suratKontrolResult.id!, type: "surat_kontrol", title: suratKontrolResult.noSuratKontrol });
-                                  setShowSignDialog(true);
-                                }} title="Tanda Tangan">
-                                  <PenTool className="h-3.5 w-3.5 mr-1" />
-                                  TTD
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => printApi.suratKontrol(suratKontrolResult.id!)} title="Cetak Surat Kontrol">
-                                  <Printer className="h-3.5 w-3.5 mr-1" />
-                                  Cetak
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* SPRI */}
-                      {spriResult && (
-                        <div className="pt-2 border-t flex justify-between items-center">
-                          <div>
-                            <span className="text-xs text-muted-foreground">SPRI (Surat Perintah Rawat Inap)</span>
-                            <p className="font-medium">{spriResult.noSPRI}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Tanggal Rencana: {spriResult.tglRencanaKontrol}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            {spriResult.id && (
-                              <>
-                                <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
-                                  setSignDoc({ id: spriResult.id!, type: "spri", title: spriResult.noSPRI });
-                                  setShowSignDialog(true);
-                                }} title="Tanda Tangan">
-                                  <PenTool className="h-3.5 w-3.5 mr-1" />
-                                  TTD
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => printApi.spri(spriResult.id!)} title="Cetak SPRI">
-                                  <Printer className="h-3.5 w-3.5 mr-1" />
-                                  Cetak
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Surat Kontrol Umum / Jadwal SIMRS */}
-                      {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
-                        <div className="pt-2 border-t flex justify-between items-center">
-                          <div>
-                            <span className="text-xs text-muted-foreground">Surat Kontrol Umum (SIMRS)</span>
-                            <p className="font-medium text-green-700">✓ Sudah dibuat</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="h-8 text-purple-700 border-purple-200 bg-purple-50 hover:bg-purple-100" onClick={() => {
-                              const regId = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
-                              if (regId) {
-                                setSignDoc({ id: regId, type: "surat_kontrol", title: "Kontrol SIMRS" });
-                                setShowSignDialog(true);
-                              }
-                            }} title="Tanda Tangan">
-                              <PenTool className="h-3.5 w-3.5 mr-1" />
-                              TTD
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-8 text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100" onClick={() => {
-                              const regId = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
-                              if (regId) printApi.suratKontrolSimrs(regId);
-                            }} title="Cetak Surat Kontrol Umum">
-                              <Printer className="h-3.5 w-3.5 mr-1" />
-                              Cetak
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Catatan Disposisi */}
-                      {formData.disposition_note && (
-                        <div className="pt-2 border-t">
-                          <span className="text-xs text-muted-foreground">Catatan</span>
-                          <p className="text-sm">{formData.disposition_note}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Cancel Button - ALWAYS show, not dependent on readOnly */}
-                    {!useExternalData && (
-                      <div className="mt-4 pt-3 border-t">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setShowCancelDialog(true)}
-                        className="gap-2"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Batalkan Disposisi
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Membatalkan disposisi akan menghapus Surat Kontrol, SPRI, jadwal kontrol, dan mengaktifkan kembali kunjungan ini.
-                      </p>
-                      </div>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Disposition Type Selection */}
-              {!isDisabled && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-semibold">Pilih Status Pemulangan</Label>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {dispositionOptions.map((option) => {
-                      const isBlockedByPending = pendingOrdersInfo?.has_pending_orders;
-                      
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleDispositionSelect(option.value)}
-                          disabled={isDisabled || isBlockedByPending || readOnly}
-                          className={cn(
-                            "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2 group",
-                            formData.disposition_type === option.value
-                              ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                              : isDisabled || isBlockedByPending
-                              ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                              : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                          )}
-                        >
-                          <div className={cn(
-                            "flex items-center justify-between",
-                            formData.disposition_type === option.value ? "text-primary" : "text-muted-foreground"
-                          )}>
-                            <div className="flex items-center gap-2">
-                              {option.icon}
-                              <span className="font-semibold text-sm">{option.label}</span>
-                            </div>
-                            <ArrowRight className={cn(
-                              "h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity",
-                              formData.disposition_type === option.value && "opacity-100"
-                            )} />
-                          </div>
-                          <p className="text-xs text-muted-foreground">{option.description}</p>
-                        </button>
-                      );
-                    })}
+                )}
+              </div>
+
+              {/* Surat Kontrol */}
+              {suratKontrolResult && (
+                <div className="p-3.5 sm:p-4 flex flex-wrap justify-between items-center gap-3">
+                  <div>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Surat Kontrol{" "}
+                      {!suratKontrolResult.noSuratKontrol?.includes("LOCAL") &&
+                      !suratKontrolResult.noSuratKontrol?.startsWith("SK-") &&
+                      suratKontrolResult.noSuratKontrol?.length >= 18
+                        ? "BPJS"
+                        : "Umum"}
+                    </span>
+                    <p className="text-xs font-mono font-semibold text-foreground mt-0.5">
+                      {suratKontrolResult.noSuratKontrol}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
+                    </p>
+                  </div>
+                  {suratKontrolResult.id && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-none text-xs gap-1.5"
+                        onClick={() => {
+                          setSignDoc({
+                            id: suratKontrolResult.id!,
+                            type: "surat_kontrol",
+                            title: suratKontrolResult.noSuratKontrol,
+                          });
+                          setShowSignDialog(true);
+                        }}
+                        title="Tanda Tangan"
+                      >
+                        <PenTool className="h-3.5 w-3.5" />
+                        TTD
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-none text-xs gap-1.5"
+                        onClick={() => printApi.suratKontrol(suratKontrolResult.id!)}
+                        title="Cetak Surat Kontrol"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Cetak
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SPRI */}
+              {spriResult && (
+                <div className="p-3.5 sm:p-4 flex flex-wrap justify-between items-center gap-3">
+                  <div>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      SPRI (Surat Perintah Rawat Inap)
+                    </span>
+                    <p className="text-xs font-mono font-semibold text-foreground mt-0.5">
+                      {spriResult.noSPRI}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Tanggal Rencana: {spriResult.tglRencanaKontrol}
+                    </p>
+                  </div>
+                  {spriResult.id && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-none text-xs gap-1.5"
+                        onClick={() => {
+                          setSignDoc({ id: spriResult.id!, type: "spri", title: spriResult.noSPRI });
+                          setShowSignDialog(true);
+                        }}
+                        title="Tanda Tangan"
+                      >
+                        <PenTool className="h-3.5 w-3.5" />
+                        TTD
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-none text-xs gap-1.5"
+                        onClick={() => printApi.spri(spriResult.id!)}
+                        title="Cetak SPRI"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Cetak
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Surat Kontrol Umum / Jadwal SIMRS */}
+              {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
+                <div className="p-3.5 sm:p-4 flex flex-wrap justify-between items-center gap-3">
+                  <div>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Surat Kontrol Umum (SIMRS)
+                    </span>
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      Sudah dibuat
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-none text-xs gap-1.5"
+                      onClick={() => {
+                        const regId =
+                          loadedDispositionData?.follow_up_registration_id ||
+                          initialData?.follow_up_registration_id;
+                        if (regId) {
+                          setSignDoc({ id: regId, type: "surat_kontrol", title: "Kontrol SIMRS" });
+                          setShowSignDialog(true);
+                        }
+                      }}
+                      title="Tanda Tangan"
+                    >
+                      <PenTool className="h-3.5 w-3.5" />
+                      TTD
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-none text-xs gap-1.5"
+                      onClick={() => {
+                        const regId =
+                          loadedDispositionData?.follow_up_registration_id ||
+                          initialData?.follow_up_registration_id;
+                        if (regId) printApi.suratKontrolSimrs(regId);
+                      }}
+                      title="Cetak Surat Kontrol Umum"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      Cetak
+                    </Button>
                   </div>
                 </div>
               )}
+
+              {/* Catatan Disposisi */}
+              {formData.disposition_note && (
+                <div className="p-3.5 sm:p-4">
+                  <span className="text-[11px] font-medium text-muted-foreground">Catatan</span>
+                  <p className="text-xs text-foreground mt-0.5 leading-relaxed">{formData.disposition_note}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Cancel Button - ALWAYS show, not dependent on readOnly */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <p className="text-[11px] text-muted-foreground">
+                Membatalkan disposisi akan menghapus Surat Kontrol, SPRI, jadwal kontrol, dan mengaktifkan kembali kunjungan ini.
+              </p>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowCancelDialog(true)}
+                className="h-8 rounded-none text-xs gap-1.5 shrink-0"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Batalkan Disposisi
+              </Button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Disposition Type Selection */}
+        {!isDisabled && (
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              Pilih Status Pemulangan
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {dispositionOptions.map((option) => {
+                const isBlockedByPending = pendingOrdersInfo?.has_pending_orders;
+                const isSelected = formData.disposition_type === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleDispositionSelect(option.value)}
+                    disabled={isDisabled || isBlockedByPending || readOnly}
+                    className={cn(
+                      "p-4 rounded-none border text-left transition-all flex flex-col gap-2 group",
+                      isSelected
+                        ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] ring-1 ring-neutral-900 dark:ring-neutral-100"
+                        : isDisabled || isBlockedByPending
+                        ? "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 opacity-50 cursor-not-allowed"
+                        : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-neutral-100 hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-neutral-900 dark:text-neutral-100">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={cn(
+                            "transition-colors",
+                            isSelected ? "text-neutral-900 dark:text-neutral-100" : "text-muted-foreground group-hover:text-neutral-900 dark:group-hover:text-neutral-100"
+                          )}
+                        >
+                          {option.icon}
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-wider truncate">
+                          {option.label}
+                        </span>
+                      </div>
+                      <ArrowRight
+                        className={cn(
+                          "h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0",
+                          isSelected && "opacity-100 text-neutral-900 dark:text-neutral-100"
+                        )}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">{option.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Discharge Drawer (Pulang / APS) */}
@@ -1493,30 +1582,35 @@ export function DispositionForm({
 
       {/* Cancel Disposition Dialog */}
       {!useExternalData && (
-      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
-              Batalkan Disposisi
-            </DialogTitle>
-            <DialogDescription>
-              Apakah Anda yakin ingin membatalkan disposisi pasien ini?
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-3 py-4">
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Peringatan</AlertTitle>
-              <AlertDescription>
-                Tindakan ini akan:
-                <ul className="list-disc list-inside mt-2 space-y-1">
+        <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <DialogContent className="sm:max-w-[520px] p-0 gap-0 rounded-none overflow-hidden">
+            <DialogHeader className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 space-y-1">
+              <DialogTitle className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-destructive">
+                <Trash2 className="h-4 w-4" />
+                Batalkan Disposisi
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Apakah Anda yakin ingin membatalkan disposisi pasien ini?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-5 space-y-3">
+              <div className="border-l-4 border-destructive bg-destructive/5 border border-destructive/30 px-4 py-3 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Peringatan</span>
+                </div>
+                <p className="text-destructive/90">Tindakan ini akan:</p>
+                <ul className="list-disc list-inside space-y-1 text-destructive/90">
                   {suratKontrolResult && (
-                    <li>Menghapus Surat Kontrol BPJS: <strong>{suratKontrolResult.noSuratKontrol}</strong></li>
+                    <li>
+                      Menghapus Surat Kontrol BPJS: <strong>{suratKontrolResult.noSuratKontrol}</strong>
+                    </li>
                   )}
                   {spriResult && (
-                    <li>Membatalkan SPRI: <strong>{spriResult.noSPRI}</strong> (catatan lokal)</li>
+                    <li>
+                      Membatalkan SPRI: <strong>{spriResult.noSPRI}</strong> (catatan lokal)
+                    </li>
                   )}
                   {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
                     <li>Menghapus jadwal kontrol SIMRS</li>
@@ -1529,44 +1623,45 @@ export function DispositionForm({
                   )}
                   <li>Mengaktifkan kembali kunjungan pasien</li>
                 </ul>
-              </AlertDescription>
-            </Alert>
-            
-            <p className="text-sm text-muted-foreground">
-              <strong>Catatan:</strong> SPRI yang sudah terbit di BPJS tidak dapat dihapus melalui VClaim. 
-              Hanya status lokal yang akan diubah menjadi "cancelled".
-            </p>
-          </div>
+              </div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowCancelDialog(false)}
-              disabled={canceling}
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleCancelDisposition}
-              disabled={canceling}
-              className="gap-2"
-            >
-              {canceling ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Membatalkan...
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-4 w-4" />
-                  Ya, Batalkan
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <strong>Catatan:</strong> SPRI yang sudah terbit di BPJS tidak dapat dihapus melalui VClaim. Hanya status lokal yang akan diubah menjadi &quot;cancelled&quot;.
+              </p>
+            </div>
+
+            <DialogFooter className="px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCancelDialog(false)}
+                disabled={canceling}
+                className="h-8 rounded-none text-xs"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleCancelDisposition}
+                disabled={canceling}
+                className="h-8 rounded-none text-xs gap-1.5"
+              >
+                {canceling ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Membatalkan...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-3.5 w-3.5" />
+                    Ya, Batalkan
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Tanda Tangan Modal */}

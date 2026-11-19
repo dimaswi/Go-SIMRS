@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +21,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -50,9 +51,8 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
-  Printer,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi, medicalRecordsApi } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, medicalRecordsApi } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
 interface RadiologyOrderFormProps {
@@ -72,85 +72,63 @@ interface OrderItem {
 // Collapsible Order History Component
 function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrder; onCancel: (id: number) => void; canCancel: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const { toast } = useToast();
-
-  // Get patient info from registration or source_visit.registration
-  const patient = order.registration?.patient || order.source_visit?.registration?.patient;
-
-  const handlePrintQueue = async () => {
-    const queueId = order.target_visit?.room_queue?.id;
-    if (!queueId) {
-      toast({
-        title: "Error",
-        description: "Nomor antrian tidak tersedia",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsPrinting(true);
-    try {
-      const url = await printApi.queueTicket(queueId);
-      window.open(url, "_blank");
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPrinting(false);
-    }
-  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="p-3 hover:bg-muted/50">
+      <div className="px-3.5 py-2.5 hover:bg-muted/30 transition-colors">
         <div className="flex items-center justify-between gap-2">
           <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
             {isOpen ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">{order.order_number}</span>
-                <Badge variant={PROCEDURE_ORDER_STATUS[order.status as keyof typeof PROCEDURE_ORDER_STATUS]?.variant || "secondary"} className="text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono font-bold text-xs">{order.order_number}</span>
+                <Badge
+                  variant={PROCEDURE_ORDER_STATUS[order.status as keyof typeof PROCEDURE_ORDER_STATUS]?.variant || "secondary"}
+                  className="rounded-none text-[10px] h-5 px-1.5"
+                >
                   {PROCEDURE_ORDER_STATUS[order.status as keyof typeof PROCEDURE_ORDER_STATUS]?.label || order.status}
                 </Badge>
                 {(order.priority === "urgent" || order.priority === "cito") && (
-                  <Badge variant="destructive" className="text-xs">{order.priority.toUpperCase()}</Badge>
+                  <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">
+                    {order.priority.toUpperCase()}
+                  </Badge>
                 )}
-                <Badge variant="outline" className="text-xs">
-                  Antrian: {order.target_visit?.room_queue?.queue_number || "-"}
-                </Badge>
+                {order.is_critical && (
+                  <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    KRITIS
+                  </Badge>
+                )}
+                {order.target_visit?.room_queue?.queue_number && (
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                    Antrian: {order.target_visit.room_queue.queue_number}
+                  </Badge>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} • {order.items?.filter(i => i.status !== "cancelled").length || 0} pemeriksaan
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} •{" "}
+                {order.items?.filter((i) => i.status !== "cancelled").length || 0} pemeriksaan
               </p>
             </div>
           </CollapsibleTrigger>
           <TooltipProvider delayDuration={120}>
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrintQueue} disabled={isPrinting} aria-label="Cetak antrian">
-                    {isPrinting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Printer className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Cetak Antrian</TooltipContent>
-              </Tooltip>
+            <div className="flex items-center gap-1.5">
               {order.status === "pending" && canCancel && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => onCancel(order.id)} aria-label="Batalkan order">
-                      <Trash2 className="h-4 w-4" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-none text-destructive"
+                      onClick={() => onCancel(order.id)}
+                      aria-label="Batalkan order"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Batalkan</TooltipContent>
@@ -160,77 +138,82 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
           </TooltipProvider>
         </div>
         <CollapsibleContent>
-          <div className="mt-3 ml-6 space-y-3">
-            {/* Order Info Table */}
-            <div className="bg-muted/30 border border-border/70 p-3">
-              <table className="w-full min-w-[640px] text-sm">
-                <tbody>
-                  <tr>
-                    <td className="py-1 text-muted-foreground w-1/3">No. RM</td>
-                    <td className="py-1 font-medium">{patient?.no_rm || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Nama Pasien</td>
-                    <td className="py-1 font-medium">{patient?.nama_lengkap || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Unit Radiologi</td>
-                    <td className="py-1 font-medium">{order.target_room?.name || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">No. Antrian</td>
-                    <td className="py-1 font-medium">{order.target_visit?.room_queue?.queue_number || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Prioritas</td>
-                    <td className="py-1">
-                      <Badge variant={order.priority === "urgent" || order.priority === "cito" ? "destructive" : "outline"} className="text-xs">
-                        {order.priority === "urgent" || order.priority === "cito" ? order.priority.toUpperCase() : "Normal"}
-                      </Badge>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Diagnosis</td>
-                    <td className="py-1">{order.diagnosis || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Catatan Klinis</td>
-                    <td className="py-1">{order.clinical_notes || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Dokter</td>
-                    <td className="py-1">{order.ordered_by?.nama_lengkap || "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+            {/* Order Info Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 p-2.5 text-xs">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Unit Radiologi
+                </span>
+                <span className="font-semibold text-foreground">{order.target_room?.name || "-"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Prioritas
+                </span>
+                <span className="font-semibold text-foreground">
+                  {order.priority === "urgent" || order.priority === "cito"
+                    ? order.priority.toUpperCase()
+                    : "Normal"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Dokter Pengirim
+                </span>
+                <span className="font-medium text-foreground">{order.ordered_by?.nama_lengkap || "-"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Diagnosis
+                </span>
+                <span className="font-medium text-foreground">{order.diagnosis || "-"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Catatan Klinis
+                </span>
+                <span className="font-medium text-foreground">{order.clinical_notes || "-"}</span>
+              </div>
             </div>
 
             {/* Order Items Table */}
             {order.items && order.items.length > 0 && (
-              <div className="border border-border/70 overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead className="bg-muted/50">
+              <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                <table className="w-full min-w-[600px] text-xs">
+                  <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
                     <tr>
-                      <th className="py-2 px-3 text-left font-medium">Pemeriksaan</th>
-                      <th className="py-2 px-3 text-left font-medium">Status</th>
+                      <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                        Pemeriksaan
+                      </th>
+                      <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[140px]">
+                        Status
+                      </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {order.items.filter(item => item.status !== "cancelled").map((item, idx) => (
-                      <tr key={idx} className="border-t">
-                        <td className="py-2 px-3">
-                          <p className="font-medium">{item.procedure?.name}</p>
-                          {item.notes && (
-                            <p className="text-xs text-muted-foreground">{item.notes}</p>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          <Badge variant={item.status === "completed" ? "default" : "secondary"} className="text-xs">
-                            {item.status === "completed" ? "Selesai" : item.status === "in_progress" ? "Dikerjakan" : "Menunggu"}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                    {order.items
+                      .filter((item) => item.status !== "cancelled")
+                      .map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2 px-3">
+                            <p className="font-semibold text-foreground">{item.procedure?.name}</p>
+                            {item.notes && <p className="text-[11px] text-muted-foreground">{item.notes}</p>}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Badge
+                              variant={item.status === "completed" ? "default" : "secondary"}
+                              className="rounded-none text-[10px] h-5 px-1.5"
+                            >
+                              {item.status === "completed"
+                                ? "Selesai"
+                                : item.status === "in_progress"
+                                  ? "Dikerjakan"
+                                  : "Menunggu"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -238,58 +221,74 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Results if completed */}
             {order.status === "completed" && (
-              <div className="bg-muted/50 border border-border/70 p-3 space-y-2">
-                <p className="font-medium flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                  Hasil Pemeriksaan
-                </p>
+              <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-3 space-y-3">
+                <div className="flex items-center gap-2 border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Hasil Pemeriksaan Radiologi
+                </div>
 
                 {/* Detail Results per Item */}
-                {order.items?.filter(item => item.status !== "cancelled").map((item) => (
-                  <div key={item.id} className="mb-3 pb-3 border-b last:border-0">
-                    <h5 className="font-semibold text-sm mb-2">{item.procedure?.name}</h5>
-                    {item.results && item.results.length > 0 ? (
-                      <div className="space-y-1">
-                        {item.results.map((result) => (
-                          <div key={result.id} className="grid grid-cols-[120px_1fr] gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {result.procedure_parameter?.name}:
-                            </span>
-                            <span className="text-xs whitespace-pre-wrap">{result.value}</span>
-                          </div>
-                        ))}
+                {order.items
+                  ?.filter((item) => item.status !== "cancelled")
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-2.5 space-y-1.5"
+                    >
+                      <h5 className="font-semibold text-xs text-foreground">{item.procedure?.name}</h5>
+                      {item.results && item.results.length > 0 ? (
+                        <div className="space-y-1">
+                          {item.results.map((result) => (
+                            <div key={result.id} className="grid grid-cols-[140px_1fr] gap-2 text-xs">
+                              <span className="font-medium text-muted-foreground">
+                                {result.procedure_parameter?.name}:
+                              </span>
+                              <span className="whitespace-pre-wrap text-foreground">{result.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground italic">Tidak ada hasil parameter</p>
+                      )}
+                    </div>
+                  ))}
+
+                {(order.result_summary || order.conclusion || order.suggestion) && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-2.5 text-xs">
+                    {order.result_summary && (
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          Hasil
+                        </span>
+                        <p className="whitespace-pre-wrap text-foreground">{order.result_summary}</p>
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">Tidak ada hasil parameter</p>
+                    )}
+                    {order.conclusion && (
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          Kesan
+                        </span>
+                        <p className="whitespace-pre-wrap text-foreground">{order.conclusion}</p>
+                      </div>
+                    )}
+                    {order.suggestion && (
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          Saran
+                        </span>
+                        <p className="whitespace-pre-wrap text-foreground">{order.suggestion}</p>
+                      </div>
                     )}
                   </div>
-                ))}
+                )}
 
-                {order.result_summary && (
-                  <div>
-                    <span className="text-xs font-medium">Hasil:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.result_summary}</p>
-                  </div>
-                )}
-                {order.conclusion && (
-                  <div>
-                    <span className="text-xs font-medium">Kesan:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.conclusion}</p>
-                  </div>
-                )}
-                {order.suggestion && (
-                  <div>
-                    <span className="text-xs font-medium">Saran:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.suggestion}</p>
-                  </div>
-                )}
                 {order.is_critical && (
-                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-sm">
-                    <span className="text-red-700 dark:text-red-300 font-bold flex items-center gap-1">
+                  <div className="p-2.5 border border-red-300 bg-red-50 dark:bg-red-950/30 text-xs">
+                    <span className="text-red-700 dark:text-red-300 font-bold flex items-center gap-1.5">
                       <AlertCircle className="h-4 w-4" />
                       NILAI KRITIS
                     </span>
-                    <p className="mt-1">{order.critical_notes}</p>
+                    {order.critical_notes && <p className="mt-1">{order.critical_notes}</p>}
                   </div>
                 )}
               </div>
@@ -527,245 +526,298 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
   }
 
   return (
-    <div>
-      <div className="p-0">
-        {/* Inline Tabs with Underline */}
-        <div>
-          <div className="flex items-center gap-6 px-4">
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      <div>
+        {/* Full-Bleed Sub-Tabs Bar */}
+        <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5">
+          <div className="flex items-center gap-6">
             <button
+              type="button"
               onClick={() => setActiveTab("form")}
               className={cn(
-                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
+                "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-1.5",
                 activeTab === "form"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-neutral-900 dark:text-white"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <FileImage className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              <FileImage className="h-3.5 w-3.5" />
               Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-neutral-900 dark:bg-white" />
               )}
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("history")}
               className={cn(
-                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
+                "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-1.5",
                 activeTab === "history"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-neutral-900 dark:text-white"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              <Clock className="h-3.5 w-3.5" />
               Riwayat Order
               {existingOrders.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                <Badge variant="secondary" className="rounded-none ml-0.5 h-5 px-1.5 text-[10px] font-mono">
                   {existingOrders.length}
                 </Badge>
               )}
               {activeTab === "history" && (
-                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-neutral-900 dark:bg-white" />
               )}
             </button>
           </div>
         </div>
 
-        <div className="p-4">
+        <div>
           {/* Order Form Tab */}
           {activeTab === "form" && canOrder && (
-            <div className="space-y-4">
-              <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-                <div className="border border-border/70">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Konfigurasi Order
+            <div>
+              <fieldset
+                disabled={readOnly}
+                className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+              >
+                {/* Section 1: Konfigurasi Order Radiologi */}
+                <section className="px-4 sm:px-5 py-4 space-y-3">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Konfigurasi Order Radiologi
                   </div>
-                  <div className="space-y-4 p-3 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Unit Radiologi Tujuan</Label>
-                        <Select
-                          value={selectedRoom?.toString() || ""}
-                          onValueChange={(value) => setSelectedRoom(Number(value))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih unit radiologi" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {radiologyRooms.map((room) => (
-                              <SelectItem key={room.id} value={room.id.toString()}>
-                                {room.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Prioritas</Label>
-                        <Select value={priority} onValueChange={setPriority}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
-                            <SelectItem value="cito">CITO</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <Label>Diagnosis</Label>
-                      <Textarea
-                        placeholder="Tulis diagnosis terkait pemeriksaan"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                    <div className="lg:col-span-4 space-y-1.5">
+                      <Label className="text-xs font-medium">Unit Radiologi Tujuan</Label>
+                      <Select
+                        value={selectedRoom?.toString() || ""}
+                        onValueChange={(value) => setSelectedRoom(Number(value))}
+                      >
+                        <SelectTrigger className="h-9 text-xs rounded-none">
+                          <SelectValue placeholder="Pilih unit radiologi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {radiologyRooms.map((room) => (
+                            <SelectItem key={room.id} value={room.id.toString()} className="text-xs">
+                              {room.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="lg:col-span-2 space-y-1.5">
+                      <Label className="text-xs font-medium">Prioritas</Label>
+                      <Select value={priority} onValueChange={setPriority}>
+                        <SelectTrigger className="h-9 text-xs rounded-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="normal" className="text-xs">Normal</SelectItem>
+                          <SelectItem value="urgent" className="text-xs">Urgent</SelectItem>
+                          <SelectItem value="cito" className="text-xs">CITO</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-6 space-y-1.5">
+                      <Label className="text-xs font-medium">Diagnosis Terkait</Label>
+                      <Input
+                        placeholder="Tulis diagnosis terkait pemeriksaan radiologi..."
                         value={diagnosis}
                         onChange={(e) => setDiagnosis(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Catatan Klinis / Indikasi</Label>
-                      <Textarea
-                        placeholder="Catatan klinis untuk petugas radiologi"
-                        value={clinicalNotes}
-                        onChange={(e) => setClinicalNotes(e.target.value)}
-                        rows={2}
                       />
                     </div>
                   </div>
-                </div>
 
-                <div className="border border-border/70">
-                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Pemeriksaan
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Catatan Klinis / Indikasi Pemeriksaan</Label>
+                    <Textarea
+                      placeholder="Catatan klinis atau indikasi pemeriksaan untuk petugas radiologi..."
+                      value={clinicalNotes}
+                      onChange={(e) => setClinicalNotes(e.target.value)}
+                      className="min-h-[68px] resize-none text-xs rounded-none"
+                    />
                   </div>
-                  <div className="space-y-4 p-3 sm:p-4">
+                </section>
 
-                    {/* Procedure Selection */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-base font-medium">Pilih Pemeriksaan</Label>
-                        <Button
-                          type="button"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setShowAddDialog(true)}
-                          disabled={!selectedRoom || readOnly}
-                          aria-label="Tambah pemeriksaan"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                {/* Section 2: Daftar Pemeriksaan Radiologi */}
+                <section className="px-4 sm:px-5 py-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                        Daftar Pemeriksaan Radiologi
                       </div>
+                      <Badge
+                        variant={orderItems.length > 0 ? "default" : "secondary"}
+                        className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                      >
+                        {orderItems.length} Pemeriksaan
+                      </Badge>
                     </div>
 
-                    {orderItems.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
-                          <Label className="text-base font-medium">Pemeriksaan Dipilih</Label>
-                          <Badge variant="secondary">{orderItems.length} item</Badge>
-                        </div>
-                        <div className="border border-border/70 divide-y">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-none px-3 text-xs gap-1.5"
+                      onClick={() => setShowAddDialog(true)}
+                      disabled={!selectedRoom || readOnly}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Pilih Pemeriksaan
+                    </Button>
+                  </div>
+
+                  {orderItems.length > 0 ? (
+                    <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+                          <tr>
+                            <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[140px]">
+                              Kode
+                            </th>
+                            <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                              Nama Pemeriksaan Radiologi
+                            </th>
+                            <th className="h-9 px-3 text-center font-bold uppercase tracking-wider text-muted-foreground w-[64px]">
+                              Aksi
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                           {orderItems.map((item) => (
-                            <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{item.procedure_name}</p>
-                                <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive"
-                                onClick={() => handleRemoveItem(item.procedure_id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <tr key={item.procedure_id}>
+                              <td className="py-2 px-3 font-mono text-muted-foreground">
+                                {item.procedure_code}
+                              </td>
+                              <td className="py-2 px-3 font-semibold text-foreground">
+                                {item.procedure_name}
+                              </td>
+                              <td className="py-1.5 px-3 text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-none text-destructive"
+                                  onClick={() => handleRemoveItem(item.procedure_id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </td>
+                            </tr>
                           ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="border border-dashed border-border/70 p-8 text-center text-muted-foreground">
-                        <FileImage className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>Belum ada pemeriksaan dipilih</p>
-                        <p className="text-sm">Gunakan tombol + untuk menambah pemeriksaan.</p>
-                      </div>
-                    )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                      Belum ada pemeriksaan radiologi yang dipilih.
+                    </div>
+                  )}
 
-                    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                        <DialogHeader>
-                          <DialogTitle>Pilih Pemeriksaan Radiologi</DialogTitle>
-                        </DialogHeader>
+                  {/* Modal Pilih Pemeriksaan Radiologi */}
+                  <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                    <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[82vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                      <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                            <FileImage className="h-4 w-4" />
+                          </div>
+                          <div className="text-left min-w-0">
+                            <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                              Pilih Pemeriksaan Radiologi
+                            </DialogTitle>
+                            <DialogDescription className="text-xs mt-0.5">
+                              Centang satu atau beberapa pemeriksaan radiologi yang akan diorder.
+                            </DialogDescription>
+                          </div>
+                        </div>
+                      </DialogHeader>
+
+                      <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 shrink-0">
                         <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <Input
-                            placeholder="Cari pemeriksaan..."
-                            className="pl-9"
+                            placeholder="Cari nama atau kode pemeriksaan radiologi..."
+                            className="h-9 pl-8 text-xs rounded-none bg-white dark:bg-neutral-950"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                           />
                         </div>
-                        <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
-                          {!selectedRoom ? (
-                            <div className="text-center py-8 text-muted-foreground text-sm">Pilih unit radiologi terlebih dahulu.</div>
-                          ) : loadingProcedures ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-6 w-6 animate-spin" />
-                            </div>
-                          ) : filteredProcedures.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground text-sm">
-                              {searchTerm ? "Pemeriksaan tidak ditemukan" : "Tidak ada pemeriksaan tersedia"}
-                            </div>
-                          ) : (
-                            <div className="divide-y">
-                              {filteredProcedures.map((proc) => {
-                                const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
-                                return (
-                                  <button
-                                    key={proc.id}
-                                    type="button"
-                                    className={cn(
-                                      "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
-                                      isSelected && "bg-primary/5"
-                                    )}
-                                    onClick={() => handleToggleProcedure(proc)}
-                                  >
-                                    <Checkbox checked={isSelected} />
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">{proc.name}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {proc.code}
-                                        {proc.description && ` • ${proc.description}`}
-                                      </p>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </ScrollArea>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
+                      </div>
+
+                      <div className="flex-1 max-h-[380px] overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
+                        {!selectedRoom ? (
+                          <div className="text-center py-10 text-xs text-muted-foreground">
+                            Pilih unit radiologi terlebih dahulu.
+                          </div>
+                        ) : loadingProcedures ? (
+                          <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Memuat daftar pemeriksaan...
+                          </div>
+                        ) : filteredProcedures.length === 0 ? (
+                          <div className="text-center py-10 text-xs text-muted-foreground">
+                            {searchTerm ? "Pemeriksaan tidak ditemukan" : "Tidak ada pemeriksaan tersedia"}
+                          </div>
+                        ) : (
+                          filteredProcedures.map((proc) => {
+                            const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
+                            return (
+                              <button
+                                key={proc.id}
+                                type="button"
+                                className={cn(
+                                  "w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-muted/30 transition-colors",
+                                  isSelected && "bg-neutral-100/70 dark:bg-neutral-900/50",
+                                )}
+                                onClick={() => handleToggleProcedure(proc)}
+                              >
+                                <Checkbox checked={isSelected} className="rounded-none" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-xs text-foreground truncate">{proc.name}</p>
+                                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                    <span className="font-mono">{proc.code}</span>
+                                    {proc.description && ` • ${proc.description}`}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          Terpilih: <strong className="text-foreground">{orderItems.length}</strong> pemeriksaan
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 rounded-none px-4 text-xs"
+                          onClick={() => setShowAddDialog(false)}
+                        >
+                          Selesai
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </section>
 
                 {/* Submit Button */}
-                <div className="flex justify-stretch sm:justify-end pt-2">
+                <div className="flex justify-stretch sm:justify-end px-4 sm:px-5 py-3">
                   <Button
-                    size="lg"
-                    className="w-full sm:w-auto"
+                    size="sm"
+                    className="h-8 rounded-none text-xs w-full sm:w-auto"
                     disabled={submitting || orderItems.length === 0 || readOnly}
                     onClick={handleSubmitOrder}
                   >
                     {submitting ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                         Mengirim...
                       </>
                     ) : (
                       <>
-                        <Send className="h-4 w-4 mr-2" />
+                        <Send className="h-3.5 w-3.5 mr-1.5" />
                         Kirim Order ke Radiologi
                       </>
                     )}
@@ -777,17 +829,25 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
 
           {/* No permission notice for form tab */}
           {activeTab === "form" && !canOrder && (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Anda tidak memiliki akses untuk membuat order radiologi</p>
+            <div className="px-4 sm:px-5 py-8 text-center text-xs text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
+              Anda tidak memiliki akses untuk membuat order radiologi.
             </div>
           )}
 
           {/* History Tab */}
           {activeTab === "history" && (
-            <div className="space-y-2">
+            <section className="px-4 sm:px-5 py-4 space-y-3 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Riwayat Order Radiologi
+                </div>
+                <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                  {existingOrders.length} Order
+                </Badge>
+              </div>
+
               {existingOrders.length > 0 ? (
-                <div className="divide-y border border-border/70">
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                   {existingOrders.map((order) => (
                     <OrderCollapsible
                       key={order.id}
@@ -798,29 +858,30 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Belum ada riwayat order radiologi</p>
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  Belum ada riwayat order radiologi pada kunjungan ini.
                 </div>
               )}
-            </div>
+            </section>
           )}
         </div>
       </div>
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={!!cancelConfirmOrderId} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent className="max-w-sm rounded-none">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-sm">Batalkan Order Radiologi?</AlertDialogTitle>
+            <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Batalkan Order Radiologi?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
               Yakin ingin membatalkan order radiologi ini? Order yang dibatalkan tidak dapat dikembalikan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-none text-xs">Batal</AlertDialogCancel>
             <AlertDialogAction
-              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-8 rounded-none text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleConfirmCancelOrder}
             >
               Ya, Batalkan

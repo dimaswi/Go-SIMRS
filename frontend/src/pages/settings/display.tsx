@@ -29,6 +29,7 @@ import {
   ExternalLink,
   Volume2,
   VolumeX,
+  BedDouble,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -615,7 +616,7 @@ export default function DisplaySettingsPage() {
                 </p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {/* Display Ruangan */}
                 <div className="flex flex-col border border-neutral-200 dark:border-neutral-800">
                   <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -688,6 +689,31 @@ export default function DisplaySettingsPage() {
                       onClick={() => window.open("/queue-display/cashier", "_blank")}
                     >
                       Buka Display Kasir
+                      <ExternalLink className="ml-1.5 h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Display Bed */}
+                <div className="flex flex-col justify-between border border-neutral-200 dark:border-neutral-800">
+                  <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 dark:border-neutral-800 dark:bg-neutral-900/40">
+                    <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                      <BedDouble className="h-3.5 w-3.5 text-neutral-500" />
+                      Display Bed Publik
+                    </span>
+                    <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <div className="flex flex-1 flex-col justify-between gap-3 p-3.5">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Layar informasi ketersediaan tempat tidur per ruangan dan kamar secara real-time untuk publik.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 w-full rounded-none bg-neutral-900 text-xs font-semibold text-white shadow-none hover:bg-neutral-800 dark:bg-white dark:text-neutral-900"
+                      onClick={() => window.open("/display/bed-monitoring", "_blank")}
+                    >
+                      Buka Display Bed
                       <ExternalLink className="ml-1.5 h-3 w-3" />
                     </Button>
                   </div>

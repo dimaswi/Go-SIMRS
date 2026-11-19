@@ -320,6 +320,13 @@ export const roomsApi = {
   getById: (id: number) =>
     api.get<{ data: Room }>(`/rooms/${id}`),
 
+  getPublicBedMonitoring: (roomId?: number | string) =>
+    api.get<{
+      data: Room[];
+      all_rooms: Array<{ id: number; code: string; name: string; total_beds: number; available_beds: number }>;
+      master_data: Record<string, Array<{ code: string; name: string }>>;
+    }>(roomId ? `/public/bed-monitoring/${roomId}` : '/public/bed-monitoring'),
+
   create: (data: RoomRequest) =>
     api.post<{ data: Room; message: string }>('/rooms', data),
 

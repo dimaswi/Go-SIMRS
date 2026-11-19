@@ -1,594 +1,470 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
-
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { roomsApi, type Room, type RoomUnit, type Bed, masterDataApi, type MasterData } from "@/lib/api";
-import { settingsApi } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { roomsApi, settingsApi, type Room } from "@/lib/api";
+import { DisplayRunningTextTicker } from "@/components/queue-display/display-media-panel";
 import {
   BedDouble,
-  User,
-  Calendar,
-  RefreshCw,
   Building2,
-  Layers,
   Maximize2,
   Minimize2,
   Loader2,
-  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
+const getBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+  return apiUrl.replace(/\/api$/, "");
+};
+
+const BASE_URL = getBaseUrl();
+const ROOMS_PER_SLIDE = 4;
+const SLIDE_INTERVAL_MS = 12000;
+
+const PUBLIC_BED_STATUS: Record<
+  string,
+  {
+    label: string;
+    cardClass: string;
+    iconWrapClass: string;
+    dotClass: string;
+  }
+> = {
+  available: {
+    label: "Tersedia",
+    cardClass: "border-emerald-300 bg-emerald-50/90 text-emerald-900",
+    iconWrapClass: "bg-emerald-500 text-white",
+    dotClass: "bg-emerald-500",
+  },
+  occupied: {
+    label: "Terisi",
+    cardClass: "border-sky-300 bg-sky-50/90 text-sky-900",
+    iconWrapClass: "bg-sky-600 text-white",
+    dotClass: "bg-sky-600",
+  },
+  reserved: {
+    label: "Dipesan",
+    cardClass: "border-amber-300 bg-amber-50/90 text-amber-900",
+    iconWrapClass: "bg-amber-500 text-white",
+    dotClass: "bg-amber-500",
+  },
+  cleaning: {
+    label: "Cleaning",
+    cardClass: "border-purple-300 bg-purple-50/90 text-purple-900",
+    iconWrapClass: "bg-purple-500 text-white",
+    dotClass: "bg-purple-500",
+  },
+  maintenance: {
+    label: "Maintenance",
+    cardClass: "border-slate-300 bg-slate-100 text-slate-700",
+    iconWrapClass: "bg-slate-500 text-white",
+    dotClass: "bg-slate-400",
+  },
+};
+
+const getPublicBedMeta = (status: string) =>
+  PUBLIC_BED_STATUS[status] || {
+    label: status || "-",
+    cardClass: "border-slate-200 bg-white text-slate-800",
+    iconWrapClass: "bg-slate-600 text-white",
+    dotClass: "bg-slate-400",
+  };
+
 export default function PublicRoomMonitoring() {
-  const { id: roomId } = useParams<{ id: string }>();
+  const { id: roomId } = useParams<{ id?: string }>();
 
-  const [room, setRoom] = useState<Room | null>(null);
-  const [units, setUnits] = useState<RoomUnit[]>([]);
-  const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [masterData, setMasterData] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [loading, setLoading] = useState(true);
-  const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
+
+  const [hospitalName, setHospitalName] = useState("KLINIK / RUMAH SAKIT");
+  const [hospitalSubtitle, setHospitalSubtitle] = useState("");
+  const [appLogo, setAppLogo] = useState("");
+  const [displayRunningText, setDisplayRunningText] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [selectedFloor, setSelectedFloor] = useState<number>(1);
-  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
-  const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
-  const [patientDialogOpen, setPatientDialogOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
 
-  // Auto refresh every 30 seconds
   const loadData = useCallback(async () => {
-    if (!roomId) return;
-
     try {
-      const [roomRes, masterDataRes] = await Promise.all([
-        roomsApi.getById(parseInt(roomId)),
-        masterDataApi.getMultiple(["bed_status", "bed_type", "room_class"]),
-      ]);
-
-      const roomData = roomRes.data.data;
-      setRoom(roomData);
-      setUnits(roomData.units || []);
-      setMasterData(masterDataRes.data.data || {});
-
-      // Auto select first unit with beds if not selected
-      if (!selectedUnitId && roomData.units && roomData.units.length > 0) {
-        const unitsOnFloor = (roomData.units || []).filter((u: RoomUnit) => u.floor === selectedFloor);
-        if (unitsOnFloor.length > 0) {
-          setSelectedUnitId(unitsOnFloor[0].id);
-        }
-      }
+      const res = await roomsApi.getPublicBedMonitoring(roomId);
+      setRooms(res.data.data || []);
+      setMasterData(res.data.master_data || {});
     } catch (error) {
-      console.error("Failed to load room data:", error);
+      console.error("Failed to load public bed monitoring:", error);
     } finally {
       setLoading(false);
     }
-  }, [roomId, selectedFloor, selectedUnitId]);
+  }, [roomId]);
 
-  // Load settings
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const response = await settingsApi.getAll();
-        const settings = response.data.data;
-        if (settings.app_name) {
-          setHospitalName(settings.app_name);
+        const settings = response.data.data || {};
+        if (settings.app_name) setHospitalName(settings.app_name);
+        if (settings.app_subtitle) setHospitalSubtitle(settings.app_subtitle);
+        if (settings.app_logo) setAppLogo(settings.app_logo);
+        if (settings.display_running_text !== undefined) {
+          setDisplayRunningText(settings.display_running_text);
         }
       } catch (error) {
         console.error("Failed to load settings:", error);
       }
     };
-    loadSettings();
+
+    void loadSettings();
+    const settingsInterval = setInterval(loadSettings, 30000);
+    return () => clearInterval(settingsInterval);
   }, []);
 
   useEffect(() => {
-    loadData();
-    const dataInterval = setInterval(loadData, 30000);
+    setLoading(true);
+    void loadData();
+    const dataInterval = setInterval(() => void loadData(), 15000);
     return () => clearInterval(dataInterval);
   }, [loadData]);
 
-  // Update clock every second
   useEffect(() => {
-    const clockInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Toggle fullscreen
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
-
-  // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(Boolean(document.fullscreenElement));
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  // Helper to get master data name
-  const getMasterDataName = (category: string, code: string): string => {
-    const items = masterData[category] || [];
-    const item = items.find((i) => i.code === code);
-    return item?.name || code;
+  const totalSlides = Math.max(1, Math.ceil(rooms.length / ROOMS_PER_SLIDE));
+
+  useEffect(() => {
+    setSlideIndex((prev) => (prev >= totalSlides ? 0 : prev));
+  }, [totalSlides]);
+
+  useEffect(() => {
+    if (totalSlides <= 1) return;
+    const timer = setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % totalSlides);
+    }, SLIDE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [totalSlides]);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen();
+    } else {
+      void document.exitFullscreen();
+    }
   };
 
-  // Get available floors
-  const availableFloors = room ? Array.from({ length: room.total_floors }, (_, i) => i + 1) : [1];
+  const getMasterName = (category: string, code?: string) => {
+    if (!code) return "-";
+    const list = masterData[category] || [];
+    return list.find((item) => item.code === code)?.name || code;
+  };
 
-  // Filter units by selected floor
-  const filteredUnits = units.filter((unit) => unit.floor === selectedFloor);
+  const visibleRooms = useMemo(() => {
+    const start = slideIndex * ROOMS_PER_SLIDE;
+    return rooms.slice(start, start + ROOMS_PER_SLIDE);
+  }, [rooms, slideIndex]);
 
-  // Calculate bed statistics
-  const getBedStats = () => {
+  const stats = useMemo(() => {
     let total = 0;
     let available = 0;
     let occupied = 0;
     let reserved = 0;
-    let maintenance = 0;
+    let other = 0;
 
-    units.forEach((unit) => {
-      (unit.beds || []).forEach((bed) => {
-        total++;
-        switch (bed.status) {
-          case "available":
-            available++;
-            break;
-          case "occupied":
-            occupied++;
-            break;
-          case "reserved":
-            reserved++;
-            break;
-          case "maintenance":
-          case "cleaning":
-            maintenance++;
-            break;
-        }
+    rooms.forEach((room) => {
+      (room.units || []).forEach((unit) => {
+        (unit.beds || []).forEach((bed) => {
+          total++;
+          if (bed.status === "available") available++;
+          else if (bed.status === "occupied") occupied++;
+          else if (bed.status === "reserved") reserved++;
+          else other++;
+        });
       });
     });
 
-    return { total, available, occupied, reserved, maintenance };
-  };
-
-  const stats = getBedStats();
-
-  // Handle bed click
-  const handleBedClick = (bed: Bed) => {
-    setSelectedBed(bed);
-    setPatientDialogOpen(true);
-  };
-
-  // Get selected unit data
-  const currentUnit = filteredUnits.find((u) => u.id === selectedUnitId);
-  const bedsInUnit = currentUnit?.beds || [];
+    const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
+    return { total, available, occupied, reserved, other, occupancyPct };
+  }, [rooms]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-screen w-screen items-center justify-center overflow-hidden bg-slate-50">
+        <Loader2 className="h-9 w-9 animate-spin text-emerald-600" />
       </div>
     );
   }
 
-  if (!room) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">Ruangan tidak ditemukan</p>
-        </div>
-      </div>
-    );
-  }
+  const isMultiRoom = visibleRooms.length > 1;
+  const isDenseMultiRoom = visibleRooms.length > 2;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-primary text-primary-foreground p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Building2 className="h-8 w-8" />
-            <div>
-              <h1 className="text-xl font-bold">{hospitalName}</h1>
-              <p className="text-sm opacity-90">
-                {room.name} - Monitoring Bed
+    <div className="flex h-screen w-screen max-w-full flex-col overflow-hidden bg-slate-50 text-slate-900 select-none">
+      {/* Compact Light Clinic Header */}
+      <header className="shrink-0 border-b border-slate-200 bg-white px-5 py-2.5 shadow-sm">
+        <div className="flex items-center justify-between gap-4 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {appLogo ? (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1">
+                <img
+                  src={`${BASE_URL}${appLogo}`}
+                  alt="Logo"
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <BedDouble className="h-5 w-5" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-900">
+                  {hospitalName}
+                </h1>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Bed Rawat Inap
+                </span>
+                {totalSlides > 1 && (
+                  <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-600">
+                    Slide {slideIndex + 1}/{totalSlides}
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-[11px] font-medium text-slate-500">
+                {hospitalSubtitle ? `${hospitalSubtitle} • ` : ""}
+                {roomId && rooms[0]
+                  ? `Ketersediaan Tempat Tidur: ${rooms[0].name}`
+                  : "Informasi Ketersediaan Tempat Tidur Rawat Inap"}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            {/* Clock */}
-            <div className="text-right">
-              <div className="text-2xl font-mono font-bold flex items-center gap-2">
-                <Clock className="h-5 w-5" />
+
+          {/* Inline Live Stats + Clock */}
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="hidden md:flex items-center gap-1.5">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total</div>
+                <div className="font-mono text-sm font-black leading-tight text-slate-900">{stats.total}</div>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Tersedia</div>
+                <div className="font-mono text-sm font-black leading-tight text-emerald-700">{stats.available}</div>
+              </div>
+              <div className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-sky-700">Terisi</div>
+                <div className="font-mono text-sm font-black leading-tight text-sky-700">{stats.occupied}</div>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-amber-700">Okupansi</div>
+                <div className="font-mono text-sm font-black leading-tight text-amber-700">{stats.occupancyPct}%</div>
+              </div>
+            </div>
+
+            <div className="text-right tabular-nums pl-2.5 border-l border-slate-200">
+              <div className="font-mono text-lg font-extrabold leading-none tracking-tight text-slate-900">
                 {format(currentTime, "HH:mm:ss")}
               </div>
-              <div className="text-sm opacity-90">
-                {format(currentTime, "EEEE, dd MMMM yyyy", { locale: idLocale })}
+              <div className="mt-0.5 text-[10px] font-medium text-slate-500">
+                {format(currentTime, "EEEE, dd MMM yyyy", { locale: idLocale })}
               </div>
             </div>
-            {/* Fullscreen Toggle */}
+
             <Button
-              variant="secondary"
+              type="button"
+              variant="outline"
               size="icon"
+              className="h-8 w-8 rounded-lg border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               onClick={toggleFullscreen}
+              title={isFullscreen ? "Keluar Fullscreen" : "Fullscreen"}
             >
-              {isFullscreen ? (
-                <Minimize2 className="h-5 w-5" />
-              ) : (
-                <Maximize2 className="h-5 w-5" />
-              )}
-            </Button>
-            {/* Refresh Button */}
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={loadData}
-            >
-              <RefreshCw className="h-5 w-5" />
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* Left Column - Statistics & Navigation */}
-          <div className="rounded-lg border">
-            <div className="flex items-center gap-4 p-4">
-              <h1 className="text-lg font-semibold flex items-center gap-2">
-                <BedDouble className="h-4 w-4" />
-                Statistik Bed
-              </h1>
-            </div>
-            <div className="rounded-lg border p-6 space-y-4 mx-4 mb-4">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-primary">{stats.total}</div>
-                  <div className="text-xs text-muted-foreground">Total Bed</div>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-                  <div className="text-xs text-muted-foreground">Tersedia</div>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-blue-600">{stats.occupied}</div>
-                  <div className="text-xs text-muted-foreground">Terisi</div>
-                </div>
-                <div className="p-3 bg-amber-50 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-amber-600">{stats.reserved}</div>
-                  <div className="text-xs text-muted-foreground">Dipesan</div>
-                </div>
-              </div>
+      {/* Non-Scrollable Multi-Ward Adaptive Bed Grid Canvas */}
+      <main className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 py-2.5">
+        {rooms.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white text-center shadow-sm">
+            <Building2 className="mb-2 h-10 w-10 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-600">
+              {roomId
+                ? "Ruangan rawat inap tidak ditemukan"
+                : "Belum ada ruangan rawat inap aktif dengan tempat tidur"}
+            </p>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "grid flex-1 min-h-0 gap-3 overflow-hidden",
+              visibleRooms.length === 1 && "grid-cols-1",
+              visibleRooms.length === 2 && "grid-cols-1 lg:grid-cols-2",
+              visibleRooms.length >= 3 && "grid-cols-1 md:grid-cols-2 md:grid-rows-2"
+            )}
+          >
+            {visibleRooms.map((room) => {
+              const units = room.units || [];
+              const roomTotal = units.reduce((acc, u) => acc + (u.beds?.length || 0), 0);
+              const roomAvail = units.reduce(
+                (acc, u) => acc + (u.beds?.filter((b) => b.status === "available").length || 0),
+                0
+              );
+              const roomOcc = units.reduce(
+                (acc, u) => acc + (u.beds?.filter((b) => b.status === "occupied").length || 0),
+                0
+              );
 
-              {/* Floor Navigation */}
-              {availableFloors.length > 1 && (
-                <div className="space-y-2 border-t pt-4">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    Pilih Lantai
-                  </Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {availableFloors.map((floor) => (
-                      <button
-                        key={floor}
-                        type="button"
-                        onClick={() => {
-                          setSelectedFloor(floor);
-                          setSelectedUnitId(null);
-                        }}
+              return (
+                <section
+                  key={room.id}
+                  className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
+                  {/* Compact Room Banner Header */}
+                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3.5 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                        <Building2 className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h2 className="truncate text-xs font-extrabold uppercase tracking-tight text-slate-900 sm:text-sm">
+                            {room.name}
+                          </h2>
+                          {room.room_class && (
+                            <Badge variant="outline" className="h-4 rounded border-slate-300 bg-white px-1.5 text-[9px] text-slate-700">
+                              {getMasterName("room_class", room.room_class)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2 text-[11px] font-mono">
+                      <span className="font-bold text-emerald-700">{roomAvail} Kosong</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="font-bold text-sky-700">{roomOcc} Terisi</span>
+                      <span className="text-slate-400">/ {roomTotal}</span>
+                    </div>
+                  </div>
+
+                  {/* Dense Multi-Column Kamar/Units Grid inside Room */}
+                  <div className="flex-1 min-h-0 overflow-hidden p-2.5">
+                    {units.length === 0 ? (
+                      <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                        Belum ada kamar pada ruangan ini.
+                      </div>
+                    ) : (
+                      <div
                         className={cn(
-                          "p-2 rounded-lg border-2 text-center transition-all text-sm font-medium",
-                          selectedFloor === floor
-                            ? "border-primary bg-primary/10"
-                            : "border-muted hover:border-primary/50"
+                          "grid h-full content-start gap-2 overflow-hidden",
+                          !isMultiRoom
+                            ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4"
+                            : isDenseMultiRoom
+                            ? "grid-cols-2 xl:grid-cols-3"
+                            : "grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
                         )}
                       >
-                        Lt. {floor}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                        {units.map((unit) => {
+                          const unitBeds = unit.beds || [];
+                          const unitAvailable = unitBeds.filter((b) => b.status === "available").length;
 
-              {/* Legend */}
-              <div className="space-y-2 border-t pt-4">
-                <Label className="text-sm font-medium">Keterangan</Label>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-green-500"></div>
-                    <span>Tersedia</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-blue-500"></div>
-                    <span>Terisi</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-amber-500"></div>
-                    <span>Dipesan</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-gray-400"></div>
-                    <span>Maintenance</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-purple-500"></div>
-                    <span>Cleaning</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Bed Selection */}
-          <div className="rounded-lg border lg:col-span-3">
-            <div className="flex items-center gap-4 p-4">
-              <h1 className="text-lg font-semibold flex items-center gap-2">
-                <BedDouble className="h-4 w-4" />
-                Daftar Bed - Lantai {selectedFloor}
-              </h1>
-            </div>
-            <div className="rounded-lg border p-6 mx-4 mb-4">
-              {/* Unit Selection */}
-              <div className="space-y-3 mb-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  Pilih Unit/Kamar
-                </Label>
-                {filteredUnits.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                    {filteredUnits.map((unit) => {
-                      const availableCount = unit.beds?.filter((b) => b.status === "available").length || 0;
-                      const totalCount = unit.beds?.length || 0;
-                      const isSelected = selectedUnitId === unit.id;
-
-                      return (
-                        <button
-                          key={unit.id}
-                          type="button"
-                          onClick={() => setSelectedUnitId(unit.id)}
-                          className={cn(
-                            "p-2 rounded-lg border-2 text-left transition-all",
-                            isSelected
-                              ? "border-primary bg-primary/10"
-                              : "border-muted hover:border-primary/50"
-                          )}
-                        >
-                          <div className="font-medium text-xs">{unit.name}</div>
-                          <div className={cn(
-                            "text-xs",
-                            availableCount > 0 ? "text-green-600" : "text-red-600"
-                          )}>
-                            {availableCount}/{totalCount}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground p-4 border rounded-lg text-center">
-                    Tidak ada unit pada lantai ini
-                  </div>
-                )}
-              </div>
-
-              {/* Bed Grid */}
-              {currentUnit && (
-                <div className="border rounded-lg p-4 bg-muted/30">
-                  <div className="flex items-center justify-between mb-3">
-                    <Label className="text-sm font-semibold">{currentUnit.name}</Label>
-                    <Badge variant="outline" className="text-xs">
-                      {bedsInUnit.filter(b => b.status === "available").length} / {bedsInUnit.length} tersedia
-                    </Badge>
-                  </div>
-                  <TooltipProvider delayDuration={200}>
-                    <div className="flex flex-wrap gap-2">
-                      {bedsInUnit.map((bed) => {
-                        const isAvailable = bed.status === "available";
-                        const isOccupied = bed.status === "occupied";
-                        const hasPatient = isOccupied && bed.current_patient;
-
-                        return (
-                          <Tooltip key={bed.id}>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() => handleBedClick(bed)}
-                                className={cn(
-                                  "w-14 h-14 rounded-md flex flex-col items-center justify-center text-xs font-medium transition-all",
-                                  isAvailable && "bg-green-500 text-white hover:bg-green-600",
-                                  bed.status === "occupied" && "bg-blue-500 text-white hover:bg-blue-600 cursor-pointer",
-                                  bed.status === "reserved" && "bg-amber-500 text-white",
-                                  bed.status === "maintenance" && "bg-gray-400 text-white cursor-not-allowed",
-                                  bed.status === "cleaning" && "bg-purple-500 text-white"
-                                )}
-                              >
-                                <BedDouble className="h-5 w-5" />
-                                <span className="text-xs">{bed.bed_number}</span>
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <p className="font-semibold">Bed {bed.bed_number}</p>
-                              <p className="text-xs capitalize">{getMasterDataName("bed_status", bed.status)}</p>
-                              {hasPatient && (
-                                <div className="mt-1 pt-1 border-t">
-                                  <p className="text-xs flex items-center gap-1">
-                                    <User className="h-3 w-3" />
-                                  {bed.current_patient?.name || "N/A"}
-                                  </p>
+                          return (
+                            <div
+                              key={unit.id}
+                              className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-2"
+                            >
+                              <div className="mb-1.5 flex items-center justify-between gap-1 border-b border-slate-200/80 pb-1">
+                                <div className="flex min-w-0 items-center gap-1">
+                                  <span className="truncate text-[11px] font-bold text-slate-800">
+                                    {unit.name}
+                                  </span>
+                                  <span className="shrink-0 rounded bg-white px-1 py-0.5 font-mono text-[9px] font-semibold text-slate-500 border border-slate-200">
+                                    Lt.{unit.floor}
+                                  </span>
                                 </div>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })}
-                    </div>
-                  </TooltipProvider>
-                </div>
-              )}
-            </div>
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
+                                    unitAvailable > 0
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-sky-100 text-sky-800"
+                                  )}
+                                >
+                                  {unitAvailable}/{unitBeds.length}
+                                </span>
+                              </div>
+
+                              {/* Compact Bed Logo Tiles inside Kamar */}
+                              <div className="flex flex-wrap gap-1.5">
+                                {unitBeds.map((bed) => {
+                                  const meta = getPublicBedMeta(bed.status);
+                                  return (
+                                    <div
+                                      key={bed.id}
+                                      className={cn(
+                                        "flex min-w-[44px] flex-1 max-w-[68px] flex-col items-center justify-center rounded-lg border px-1.5 py-1 text-center",
+                                        meta.cardClass
+                                      )}
+                                    >
+                                      <div
+                                        className={cn(
+                                          "flex h-5 w-7 items-center justify-center rounded",
+                                          meta.iconWrapClass
+                                        )}
+                                      >
+                                        <BedDouble className="h-3.5 w-3.5" />
+                                      </div>
+                                      <span className="mt-0.5 w-full truncate font-mono text-[10px] font-black leading-none">
+                                        {bed.bed_number}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
           </div>
+        )}
+      </main>
+
+      {/* Compact Legend Strip */}
+      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-white px-5 py-1.5 text-[11px]">
+        <div className="flex flex-wrap items-center gap-4 font-semibold text-slate-700">
+          <span className="uppercase tracking-wider text-slate-400">Status Bed:</span>
+          {Object.entries(PUBLIC_BED_STATUS).map(([key, item]) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <span className={cn("h-2.5 w-2.5 rounded-full", item.dotClass)} />
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="shrink-0 font-medium text-slate-400">
+          Update otomatis 15 detik • Rawat Inap
         </div>
       </div>
 
-      {/* Patient Detail Dialog */}
-      <Dialog open={patientDialogOpen} onOpenChange={setPatientDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Detail Pasien - Bed {selectedBed?.bed_number}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedBed && (
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Patient Info */}
-              {selectedBed.current_patient ? (
-                <>
-                  {/* Header with patient name */}
-                  <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
-                    <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="h-7 w-7 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-lg">
-                        {selectedBed.current_patient.name || "N/A"}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>No. RM: {selectedBed.current_patient.medical_record_number || "N/A"}</span>
-                        {selectedBed.current_patient.gender && (
-                          <>
-                            <span>•</span>
-                            <span>{selectedBed.current_patient.gender === "L" ? "Laki-laki" : "Perempuan"}</span>
-                          </>
-                        )}
-                        {selectedBed.current_patient.age !== undefined && selectedBed.current_patient.age > 0 && (
-                          <>
-                            <span>•</span>
-                            <span>{selectedBed.current_patient.age} tahun</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Patient Details Grid */}
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    {selectedBed.current_patient.nik && (
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">NIK</p>
-                        <p className="font-medium">{selectedBed.current_patient.nik}</p>
-                      </div>
-                    )}
-                    {selectedBed.current_patient.birth_date && (
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Tanggal Lahir</p>
-                        <p className="font-medium">
-                          {format(new Date(selectedBed.current_patient.birth_date), "dd MMMM yyyy", { locale: idLocale })}
-                        </p>
-                      </div>
-                    )}
-                    {selectedBed.current_patient.phone && (
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">No. Telepon</p>
-                        <p className="font-medium">{selectedBed.current_patient.phone}</p>
-                      </div>
-                    )}
-                    {selectedBed.current_patient.insurance_type && (
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Jaminan</p>
-                        <p className="font-medium">{selectedBed.current_patient.insurance_type}</p>
-                        {selectedBed.current_patient.insurance_number && (
-                          <p className="text-xs text-muted-foreground">{selectedBed.current_patient.insurance_number}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Address */}
-                  {selectedBed.current_patient.address && (
-                    <div className="p-3 bg-muted/50 rounded-lg text-sm">
-                      <p className="text-xs text-muted-foreground mb-1">Alamat</p>
-                      <p className="font-medium">{selectedBed.current_patient.address}</p>
-                    </div>
-                  )}
-
-                  {/* Admission Info */}
-                  <div className="border-t pt-3 space-y-3">
-                    <p className="text-sm font-semibold text-muted-foreground">Informasi Rawat Inap</p>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      {selectedBed.current_patient.admission_date && (
-                        <div className="p-3 bg-green-50 rounded-lg">
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" /> Tanggal Masuk
-                          </p>
-                          <p className="font-medium">
-                            {format(new Date(selectedBed.current_patient.admission_date), "dd MMM yyyy, HH:mm", { locale: idLocale })}
-                          </p>
-                        </div>
-                      )}
-                      {selectedBed.current_patient.doctor_name && (
-                        <div className="p-3 bg-green-50 rounded-lg">
-                          <p className="text-xs text-muted-foreground">DPJP</p>
-                          <p className="font-medium">{selectedBed.current_patient.doctor_name}</p>
-                        </div>
-                      )}
-                    </div>
-                    {selectedBed.current_patient.diagnosis && (
-                      <div className="p-3 bg-amber-50 rounded-lg text-sm">
-                        <p className="text-xs text-muted-foreground mb-1">Diagnosis</p>
-                        <p className="font-medium">{selectedBed.current_patient.diagnosis}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="pt-2 border-t">
-                    <Button className="w-full" onClick={() => setPatientDialogOpen(false)}>
-                      Tutup
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-6">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                    <BedDouble className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground">Bed ini sedang kosong</p>
-                  <p className="text-xs text-muted-foreground mt-1 capitalize">
-                    Status: {getMasterDataName("bed_status", selectedBed.status)}
-                  </p>
-                  <Button variant="outline" className="mt-4" onClick={() => setPatientDialogOpen(false)}>
-                    Tutup
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Running Text Ticker */}
+      <DisplayRunningTextTicker text={displayRunningText} hospitalName={hospitalName} />
     </div>
   );
 }

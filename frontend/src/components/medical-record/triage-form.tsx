@@ -588,44 +588,46 @@ export function TriageForm({
 
   if (loading || masterDataLoading) {
     return (
-      <div>
-        <div className="p-6">
-          <div className="flex items-center justify-center py-8 gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-muted-foreground">Memuat data...</span>
-          </div>
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px] gap-2">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Memuat data...</span>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
       <div>
-          {/* Edit Mode Banner for discharged patients */}
-          {!useExternalData && (
+        {/* Edit Mode Banner for discharged patients */}
+        {!useExternalData && (
+          <div className="px-4 sm:px-5 pt-3 empty:hidden">
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
               onRequestEdit={handleRequestEdit}
               recordTypeLabel="Triase"
             />
-          )}
-          
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-          
-          {/* Section 1: Informasi Kedatangan */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Informasi Kedatangan
-            </div>
-            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="arrival_mode" className="text-sm font-semibold">
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <fieldset
+            disabled={isFormDisabled}
+            className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+          >
+            {/* Section 1: Informasi Kedatangan */}
+            <section className="px-4 sm:px-5 py-4 space-y-4">
+              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                Informasi Kedatangan
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="arrival_mode" className="text-xs font-medium">
                     Moda Kedatangan <span className="text-destructive">*</span>
                   </Label>
-                  <Combobox allowCustomValue
+                  <Combobox
+                    allowCustomValue
                     options={arrivalModeOptions}
                     value={formData.arrival_mode}
                     onValueChange={(value) => handleChange("arrival_mode", value)}
@@ -634,8 +636,8 @@ export function TriageForm({
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="triage_rujukan" className="text-sm font-semibold">
+                <div className="space-y-1.5">
+                  <Label htmlFor="triage_rujukan" className="text-xs font-medium">
                     Rujukan Dari
                   </Label>
                   <Combobox
@@ -647,12 +649,10 @@ export function TriageForm({
                     searchPlaceholder="Cari faskes/dokter atau ketik baru..."
                     emptyText="Belum ada faskes tercatat. Ketik untuk menambahkan baru."
                     disabled={isFormDisabled}
-                    className="h-11"
                   />
                 </div>
-
-                <div className="space-y-2 md:col-span-1">
-                  <Label htmlFor="triage_complaint" className="text-sm font-semibold">
+                <div className="space-y-1.5">
+                  <Label htmlFor="triage_complaint" className="text-xs font-medium">
                     Keluhan Utama <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -660,7 +660,6 @@ export function TriageForm({
                     placeholder="Keluhan utama pasien..."
                     value={formData.triage_complaint || ""}
                     onChange={(e) => handleChange("triage_complaint", e.target.value)}
-                    className="h-11"
                     required
                   />
                 </div>
@@ -668,69 +667,77 @@ export function TriageForm({
 
               {/* Triage Level */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">
+                <Label className="text-xs font-medium">
                   Level Triase <span className="text-destructive">*</span>
                 </Label>
-                <div className="grid grid-cols-4 gap-3" role="radiogroup" aria-label="Level Triase">
-                  {triageLevelOptions.map((level) => (
-                    <button
-                      key={level.value}
-                      type="button"
-                      onClick={() => handleChange("triage_level", level.value)}
-                      role="radio"
-                      aria-checked={formData.triage_level === level.value}
-                      className={cn(
-                        "rounded-lg border-2 p-3 text-left transition-all",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        formData.triage_level === level.value
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40 hover:bg-muted/40"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span
-                          className={cn(
-                            "h-3 w-3 rounded-full border border-white/20",
-                            triageLevelColors[level.value] || "bg-gray-500"
-                          )}
-                        />
-                        <span className="text-xs font-semibold text-muted-foreground">Level {level.value}</span>
-                      </div>
-                      <p className="text-sm font-semibold leading-tight">{triageLevelMeta[level.value]?.title || level.label}</p>
-                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                        {triageLevelMeta[level.value]?.description || "Pilih sesuai kondisi klinis pasien"}
-                      </p>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5" role="radiogroup" aria-label="Level Triase">
+                  {triageLevelOptions.map((level) => {
+                    const isSelected = formData.triage_level === level.value;
+                    return (
+                      <button
+                        key={level.value}
+                        type="button"
+                        onClick={() => handleChange("triage_level", level.value)}
+                        role="radio"
+                        aria-checked={isSelected}
+                        className={cn(
+                          "rounded-none border p-3 text-left transition-all",
+                          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-900 dark:focus-visible:ring-neutral-100",
+                          isSelected
+                            ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] ring-1 ring-neutral-900 dark:ring-neutral-100"
+                            : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-neutral-100 hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className={cn(
+                              "h-2.5 w-2.5 rounded-full shrink-0",
+                              triageLevelColors[level.value] || "bg-gray-500"
+                            )}
+                          />
+                          <span className="text-[11px] font-mono font-semibold text-muted-foreground">
+                            Level {level.value}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                          {triageLevelMeta[level.value]?.title || level.label}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                          {triageLevelMeta[level.value]?.description || "Pilih sesuai kondisi klinis pasien"}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
                 {selectedTriageMeta && (
                   <div
                     className={cn(
-                      "border-l-4 pl-3 py-1",
+                      "border border-l-4 px-3.5 py-2",
                       selectedTriagePalette?.container || "border-border"
                     )}
                   >
-                    <p className={cn("text-sm font-semibold", selectedTriagePalette?.title || "") }>
+                    <p className={cn("text-xs font-semibold", selectedTriagePalette?.title || "")}>
                       Level dipilih: {selectedTriageMeta.title}
                     </p>
-                    <p className={cn("text-xs mt-1", selectedTriagePalette?.subtitle || "text-muted-foreground") }>
+                    <p className={cn("text-[11px] mt-0.5", selectedTriagePalette?.subtitle || "text-muted-foreground")}>
                       {selectedTriageMeta.response}
                     </p>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+            </section>
 
-          {/* Section 2: Primary Survey (ABC) */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Primary Survey ABC
-            </div>
-            <div className="space-y-5 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
-                  <Combobox allowCustomValue
+            {/* Section 2: Primary Survey (ABC) */}
+            <section className="px-4 sm:px-5 py-4 space-y-4">
+              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                Primary Survey ABC
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="airway" className="text-xs font-medium">Airway (Jalan Napas)</Label>
+                  <Combobox
+                    allowCustomValue
                     options={airwayOptions}
                     value={formData.airway}
                     onValueChange={(value) => handleChange("airway", value)}
@@ -739,22 +746,22 @@ export function TriageForm({
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="airway_note" className="text-sm font-semibold">Catatan Airway</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="airway_note" className="text-xs font-medium">Catatan Airway</Label>
                   <Input
                     id="airway_note"
                     placeholder="Catatan tambahan..."
                     value={formData.airway_note}
                     onChange={(e) => handleChange("airway_note", e.target.value)}
-                    className="h-11"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="breathing" className="text-sm font-semibold">Breathing (Pernapasan)</Label>
-                  <Combobox allowCustomValue
+                <div className="space-y-1.5">
+                  <Label htmlFor="breathing" className="text-xs font-medium">Breathing (Pernapasan)</Label>
+                  <Combobox
+                    allowCustomValue
                     options={breathingOptions}
                     value={formData.breathing}
                     onValueChange={(value) => handleChange("breathing", value)}
@@ -763,22 +770,22 @@ export function TriageForm({
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="breathing_note" className="text-sm font-semibold">Catatan Breathing</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="breathing_note" className="text-xs font-medium">Catatan Breathing</Label>
                   <Input
                     id="breathing_note"
                     placeholder="Catatan tambahan..."
                     value={formData.breathing_note}
                     onChange={(e) => handleChange("breathing_note", e.target.value)}
-                    className="h-11"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="circulation" className="text-sm font-semibold">Circulation (Sirkulasi)</Label>
-                  <Combobox allowCustomValue
+                <div className="space-y-1.5">
+                  <Label htmlFor="circulation" className="text-xs font-medium">Circulation (Sirkulasi)</Label>
+                  <Combobox
+                    allowCustomValue
                     options={circulationOptions}
                     value={formData.circulation}
                     onValueChange={(value) => handleChange("circulation", value)}
@@ -787,91 +794,90 @@ export function TriageForm({
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="circulation_note" className="text-sm font-semibold">Catatan Circulation</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="circulation_note" className="text-xs font-medium">Catatan Circulation</Label>
                   <Input
                     id="circulation_note"
                     placeholder="Catatan tambahan..."
                     value={formData.circulation_note}
                     onChange={(e) => handleChange("circulation_note", e.target.value)}
-                    className="h-11"
                   />
                 </div>
               </div>
-            </div>
-          </div>
+            </section>
 
-          {/* Section 3: Tanda Vital */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Tanda Vital dan Nyeri
-            </div>
-            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="blood_pressure" className="text-sm font-semibold flex items-center gap-1.5">
-                    Tekanan Darah
+            {/* Section 3: Tanda Vital & Nyeri */}
+            <section className="px-4 sm:px-5 py-4 space-y-4">
+              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                Tanda Vital dan Nyeri
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="blood_pressure" className="text-xs font-medium">Tekanan Darah</Label>
                     {getVitalStatusLabel(bpStatus) && (
-                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(bpStatus))}>
+                      <Badge variant="outline" className={cn("rounded-none text-[9px] px-1 py-0 h-4", getVitalStatusBadgeClass(bpStatus))}>
                         {getVitalStatusLabel(bpStatus)}
                       </Badge>
                     )}
-                  </Label>
+                  </div>
                   <Input
                     id="blood_pressure"
                     placeholder="120/80 mmHg"
                     value={formData.blood_pressure}
                     onChange={(e) => handleChange("blood_pressure", e.target.value)}
-                    className={cn("h-11", getVitalStatusInputClass(bpStatus))}
+                    className={getVitalStatusInputClass(bpStatus)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="heart_rate" className="text-sm font-semibold flex items-center gap-1.5">
-                    Nadi (x/menit)
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="heart_rate" className="text-xs font-medium">Nadi (x/menit)</Label>
                     {getVitalStatusLabel(heartRateStatus) && (
-                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(heartRateStatus))}>
+                      <Badge variant="outline" className={cn("rounded-none text-[9px] px-1 py-0 h-4", getVitalStatusBadgeClass(heartRateStatus))}>
                         {getVitalStatusLabel(heartRateStatus)}
                       </Badge>
                     )}
-                  </Label>
+                  </div>
                   <Input
                     id="heart_rate"
                     type="number"
                     placeholder="80"
                     value={formData.heart_rate === "" ? "" : formData.heart_rate}
                     onChange={(e) => handleChange("heart_rate", e.target.value === "" ? "" : Number(e.target.value))}
-                    className={cn("h-11", getVitalStatusInputClass(heartRateStatus as any))}
+                    className={getVitalStatusInputClass(heartRateStatus as any)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="respiratory_rate" className="text-sm font-semibold flex items-center gap-1.5">
-                    Frekuensi Napas (x/menit)
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="respiratory_rate" className="text-xs font-medium">Frekuensi Napas</Label>
                     {getVitalStatusLabel(respiratoryStatus) && (
-                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(respiratoryStatus))}>
+                      <Badge variant="outline" className={cn("rounded-none text-[9px] px-1 py-0 h-4", getVitalStatusBadgeClass(respiratoryStatus))}>
                         {getVitalStatusLabel(respiratoryStatus)}
                       </Badge>
                     )}
-                  </Label>
+                  </div>
                   <Input
                     id="respiratory_rate"
                     type="number"
-                    placeholder="20"
+                    placeholder="20 x/menit"
                     value={formData.respiratory_rate === "" ? "" : formData.respiratory_rate}
                     onChange={(e) => handleChange("respiratory_rate", e.target.value === "" ? "" : Number(e.target.value))}
-                    className={cn("h-11", getVitalStatusInputClass(respiratoryStatus as any))}
+                    className={getVitalStatusInputClass(respiratoryStatus as any)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="temperature" className="text-sm font-semibold flex items-center gap-1.5">
-                    Suhu (°C)
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="temperature" className="text-xs font-medium">Suhu (°C)</Label>
                     {getVitalStatusLabel(temperatureStatus) && (
-                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(temperatureStatus))}>
+                      <Badge variant="outline" className={cn("rounded-none text-[9px] px-1 py-0 h-4", getVitalStatusBadgeClass(temperatureStatus))}>
                         {getVitalStatusLabel(temperatureStatus)}
                       </Badge>
                     )}
-                  </Label>
+                  </div>
                   <Input
                     id="temperature"
                     type="number"
@@ -879,181 +885,179 @@ export function TriageForm({
                     placeholder="36.5"
                     value={formData.temperature === "" ? "" : formData.temperature}
                     onChange={(e) => handleChange("temperature", e.target.value === "" ? "" : Number(e.target.value))}
-                    className={cn("h-11", getVitalStatusInputClass(temperatureStatus as any))}
+                    className={getVitalStatusInputClass(temperatureStatus as any)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="oxygen_saturation" className="text-sm font-semibold flex items-center gap-1.5">
-                    SpO2 (%)
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1 min-h-[20px]">
+                    <Label htmlFor="oxygen_saturation" className="text-xs font-medium">SpO2 (%)</Label>
                     {getVitalStatusLabel(spo2Status) && (
-                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(spo2Status))}>
+                      <Badge variant="outline" className={cn("rounded-none text-[9px] px-1 py-0 h-4", getVitalStatusBadgeClass(spo2Status))}>
                         {getVitalStatusLabel(spo2Status)}
                       </Badge>
                     )}
-                  </Label>
+                  </div>
                   <Input
                     id="oxygen_saturation"
                     type="number"
                     placeholder="98"
                     value={formData.oxygen_saturation === "" ? "" : formData.oxygen_saturation}
                     onChange={(e) => handleChange("oxygen_saturation", e.target.value === "" ? "" : Number(e.target.value))}
-                    className={cn("h-11", getVitalStatusInputClass(spo2Status as any))}
+                    className={getVitalStatusInputClass(spo2Status as any)}
                     required
                   />
                 </div>
-                <div className="space-y-4 md:col-span-2 xl:col-span-5">
+              </div>
+
+              {/* Nyeri Sub-block */}
+              <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between bg-neutral-50/70 dark:bg-neutral-900/30 px-3.5 py-2.5 border border-neutral-200 dark:border-neutral-800">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="no_pain" className="text-xs font-semibold cursor-pointer">
+                      Tidak Ada Nyeri
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Aktifkan jika pasien tidak mengalami nyeri
+                    </p>
+                  </div>
+                  <Switch
+                    id="no_pain"
+                    checked={formData.pain_location === "Tidak ada nyeri"}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        handleChange("pain_location", "Tidak ada nyeri");
+                        handleChange("pain_scale", "0");
+                      } else {
+                        handleChange("pain_location", "");
+                      }
+                    }}
+                    disabled={isFormDisabled}
+                  />
+                </div>
+
+                {formData.pain_location !== "Tidak ada nyeri" && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-3 flex items-center justify-between mb-2 bg-muted/20 p-3 px-4 rounded-lg border border-border/70">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="no_pain" className="text-sm font-semibold cursor-pointer">
-                          Tidak Ada Nyeri
-                        </Label>
-                        <p className="text-[11px] text-muted-foreground">
-                          Aktifkan jika pasien tidak mengalami nyeri
-                        </p>
-                      </div>
-                      <Switch
-                        id="no_pain"
-                        checked={formData.pain_location === "Tidak ada nyeri"}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            handleChange("pain_location", "Tidak ada nyeri");
-                            handleChange("pain_scale", "0");
-                          } else {
-                            handleChange("pain_location", "");
-                          }
-                        }}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pain_method" className="text-xs font-medium">Metode Penilaian Nyeri</Label>
+                      <Select
+                        value={formData.pain_method}
+                        onValueChange={(value) => handleChange("pain_method", value)}
+                        disabled={isFormDisabled}
+                      >
+                        <SelectTrigger id="pain_method" className="h-9 rounded-none text-xs">
+                          <SelectValue placeholder="Pilih metode" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="nrs" className="text-xs">NRS (Numeric Rating Scale)</SelectItem>
+                          <SelectItem value="wong_baker" className="text-xs">Wong-Baker FACES</SelectItem>
+                          <SelectItem value="vas" className="text-xs">VAS (Visual Analog Scale)</SelectItem>
+                          <SelectItem value="flacc" className="text-xs">FLACC (bayi/anak non-verbal)</SelectItem>
+                          <SelectItem value="bps" className="text-xs">BPS (pasien ICU/ventilator)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pain_location" className="text-xs font-medium">Lokasi Nyeri</Label>
+                      <Combobox
+                        allowCustomValue
+                        options={painLocationOptions}
+                        value={formData.pain_location || ""}
+                        onValueChange={(value) => handleChange("pain_location", value)}
+                        placeholder="Pilih lokasi nyeri"
+                        searchPlaceholder="Cari lokasi nyeri..."
+                        emptyText="Lokasi tidak ditemukan"
                         disabled={isFormDisabled}
                       />
                     </div>
-                    {formData.pain_location !== "Tidak ada nyeri" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
-                          <Select
-                            value={formData.pain_method}
-                            onValueChange={(value) => handleChange("pain_method", value)}
-                            disabled={isFormDisabled}
-                          >
-                            <SelectTrigger id="pain_method">
-                              <SelectValue placeholder="Pilih metode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
-                              <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
-                              <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
-                              <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
-                              <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
-                            </SelectContent>
-                          </Select>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pain_scale" className="text-xs font-medium">Skala Nyeri (0-10)</Label>
+                      {/* Wong-Baker FACES visual */}
+                      {formData.pain_method === "wong_baker" && (
+                        <div className="flex items-center justify-between gap-1 pb-1">
+                          {[0, 2, 4, 6, 8, 10].map((v) => (
+                            <TooltipProvider key={v}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    disabled={isFormDisabled}
+                                    onClick={() => handleChange("pain_scale", String(v))}
+                                    className={cn(
+                                      "text-xl cursor-pointer rounded-none p-1 transition-all border",
+                                      formData.pain_scale === String(v)
+                                        ? "bg-neutral-900/10 border-neutral-900 dark:border-neutral-100"
+                                        : "border-transparent hover:bg-muted"
+                                    )}
+                                  >
+                                    {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="pain_location" className="text-xs">Lokasi Nyeri</Label>
-                          <Combobox allowCustomValue
-                            options={painLocationOptions}
-                            value={formData.pain_location || ""}
-                            onValueChange={(value) => handleChange("pain_location", value)}
-                            placeholder="Pilih lokasi nyeri"
-                            searchPlaceholder="Cari lokasi nyeri..."
-                            emptyText="Lokasi tidak ditemukan"
-                            disabled={isFormDisabled}
-                          />
+                      )}
+                      {/* NRS / VAS / FLACC / BPS numeric bar */}
+                      {(formData.pain_method === "nrs" || formData.pain_method === "vas" || formData.pain_method === "flacc" || formData.pain_method === "bps") && (
+                        <div className="flex items-center gap-1 pb-1">
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              disabled={isFormDisabled}
+                              onClick={() => handleChange("pain_scale", String(v))}
+                              className={cn(
+                                "flex-1 h-8 text-xs font-mono font-medium rounded-none transition-all",
+                                formData.pain_scale === String(v)
+                                  ? "ring-2 ring-neutral-900 dark:ring-white text-white " + (v <= 3 ? "bg-green-600" : v <= 6 ? "bg-yellow-600" : "bg-red-600")
+                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="pain_scale" className="text-xs">Skala Nyeri (0-10)</Label>
-                          {/* Wong-Baker FACES visual */}
-                          {formData.pain_method === "wong_baker" && (
-                            <div className="flex items-center justify-between gap-1 pb-1">
-                              {[0, 2, 4, 6, 8, 10].map((v) => (
-                                <TooltipProvider key={v}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        disabled={isFormDisabled}
-                                        onClick={() => handleChange("pain_scale", String(v))}
-                                        className={cn("text-2xl cursor-pointer rounded-lg p-1 transition-all", formData.pain_scale === String(v) ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted")}
-                                      >
-                                        {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ))}
-                            </div>
-                          )}
-                          {/* NRS / VAS numeric bar */}
-                          {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
-                            <div className="flex items-center gap-1 pb-1">
-                              {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
-                                <button
-                                  key={v}
-                                  type="button"
-                                  disabled={isFormDisabled}
-                                  onClick={() => handleChange("pain_scale", String(v))}
-                                  className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
-                                    formData.pain_scale === String(v)
-                                      ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
-                                      : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800"
-                                      : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
-                                      : "bg-red-100 hover:bg-red-200 text-red-800"
-                                  )}
-                                >
-                                  {v}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {/* FLACC / BPS numeric bar */}
-                          {(formData.pain_method === "flacc" || formData.pain_method === "bps") && (
-                            <div className="flex items-center gap-1 pb-1">
-                              {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
-                                <button
-                                  key={v}
-                                  type="button"
-                                  disabled={isFormDisabled}
-                                  onClick={() => handleChange("pain_scale", String(v))}
-                                  className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
-                                    formData.pain_scale === String(v)
-                                      ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
-                                      : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800"
-                                      : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
-                                      : "bg-red-100 hover:bg-red-200 text-red-800"
-                                  )}
-                                >
-                                  {v}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara"
-                            : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator"
-                            : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
-                            : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
-                          </p>
-                        </div>
-                      </>
-                    )}
+                      )}
+                      <p className="text-[11px] text-muted-foreground">
+                        {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara"
+                        : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator"
+                        : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
+                        : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
+                      </p>
+                    </div>
                   </div>
+                )}
+              </div>
+            </section>
+
+            {/* Section 4: GCS & Tindakan Awal */}
+            <section className="px-4 sm:px-5 py-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  GCS dan Tindakan Awal
+                </div>
+                <div className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 flex items-center gap-2 text-xs">
+                  <span className="text-[11px] font-medium text-muted-foreground">Total GCS:</span>
+                  <Badge variant="default" className="rounded-none font-mono text-[11px] h-5 px-1.5">
+                    {gcsTotal}
+                  </Badge>
+                  <span className="text-muted-foreground font-mono text-[11px]">
+                    (E{formData.gcs_e}V{formData.gcs_v}M{formData.gcs_m})
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Section 4: GCS & Penilaian */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              GCS dan Tindakan Awal
-            </div>
-            <div className="space-y-6 p-3 sm:p-4"><div className="grid gap-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="gcs_e" className="text-sm font-semibold">Eye Opening (E) [1-4]</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="gcs_e" className="text-xs font-medium">Eye Opening (E) [1-4]</Label>
                   <Input
                     id="gcs_e"
                     type="number"
@@ -1061,11 +1065,11 @@ export function TriageForm({
                     max="4"
                     value={formData.gcs_e}
                     onChange={(e) => handleChange("gcs_e", parseInt(e.target.value) || 1)}
-                    className="h-11"
+                    className="font-mono"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gcs_v" className="text-sm font-semibold">Verbal Response (V) [1-5]</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="gcs_v" className="text-xs font-medium">Verbal Response (V) [1-5]</Label>
                   <Input
                     id="gcs_v"
                     type="number"
@@ -1073,11 +1077,11 @@ export function TriageForm({
                     max="5"
                     value={formData.gcs_v}
                     onChange={(e) => handleChange("gcs_v", parseInt(e.target.value) || 1)}
-                    className="h-11"
+                    className="font-mono"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gcs_m" className="text-sm font-semibold">Motor Response (M) [1-6]</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="gcs_m" className="text-xs font-medium">Motor Response (M) [1-6]</Label>
                   <Input
                     id="gcs_m"
                     type="number"
@@ -1085,25 +1089,14 @@ export function TriageForm({
                     max="6"
                     value={formData.gcs_m}
                     onChange={(e) => handleChange("gcs_m", parseInt(e.target.value) || 1)}
-                    className="h-11"
+                    className="font-mono"
                   />
                 </div>
               </div>
-              
-              <div className="p-3 bg-muted/40 rounded-md">
-                <div className="text-sm font-semibold flex items-center gap-2">
-                  <span>Total GCS:</span>
-                  <Badge variant="default">{gcsTotal}</Badge>
-                  <span className="text-muted-foreground text-xs">
-                    (E{formData.gcs_e}V{formData.gcs_v}M{formData.gcs_m})
-                  </span>
-                </div>
-              </div>
-              </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="triage_assessment" className="text-sm font-semibold">
+                <div className="space-y-1.5">
+                  <Label htmlFor="triage_assessment" className="text-xs font-medium">
                     Penilaian Awal
                   </Label>
                   <Textarea
@@ -1111,12 +1104,12 @@ export function TriageForm({
                     placeholder="Penilaian awal kondisi pasien..."
                     value={formData.triage_assessment}
                     onChange={(e) => handleChange("triage_assessment", e.target.value)}
-                    className="min-h-[120px] resize-none"
+                    className="min-h-[110px] resize-none text-xs"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="immediate_actions" className="text-sm font-semibold">
+                <div className="space-y-1.5">
+                  <Label htmlFor="immediate_actions" className="text-xs font-medium">
                     Tindakan Segera
                   </Label>
                   <Textarea
@@ -1124,12 +1117,11 @@ export function TriageForm({
                     placeholder="Tindakan segera yang telah/akan dilakukan..."
                     value={formData.immediate_actions}
                     onChange={(e) => handleChange("immediate_actions", e.target.value)}
-                    className="min-h-[120px] resize-none"
+                    className="min-h-[110px] resize-none text-xs"
                   />
                 </div>
               </div>
-            </div>
-          </div>
+            </section>
           </fieldset>
         </form>
       </div>

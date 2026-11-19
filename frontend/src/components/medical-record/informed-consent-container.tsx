@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { InformedConsentList } from "./informed-consent-list";
 import { InformedConsentForm } from "./informed-consent-form";
 import { useToast } from "@/hooks/use-toast";
@@ -80,7 +82,7 @@ export function InformedConsentContainer({ visitId, readOnly }: InformedConsentC
   };
 
   return (
-    <div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
       {view === "list" && (
         <style>{`
           .mr-footer {
@@ -98,7 +100,24 @@ export function InformedConsentContainer({ visitId, readOnly }: InformedConsentC
           readOnly={readOnly}
         />
       ) : (
-        <div className="space-y-4">
+        <div>
+          <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setView("list")}
+                className="h-7 rounded-none px-2.5 text-xs gap-1.5 shrink-0"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Kembali
+              </Button>
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100 truncate">
+                {activeConsentId ? "Edit Persetujuan Tindakan" : "Buat Persetujuan Tindakan"}
+              </span>
+            </div>
+          </div>
           <InformedConsentForm
             visitId={visitId}
             consentId={activeConsentId}

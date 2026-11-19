@@ -65,6 +65,7 @@ import { api } from "@/lib/api";
 import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { RegistrationConsentManager } from "@/components/registration/registration-consent-manager";
+import { SearchModal } from "@/components/sep/search-modal";
 
 interface SEPLocal {
   id: number;
@@ -74,6 +75,9 @@ interface SEPLocal {
   tgl_sep: string;
   jns_pelayanan: string;
   kls_rawat_hak: string;
+  kls_rawat_naik?: string;
+  pembiayaan?: string;
+  penanggung_jawab?: string;
   no_mr: string;
   asal_rujukan: string;
   no_rujukan: string;
@@ -86,6 +90,11 @@ interface SEPLocal {
   nama_dpjp: string;
   diag_awal: string;
   nama_diagnosa: string;
+  poli_eks?: string;
+  cob?: string;
+  katarak?: string;
+  laka_lantas?: string;
+  no_telp?: string;
   catatan: string;
   status: string;
 }
@@ -196,11 +205,23 @@ export default function RegistrationShow() {
   const [sepEditForm, setSepEditForm] = useState({
     catatan: "",
     diag_awal: "",
-    kls_rawat_naik: "",
-    pembiayaan: "",
+    nama_diagnosa: "",
+    kls_rawat_naik: "none",
+    pembiayaan: "none",
     penanggung_jawab: "",
     no_telp: "",
+    poli_tujuan: "",
+    nama_poli: "",
+    dpjp_layan: "",
+    nama_dpjp: "",
+    poli_eksekutif: "0",
+    cob: "0",
+    katarak: "0",
+    laka_lantas: "0",
   });
+  const [sepPoliModalOpen, setSepPoliModalOpen] = useState(false);
+  const [sepDokterModalOpen, setSepDokterModalOpen] = useState(false);
+  const [sepDiagnosaModalOpen, setSepDiagnosaModalOpen] = useState(false);
 
   useEffect(() => {
     setPageTitle("Detail Pendaftaran");
@@ -376,20 +397,80 @@ export default function RegistrationShow() {
 
   const handleOpenEditSEP = () => {
     if (sepData) {
+      const phone =
+        sepData.no_telp ||
+        registration?.patient?.telepon ||
+        registration?.patient?.phone ||
+        "";
       setSepEditForm({
         catatan: sepData.catatan || "",
         diag_awal: sepData.diag_awal || "",
-        kls_rawat_naik: "",
-        pembiayaan: "",
-        penanggung_jawab: "",
-        no_telp: "",
+        nama_diagnosa: sepData.nama_diagnosa || "",
+        kls_rawat_naik: sepData.kls_rawat_naik || "none",
+        pembiayaan: sepData.pembiayaan || "none",
+        penanggung_jawab: sepData.penanggung_jawab || "",
+        no_telp: phone,
+        poli_tujuan: sepData.kode_poli || "",
+        nama_poli: sepData.nama_poli || "",
+        dpjp_layan: sepData.kode_dpjp || "",
+        nama_dpjp: sepData.nama_dpjp || "",
+        poli_eksekutif: sepData.poli_eks || "0",
+        cob: sepData.cob || "0",
+        katarak: sepData.katarak || "0",
+        laka_lantas: sepData.laka_lantas || "0",
       });
       setEditSEPOpen(true);
     }
   };
 
+  const handleSearchPoliSEP = async (keyword: string) => {
+    try {
+      const res = await vclaimApi.searchPoli(keyword);
+      return res.data.data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSearchDokterSEP = async (keyword: string) => {
+    if (!keyword) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Masukkan kode spesialis (contoh: INT, BED, ANA)",
+      });
+      return [];
+    }
+    try {
+      const jnsPelayanan = sepData?.jns_pelayanan || "2";
+      const tglSEP = sepData?.tgl_sep || new Date().toISOString().split("T")[0];
+      const res = await vclaimApi.searchDokterDPJP(jnsPelayanan, tglSEP, keyword);
+      return res.data.data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handleSearchDiagnosaSEP = async (keyword: string) => {
+    try {
+      const res = await vclaimApi.searchDiagnosa(keyword);
+      return res.data.data || [];
+    } catch {
+      return [];
+    }
+  };
+
   const handleUpdateSEP = async () => {
     if (!sepData?.no_sep) return;
+
+    if (!sepEditForm.poli_tujuan) {
+      toast({ variant: "destructive", title: "Error", description: "Poli tujuan wajib dipilih" });
+      return;
+    }
+    if (!sepEditForm.diag_awal) {
+      toast({ variant: "destructive", title: "Error", description: "Diagnosa awal wajib diisi" });
+      return;
+    }
 
     setUpdatingSEP(true);
     try {
@@ -402,8 +483,12 @@ export default function RegistrationShow() {
         no_mr: sepData.no_mr,
         catatan: sepEditForm.catatan,
         diag_awal: sepEditForm.diag_awal,
-        poli_tujuan: sepData.kode_poli,
-        dpjp_layan: sepData.kode_dpjp,
+        poli_tujuan: sepEditForm.poli_tujuan,
+        poli_eksekutif: sepEditForm.poli_eksekutif,
+        cob: sepEditForm.cob,
+        katarak: sepEditForm.katarak,
+        laka_lantas: sepEditForm.laka_lantas,
+        dpjp_layan: sepEditForm.dpjp_layan,
         no_telp: sepEditForm.no_telp,
       });
       toast({
@@ -900,136 +985,378 @@ export default function RegistrationShow() {
 
       {/* Modal Edit SEP */}
       <Dialog open={editSEPOpen} onOpenChange={setEditSEPOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5" />
-              Edit SEP
-            </DialogTitle>
-            <DialogDescription>
-              Update data SEP dengan nomor <strong className="font-mono">{sepData?.no_sep}</strong>
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-none gap-0">
+          <DialogHeader className="shrink-0 border-b border-neutral-200 dark:border-neutral-800 px-5 py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <Pencil className="h-4 w-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  Edit SEP
+                </DialogTitle>
+                <DialogDescription className="text-xs font-mono mt-0.5">
+                  No. SEP: <strong className="text-foreground">{sepData?.no_sep}</strong>
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            {/* Info SEP (readonly) */}
-            <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {/* Ringkasan SEP Readonly */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 p-3">
               <div>
-                <Label className="text-xs text-muted-foreground">No. Kartu BPJS</Label>
-                <p className="font-mono text-sm">{sepData?.no_kartu}</p>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">No. Kartu BPJS</div>
+                <p className="font-mono text-xs font-semibold mt-0.5">{sepData?.no_kartu || "-"}</p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Nama Pasien</Label>
-                <p className="text-sm font-medium">{sepData?.nama_pasien}</p>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Nama Pasien</div>
+                <p className="text-xs font-semibold mt-0.5 truncate">{sepData?.nama_pasien || "-"}</p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Poli Tujuan</Label>
-                <p className="text-sm">{sepData?.nama_poli || sepData?.kode_poli}</p>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Kelas Hak</div>
+                <p className="text-xs font-medium mt-0.5">
+                  {sepData?.kls_rawat_hak ? `Kelas ${sepData.kls_rawat_hak}` : "-"}
+                </p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">DPJP</Label>
-                <p className="text-sm">{sepData?.nama_dpjp || sepData?.kode_dpjp}</p>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tanggal SEP</div>
+                <p className="text-xs font-medium mt-0.5">
+                  {sepData?.tgl_sep ? new Date(sepData.tgl_sep).toLocaleDateString("id-ID") : "-"}
+                </p>
               </div>
             </div>
 
-            {/* Editable Fields */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="diag_awal">Diagnosa Awal</Label>
-                  <Input
-                    id="diag_awal"
-                    placeholder="Kode ICD-10"
-                    value={sepEditForm.diag_awal}
-                    onChange={(e) => setSepEditForm(prev => ({ ...prev, diag_awal: e.target.value }))}
-                  />
-                  {sepData?.nama_diagnosa && (
-                    <p className="text-xs text-muted-foreground">Current: {sepData.nama_diagnosa}</p>
-                  )}
+            {/* Pelayanan & Diagnosa */}
+            <div className="space-y-3 border border-neutral-200 dark:border-neutral-800 p-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Pelayanan &amp; Diagnosa
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={
+                        sepEditForm.nama_poli
+                          ? `${sepEditForm.nama_poli} (${sepEditForm.poli_tujuan})`
+                          : sepEditForm.poli_tujuan
+                      }
+                      readOnly
+                      placeholder="Pilih poli tujuan"
+                      className="h-8 text-xs rounded-none flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-none shrink-0"
+                      onClick={() => setSepPoliModalOpen(true)}
+                      title="Cari Poli Tujuan BPJS"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="kls_rawat_naik">Naik Kelas</Label>
-                  <Select
-                    value={sepEditForm.kls_rawat_naik}
-                    onValueChange={(v) => setSepEditForm(prev => ({ ...prev, kls_rawat_naik: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih kelas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Tidak naik kelas</SelectItem>
-                      <SelectItem value="1">Kelas 1</SelectItem>
-                      <SelectItem value="2">Kelas 2</SelectItem>
-                      <SelectItem value="vip">VIP</SelectItem>
-                      <SelectItem value="vvip">VVIP</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Dokter DPJP</Label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={
+                        sepEditForm.nama_dpjp
+                          ? `${sepEditForm.nama_dpjp} (${sepEditForm.dpjp_layan})`
+                          : sepEditForm.dpjp_layan
+                      }
+                      readOnly
+                      placeholder="Pilih dokter DPJP"
+                      className="h-8 text-xs rounded-none flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-none shrink-0"
+                      onClick={() => setSepDokterModalOpen(true)}
+                      title="Cari Dokter DPJP BPJS"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="pembiayaan">Pembiayaan</Label>
-                  <Select
-                    value={sepEditForm.pembiayaan}
-                    onValueChange={(v) => setSepEditForm(prev => ({ ...prev, pembiayaan: v }))}
+              <div className="space-y-1.5">
+                <Label htmlFor="diag_awal" className="text-xs font-medium">Diagnosa Awal (ICD-10) *</Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    id="diag_awal"
+                    placeholder="Kode atau pilih diagnosa ICD-10"
+                    value={
+                      sepEditForm.nama_diagnosa
+                        ? `${sepEditForm.diag_awal} - ${sepEditForm.nama_diagnosa}`
+                        : sepEditForm.diag_awal
+                    }
+                    onChange={(e) =>
+                      setSepEditForm((prev) => ({
+                        ...prev,
+                        diag_awal: e.target.value,
+                        nama_diagnosa: "",
+                      }))
+                    }
+                    className="h-8 text-xs rounded-none flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-none shrink-0"
+                    onClick={() => setSepDiagnosaModalOpen(true)}
+                    title="Cari Diagnosa ICD-10 BPJS"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih pembiayaan" />
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Naik Kelas & Pembiayaan */}
+            <div className="space-y-3 border border-neutral-200 dark:border-neutral-800 p-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Naik Kelas &amp; Pembiayaan
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Naik Kelas</Label>
+                  <Select
+                    value={sepEditForm.kls_rawat_naik || "none"}
+                    onValueChange={(v) =>
+                      setSepEditForm((prev) => ({
+                        ...prev,
+                        kls_rawat_naik: v,
+                        pembiayaan: v === "none" ? "none" : prev.pembiayaan,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none">
+                      <SelectValue placeholder="Pilih kelas" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">-</SelectItem>
-                      <SelectItem value="1">Pribadi</SelectItem>
-                      <SelectItem value="2">Pemberi Kerja</SelectItem>
-                      <SelectItem value="3">Asuransi</SelectItem>
+                      <SelectItem value="none" className="text-xs">Tidak Naik Kelas</SelectItem>
+                      <SelectItem value="1" className="text-xs">VVIP</SelectItem>
+                      <SelectItem value="2" className="text-xs">VIP</SelectItem>
+                      <SelectItem value="3" className="text-xs">Kelas 1</SelectItem>
+                      <SelectItem value="4" className="text-xs">Kelas 2</SelectItem>
+                      <SelectItem value="5" className="text-xs">Kelas 3</SelectItem>
+                      <SelectItem value="6" className="text-xs">ICCU</SelectItem>
+                      <SelectItem value="7" className="text-xs">ICU</SelectItem>
+                      <SelectItem value="8" className="text-xs">Diatas Kelas 1</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="penanggung_jawab">Penanggung Jawab</Label>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Pembiayaan</Label>
+                  <Select
+                    value={sepEditForm.pembiayaan || "none"}
+                    onValueChange={(v) => setSepEditForm((prev) => ({ ...prev, pembiayaan: v }))}
+                    disabled={!sepEditForm.kls_rawat_naik || sepEditForm.kls_rawat_naik === "none"}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none">
+                      <SelectValue placeholder="Pilih pembiayaan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="text-xs">-</SelectItem>
+                      <SelectItem value="1" className="text-xs">Pribadi</SelectItem>
+                      <SelectItem value="2" className="text-xs">Pemberi Kerja</SelectItem>
+                      <SelectItem value="3" className="text-xs">Asuransi Tambahan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="penanggung_jawab" className="text-xs font-medium">Penanggung Jawab</Label>
                   <Input
                     id="penanggung_jawab"
                     placeholder="Nama penanggung jawab"
                     value={sepEditForm.penanggung_jawab}
-                    onChange={(e) => setSepEditForm(prev => ({ ...prev, penanggung_jawab: e.target.value }))}
+                    onChange={(e) => setSepEditForm((prev) => ({ ...prev, penanggung_jawab: e.target.value }))}
+                    disabled={!sepEditForm.kls_rawat_naik || sepEditForm.kls_rawat_naik === "none"}
+                    className="h-8 text-xs rounded-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Informasi Tambahan */}
+            <div className="space-y-3 border border-neutral-200 dark:border-neutral-800 p-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Informasi Tambahan &amp; Kontak
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Poli Eksekutif</Label>
+                  <Select
+                    value={sepEditForm.poli_eksekutif}
+                    onValueChange={(v) => setSepEditForm((prev) => ({ ...prev, poli_eksekutif: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                      <SelectItem value="1" className="text-xs">Ya</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">COB</Label>
+                  <Select
+                    value={sepEditForm.cob}
+                    onValueChange={(v) => setSepEditForm((prev) => ({ ...prev, cob: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                      <SelectItem value="1" className="text-xs">Ya</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Katarak</Label>
+                  <Select
+                    value={sepEditForm.katarak}
+                    onValueChange={(v) => setSepEditForm((prev) => ({ ...prev, katarak: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0" className="text-xs">Tidak</SelectItem>
+                      <SelectItem value="1" className="text-xs">Ya</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Lakalantas</Label>
+                  <Select
+                    value={sepEditForm.laka_lantas}
+                    onValueChange={(v) => setSepEditForm((prev) => ({ ...prev, laka_lantas: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0" className="text-xs">Bukan KLL</SelectItem>
+                      <SelectItem value="1" className="text-xs">KLL &amp; Bukan KK</SelectItem>
+                      <SelectItem value="2" className="text-xs">KLL &amp; KK</SelectItem>
+                      <SelectItem value="3" className="text-xs">KK</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                  <Label htmlFor="no_telp" className="text-xs font-medium">No. Telepon</Label>
+                  <Input
+                    id="no_telp"
+                    placeholder="No. telepon"
+                    value={sepEditForm.no_telp}
+                    onChange={(e) => setSepEditForm((prev) => ({ ...prev, no_telp: e.target.value }))}
+                    className="h-8 text-xs rounded-none"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="no_telp">No. Telepon</Label>
-                <Input
-                  id="no_telp"
-                  placeholder="Nomor telepon pasien"
-                  value={sepEditForm.no_telp}
-                  onChange={(e) => setSepEditForm(prev => ({ ...prev, no_telp: e.target.value }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="catatan">Catatan</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="catatan" className="text-xs font-medium">Catatan</Label>
                 <Textarea
                   id="catatan"
                   placeholder="Catatan tambahan untuk SEP"
                   value={sepEditForm.catatan}
-                  onChange={(e) => setSepEditForm(prev => ({ ...prev, catatan: e.target.value }))}
-                  rows={3}
+                  onChange={(e) => setSepEditForm((prev) => ({ ...prev, catatan: e.target.value }))}
+                  rows={2}
+                  className="text-xs rounded-none min-h-[58px]"
                 />
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditSEPOpen(false)}>
+          <DialogFooter className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 px-5 py-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-none text-xs"
+              onClick={() => setEditSEPOpen(false)}
+            >
               Batal
             </Button>
-            <Button onClick={handleUpdateSEP} disabled={updatingSEP}>
-              {updatingSEP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button
+              size="sm"
+              className="h-8 rounded-none px-4 text-xs font-semibold"
+              onClick={handleUpdateSEP}
+              disabled={updatingSEP}
+            >
+              {updatingSEP && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               Update SEP
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Search Modals untuk Edit SEP */}
+      <SearchModal
+        open={sepPoliModalOpen}
+        onOpenChange={setSepPoliModalOpen}
+        title="Cari Poli Tujuan"
+        placeholder="Ketik nama poli..."
+        columns={[
+          { key: "kode", label: "Kode", width: "100px" },
+          { key: "nama", label: "Nama Poli" },
+        ]}
+        onSearch={handleSearchPoliSEP}
+        onSelect={(item) => {
+          setSepEditForm((prev) => ({
+            ...prev,
+            poli_tujuan: item.kode,
+            nama_poli: item.nama,
+          }));
+        }}
+      />
+
+      <SearchModal
+        open={sepDokterModalOpen}
+        onOpenChange={setSepDokterModalOpen}
+        title="Cari Dokter DPJP"
+        placeholder="Ketik kode spesialis (INT, BED, ANA)..."
+        columns={[
+          { key: "kode", label: "Kode", width: "100px" },
+          { key: "nama", label: "Nama Dokter" },
+        ]}
+        onSearch={handleSearchDokterSEP}
+        onSelect={(item) => {
+          setSepEditForm((prev) => ({
+            ...prev,
+            dpjp_layan: item.kode,
+            nama_dpjp: item.nama,
+          }));
+        }}
+      />
+
+      <SearchModal
+        open={sepDiagnosaModalOpen}
+        onOpenChange={setSepDiagnosaModalOpen}
+        title="Cari Diagnosa (ICD-10)"
+        placeholder="Ketik kode atau nama diagnosa..."
+        columns={[
+          { key: "kode", label: "Kode", width: "100px" },
+          { key: "nama", label: "Nama Diagnosa" },
+        ]}
+        onSearch={handleSearchDiagnosaSEP}
+        onSelect={(item) => {
+          setSepEditForm((prev) => ({
+            ...prev,
+            diag_awal: item.kode,
+            nama_diagnosa: item.nama,
+          }));
+        }}
+      />
 
       {/* Modal Edit Pembayaran */}
       <Dialog open={editPaymentOpen} onOpenChange={setEditPaymentOpen}>

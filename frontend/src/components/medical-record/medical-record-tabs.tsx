@@ -975,13 +975,15 @@ export function MedicalRecordTabs({
     const iconClass = (() => {
       if (hasFractionIndicator) {
         if (indicatorStatus === "complete") {
-          return "bg-green-100 text-green-700";
+          return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
         }
         if (indicatorStatus === "progress") {
-          return "bg-amber-100 text-amber-700";
+          return "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300";
         }
       }
-      return isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground";
+      return isActive
+        ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+        : "bg-neutral-200/70 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400";
     })();
 
     const tabContent = (
@@ -989,18 +991,18 @@ export function MedicalRecordTabs({
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div
             className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-md [&>svg]:h-4 [&>svg]:w-4",
+              "flex h-6 w-6 items-center justify-center rounded-none [&>svg]:h-3.5 [&>svg]:w-3.5",
               iconClass,
             )}
           >
             {tabStatusIcon}
           </div>
-          <span className="truncate text-left text-[13px] leading-tight" title={tab.label}>{tab.label}</span>
+          <span className="truncate text-left text-xs leading-tight" title={tab.label}>{tab.label}</span>
         </div>
         {indicatorValue && !tab.subTabs && (
           <span
             className={cn(
-              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+              "ml-auto shrink-0 rounded-none px-1.5 py-0.5 font-mono text-[10px] font-medium",
               indicatorClass,
             )}
           >
@@ -1055,11 +1057,11 @@ export function MedicalRecordTabs({
             }
           }}
           className={cn(
-            "mr-tab-chip flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+            "mr-tab-chip flex w-full min-w-0 items-center gap-2 border-l-2 px-2.5 py-2 text-xs transition-colors",
             isDisabled && "cursor-not-allowed opacity-60",
             (isActive || isExpanded)
-              ? "bg-primary/10 font-semibold text-primary"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              ? "border-neutral-900 bg-white font-semibold text-neutral-900 dark:border-white dark:bg-neutral-950 dark:text-white"
+              : "border-transparent text-neutral-600 hover:bg-neutral-100/70 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900",
           )}
         >
           {tabContent}
@@ -1076,10 +1078,10 @@ export function MedicalRecordTabs({
                   key={subTab.id}
                   onClick={() => onTabChange(subTab.id)}
                   className={cn(
-                    "mr-tab-chip flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors relative",
+                    "mr-tab-chip flex w-full min-w-0 items-center justify-between gap-2 border-l-2 px-2 py-1.5 text-xs transition-colors relative",
                     isSubActive
-                      ? "bg-primary/10 font-semibold text-primary"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      ? "border-neutral-900 bg-white font-semibold text-neutral-900 dark:border-white dark:bg-neutral-950 dark:text-white"
+                      : "border-transparent text-neutral-600 hover:bg-neutral-100/70 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900"
                   )}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1117,15 +1119,15 @@ export function MedicalRecordTabs({
 
   if (layout === "vertical") {
     return (
-      <div className="mr-tabs mr-tabs-vertical flex h-full flex-col overflow-hidden bg-background">
-        <div className="flex-1 overflow-y-auto p-1.5 pb-3">
-          <div className="space-y-2.5">
+      <div className="mr-tabs mr-tabs-vertical flex h-full flex-col overflow-hidden bg-transparent">
+        <div className="flex-1 overflow-y-auto py-2 px-1.5">
+          <div className="space-y-3">
             {groupedTabs.map(([section, sectionTabs]) => (
               <div key={section}>
-                <h3 className="mr-tab-section-title mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <h3 className="mr-tab-section-title mb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                   {sectionLabels[section] || section}
                 </h3>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {sectionTabs.map(renderTab)}
                 </div>
               </div>

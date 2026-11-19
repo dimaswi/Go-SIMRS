@@ -5,11 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,6 +30,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
+import { cn } from "@/lib/utils";
+import {
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   cpptApi,
   CPPT_FORMATS,
@@ -219,219 +218,242 @@ function CPPTCollapsibleRow({
   };
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="hover:bg-muted/30">
-        {/* Table Row */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm">
-          <div className="col-span-1">
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
+    <tbody className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
+      <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30 transition-colors align-middle">
+        <td className="px-3 py-2.5 w-10">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-none"
+            onClick={() => setIsOpen((prev) => !prev)}
+          >
+            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </Button>
+        </td>
+        <td className="px-3 py-2.5 whitespace-nowrap">
+          <div className="font-mono font-medium text-foreground">
+            {format(new Date(cppt.record_date), "dd MMM yyyy", { locale: idLocale })}
           </div>
-          <div className="col-span-2">
-            <div className="flex flex-col">
-              <span className="font-medium">{format(new Date(cppt.record_date), "dd MMM yyyy", { locale: idLocale })}</span>
-              <span className="text-xs text-muted-foreground">{format(new Date(cppt.record_date), "HH:mm")}</span>
-            </div>
+          <div className="text-[11px] font-mono text-muted-foreground">
+            {format(new Date(cppt.record_date), "HH:mm")}
           </div>
-          <div className="col-span-2">
-            <div className="flex flex-col gap-1">
-              <Badge className={getProfessionColor(cppt.profession)}>
-                {getCPPTProfessionLabel(cppt.profession)}
-              </Badge>
-              <Badge variant="outline" className="w-fit text-[10px] uppercase">
-                {formatMeta.shortLabel}
-              </Badge>
-            </div>
+        </td>
+        <td className="px-3 py-2.5 whitespace-nowrap">
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge className={cn("rounded-none text-[10px] h-5 px-1.5 font-medium", getProfessionColor(cppt.profession))}>
+              {getCPPTProfessionLabel(cppt.profession)}
+            </Badge>
+            <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono uppercase">
+              {formatMeta.shortLabel}
+            </Badge>
           </div>
-          <div className="col-span-4">
-            <p className="text-xs text-muted-foreground truncate">{getCPPTSummary()}</p>
+        </td>
+        <td className="px-3 py-2.5 max-w-[320px]">
+          <p className="text-xs text-muted-foreground truncate">{getCPPTSummary()}</p>
+        </td>
+        <td className="px-3 py-2.5">
+          <div className="flex flex-col gap-0.5">
+            {(onSetCreatedBy || onSetApprovedBy) ? (
+              <>
+                {(cppt.created_by?.full_name || cppt.verified_by?.full_name) ? (
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40 w-fit">
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    Selesai
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 text-muted-foreground w-fit">
+                    Pending
+                  </Badge>
+                )}
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {cppt.created_by?.full_name && <span>Pembuat: {cppt.created_by.full_name}</span>}
+                  {cppt.verified_by?.full_name && <span className="ml-1">• Approval: {cppt.verified_by.full_name}</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                {cppt.is_verified ? (
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40 w-fit">
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    Verified
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 text-muted-foreground w-fit">
+                    Pending
+                  </Badge>
+                )}
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {cppt.created_by && <span>{cppt.created_by.full_name}</span>}
+                  {cppt.is_verified && cppt.verified_by && <span className="ml-1">• {cppt.verified_by.full_name}</span>}
+                </div>
+              </>
+            )}
           </div>
-          <div className="col-span-2">
-            <div className="flex flex-col gap-0.5">
-              {/* In rm-duplicate mode: show Selesai + names when both are set */}
-              {(onSetCreatedBy || onSetApprovedBy) ? (
-                <>
-                  {(cppt.created_by?.full_name || cppt.verified_by?.full_name) ? (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
-                      <ShieldCheck className="h-3 w-3 mr-1" />
-                      Selesai
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
-                  )}
-                  <div className="text-[10px] text-muted-foreground truncate">
-                    {cppt.created_by?.full_name && <span>Pembuat: {cppt.created_by.full_name}</span>}
-                    {cppt.verified_by?.full_name && <span className="ml-1">• Approval: {cppt.verified_by.full_name}</span>}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {cppt.is_verified ? (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
-                      <ShieldCheck className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
-                  )}
-                  <div className="text-[10px] text-muted-foreground truncate">
-                    {cppt.created_by && <span>{cppt.created_by.full_name}</span>}
-                    {cppt.is_verified && cppt.verified_by && <span className="ml-1">• {cppt.verified_by.full_name}</span>}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="col-span-1 flex items-center gap-1">
-            {/* Standard (non-duplicate) action buttons */}
+        </td>
+        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1">
             {canVerify && !cppt.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => onVerify(cppt.id)}>
-                <CheckCircle className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none text-emerald-600 hover:bg-emerald-50" title="Verifikasi" onClick={() => onVerify(cppt.id)}>
+                <CheckCircle className="h-3.5 w-3.5" />
               </Button>
             )}
             {canEdit && !cppt.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(cppt)}>
-                <Pencil className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Edit" onClick={() => onEdit(cppt)}>
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
             )}
             {canDelete && !cppt.is_verified && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(cppt.id)}>
-                <Trash2 className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none text-destructive hover:bg-destructive/10" title="Hapus" onClick={() => onDelete(cppt.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
-            {/* RM-duplicate mode: set Pembuat and Approval via modal */}
             {onSetCreatedBy && staffOptions && staffOptions.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
-                <User className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
+                <User className="h-3.5 w-3.5" />
               </Button>
             )}
             {onSetApprovedBy && staffOptions && staffOptions.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Approval" onClick={() => openStaffModal("approval")}>
-                <UserCheck className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-none" title="Set Approval" onClick={() => openStaffModal("approval")}>
+                <UserCheck className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
-        </div>
 
-        {/* Staff Picker Modal */}
-        <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>
-                {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Cari nama..."
-                value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
-              {filteredStaff.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Tidak ada hasil</p>
-              ) : (
-                filteredStaff.map((s) => (
-                  <button
-                    key={s.id}
-                    className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
-                    onClick={() => handlePickStaff(s.name)}
-                  >
-                    {s.name}
-                  </button>
-                ))
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStaffModalOpen(false)}>Batal</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+            <DialogContent className="max-w-sm rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+              <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-row items-center gap-2.5 space-y-0 text-left">
+                <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                  {staffModalMode === "pembuat" ? <User className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                </div>
+                <div>
+                  <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                    {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs mt-0.5">
+                    Pilih petugas penanggung jawab CPPT ini.
+                  </DialogDescription>
+                </div>
+              </DialogHeader>
+              <div className="p-4 space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8 h-9 text-xs rounded-none"
+                    placeholder="Cari nama..."
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
+                  {filteredStaff.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-muted-foreground">Tidak ada hasil</p>
+                  ) : (
+                    filteredStaff.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition-colors"
+                        onClick={() => handlePickStaff(s.name)}
+                      >
+                        {s.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40">
+                <Button type="button" variant="outline" size="sm" className="h-8 rounded-none text-xs" onClick={() => setStaffModalOpen(false)}>
+                  Batal
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </td>
+      </tr>
 
-        {/* Expanded Content */}
-        <CollapsibleContent>
-          <div className="px-4 pb-4 pt-0 ml-8 mr-4">
-            {/* CPPT content by selected format */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      {isOpen && (
+        <tr className="bg-neutral-50/30 dark:bg-neutral-900/20">
+          <td colSpan={6} className="px-4 pb-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
               {cppt.subjective && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.subjective}</p>
-                  <p className="whitespace-pre-wrap">{cppt.subjective}</p>
+                <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-background p-3">
+                  <p className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {formatMeta.fieldLabel.subjective}
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground leading-relaxed">{cppt.subjective}</p>
                 </div>
               )}
               {cppt.objective && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.objective}</p>
-                  <p className="whitespace-pre-wrap">{cppt.objective}</p>
+                <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-background p-3">
+                  <p className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {formatMeta.fieldLabel.objective}
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground leading-relaxed">{cppt.objective}</p>
                 </div>
               )}
               {cppt.assessment && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.assessment}</p>
-                  <p className="whitespace-pre-wrap">{cppt.assessment}</p>
+                <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-background p-3">
+                  <p className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {formatMeta.fieldLabel.assessment}
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground leading-relaxed">{cppt.assessment}</p>
                 </div>
               )}
               {cppt.plan && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.plan}</p>
-                  <p className="whitespace-pre-wrap">{cppt.plan}</p>
+                <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-background p-3">
+                  <p className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {formatMeta.fieldLabel.plan}
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground leading-relaxed">{cppt.plan}</p>
                 </div>
               )}
             </div>
 
-            {/* Vital Signs */}
-            {(cppt.blood_pressure || cppt.heart_rate || cppt.temperature || cppt.oxygen_saturation) && (
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {(cppt.blood_pressure || cppt.heart_rate || cppt.temperature || cppt.oxygen_saturation || cppt.respiratory_rate || cppt.pain_scale) && (
+              <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
                 {cppt.blood_pressure && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Activity className="h-3 w-3" /> TD: {cppt.blood_pressure} mmHg
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Activity className="h-3 w-3 text-muted-foreground" /> TD: {cppt.blood_pressure} mmHg
                   </span>
                 )}
                 {cppt.heart_rate ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Heart className="h-3 w-3" /> HR: {cppt.heart_rate} x/mnt
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Heart className="h-3 w-3 text-muted-foreground" /> HR: {cppt.heart_rate} x/mnt
                   </span>
                 ) : null}
                 {cppt.respiratory_rate ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
                     RR: {cppt.respiratory_rate} x/mnt
                   </span>
                 ) : null}
                 {cppt.temperature && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                    <Thermometer className="h-3 w-3" /> T: {cppt.temperature}°C
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
+                    <Thermometer className="h-3 w-3 text-muted-foreground" /> T: {cppt.temperature}°C
                   </span>
                 )}
                 {cppt.oxygen_saturation ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
                     SpO2: {cppt.oxygen_saturation}%
                   </span>
                 ) : null}
                 {cppt.pain_scale ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 bg-background">
                     Nyeri: {cppt.pain_scale}/10
                   </span>
                 ) : null}
               </div>
             )}
 
-            {/* Instruction */}
             {cppt.instruction && (
-              <div className="mt-3 p-2 bg-muted/50 rounded border">
-                <p className="text-xs font-medium text-muted-foreground">Instruksi:</p>
-                <p className="text-sm">{cppt.instruction}</p>
+              <div className="p-2.5 border border-neutral-200 dark:border-neutral-800 bg-background text-xs">
+                <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Instruksi Khusus: </span>
+                <span className="text-foreground">{cppt.instruction}</span>
               </div>
             )}
 
-            {/* Footer */}
-            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
               {cppt.created_by && (
                 <span className="flex items-center gap-1">
                   <User className="h-3 w-3" />
@@ -439,16 +461,16 @@ function CPPTCollapsibleRow({
                 </span>
               )}
               {cppt.is_verified && cppt.verified_by && (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                   <ShieldCheck className="h-3 w-3" />
                   Diverifikasi: {cppt.verified_by.full_name}
                 </span>
               )}
             </div>
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
@@ -675,113 +697,137 @@ export function CPPTForm({
 
   if (loading) {
     return (
-      <div>
-        <div className="p-4">
-          <div className="flex items-center justify-center py-8 gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-muted-foreground">Memuat data...</span>
-          </div>
-        </div>
+      <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 p-6 sm:p-8 flex items-center justify-center min-h-[220px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <>
-      <div>
-        <div className="space-y-3">
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5 divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800">
+      {/* Header Section */}
+      <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            Catatan Perkembangan Pasien Terintegrasi (CPPT)
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Dokumentasi perkembangan klinis terintegrasi antar profesi (SOAP, SBAR, TBAK).
+          </p>
+        </div>
 
-          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <div className="flex items-center justify-between">
-                <div>Catatan Perkembangan Pasien Terintegrasi (CPPT)</div>
-                {canCreate && !readOnly && (
-                  <Button onClick={handleOpenCreate} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            {cppts.length > 0 ? (
-              <div className="overflow-x-auto">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
-                  <div className="col-span-1"></div>
-                  <div className="col-span-2">Tanggal/Waktu</div>
-                  <div className="col-span-2">Profesi</div>
-                  <div className="col-span-4">Ringkasan CPPT</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-1">Aksi</div>
-                </div>
-                <div className="divide-y">
-                  {cppts.map((cppt) => (
-                    <CPPTCollapsibleRow
-                      key={cppt.id}
-                      cppt={cppt}
-                      canVerify={canVerify}
-                      canEdit={canEdit}
-                      canDelete={canDelete}
-                      onVerify={handleVerify}
-                      onEdit={handleOpenEdit}
-                      onDelete={(id) => {
-                        setCpptToDelete(id);
-                        setDeleteDialogOpen(true);
-                      }}
-                      getProfessionColor={getProfessionColor}
-                      staffOptions={staffOptions}
-                      onSetCreatedBy={onSetCreatedBy}
-                      onSetApprovedBy={onSetApprovedBy}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                <ClipboardCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="font-medium">Belum ada catatan CPPT</p>
-                <p className="text-sm mt-1">
-                  {readOnly
-                    ? "Belum ada catatan CPPT pada RM duplikat."
-                    : 'Klik "Tambah CPPT" untuk menambahkan catatan perkembangan.'}
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
+            {cppts.length} catatan
+          </span>
+          {canCreate && !readOnly && (
+            <Button
+              type="button"
+              onClick={handleOpenCreate}
+              className="h-8 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Tambah CPPT
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Create/Edit Modal - Fullscreen Monolithic, No Scroll */}
+      {/* Table / Empty Section */}
+      <div className="p-4 sm:p-5">
+        {cppts.length > 0 ? (
+          <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-neutral-50 dark:bg-neutral-900 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-neutral-200 dark:border-neutral-800">
+                  <th className="w-10 px-3 py-2 text-left"></th>
+                  <th className="px-3 py-2 text-left">Tanggal/Waktu</th>
+                  <th className="px-3 py-2 text-left">Profesi</th>
+                  <th className="px-3 py-2 text-left">Ringkasan CPPT</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="w-28 px-3 py-2 text-right">Aksi</th>
+                </tr>
+              </thead>
+              {cppts.map((cppt) => (
+                <CPPTCollapsibleRow
+                  key={cppt.id}
+                  cppt={cppt}
+                  canVerify={canVerify}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  onVerify={handleVerify}
+                  onEdit={handleOpenEdit}
+                  onDelete={(id) => {
+                    setCpptToDelete(id);
+                    setDeleteDialogOpen(true);
+                  }}
+                  getProfessionColor={getProfessionColor}
+                  staffOptions={staffOptions}
+                  onSetCreatedBy={onSetCreatedBy}
+                  onSetApprovedBy={onSetApprovedBy}
+                />
+              ))}
+            </table>
+          </div>
+        ) : (
+          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-8 px-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ClipboardCheck className="h-4 w-4 opacity-60 shrink-0" />
+            <span>
+              {readOnly
+                ? "Belum ada catatan CPPT pada RM duplikat."
+                : "Belum ada catatan CPPT — klik Tambah CPPT untuk mulai mencatat perkembangan."}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Create/Edit Modal - Fullscreen Monolithic */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
-          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
-              <ClipboardCheck className="h-4 w-4" />
-              {editingId ? "Edit Catatan CPPT" : "Tambah Catatan CPPT"}
-            </DialogTitle>
-            <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-6 w-6 rounded-none text-muted-foreground hover:bg-muted/50">
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !gap-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 sm:px-5 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0 flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-2.5 text-left">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <ClipboardCheck className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  {editingId ? "Edit Catatan CPPT" : "Tambah Catatan CPPT"}
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Lengkapi waktu, profesi, format catatan, tanda vital, dan instruksi khusus.
+                </DialogDescription>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsModalOpen(false)}
+              className="h-8 w-8 rounded-none text-muted-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900"
+            >
               <X className="h-4 w-4" />
             </Button>
           </DialogHeader>
 
-          <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
+          <div className="flex-1 flex flex-col overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
             {/* Row 1 - Date, Profession, Format */}
-            <div className="grid grid-cols-3 gap-4 shrink-0 border border-border/70 p-3 bg-muted/10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0 px-4 py-3 bg-neutral-50/40 dark:bg-neutral-900/20">
               <div className="space-y-1">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Tanggal & Waktu</Label>
+                <Label className="text-xs font-medium">Tanggal & Waktu</Label>
                 <Input
                   type="datetime-local"
                   value={formData.record_date}
                   onChange={(e) => handleChange("record_date", e.target.value)}
-                  className="rounded-none border-border/70 h-8 text-xs"
+                  className="rounded-none h-9 text-xs"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Profesi</Label>
+                <Label className="text-xs font-medium">Profesi</Label>
                 <Select
                   value={formData.profession}
                   onValueChange={(v) => handleChange("profession", v)}
                 >
-                  <SelectTrigger className="rounded-none border-border/70 h-8 text-xs">
+                  <SelectTrigger className="rounded-none h-9 text-xs">
                     <SelectValue placeholder="Pilih profesi" />
                   </SelectTrigger>
                   <SelectContent className="rounded-none">
@@ -794,12 +840,12 @@ export function CPPTForm({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Format CPPT</Label>
+                <Label className="text-xs font-medium">Format CPPT</Label>
                 <Select
                   value={normalizeCPPTFormat(formData.cppt_format)}
                   onValueChange={(v) => handleChange("cppt_format", v as CPPTFormat)}
                 >
-                  <SelectTrigger className="rounded-none border-border/70 h-8 text-xs">
+                  <SelectTrigger className="rounded-none h-9 text-xs">
                     <SelectValue placeholder="Pilih format" />
                   </SelectTrigger>
                   <SelectContent className="rounded-none">
@@ -813,110 +859,114 @@ export function CPPTForm({
               </div>
             </div>
 
-            {/* CPPT fields - flexible height */}
-            <div className="flex-1 flex flex-col border border-border/70 overflow-hidden min-h-0">
-              <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2 shrink-0">
-                <FileText className="h-3 w-3" />
-                Rincian Catatan
+            {/* CPPT fields - flexible height, flat edge-to-edge */}
+            <div className="flex-1 flex flex-col min-h-[260px]">
+              <div className="bg-neutral-50 dark:bg-neutral-900 px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-2 shrink-0">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Rincian Catatan ({selectedFormatMeta.shortLabel})
+                </span>
               </div>
-              <div className="flex-1 grid grid-cols-2 gap-px bg-border/70 overflow-hidden">
-                <div className="bg-background p-3 flex flex-col space-y-1.5">
-                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.subjective}</Label>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                <div className="bg-background p-3.5 flex flex-col space-y-1.5">
+                  <Label className="text-xs font-medium shrink-0">{selectedFormatMeta.fieldLabel.subjective}</Label>
                   <Textarea
                     value={formData.subjective}
                     onChange={(e) => handleChange("subjective", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.subjective}
-                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
+                    className="flex-1 rounded-none resize-none text-xs"
                   />
                 </div>
-                <div className="bg-background p-3 flex flex-col space-y-1.5">
-                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.objective}</Label>
+                <div className="bg-background p-3.5 flex flex-col space-y-1.5">
+                  <Label className="text-xs font-medium shrink-0">{selectedFormatMeta.fieldLabel.objective}</Label>
                   <Textarea
                     value={formData.objective}
                     onChange={(e) => handleChange("objective", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.objective}
-                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
+                    className="flex-1 rounded-none resize-none text-xs"
                   />
                 </div>
-                <div className="bg-background p-3 flex flex-col space-y-1.5">
-                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.assessment}</Label>
+                <div className="bg-background p-3.5 flex flex-col space-y-1.5">
+                  <Label className="text-xs font-medium shrink-0">{selectedFormatMeta.fieldLabel.assessment}</Label>
                   <Textarea
                     value={formData.assessment}
                     onChange={(e) => handleChange("assessment", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.assessment}
-                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
+                    className="flex-1 rounded-none resize-none text-xs"
                   />
                 </div>
-                <div className="bg-background p-3 flex flex-col space-y-1.5">
-                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.plan}</Label>
+                <div className="bg-background p-3.5 flex flex-col space-y-1.5">
+                  <Label className="text-xs font-medium shrink-0">{selectedFormatMeta.fieldLabel.plan}</Label>
                   <Textarea
                     value={formData.plan}
                     onChange={(e) => handleChange("plan", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.plan}
-                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
+                    className="flex-1 rounded-none resize-none text-xs"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Vital Signs & Instruction - Bottom fixed height */}
-            <div className="grid grid-cols-[2fr_1fr] gap-4 shrink-0">
-              <div className="border border-border/70">
-                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Activity className="h-3 w-3" />
-                  Tanda Vital
+            {/* Vital Signs & Instruction - flat split */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 lg:divide-x divide-y lg:divide-y-0 divide-neutral-200 dark:divide-neutral-800 shrink-0">
+              <div className="lg:col-span-8 p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 border-l-2 border-neutral-900 dark:border-neutral-100 pl-2">
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Tanda Vital
+                  </span>
                 </div>
-                <div className="p-3 grid grid-cols-6 gap-2 bg-muted/10">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">TD (mmHg)</Label>
+                    <Label className="text-[11px] text-muted-foreground">TD (mmHg)</Label>
                     <Input
                       value={formData.blood_pressure}
                       onChange={(e) => handleChange("blood_pressure", e.target.value)}
                       placeholder="120/80"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">HR (x/mnt)</Label>
+                    <Label className="text-[11px] text-muted-foreground">HR (x/mnt)</Label>
                     <Input
                       type="number"
                       value={formData.heart_rate || ""}
                       onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
                       placeholder="80"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">RR (x/mnt)</Label>
+                    <Label className="text-[11px] text-muted-foreground">RR (x/mnt)</Label>
                     <Input
                       type="number"
                       value={formData.respiratory_rate || ""}
                       onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
                       placeholder="18"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">Suhu (°C)</Label>
+                    <Label className="text-[11px] text-muted-foreground">Suhu (°C)</Label>
                     <Input
                       value={formData.temperature}
                       onChange={(e) => handleChange("temperature", e.target.value)}
                       placeholder="36.5"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">SpO2 (%)</Label>
+                    <Label className="text-[11px] text-muted-foreground">SpO2 (%)</Label>
                     <Input
                       type="number"
                       value={formData.oxygen_saturation || ""}
                       onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
                       placeholder="98"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground uppercase">Nyeri (0-10)</Label>
+                    <Label className="text-[11px] text-muted-foreground">Nyeri (0-10)</Label>
                     <Input
                       type="number"
                       min={0}
@@ -924,37 +974,43 @@ export function CPPTForm({
                       value={formData.pain_scale || ""}
                       onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
                       placeholder="0"
-                      className="rounded-none border-border/70 h-7 text-xs"
+                      className="rounded-none h-9 text-xs"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="border border-border/70 flex flex-col">
-                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <ShieldCheck className="h-3 w-3" />
-                  Instruksi Khusus
+              <div className="lg:col-span-4 p-3.5 flex flex-col space-y-2">
+                <div className="flex items-center gap-2 border-l-2 border-neutral-900 dark:border-neutral-100 pl-2">
+                  <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Instruksi Khusus
+                  </span>
                 </div>
-                <div className="p-3 flex-1 flex flex-col bg-muted/10">
-                  <Textarea
-                    value={formData.instruction}
-                    onChange={(e) => handleChange("instruction", e.target.value)}
-                    placeholder="Ketik instruksi khusus..."
-                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
-                  />
-                </div>
+                <Textarea
+                  value={formData.instruction}
+                  onChange={(e) => handleChange("instruction", e.target.value)}
+                  placeholder="Ketik instruksi khusus..."
+                  className="flex-1 min-h-[68px] rounded-none resize-none text-xs"
+                />
               </div>
             </div>
           </div>
 
-          <DialogFooter className="px-4 py-3 border-t bg-muted/30 shrink-0">
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="rounded-none text-xs">
+          <DialogFooter className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="h-8 rounded-none text-xs px-4">
               Batal
             </Button>
-            <Button onClick={handleSave} disabled={saving} size="sm" className="rounded-none text-xs">
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              size="sm"
+              className="h-8 rounded-none text-xs px-4 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
               {saving ? (
                 <>
-                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   Menyimpan...
                 </>
               ) : (
@@ -967,17 +1023,19 @@ export function CPPTForm({
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-none border-neutral-200 dark:border-neutral-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus CPPT?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Hapus CPPT?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
               Data CPPT ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-none text-xs">Batal</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-8 rounded-none text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
               Hapus
@@ -985,6 +1043,6 @@ export function CPPTForm({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

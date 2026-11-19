@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
@@ -27,12 +26,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Loader2,
   Plus,
   Pencil,
@@ -46,10 +39,6 @@ import {
   BookmarkPlus,
   FlaskConical,
   CheckCircle2,
-  ChevronDown,
-  FileText,
-  FileCheck,
-  Tag,
 } from "lucide-react";
 import {
   Collapsible,
@@ -176,60 +165,20 @@ const FULFILLMENT_TYPE_LABELS: Record<MedicineFulfillmentType, string> = {
 // Collapsible Order Item Component
 function OrderCollapsible({ order, onCancel, canCancel }: { order: MedicineOrder; onCancel?: (id: number) => void; canCancel?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
   const [printingResep, setPrintingResep] = useState(false);
-  const [printingEtiket, setPrintingEtiket] = useState(false);
-  const [viewVersion, setViewVersion] = useState<"doctor" | "pharmacy">("doctor");
   const [expandedHistoryRacikanGroups, setExpandedHistoryRacikanGroups] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
-  const isPrescriptionEdited = Boolean(
-    order.is_edited_by_pharmacy ||
-      (order.doctor_items_json && order.doctor_items_json.length > 2),
-  );
-  const doctorItems = useMemo(() => getDoctorItemsFromOrder(order), [order]);
-  const pharmacyItems = useMemo(
-    () => (order.items || []).filter((item) => item.status !== "cancelled"),
-    [order.items],
-  );
-
-  const displayItems = isPrescriptionEdited && viewVersion === "pharmacy" ? pharmacyItems : doctorItems;
+  const displayItems = useMemo(() => getDoctorItemsFromOrder(order), [order]);
   const groupedOrderItems = useMemo(
     () => groupMedicineOrderItems(displayItems),
     [displayItems],
   );
 
-  const handlePrintQueue = async () => {
-    const queueId = order.pharmacy_visit?.room_queue?.id;
-    if (!queueId) {
-      toast({
-        title: "Error",
-        description: "Nomor antrian tidak tersedia",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsPrinting(true);
-    try {
-      const url = await printApi.queueTicket(queueId);
-      window.open(url, "_blank");
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPrinting(false);
-    }
-  };
-
-  const handlePrintResep = async (version: "doctor" | "edited") => {
-    setIsPrinting(true);
+  const handlePrintResep = async () => {
     setPrintingResep(true);
     try {
-      await printApi.prescription(order.id, { version });
+      await printApi.prescription(order.id, { version: "doctor" });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -237,25 +186,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: MedicineOrder
         variant: "destructive",
       });
     } finally {
-      setIsPrinting(false);
       setPrintingResep(false);
-    }
-  };
-
-  const handlePrintEtiket = async (version: "doctor" | "edited") => {
-    setIsPrinting(true);
-    setPrintingEtiket(true);
-    try {
-      await printApi.medicineLabels(order.id, { version });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak etiket",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPrinting(false);
-      setPrintingEtiket(false);
     }
   };
 
@@ -268,145 +199,67 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: MedicineOrder
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="p-3 hover:bg-muted/50">
+      <div className="px-3.5 py-2.5 hover:bg-muted/30 transition-colors">
         <div className="flex items-center justify-between gap-2">
           <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">{order.order_number}</span>
-                <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"} className="text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono font-bold text-xs">{order.order_number}</span>
+                <Badge
+                  variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"}
+                  className="rounded-none text-[10px] h-5 px-1.5"
+                >
                   {ORDER_STATUS_LABELS[order.status]?.label || order.status}
                 </Badge>
-                {isPrescriptionEdited && (
-                  <Badge variant="outline" className="text-[10px] h-5 border-amber-400 bg-amber-50 text-amber-800">
-                    Disesuaikan Farmasi
-                  </Badge>
-                )}
-                <Badge variant={order.fulfillment_type === "in_room" ? "outline" : "secondary"} className="text-xs">
+                <Badge
+                  variant={order.fulfillment_type === "in_room" ? "outline" : "secondary"}
+                  className="rounded-none text-[10px] h-5 px-1.5"
+                >
                   {FULFILLMENT_TYPE_LABELS[order.fulfillment_type as MedicineFulfillmentType] || "Dibawa Pulang"}
                 </Badge>
                 {order.priority === "urgent" && (
-                  <Badge variant="destructive" className="text-xs">Urgent</Badge>
+                  <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">
+                    Urgent
+                  </Badge>
                 )}
                 {order.pharmacy_visit?.room_queue && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
                     Antrian: {order.pharmacy_visit.room_queue.queue_number}
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 {new Date(order.created_at).toLocaleString("id-ID")} • {order.pharmacy_room?.name} • {groupedOrderItems.length || 0} entri
               </p>
             </div>
           </CollapsibleTrigger>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Dropdown Cetak Resep */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1"
-                  disabled={isPrinting}
-                  title="Cetak Resep"
-                >
-                  {printingResep ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">Cetak Resep</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => handlePrintResep("doctor")}
-                >
-                  <FileText className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                  <div>
-                    <div className="font-medium text-xs">Resep Dokter (Asli)</div>
-                    <div className="text-[10px] text-muted-foreground">Sesuai resep awal dokter</div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => handlePrintResep("edited")}
-                >
-                  <FileCheck className="h-3.5 w-3.5 mr-2 text-emerald-600" />
-                  <div>
-                    <div className="font-medium text-xs">Resep Hasil Edit (Farmasi)</div>
-                    <div className="text-[10px] text-muted-foreground">Sesuai telaah & edit farmasi</div>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-none text-xs gap-1.5 px-2.5"
+              disabled={printingResep}
+              onClick={handlePrintResep}
+              title="Cetak Resep"
+            >
+              {printingResep ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Cetak Resep</span>
+            </Button>
 
-            {/* Dropdown Cetak Etiket */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1"
-                  disabled={isPrinting}
-                  title="Cetak Etiket"
-                >
-                  {printingEtiket ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">Cetak Etiket</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => handlePrintEtiket("doctor")}
-                >
-                  <Tag className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                  <div>
-                    <div className="font-medium text-xs">Etiket Resep Dokter</div>
-                    <div className="text-[10px] text-muted-foreground">Etiket resep awal dokter</div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => handlePrintEtiket("edited")}
-                >
-                  <Tag className="h-3.5 w-3.5 mr-2 text-emerald-600" />
-                  <div>
-                    <div className="font-medium text-xs">Etiket Resep Edit (Farmasi)</div>
-                    <div className="text-[10px] text-muted-foreground">Etiket penyesuaian farmasi</div>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {order.pharmacy_visit?.room_queue && (
-              <TooltipProvider delayDuration={120}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={handlePrintQueue}
-                      disabled={isPrinting}
-                      aria-label="Cetak antrian"
-                    >
-                      {isPrinting && !printingResep && !printingEtiket ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Clock className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Cetak Antrian</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
             {order.status === "pending" && canCancel && onCancel && (
               <TooltipProvider delayDuration={120}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => onCancel(order.id)} aria-label="Batalkan order">
-                      <Trash2 className="h-4 w-4" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-none text-destructive"
+                      onClick={() => onCancel(order.id)}
+                      aria-label="Batalkan order"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Batalkan</TooltipContent>
@@ -416,184 +269,128 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: MedicineOrder
           </div>
         </div>
         <CollapsibleContent>
-          <div className="mt-3 ml-6 space-y-3">
-            {/* Order Info Table */}
-            <div className="bg-muted/30 rounded-lg p-3">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <tbody>
-                    <tr>
-                      <td className="py-1 text-muted-foreground w-1/3">Farmasi Tujuan</td>
-                      <td className="py-1 font-medium">{order.pharmacy_room?.name || "-"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Prioritas</td>
-                      <td className="py-1">
-                        <Badge variant={order.priority === "urgent" ? "destructive" : "outline"} className="text-xs">
-                          {order.priority === "urgent" ? "Urgent" : "Normal"}
-                        </Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Pemakaian Obat</td>
-                      <td className="py-1">
-                        <Badge variant={order.fulfillment_type === "in_room" ? "outline" : "secondary"} className="text-xs">
-                          {FULFILLMENT_TYPE_LABELS[order.fulfillment_type as MedicineFulfillmentType] || "Dibawa Pulang"}
-                        </Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Diagnosis</td>
-                      <td className="py-1">{order.diagnosis || "-"}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Catatan</td>
-                      <td className="py-1">{order.notes || "-"}</td>
-                    </tr>
-                  </tbody>
-                </table>
+          <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+            {/* Order Info Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 p-2.5 text-xs">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Farmasi Tujuan</span>
+                <span className="font-semibold text-foreground">{order.pharmacy_room?.name || "-"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Prioritas</span>
+                <span className="font-semibold text-foreground">{order.priority === "urgent" ? "Urgent" : "Normal"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Pemakaian Obat</span>
+                <span className="font-semibold text-foreground">
+                  {FULFILLMENT_TYPE_LABELS[order.fulfillment_type as MedicineFulfillmentType] || "Dibawa Pulang"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Diagnosis</span>
+                <span className="font-medium text-foreground">{order.diagnosis || "-"}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Catatan</span>
+                <span className="font-medium text-foreground">{order.notes || "-"}</span>
               </div>
             </div>
 
             {displayItems && displayItems.length > 0 && (
-              <div className="space-y-1.5 mt-3">
-                <div className="flex items-center justify-between flex-wrap gap-2 px-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {isPrescriptionEdited && viewVersion === "pharmacy"
-                        ? "Resep Setelah Disesuaikan Farmasi"
-                        : "Resep Dokter (Riwayat Asli)"}
-                    </span>
-                    {isPrescriptionEdited && (
-                      <Badge variant="outline" className="text-[10px] h-5 border-amber-400 bg-amber-50 text-amber-800">
-                        Disesuaikan Farmasi
-                      </Badge>
-                    )}
-                  </div>
-                  {isPrescriptionEdited && (
-                    <div className="inline-flex rounded-md border border-border/80 p-0.5 text-xs bg-muted/40">
-                      <button
-                        type="button"
-                        onClick={() => setViewVersion("doctor")}
-                        className={cn(
-                          "px-2.5 py-0.5 rounded text-xs transition-colors",
-                          viewVersion === "doctor"
-                            ? "bg-background text-foreground shadow-sm font-semibold"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        Resep Dokter (Asli)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewVersion("pharmacy")}
-                        className={cn(
-                          "px-2.5 py-0.5 rounded text-xs transition-colors",
-                          viewVersion === "pharmacy"
-                            ? "bg-background text-foreground shadow-sm font-semibold"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        Hasil Edit Farmasi
-                      </button>
-                    </div>
-                  )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2 text-[11px] font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+                    Daftar Item Resep
+                  </span>
                 </div>
-                <div className="border border-border/70 overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-muted/50 border-b border-border/70">
+                <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-xs">
+                    <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
                       <tr>
-                        <th className="py-2 px-3 text-left font-medium">Nama Item</th>
-                        <th className="py-2 px-3 text-left font-medium">Detail</th>
-                        <th className="py-2 px-3 text-left font-medium w-[160px]">Jumlah</th>
+                        <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">Nama Item</th>
+                        <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">Detail</th>
+                        <th className="h-8 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[160px]">Jumlah</th>
                       </tr>
                     </thead>
-                  <tbody>
-                    {groupedOrderItems.map((group) => {
-                      if (group.type === "racikan") {
-                        const groupKey = group.racikanGroup || group.key;
-                        const isExpanded = expandedHistoryRacikanGroups[groupKey] ?? true;
+                    <tbody>
+                      {groupedOrderItems.map((group) => {
+                        if (group.type === "racikan") {
+                          const groupKey = group.racikanGroup || group.key;
+                          const isExpanded = expandedHistoryRacikanGroups[groupKey] ?? true;
 
+                          return (
+                            <Fragment key={group.key}>
+                              <tr className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 align-top">
+                                <td className="py-2 px-3">
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-start gap-2 text-left"
+                                    onClick={() => toggleHistoryRacikanGroup(groupKey)}
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold truncate">{group.racikanName || "Racikan"}</span>
+                                        <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px]">Racikan</Badge>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground truncate">
+                                        {group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
+                                      </p>
+                                    </div>
+                                  </button>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <p className="truncate">
+                                    {(group.sharedFields.dosage || "-") + " • " + (group.sharedFields.frequency || "-")}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
+                                  {group.sharedFields.notes ? (
+                                    <p className="text-[11px] text-muted-foreground truncate">Catatan: {group.sharedFields.notes}</p>
+                                  ) : null}
+                                </td>
+                                <td className="py-2 px-3 font-semibold">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
+                              </tr>
+                              {isExpanded &&
+                                group.items.map((item, componentIndex) => (
+                                  <tr key={`${group.key}-${item.id || componentIndex}`} className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+                                    <td className="py-2 px-3 pl-9">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="h-px w-3 bg-border" />
+                                        <span className="truncate text-muted-foreground">{item.medicine?.name || "Obat"}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3 text-[11px] text-muted-foreground">
+                                      {item.dosage ? `Dosis: ${item.dosage}` : "Komponen racikan"}
+                                    </td>
+                                    <td className="py-2 px-3">{item.quantity} {item.unit}</td>
+                                  </tr>
+                                ))}
+                            </Fragment>
+                          );
+                        }
+
+                        const item = group.items[0];
+                        const detailSummary = [item.dosage || "-", item.frequency || "-"].join(" • ");
                         return (
-                          <Fragment key={group.key}>
-                            <tr className="border-t bg-muted/20 align-top">
-                              <td className="py-2 px-3">
-                                <button
-                                  type="button"
-                                  className="flex w-full items-start gap-2 text-left"
-                                  onClick={() => toggleHistoryRacikanGroup(groupKey)}
-                                >
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium truncate">{group.racikanName || "Racikan"}</span>
-                                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Racikan</Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                      {group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
-                                    </p>
-                                  </div>
-                                </button>
-                              </td>
-                              <td className="py-2 px-3">
-                                <p className="truncate">
-                                  {(group.sharedFields.dosage || "-") + " • " + (group.sharedFields.frequency || "-")}
-                                </p>
-                                <p className="text-xs text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
-                                {group.sharedFields.notes ? (
-                                  <p className="text-xs text-muted-foreground truncate">Catatan: {group.sharedFields.notes}</p>
-                                ) : null}
-                              </td>
-                              <td className="py-2 px-3 font-medium">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
-                            </tr>
-                            {isExpanded &&
-                              group.items.map((item, componentIndex) => (
-                                <tr key={`${group.key}-${item.id || componentIndex}`} className="border-t bg-background">
-                                  <td className="py-2 px-3 pl-11">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span className="h-px w-4 bg-border" />
-                                      <span className="truncate text-muted-foreground">{item.medicine?.name || "Obat"}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2 px-3 text-xs text-muted-foreground">
-                                    {item.dosage ? `Dosis: ${item.dosage}` : "Komponen racikan"}
-                                  </td>
-                                  <td className="py-2 px-3">{item.quantity} {item.unit}</td>
-                                </tr>
-                              ))}
-                          </Fragment>
+                          <tr key={group.key} className="border-t border-neutral-200 dark:border-neutral-800">
+                            <td className="py-2 px-3">
+                              <p className="font-semibold truncate">{item.medicine?.name}</p>
+                            </td>
+                            <td className="py-2 px-3">
+                              <p className="truncate">{detailSummary}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
+                              {item.notes ? <p className="text-[11px] text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
+                            </td>
+                            <td className="py-2 px-3 font-semibold">{item.quantity} {item.unit}</td>
+                          </tr>
                         );
-                      }
-
-                      const item = group.items[0];
-                      const detailSummary = [item.dosage || "-", item.frequency || "-"].join(" • ");
-                      return (
-                        <tr key={group.key} className="border-t">
-                          <td className="py-2 px-3">
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                              <p className="font-medium truncate">{item.medicine?.name}</p>
-                              {item.added_by_pharmacy && (
-                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-blue-300 text-blue-700 bg-blue-50">
-                                  Ditambah Farmasi
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            <p className="truncate">{detailSummary}</p>
-                            <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
-                            {item.notes ? <p className="text-xs text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
-                          </td>
-                          <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </CollapsibleContent>
+            )}
+          </div>
+        </CollapsibleContent>
       </div>
     </Collapsible>
   );
@@ -1589,133 +1386,152 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   }
 
   return (
-    <div>
-      <div className="p-0">
-        {/* Inline Tabs with Underline */}
-        <div>
-          <div className="flex items-center gap-6 px-4">
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
+      <div>
+        {/* Full-Bleed Sub-Tabs Bar */}
+        <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 px-4 sm:px-5">
+          <div className="flex items-center gap-6">
             <button
+              type="button"
               onClick={() => setActiveTab("form")}
               className={cn(
-                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
+                "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-1.5",
                 activeTab === "form"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-neutral-900 dark:text-white"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Pill className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              <Pill className="h-3.5 w-3.5" />
               Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-neutral-900 dark:bg-white" />
               )}
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("history")}
               className={cn(
-                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
+                "py-2.5 text-xs font-bold uppercase tracking-wider transition-colors relative flex items-center gap-1.5",
                 activeTab === "history"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-neutral-900 dark:text-white"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              <Clock className="h-3.5 w-3.5" />
               Riwayat Order
               {existingOrders.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                <Badge variant="secondary" className="rounded-none ml-0.5 h-5 px-1.5 text-[10px] font-mono">
                   {existingOrders.length}
                 </Badge>
               )}
               {activeTab === "history" && (
-                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-neutral-900 dark:bg-white" />
               )}
             </button>
           </div>
         </div>
 
-        <div className="p-4">
+        <div>
           <TooltipProvider delayDuration={120}>
             {/* Order Form Tab */}
             {activeTab === "form" && (
-              <div className="space-y-4">
-                <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-                  <div className="border border-border/70">
-                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Konfigurasi Order
+              <div>
+                <fieldset
+                  disabled={readOnly}
+                  className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+                >
+                  {/* Section 1: Konfigurasi Order */}
+                  <section className="px-4 sm:px-5 py-4 space-y-3">
+                    <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                      Konfigurasi Order Resep
                     </div>
-                    <div className="space-y-4 p-3 sm:p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Ruang Farmasi Tujuan</Label>
-                          <Select
-                            value={selectedPharmacyRoom?.toString() || ""}
-                            onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih ruang farmasi" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {pharmacyRooms.map((room) => (
-                                <SelectItem key={room.id} value={room.id.toString()}>
-                                  {room.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Prioritas</Label>
-                          <Select value={priority} onValueChange={setPriority}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="normal">Normal</SelectItem>
-                              <SelectItem value="urgent">Urgent</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Pemakaian Obat</Label>
-                          <Select value={fulfillmentType} onValueChange={(value) => setFulfillmentType(value as MedicineFulfillmentType)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="in_room">Dipakai di Ruangan</SelectItem>
-                              <SelectItem value="take_home">Dibawa Pulang</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
 
-                      <div className="space-y-2">
-                        <Label>Diagnosis Terkait</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                      <div className="lg:col-span-3 space-y-1.5">
+                        <Label className="text-xs font-medium">Ruang Farmasi Tujuan</Label>
+                        <Select
+                          value={selectedPharmacyRoom?.toString() || ""}
+                          onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
+                        >
+                          <SelectTrigger className="h-9 text-xs rounded-none">
+                            <SelectValue placeholder="Pilih ruang farmasi" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pharmacyRooms.map((room) => (
+                              <SelectItem key={room.id} value={room.id.toString()} className="text-xs">
+                                {room.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-2 space-y-1.5">
+                        <Label className="text-xs font-medium">Prioritas</Label>
+                        <Select value={priority} onValueChange={setPriority}>
+                          <SelectTrigger className="h-9 text-xs rounded-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal" className="text-xs">Normal</SelectItem>
+                            <SelectItem value="urgent" className="text-xs">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-3 space-y-1.5">
+                        <Label className="text-xs font-medium">Pemakaian Obat</Label>
+                        <Select
+                          value={fulfillmentType}
+                          onValueChange={(value) => setFulfillmentType(value as MedicineFulfillmentType)}
+                        >
+                          <SelectTrigger className="h-9 text-xs rounded-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="in_room" className="text-xs">Dipakai di Ruangan</SelectItem>
+                            <SelectItem value="take_home" className="text-xs">Dibawa Pulang</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-4 space-y-1.5">
+                        <Label className="text-xs font-medium">Diagnosis Terkait</Label>
                         <Input
-                          placeholder="Tulis diagnosis yang berkaitan dengan resep ini"
+                          placeholder="Tulis diagnosis yang berkaitan dengan resep ini..."
                           value={diagnosis}
                           onChange={(e) => setDiagnosis(e.target.value)}
                         />
                       </div>
                     </div>
-                  </div>
+                  </section>
 
-                  {/* Order Items */}
-                  <div className="space-y-2 border border-border/70 p-3 sm:p-4">
+                  {/* Section 2: Daftar Obat */}
+                  <section className="px-4 sm:px-5 py-4 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Label className="text-base font-medium">Daftar Obat</Label>
-                        <Badge variant={groupedDraftOrderItems.length > 0 ? "default" : "outline"}>{groupedDraftOrderItems.length} entri</Badge>
-                        <Badge variant={orderGrandTotal > 0 ? "secondary" : "outline"}>{formatRupiah(orderGrandTotal)}</Badge>
+                        <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                          Daftar Obat
+                        </div>
+                        <Badge
+                          variant={groupedDraftOrderItems.length > 0 ? "default" : "secondary"}
+                          className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                        >
+                          {groupedDraftOrderItems.length} Entri
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                        >
+                          {formatRupiah(orderGrandTotal)}
+                        </Badge>
 
-                        {/* Template Resep di sisi kiri */}
-                        <div className="flex items-center gap-1.5 ml-1 border-l border-border/70 pl-2">
+                        {/* Template Resep */}
+                        <div className="flex items-center gap-1.5 ml-1 border-l border-neutral-200 dark:border-neutral-800 pl-2">
                           <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
                             <DialogTrigger asChild>
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="h-8 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                                className="h-8 rounded-none px-2.5 text-xs gap-1.5"
                                 title="Pilih Template Resep"
                                 aria-label="Pilih template resep"
                                 data-exclude-footer-action="true"
@@ -1726,135 +1542,187 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                 <span className="hidden sm:inline">Pilih Template</span>
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                            <DialogHeader>
-                              <DialogTitle>Pilih Template Resep</DialogTitle>
-                              <DialogDescription>
-                                Template ini hanya milik akun dokter Anda. Pilih satu template untuk menambahkan obat otomatis.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Cari template..."
-                                className="pl-9"
-                                value={templateSearchTerm}
-                                onChange={(e) => setTemplateSearchTerm(e.target.value)}
-                              />
-                            </div>
-                            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                              <div className="divide-y">
+                            <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[82vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                              <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                                    <Package className="h-4 w-4" />
+                                  </div>
+                                  <div className="text-left min-w-0">
+                                    <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                      Pilih Template Resep
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs mt-0.5">
+                                      Pilih salah satu template resep dokter untuk mengisi daftar obat secara otomatis.
+                                    </DialogDescription>
+                                  </div>
+                                </div>
+                              </DialogHeader>
+
+                              <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 shrink-0">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                  <Input
+                                    placeholder="Cari nama template resep..."
+                                    className="h-9 pl-8 text-xs rounded-none bg-white dark:bg-neutral-950"
+                                    value={templateSearchTerm}
+                                    onChange={(e) => setTemplateSearchTerm(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex-1 max-h-[380px] overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
                                 {loadingTemplates ? (
-                                  <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                  <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Memuat template resep...
                                   </div>
                                 ) : filteredTemplates.length === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    {templateSearchTerm ? "Template tidak ditemukan" : "Belum ada template resep"}
+                                  <div className="text-center py-10 text-xs text-muted-foreground">
+                                    {templateSearchTerm ? "Template tidak ditemukan" : "Belum ada template resep tersimpan"}
                                   </div>
                                 ) : (
                                   filteredTemplates.map((template) => (
                                     <button
                                       key={template.id}
                                       type="button"
-                                      className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                                      className="w-full px-4 py-2.5 hover:bg-muted/30 flex items-center justify-between gap-3 text-left transition-colors"
                                       onClick={() => handleApplyTemplate(template)}
                                     >
-                                      <div>
-                                        <p className="font-medium text-sm">{template.name}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {(template.items?.length || 0)} obat
+                                      <div className="min-w-0">
+                                        <p className="font-semibold text-xs text-foreground truncate">{template.name}</p>
+                                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                          {template.items?.length || 0} obat
                                           {template.notes ? ` • ${template.notes}` : ""}
                                           {template.dpjp_employee_id ? " • Scope: DPJP" : ""}
                                         </p>
                                       </div>
+                                      <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono shrink-0">
+                                        {template.items?.length || 0} Item
+                                      </Badge>
                                     </button>
                                   ))
                                 )}
                               </div>
-                            </ScrollArea>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
-                                Tutup
+
+                              <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-none px-4 text-xs"
+                                  onClick={() => setShowTemplateDialog(false)}
+                                >
+                                  Tutup
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+
+                          <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
+                            <DialogTrigger asChild>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 rounded-none px-2.5 text-xs gap-1.5"
+                                title="Buat Template Resep"
+                                aria-label="Buat template resep"
+                                data-exclude-footer-action="true"
+                                disabled={readOnly}
+                                onClick={() => {
+                                  setTemplateItems(orderItems.map((item) => ({ ...item })));
+                                  setTemplateMedicineSearch("");
+                                  setShowCreateTemplateDialog(true);
+                                }}
+                              >
+                                <BookmarkPlus className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Buat Template</span>
                               </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                            </DialogTrigger>
+                            <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[88vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                              <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                                    <BookmarkPlus className="h-4 w-4" />
+                                  </div>
+                                  <div className="text-left min-w-0">
+                                    <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                      Simpan Template Resep
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs mt-0.5">
+                                      Simpan template resep pribadi dokter. Ambil dari order saat ini atau tambahkan item obat di bawah.
+                                    </DialogDescription>
+                                  </div>
+                                </div>
+                              </DialogHeader>
 
-                        <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
-                          <DialogTrigger asChild>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                              title="Buat Template Resep"
-                              aria-label="Buat template resep"
-                              data-exclude-footer-action="true"
-                              disabled={readOnly}
-                              onClick={() => {
-                                setTemplateItems(orderItems.map((item) => ({ ...item })));
-                                setTemplateMedicineSearch("");
-                                setShowCreateTemplateDialog(true);
-                              }}
-                            >
-                              <BookmarkPlus className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Buat Template</span>
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-                            <DialogHeader>
-                              <DialogTitle>Simpan Template Resep</DialogTitle>
-                              <DialogDescription>
-                                Simpan template resep pribadi dokter. Anda bisa ambil dari order saat ini, lalu tambah/ubah item di modal ini.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-3 overflow-y-auto pr-1">
-                              <div className="space-y-1">
-                                <Label>Nama Template</Label>
-                                <Input
-                                  value={templateName}
-                                  onChange={(e) => setTemplateName(e.target.value)}
-                                  placeholder="Contoh: Resep ISPA Dewasa"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label>Catatan (opsional)</Label>
-                                <Textarea
-                                  value={templateNotes}
-                                  onChange={(e) => setTemplateNotes(e.target.value)}
-                                  placeholder="Keterangan tambahan"
-                                />
-                              </div>
-                              <label className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={bindTemplateToDPJP}
-                                  onChange={(e) => setBindTemplateToDPJP(e.target.checked)}
-                                />
-                                Scope hanya untuk DPJP pasien ini
-                              </label>
+                              <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+                                {/* Section 1: Identitas Template */}
+                                <div className="p-4 space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                      Informasi Template
+                                    </div>
+                                    <label className="flex items-center gap-2 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/50 px-2.5 h-7 text-xs cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={bindTemplateToDPJP}
+                                        onChange={(e) => setBindTemplateToDPJP(e.target.checked)}
+                                        className="rounded-none"
+                                      />
+                                      <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                                        Scope hanya untuk DPJP pasien ini
+                                      </span>
+                                    </label>
+                                  </div>
 
-                              <div className="space-y-2 border rounded-md p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <Label className="text-sm font-medium">Isi Obat Template</Label>
-                                  <Badge variant="outline">{templateItems.length} obat</Badge>
+                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                    <div className="md:col-span-5 space-y-1.5">
+                                      <Label className="text-xs font-medium">Nama Template *</Label>
+                                      <Input
+                                        value={templateName}
+                                        onChange={(e) => setTemplateName(e.target.value)}
+                                        placeholder="Contoh: Resep ISPA Dewasa"
+                                      />
+                                    </div>
+                                    <div className="md:col-span-7 space-y-1.5">
+                                      <Label className="text-xs font-medium">Catatan Template (Opsional)</Label>
+                                      <Input
+                                        value={templateNotes}
+                                        onChange={(e) => setTemplateNotes(e.target.value)}
+                                        placeholder="Keterangan singkat indikasi atau catatan template..."
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
 
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    placeholder="Cari obat untuk ditambahkan ke template..."
-                                    className="pl-9"
-                                    value={templateMedicineSearch}
-                                    onChange={(e) => setTemplateMedicineSearch(e.target.value)}
-                                  />
-                                </div>
+                                {/* Section 2: Isi Obat Template */}
+                                <div className="p-4 space-y-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                        Isi Obat Template
+                                      </div>
+                                      <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                                        {templateItems.length} Obat
+                                      </Badge>
+                                    </div>
+                                  </div>
 
-                                <ScrollArea className="h-44 border rounded-md">
-                                  <div className="divide-y">
+                                  <div className="relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                    <Input
+                                      placeholder="Cari obat untuk ditambahkan ke template..."
+                                      className="pl-8"
+                                      value={templateMedicineSearch}
+                                      onChange={(e) => setTemplateMedicineSearch(e.target.value)}
+                                    />
+                                  </div>
+
+                                  <div className="max-h-36 overflow-y-auto border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
                                     {filteredTemplateMedicines.length === 0 ? (
-                                      <div className="text-center py-6 text-sm text-muted-foreground">
+                                      <div className="text-center py-5 text-xs text-muted-foreground">
                                         {templateMedicineSearch ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke template"}
                                       </div>
                                     ) : (
@@ -1862,134 +1730,155 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                         <button
                                           key={`template-${pm.id}`}
                                           type="button"
-                                          className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                          className="w-full px-3 py-2 hover:bg-muted/40 flex items-center justify-between text-left transition-colors"
                                           onClick={() => handleAddTemplateItem(pm)}
                                         >
                                           <div>
-                                            <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                            <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                            <p className="text-xs font-semibold text-foreground">{pm.medicine.name}</p>
+                                            <p className="text-[11px] text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
                                           </div>
-                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                          <span className="inline-flex items-center gap-1 border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2 py-0.5 text-[11px] font-medium">
+                                            <Plus className="h-3 w-3" /> Tambah
+                                          </span>
                                         </button>
                                       ))
                                     )}
                                   </div>
-                                </ScrollArea>
 
-                                {templateItems.length > 0 ? (
-                                  <div className="border border-border/70 overflow-x-auto">
-                                    <table className="w-full text-xs min-w-[900px]">
-                                      <thead className="bg-muted/50 border-b border-border/70">
-                                        <tr>
-                                          <th className="py-2 px-2 text-left">Obat</th>
-                                          <th className="py-2 px-2 text-left w-[80px]">Qty</th>
-                                          <th className="py-2 px-2 text-left w-[120px]">Dosis</th>
-                                          <th className="py-2 px-2 text-left min-w-[200px]">Signa</th>
-                                          <th className="py-2 px-2 text-left w-[140px]">Rute</th>
-                                          <th className="py-2 px-2 text-left w-[110px]">Durasi</th>
-                                          <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {templateItems.map((item, index) => (
-                                          <tr key={`template-item-${item.medicine_id}-${index}`} className="border-t align-top">
-                                            <td className="py-2 px-2">
-                                              <p className="font-medium">{item.medicine_name}</p>
-                                              <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Input
-                                                type="number"
-                                                min={1}
-                                                max={item.available_stock}
-                                                value={item.quantity}
-                                                onChange={(e) => handleUpdateTemplateItemQuantity(index, Number(e.target.value))}
-                                                className="h-7"
-                                              />
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Input
-                                                value={item.dosage}
-                                                onChange={(e) => handleUpdateTemplateItemField(index, "dosage", e.target.value)}
-                                                className="h-7"
-                                              />
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Combobox allowCustomValue
-                                                options={signaOptions}
-                                                value={item.instructions}
-                                                onValueChange={(value) => {
-                                                  handleUpdateTemplateItemField(index, "instructions", value);
-                                                  handleUpdateTemplateItemField(index, "frequency", value);
-                                                }}
-                                                placeholder="Pilih/ketik signa"
-                                                searchPlaceholder="Cari/ketik signa..."
-                                                emptyText="Gunakan signa ini"
-                                                className="h-7 text-xs"
-                                              />
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Select
-                                                value={item.route}
-                                                onValueChange={(value) => handleUpdateTemplateItemField(index, "route", value)}
-                                              >
-                                                <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                                                <SelectContent>
-                                                  {routeOptions.map((option) => (
-                                                    <SelectItem key={`tmp-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Input
-                                                value={item.duration}
-                                                onChange={(e) => handleUpdateTemplateItemField(index, "duration", e.target.value)}
-                                                className="h-7"
-                                              />
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 text-destructive"
-                                                onClick={() => handleRemoveTemplateItem(index)}
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </td>
+                                  {templateItems.length > 0 ? (
+                                    <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                                      <table className="w-full text-xs min-w-[860px]">
+                                        <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+                                          <tr>
+                                            <th className="h-8 px-2.5 text-left font-bold uppercase tracking-wider text-muted-foreground">Obat</th>
+                                            <th className="h-8 px-2 text-left font-bold uppercase tracking-wider text-muted-foreground w-[76px]">Qty</th>
+                                            <th className="h-8 px-2 text-left font-bold uppercase tracking-wider text-muted-foreground w-[110px]">Dosis</th>
+                                            <th className="h-8 px-2 text-left font-bold uppercase tracking-wider text-muted-foreground min-w-[190px]">Signa</th>
+                                            <th className="h-8 px-2 text-left font-bold uppercase tracking-wider text-muted-foreground w-[135px]">Rute</th>
+                                            <th className="h-8 px-2 text-left font-bold uppercase tracking-wider text-muted-foreground w-[105px]">Durasi</th>
+                                            <th className="h-8 px-2 text-center font-bold uppercase tracking-wider text-muted-foreground w-[44px]">Aksi</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Belum ada obat pada template. Tambahkan obat dari daftar di atas.</p>
-                                )}
+                                        </thead>
+                                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                                          {templateItems.map((item, index) => (
+                                            <tr key={`template-item-${item.medicine_id}-${index}`} className="align-middle">
+                                              <td className="py-2 px-2.5">
+                                                <p className="font-semibold text-foreground">{item.medicine_name}</p>
+                                                <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
+                                              </td>
+                                              <td className="py-2 px-2">
+                                                <Input
+                                                  type="number"
+                                                  min={1}
+                                                  max={item.available_stock}
+                                                  value={item.quantity}
+                                                  onChange={(e) => handleUpdateTemplateItemQuantity(index, Number(e.target.value))}
+                                                  className="!h-8"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-2">
+                                                <Input
+                                                  value={item.dosage}
+                                                  onChange={(e) => handleUpdateTemplateItemField(index, "dosage", e.target.value)}
+                                                  className="!h-8"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-2">
+                                                <Combobox
+                                                  allowCustomValue
+                                                  options={signaOptions}
+                                                  value={item.instructions}
+                                                  onValueChange={(value) => {
+                                                    handleUpdateTemplateItemField(index, "instructions", value);
+                                                    handleUpdateTemplateItemField(index, "frequency", value);
+                                                  }}
+                                                  placeholder="Pilih/ketik signa"
+                                                  searchPlaceholder="Cari/ketik signa..."
+                                                  emptyText="Gunakan signa ini"
+                                                  className="!h-8 text-xs"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-2">
+                                                <Select
+                                                  value={item.route}
+                                                  onValueChange={(value) => handleUpdateTemplateItemField(index, "route", value)}
+                                                >
+                                                  <SelectTrigger className="h-8 text-xs rounded-none">
+                                                    <SelectValue placeholder="Pilih" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {routeOptions.map((option) => (
+                                                      <SelectItem key={`tmp-route-${option.value}`} value={option.value} className="text-xs">
+                                                        {option.label}
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </td>
+                                              <td className="py-2 px-2">
+                                                <Input
+                                                  value={item.duration}
+                                                  onChange={(e) => handleUpdateTemplateItemField(index, "duration", e.target.value)}
+                                                  className="!h-8"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-2 text-center">
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-7 w-7 rounded-none text-destructive"
+                                                  onClick={() => handleRemoveTemplateItem(index)}
+                                                >
+                                                  <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                                      Belum ada obat pada template. Klik "+ Tambah" pada daftar obat di atas.
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setShowCreateTemplateDialog(false)}>
-                                Batal
-                              </Button>
-                              <Button onClick={handleCreateTemplate} disabled={templateSaving || templateItems.length === 0}>
-                                {templateSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                                Simpan Template
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+
+                              <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-none px-4 text-xs"
+                                  onClick={() => setShowCreateTemplateDialog(false)}
+                                >
+                                  Batal
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-8 rounded-none px-4 text-xs"
+                                  onClick={handleCreateTemplate}
+                                  disabled={templateSaving || templateItems.length === 0}
+                                >
+                                  {templateSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                                  Simpan Template
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                           <DialogTrigger asChild>
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="h-8 px-2.5 text-xs font-medium gap-1.5 border-border/80"
+                              className="h-8 rounded-none px-2.5 text-xs gap-1.5"
                               title="Tambah Obat Non-Racikan"
                               aria-label="Tambah obat non-racikan"
                               data-exclude-footer-action="true"
@@ -1997,62 +1886,83 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               onClick={() => setShowAddDialog(true)}
                             >
                               <Pill className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Non-Racikan</span>
+                              <span>+ Non-Racikan</span>
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                            <DialogHeader>
-                              <DialogTitle>Pilih Obat</DialogTitle>
-                              <DialogDescription>
-                                Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Cari obat..."
-                                className="pl-9"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                              />
-                            </div>
-                            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                              <div className="divide-y">
-                                {loadingMedicines ? (
-                                  <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                  </div>
-                                ) : filteredMedicines.length === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
-                                  </div>
-                                ) : (
-                                  filteredMedicines.map((pm) => (
-                                    <button
-                                      key={pm.id}
-                                      type="button"
-                                      className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
-                                      onClick={() => handleAddItem(pm)}
-                                    >
-                                      <div>
-                                        <p className="font-medium text-sm">{pm.medicine.name}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
-                                          Stok: {pm.quantity}
-                                        </Badge>
-                                      </div>
-                                    </button>
-                                  ))
-                                )}
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[82vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                            <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                                  <Pill className="h-4 w-4" />
+                                </div>
+                                <div className="text-left min-w-0">
+                                  <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                    Pilih Obat Non-Racikan
+                                  </DialogTitle>
+                                  <DialogDescription className="text-xs mt-0.5">
+                                    Pilih obat dari stok farmasi tujuan, lalu lengkapi detail resep pada tabel order.
+                                  </DialogDescription>
+                                </div>
                               </div>
-                            </ScrollArea>
+                            </DialogHeader>
 
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                            <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 shrink-0">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input
+                                  placeholder="Cari nama atau kode obat..."
+                                  className="h-9 pl-8 text-xs rounded-none bg-white dark:bg-neutral-950"
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex-1 max-h-[380px] overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
+                              {loadingMedicines ? (
+                                <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Memuat daftar obat...
+                                </div>
+                              ) : filteredMedicines.length === 0 ? (
+                                <div className="text-center py-10 text-xs text-muted-foreground">
+                                  {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
+                                </div>
+                              ) : (
+                                filteredMedicines.map((pm) => (
+                                  <button
+                                    key={pm.id}
+                                    type="button"
+                                    className="w-full px-4 py-2.5 hover:bg-muted/30 flex items-center justify-between gap-3 text-left transition-colors"
+                                    onClick={() => handleAddItem(pm)}
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-xs text-foreground truncate">{pm.medicine.name}</p>
+                                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                        {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <Badge
+                                        variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}
+                                        className="rounded-none text-[10px] h-5 px-1.5 font-mono"
+                                      >
+                                        Stok: {pm.quantity}
+                                      </Badge>
+                                    </div>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+
+                            <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-none px-4 text-xs"
+                                onClick={() => setShowAddDialog(false)}
+                              >
                                 Tutup
                               </Button>
                             </DialogFooter>
@@ -2073,7 +1983,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               type="button"
                               size="sm"
                               variant="default"
-                              className="h-8 px-2.5 text-xs font-medium gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+                              className="h-8 rounded-none px-2.5 text-xs gap-1.5"
                               title="Tambah Obat Racikan"
                               aria-label="Tambah obat racikan"
                               data-exclude-footer-action="true"
@@ -2081,74 +1991,84 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               onClick={() => setShowRacikanDialog(true)}
                             >
                               <FlaskConical className="h-3.5 w-3.5" />
-                              <span>Racikan</span>
+                              <span>+ Racikan</span>
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col p-5 gap-3">
-                            <DialogHeader className="pb-0">
-                              <DialogTitle className="text-base font-semibold">Tambah Racikan</DialogTitle>
-                              <DialogDescription className="text-xs">
-                                Tentukan aturan pakai dan pilih bahan obat beserta dosisnya.
-                              </DialogDescription>
+                          <DialogContent className="sm:max-w-4xl lg:max-w-5xl max-h-[90vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                            <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                                  <FlaskConical className="h-4 w-4" />
+                                </div>
+                                <div className="text-left min-w-0">
+                                  <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                    Tambah Obat Racikan
+                                  </DialogTitle>
+                                  <DialogDescription className="text-xs mt-0.5">
+                                    Tentukan identitas racikan, aturan pakai, serta pilih bahan obat beserta dosis tiap komponen.
+                                  </DialogDescription>
+                                </div>
+                              </div>
                             </DialogHeader>
-                            <div className="grid flex-1 gap-3 overflow-y-auto pr-0.5 md:grid-cols-2">
-                              <div className="rounded-lg border bg-card p-3.5 space-y-2.5">
+
+                            <div className="grid flex-1 min-h-0 overflow-y-auto md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+                              {/* Left Column: Informasi Racikan */}
+                              <div className="p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-2">
-                                  <div>
-                                    <h4 className="text-xs font-semibold">Informasi Racikan</h4>
-                                    <p className="text-[11px] text-muted-foreground">Isi identitas racikan dan aturan pakai utamanya.</p>
+                                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                    Informasi &amp; Aturan Pakai Racikan
                                   </div>
-                                  <Badge variant="outline" className="text-xs py-0 px-2">{racikanItems.length} komponen</Badge>
+                                  <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                                    {racikanItems.length} Komponen
+                                  </Badge>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Nama Racikan</Label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Nama Racikan</Label>
                                     <Input
-                                      className="h-8 text-xs"
                                       value={racikanDraft.name}
                                       onChange={(e) => handleUpdateRacikanDraft("name", e.target.value)}
                                       placeholder="Contoh: Racikan Demam Anak"
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Jenis Racikan</Label>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Jenis Racikan</Label>
                                     <Select value={racikanDraft.type} onValueChange={(value) => handleUpdateRacikanDraft("type", value)}>
-                                      <SelectTrigger className="h-8 text-xs">
+                                      <SelectTrigger className="h-9 text-xs rounded-none">
                                         <SelectValue placeholder="Pilih jenis racikan" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {RACIKAN_TYPE_OPTIONS.map((option) => (
-                                          <SelectItem key={option} value={option}>{option}</SelectItem>
+                                          <SelectItem key={option} value={option} className="text-xs">
+                                            {option}
+                                          </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Jumlah Hasil</Label>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Jumlah Hasil</Label>
                                     <Input
-                                      className="h-8 text-xs"
                                       type="number"
                                       min={1}
                                       value={racikanDraft.quantity}
                                       onChange={(e) => handleUpdateRacikanDraft("quantity", Number(e.target.value) || 1)}
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Satuan Hasil</Label>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Satuan Hasil</Label>
                                     <Input
-                                      className="h-8 text-xs"
                                       value={racikanDraft.unit}
                                       onChange={(e) => handleUpdateRacikanDraft("unit", e.target.value)}
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Dosis</Label>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Dosis</Label>
                                     <Input
-                                      className="h-8 text-xs"
                                       value={racikanDraft.dosage}
                                       onChange={(e) => handleUpdateRacikanDraft("dosage", e.target.value)}
                                       placeholder="Contoh: 1 bungkus"
@@ -2156,10 +2076,11 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Signa</Label>
-                                    <Combobox allowCustomValue
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Signa / Aturan Pakai</Label>
+                                    <Combobox
+                                      allowCustomValue
                                       options={signaOptions}
                                       value={racikanDraft.instructions}
                                       onValueChange={(value) => {
@@ -2169,13 +2090,12 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                       placeholder="Pilih atau ketik signa"
                                       searchPlaceholder="Cari signa..."
                                       emptyText="Tekan enter"
-                                      className="w-full h-8 text-xs"
+                                      className="w-full"
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Catatan</Label>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Catatan Racikan</Label>
                                     <Input
-                                      className="h-8 text-xs"
                                       value={racikanDraft.notes}
                                       onChange={(e) => handleUpdateRacikanDraft("notes", e.target.value)}
                                       placeholder="Catatan racikan (opsional)"
@@ -2184,41 +2104,44 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                 </div>
                               </div>
 
-                              <div className="rounded-lg border bg-card p-3.5 space-y-2.5 flex flex-col">
+                              {/* Right Column: Pilih Bahan Obat */}
+                              <div className="p-4 space-y-3 flex flex-col">
                                 <div className="flex items-center justify-between gap-2">
-                                  <div>
-                                    <h4 className="text-xs font-semibold">Pilih Bahan Obat</h4>
-                                    <p className="text-[11px] text-muted-foreground">Klik obat untuk menambah dan mengisi dosis bahan.</p>
+                                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                    Komponen Bahan Obat
                                   </div>
-                                  <Badge variant="outline" className="text-xs py-0 px-2">{racikanItems.length} dipilih</Badge>
+                                  <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                                    {racikanItems.length} Dipilih
+                                  </Badge>
                                 </div>
+
                                 <div className="relative">
                                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                   <Input
-                                    placeholder="Cari nama atau kode obat..."
-                                    className="h-8 pl-8 text-xs"
+                                    placeholder="Cari nama atau kode bahan obat..."
+                                    className="pl-8"
                                     value={racikanSearchTerm}
                                     onChange={(e) => setRacikanSearchTerm(e.target.value)}
                                   />
                                 </div>
-                                <ScrollArea className="flex-1 min-h-[220px] max-h-[280px] border rounded-md p-1.5">
-                                  {/* List obat yang sudah dipilih beserta input dosis */}
+
+                                <div className="flex-1 min-h-[220px] max-h-[300px] overflow-y-auto border border-neutral-200 dark:border-neutral-800 p-2 space-y-2">
                                   {racikanItems.length > 0 && (
-                                    <div className="space-y-1.5 mb-2">
+                                    <div className="space-y-1.5">
                                       <div className="flex items-center justify-between px-0.5">
-                                        <span className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                                          <CheckCircle2 className="h-3 w-3" />
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground flex items-center gap-1">
+                                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                           Bahan Terpilih ({racikanItems.length})
                                         </span>
                                       </div>
-                                      <div className="space-y-1.5">
+                                      <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                                         {racikanItems.map((item, index) => (
                                           <div
                                             key={`racikan-item-${item.medicine_id}-${index}`}
-                                            className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 flex items-center justify-between gap-2 shadow-xs transition-all"
+                                            className="border-l-4 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/60 dark:bg-neutral-900/40 px-2.5 py-1.5 flex items-center justify-between gap-2"
                                           >
                                             <div className="min-w-0 flex-1">
-                                              <p className="font-medium text-xs text-foreground truncate">{item.medicine_name}</p>
+                                              <p className="font-semibold text-xs text-foreground truncate">{item.medicine_name}</p>
                                               <p className="text-[10px] text-muted-foreground truncate">{item.medicine_code}</p>
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0">
@@ -2229,14 +2152,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                                 value={item.dosage || ""}
                                                 onChange={(e) => handleUpdateRacikanItemDosage(index, e.target.value)}
                                                 placeholder="Misal: 1/2 tab"
-                                                className="h-7 w-24 sm:w-28 text-xs bg-background px-2"
+                                                className="!h-7 w-24 sm:w-28 text-xs bg-white dark:bg-neutral-950 px-2"
                                                 autoFocus={index === racikanItems.length - 1 && !item.dosage}
                                               />
                                               <Button
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+                                                className="h-6 w-6 rounded-none text-destructive hover:bg-destructive/10 shrink-0"
                                                 onClick={() => handleRemoveRacikanItem(index)}
                                                 title="Hapus bahan"
                                               >
@@ -2249,16 +2172,15 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                     </div>
                                   )}
 
-                                  {/* Daftar obat kandidat untuk dipilih */}
                                   <div>
                                     {racikanItems.length > 0 && (
-                                      <div className="text-[11px] font-medium text-muted-foreground px-0.5 py-1">
-                                        Pilih Bahan Lainnya:
+                                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5 py-1">
+                                        Pilih Bahan Lainnya
                                       </div>
                                     )}
-                                    <div className="divide-y rounded-md border overflow-hidden">
+                                    <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                                       {filteredRacikanMedicines.length === 0 ? (
-                                        <div className="text-center py-4 text-xs text-muted-foreground">
+                                        <div className="text-center py-5 text-xs text-muted-foreground">
                                           {racikanSearchTerm ? "Tidak ada obat yang sesuai" : "Semua bahan sudah dipilih"}
                                         </div>
                                       ) : (
@@ -2266,16 +2188,16 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                           <button
                                             key={`racikan-${pm.id}`}
                                             type="button"
-                                            className="w-full px-2.5 py-1.5 hover:bg-muted/60 flex items-center justify-between gap-2 text-left transition-colors"
+                                            className="w-full px-2.5 py-2 hover:bg-muted/40 flex items-center justify-between gap-2 text-left transition-colors"
                                             onClick={() => handleAddRacikanComponent(pm)}
                                           >
                                             <div className="min-w-0 flex-1">
-                                              <p className="font-medium text-xs truncate">{pm.medicine.name}</p>
+                                              <p className="font-semibold text-xs text-foreground truncate">{pm.medicine.name}</p>
                                               <p className="text-[10px] text-muted-foreground truncate">
                                                 {pm.medicine.code} • {pm.medicine.form || "-"} • {pm.medicine.strength || "-"}
                                               </p>
                                             </div>
-                                            <span className="text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded shrink-0 flex items-center gap-0.5">
+                                            <span className="text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2 py-0.5 shrink-0 flex items-center gap-0.5">
                                               <Plus className="h-3 w-3" /> Pilih
                                             </span>
                                           </button>
@@ -2283,14 +2205,27 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                       )}
                                     </div>
                                   </div>
-                                </ScrollArea>
+                                </div>
                               </div>
                             </div>
-                            <DialogFooter className="pt-1 gap-2">
-                              <Button size="sm" variant="outline" onClick={() => setShowRacikanDialog(false)}>
+
+                            <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 rounded-none px-4 text-xs"
+                                onClick={() => setShowRacikanDialog(false)}
+                              >
                                 Tutup
                               </Button>
-                              <Button size="sm" onClick={handleSaveRacikan} disabled={racikanItems.length === 0}>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 rounded-none px-4 text-xs"
+                                onClick={handleSaveRacikan}
+                                disabled={racikanItems.length === 0}
+                              >
                                 Simpan Racikan
                               </Button>
                             </DialogFooter>
@@ -2300,23 +2235,21 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                     </div>
 
                     {groupedDraftOrderItems.length === 0 ? (
-                      <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                        <Pill className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>Belum ada obat ditambahkan</p>
-                        <p className="text-sm">Gunakan tombol aksi di kanan atas untuk mulai menambah item.</p>
+                      <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                        Belum ada item obat yang ditambahkan ke dalam resep.
                       </div>
                     ) : (
                       <>
-                        <div className="border border-border/70 overflow-x-auto">
-                          <table className="w-full text-sm min-w-[980px]">
-                            <thead className="bg-muted/50 border-b border-border/70">
+                        <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                          <table className="w-full text-xs min-w-[980px]">
+                            <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
                               <tr>
-                                <th className="py-2 px-3 text-left font-medium">Nama Item</th>
-                                <th className="py-2 px-3 text-left font-medium">Detail Resep</th>
-                                <th className="py-2 px-3 text-left font-medium w-[140px]">Jumlah</th>
-                                <th className="py-2 px-3 text-right font-medium w-[170px]">Harga</th>
-                                <th className="py-2 px-3 text-left font-medium w-[140px]">Status</th>
-                                <th className="py-2 px-3 text-center font-medium w-[120px]">Aksi</th>
+                                <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">Nama Item</th>
+                                <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground">Detail Resep</th>
+                                <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[140px]">Jumlah</th>
+                                <th className="h-9 px-3 text-right font-bold uppercase tracking-wider text-muted-foreground w-[170px]">Harga</th>
+                                <th className="h-9 px-3 text-left font-bold uppercase tracking-wider text-muted-foreground w-[140px]">Status</th>
+                                <th className="h-9 px-3 text-center font-bold uppercase tracking-wider text-muted-foreground w-[100px]">Aksi</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -2334,8 +2267,8 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
 
                                   return (
                                     <Fragment key={group.key}>
-                                      <tr className="border-t align-top bg-muted/20">
-                                        <td className="py-2 px-3">
+                                      <tr className="border-t border-neutral-200 dark:border-neutral-800 align-top bg-neutral-50/60 dark:bg-neutral-900/40">
+                                        <td className="py-2.5 px-3">
                                           <button
                                             type="button"
                                             className="flex w-full items-start gap-2 text-left"
@@ -2343,72 +2276,74 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                           >
                                             <div className="min-w-0">
                                               <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-semibold truncate">{group.racikanName || "Racikan"}</span>
-                                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Racikan</Badge>
+                                                <span className="font-semibold truncate text-foreground">{group.racikanName || "Racikan"}</span>
+                                                <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px]">Racikan</Badge>
                                               </div>
-                                              <p className="text-xs text-muted-foreground truncate">
+                                              <p className="text-[11px] text-muted-foreground truncate">
                                                 {group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
                                               </p>
                                             </div>
                                           </button>
                                         </td>
-                                        <td className="py-2 px-3">
+                                        <td className="py-2.5 px-3">
                                           <p className="truncate">{detailSummary}</p>
-                                          <p className="text-xs text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
+                                          <p className="text-[11px] text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
                                           {group.sharedFields.notes ? (
-                                            <p className="text-xs text-muted-foreground truncate">Catatan: {group.sharedFields.notes}</p>
+                                            <p className="text-[11px] text-muted-foreground truncate">Catatan: {group.sharedFields.notes}</p>
                                           ) : null}
                                         </td>
-                                        <td className="py-2 px-3 font-medium">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
-                                        <td className="py-2 px-3 text-right">
-                                          <p className="text-sm font-semibold leading-5">{formatRupiah(groupTotal)}</p>
+                                        <td className="py-2.5 px-3 font-semibold">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
+                                        <td className="py-2.5 px-3 text-right">
+                                          <p className="text-xs font-mono font-bold leading-5">{formatRupiah(groupTotal)}</p>
                                         </td>
-                                        <td className="py-2 px-3">
+                                        <td className="py-2.5 px-3">
                                           {groupHasError ? (
-                                            <Badge variant="destructive">Perlu Lengkapi</Badge>
+                                            <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5">Perlu Lengkapi</Badge>
                                           ) : (
-                                            <Badge variant="outline">Siap</Badge>
+                                            <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5">Siap</Badge>
                                           )}
                                         </td>
                                         <td className="py-2 px-3">
                                           <div className="flex items-center justify-center gap-1">
                                             <Button
+                                              type="button"
                                               variant="ghost"
                                               size="icon"
-                                              className="h-8 w-8"
+                                              className="h-7 w-7 rounded-none"
                                               title="Edit racikan"
                                               onClick={() => openEditRacikanDialog(group)}
                                             >
-                                              <Pencil className="h-4 w-4" />
+                                              <Pencil className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button
+                                              type="button"
                                               variant="ghost"
                                               size="icon"
-                                              className="h-8 w-8 text-destructive"
+                                              className="h-7 w-7 rounded-none text-destructive"
                                               title="Hapus racikan"
                                               onClick={() => handleRemoveRacikanGroup(groupKey)}
                                             >
-                                              <Trash2 className="h-4 w-4" />
+                                              <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                           </div>
                                         </td>
                                       </tr>
                                       {isExpanded &&
                                         group.items.map((item, componentIndex) => (
-                                          <tr key={`${group.key}-${item.medicine_id}-${componentIndex}`} className="border-t bg-background">
-                                            <td className="py-2 px-3 pl-11">
+                                          <tr key={`${group.key}-${item.medicine_id}-${componentIndex}`} className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+                                            <td className="py-2 px-3 pl-9">
                                               <div className="flex items-center gap-2 min-w-0">
-                                                <span className="h-px w-4 bg-border" />
+                                                <span className="h-px w-3 bg-border" />
                                                 <span className="truncate text-muted-foreground">{item.medicine_name}</span>
                                               </div>
-                                              <p className="text-xs text-muted-foreground pl-6 truncate">{item.medicine_code}</p>
+                                              <p className="text-[11px] text-muted-foreground pl-5 truncate">{item.medicine_code}</p>
                                             </td>
-                                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                                            <td className="py-2 px-3 text-[11px] text-muted-foreground">
                                               {item.dosage ? `Dosis: ${item.dosage}` : "Komponen racikan"}
                                             </td>
                                             <td className="py-2 px-3">{item.quantity} {item.unit}</td>
-                                            <td className="py-2 px-3 text-right">{formatRupiah(item.quantity * item.unit_price)}</td>
-                                            <td className="py-2 px-3 text-xs text-muted-foreground">Komponen</td>
+                                            <td className="py-2 px-3 text-right font-mono">{formatRupiah(item.quantity * item.unit_price)}</td>
+                                            <td className="py-2 px-3 text-[11px] text-muted-foreground">Komponen</td>
                                             <td className="py-2 px-3 text-center text-muted-foreground">-</td>
                                           </tr>
                                         ))}
@@ -2422,47 +2357,49 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                 const hasError = Boolean(itemErrors[index]?.length);
 
                                 return (
-                                  <tr key={group.key} className="border-t align-top">
-                                    <td className="py-2 px-3">
-                                      <p className="font-medium text-sm truncate">{item.medicine_name}</p>
-                                      <p className="text-xs text-muted-foreground truncate">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
+                                  <tr key={group.key} className="border-t border-neutral-200 dark:border-neutral-800 align-top">
+                                    <td className="py-2.5 px-3">
+                                      <p className="font-semibold text-xs text-foreground truncate">{item.medicine_name}</p>
+                                      <p className="text-[11px] text-muted-foreground truncate">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
                                     </td>
-                                    <td className="py-2 px-3">
+                                    <td className="py-2.5 px-3">
                                       <p className="truncate">{detailSummary}</p>
-                                      <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
-                                      {item.notes ? <p className="text-xs text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
+                                      <p className="text-[11px] text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
+                                      {item.notes ? <p className="text-[11px] text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
                                     </td>
-                                    <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
-                                    <td className="py-2 px-3 text-right">
-                                      <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
-                                      <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
+                                    <td className="py-2.5 px-3 font-semibold">{item.quantity} {item.unit}</td>
+                                    <td className="py-2.5 px-3 text-right">
+                                      <p className="text-[11px] font-mono text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
+                                      <p className="text-xs font-mono font-bold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
                                     </td>
-                                    <td className="py-2 px-3">
+                                    <td className="py-2.5 px-3">
                                       {hasError ? (
-                                        <Badge variant="destructive" title={itemErrors[index][0]}>Perlu Lengkapi</Badge>
+                                        <Badge variant="destructive" className="rounded-none text-[10px] h-5 px-1.5" title={itemErrors[index][0]}>Perlu Lengkapi</Badge>
                                       ) : (
-                                        <Badge variant="outline">Siap</Badge>
+                                        <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5">Siap</Badge>
                                       )}
                                     </td>
                                     <td className="py-2 px-3">
                                       <div className="flex items-center justify-center gap-1">
                                         <Button
+                                          type="button"
                                           variant="ghost"
                                           size="icon"
-                                          className="h-8 w-8"
+                                          className="h-7 w-7 rounded-none"
                                           title="Edit detail obat"
                                           onClick={() => openEditItemDialog(index)}
                                         >
-                                          <Pencil className="h-4 w-4" />
+                                          <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         <Button
+                                          type="button"
                                           variant="ghost"
                                           size="icon"
-                                          className="h-8 w-8 text-destructive"
+                                          className="h-7 w-7 rounded-none text-destructive"
                                           title="Hapus obat"
                                           onClick={() => handleRemoveItem(index)}
                                         >
-                                          <Trash2 className="h-4 w-4" />
+                                          <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                       </div>
                                     </td>
@@ -2471,14 +2408,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               })}
                             </tbody>
                             <tfoot>
-                              <tr className="border-t-2 bg-primary/5">
-                                <td colSpan={3} className="py-3 px-3 text-right">
-                                  <span className="text-sm font-medium text-muted-foreground">Grand Total</span>
+                              <tr className="border-t border-neutral-300 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/60">
+                                <td colSpan={3} className="py-2.5 px-3 text-right">
+                                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Grand Total</span>
                                 </td>
-                                <td className="py-3 px-3 text-right">
-                                  <span className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</span>
+                                <td className="py-2.5 px-3 text-right">
+                                  <span className="text-sm font-mono font-bold text-foreground">{formatRupiah(orderGrandTotal)}</span>
                                 </td>
-                                <td colSpan={2} className="py-3 px-3" />
+                                <td colSpan={2} className="py-2.5 px-3" />
                               </tr>
                             </tfoot>
                           </table>
@@ -2497,34 +2434,53 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                         }
                       }}
                     >
-                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>Edit Detail Obat</DialogTitle>
-                          <DialogDescription>
-                            Ubah obat, detail resep, dan catatan tambahan dari tombol aksi pada row.
-                          </DialogDescription>
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                        <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                              <Pencil className="h-4 w-4" />
+                            </div>
+                            <div className="text-left min-w-0">
+                              <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                Edit Detail Obat
+                              </DialogTitle>
+                              <DialogDescription className="text-xs mt-0.5">
+                                Ubah obat, jumlah, dosis, aturan pakai (signa), dan catatan tambahan untuk item ini.
+                              </DialogDescription>
+                            </div>
+                          </div>
                         </DialogHeader>
 
                         {editingItemDraft ? (
-                          <div className="space-y-4">
-                            <div className="rounded-md border bg-muted/20 px-3 py-2">
-                              <p className="font-medium">{editingItemDraft.medicine_name}</p>
-                              <p className="text-xs text-muted-foreground">{editingItemDraft.medicine_code}</p>
+                          <div className="flex-1 overflow-y-auto p-4 space-y-4 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+                            <div className="border-l-4 border-l-neutral-900 dark:border-l-neutral-100 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 px-3.5 py-2.5 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-xs text-foreground truncate">{editingItemDraft.medicine_name}</p>
+                                <p className="text-[11px] font-mono text-muted-foreground">{editingItemDraft.medicine_code}</p>
+                              </div>
+                              <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono shrink-0">
+                                Stok: {editingItemDraft.available_stock} {editingItemDraft.unit}
+                              </Badge>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="space-y-1 md:col-span-2">
-                                <Label>Ganti Obat</Label>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <Label className="text-xs font-medium">Ganti Obat</Label>
                                 <Combobox
                                   options={pharmacyMedicines
-                                    .filter((medicine) =>
-                                      medicine.medicine.id === editingItemDraft.medicine_id ||
-                                      !orderItems.some((item, index) => index !== editingItemIndex && item.medicine_id === medicine.medicine.id),
+                                    .filter(
+                                      (medicine) =>
+                                        medicine.medicine.id === editingItemDraft.medicine_id ||
+                                        !orderItems.some(
+                                          (item, index) =>
+                                            index !== editingItemIndex && item.medicine_id === medicine.medicine.id,
+                                        ),
                                     )
-                                    .filter((medicine) =>
-                                      !editingMedicineSearch ||
-                                      medicine.medicine.name.toLowerCase().includes(editingMedicineSearch.toLowerCase()) ||
-                                      medicine.medicine.code.toLowerCase().includes(editingMedicineSearch.toLowerCase()),
+                                    .filter(
+                                      (medicine) =>
+                                        !editingMedicineSearch ||
+                                        medicine.medicine.name.toLowerCase().includes(editingMedicineSearch.toLowerCase()) ||
+                                        medicine.medicine.code.toLowerCase().includes(editingMedicineSearch.toLowerCase()),
                                     )
                                     .map((medicine) => ({
                                       value: String(medicine.medicine.id),
@@ -2533,7 +2489,9 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   value={String(editingItemDraft.medicine_id)}
                                   onSearchChange={setEditingMedicineSearch}
                                   onValueChange={(value) => {
-                                    const nextMedicine = pharmacyMedicines.find((medicine) => medicine.medicine.id === Number(value));
+                                    const nextMedicine = pharmacyMedicines.find(
+                                      (medicine) => medicine.medicine.id === Number(value),
+                                    );
                                     if (!nextMedicine) return;
                                     const nextUnitPrice =
                                       nextMedicine.medicine.selling_price ||
@@ -2546,15 +2504,15 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                     setEditingItemDraft((prev) =>
                                       prev
                                         ? {
-                                          ...prev,
-                                          medicine_id: nextMedicine.medicine.id,
-                                          medicine_name: nextMedicine.medicine.name,
-                                          medicine_code: nextMedicine.medicine.code,
-                                          unit: nextMedicine.medicine.unit,
-                                          available_stock: nextMedicine.quantity,
-                                          unit_price: nextUnitPrice,
-                                          quantity: Math.min(prev.quantity, Math.max(1, nextMedicine.quantity)),
-                                        }
+                                            ...prev,
+                                            medicine_id: nextMedicine.medicine.id,
+                                            medicine_name: nextMedicine.medicine.name,
+                                            medicine_code: nextMedicine.medicine.code,
+                                            unit: nextMedicine.medicine.unit,
+                                            available_stock: nextMedicine.quantity,
+                                            unit_price: nextUnitPrice,
+                                            quantity: Math.min(prev.quantity, Math.max(1, nextMedicine.quantity)),
+                                          }
                                         : prev,
                                     );
                                   }}
@@ -2564,54 +2522,79 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   className="w-full"
                                 />
                               </div>
-                              <div className="space-y-1">
-                                <Label>Jumlah</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Jumlah *</Label>
                                 <Input
                                   type="number"
                                   min={1}
                                   max={editingItemDraft.available_stock}
                                   value={editingItemDraft.quantity}
-                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, quantity: Number(e.target.value) || 1 }) : prev)}
+                                  onChange={(e) =>
+                                    setEditingItemDraft((prev) =>
+                                      prev ? { ...prev, quantity: Number(e.target.value) || 1 } : prev,
+                                    )
+                                  }
                                 />
-                                <p className="text-[11px] text-muted-foreground">Maks {editingItemDraft.available_stock}</p>
                               </div>
-                              <div className="space-y-1">
-                                <Label>Dosis</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Dosis *</Label>
                                 <Input
                                   value={editingItemDraft.dosage}
-                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, dosage: e.target.value }) : prev)}
+                                  onChange={(e) =>
+                                    setEditingItemDraft((prev) => (prev ? { ...prev, dosage: e.target.value } : prev))
+                                  }
+                                  placeholder="Misal: 500 mg / 1 tablet"
                                 />
                               </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <Label>Signa</Label>
-                                <Combobox allowCustomValue
+                              <div className="space-y-1.5 md:col-span-2">
+                                <Label className="text-xs font-medium">Signa / Aturan Pakai *</Label>
+                                <Combobox
+                                  allowCustomValue
                                   options={signaOptions}
                                   value={editingItemDraft.instructions}
-                                  onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, instructions: value, frequency: value }) : prev)}
+                                  onValueChange={(value) =>
+                                    setEditingItemDraft((prev) =>
+                                      prev ? { ...prev, instructions: value, frequency: value } : prev,
+                                    )
+                                  }
                                   placeholder="Pilih atau ketik signa (contoh: 3 x 1 Setelah Makan)"
                                   searchPlaceholder="Cari atau ketik signa..."
                                   emptyText="Tekan enter untuk menggunakan signa ini"
                                   className="w-full"
                                 />
                               </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <Label>Catatan Tambahan</Label>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <Label className="text-xs font-medium">Catatan Tambahan</Label>
                                 <Textarea
-                                  placeholder="Opsional"
+                                  placeholder="Catatan khusus pemakaian obat ini (opsional)..."
                                   value={editingItemDraft.notes}
-                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, notes: e.target.value }) : prev)}
-                                  rows={3}
+                                  onChange={(e) =>
+                                    setEditingItemDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))
+                                  }
+                                  className="min-h-[68px] resize-none text-xs rounded-none"
                                 />
                               </div>
                             </div>
                           </div>
                         ) : null}
 
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowEditItemDialog(false)}>
+                        <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-none px-4 text-xs"
+                            onClick={() => setShowEditItemDialog(false)}
+                          >
                             Batal
                           </Button>
-                          <Button onClick={handleSaveEditedItem} disabled={!editingItemDraft}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 rounded-none px-4 text-xs"
+                            onClick={handleSaveEditedItem}
+                            disabled={!editingItemDraft}
+                          >
                             Simpan Perubahan
                           </Button>
                         </DialogFooter>
@@ -2629,138 +2612,160 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                         }
                       }}
                     >
-                      <DialogContent className="sm:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col p-5 gap-3">
-                        <DialogHeader className="pb-0">
-                          <DialogTitle className="text-base font-semibold">Edit Detail Racikan</DialogTitle>
-                          <DialogDescription className="text-xs">
-                            Atur detail racikan dan dosis tiap komponen racikan.
-                          </DialogDescription>
+                      <DialogContent className="sm:max-w-4xl lg:max-w-5xl max-h-[90vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+                        <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shrink-0">
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                              <FlaskConical className="h-4 w-4" />
+                            </div>
+                            <div className="text-left min-w-0">
+                              <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                                Edit Detail Racikan
+                              </DialogTitle>
+                              <DialogDescription className="text-xs mt-0.5">
+                                Atur kembali identitas racikan, aturan pakai, serta komponen dan dosis bahan racikan.
+                              </DialogDescription>
+                            </div>
+                          </div>
                         </DialogHeader>
 
-                        <div className="grid flex-1 gap-3 overflow-y-auto pr-0.5 md:grid-cols-2">
-                          <div className="rounded-lg border bg-card p-3.5 space-y-2.5">
+                        <div className="grid flex-1 min-h-0 overflow-y-auto md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs">
+                          {/* Left Column: Detail Racikan */}
+                          <div className="p-4 space-y-3">
                             <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <h4 className="text-xs font-semibold">Detail Racikan</h4>
-                                <p className="text-[11px] text-muted-foreground">Atur identitas racikan dan aturan pakai utamanya.</p>
+                              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                Detail &amp; Aturan Pakai Racikan
                               </div>
-                              <Badge variant="outline" className="text-xs py-0 px-2">{editingRacikanComponents.length} komponen</Badge>
+                              <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                                {editingRacikanComponents.length} Komponen
+                              </Badge>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Nama Racikan</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Nama Racikan</Label>
                                 <Input
-                                  className="h-8 text-xs"
                                   value={editingRacikanMeta.name}
                                   onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, name: e.target.value }))}
                                 />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Jenis Racikan</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Jenis Racikan</Label>
                                 <Select
                                   value={editingRacikanMeta.type}
                                   onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, type: value }))}
                                 >
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+                                  <SelectTrigger className="h-9 text-xs rounded-none">
+                                    <SelectValue placeholder="Pilih jenis" />
+                                  </SelectTrigger>
                                   <SelectContent>
                                     {RACIKAN_TYPE_OPTIONS.map((option) => (
-                                      <SelectItem key={`edit-racikan-type-${option}`} value={option}>{option}</SelectItem>
+                                      <SelectItem key={`edit-racikan-type-${option}`} value={option} className="text-xs">
+                                        {option}
+                                      </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Jumlah Hasil</Label>
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Jumlah Hasil</Label>
                                 <Input
-                                  className="h-8 text-xs"
                                   type="number"
                                   min={1}
                                   value={editingRacikanMeta.qty}
-                                  onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))}
+                                  onChange={(e) =>
+                                    setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))
+                                  }
                                 />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Satuan Hasil</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Satuan Hasil</Label>
                                 <Input
-                                  className="h-8 text-xs"
                                   value={editingRacikanMeta.unit}
                                   onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, unit: e.target.value }))}
                                 />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Dosis</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Dosis</Label>
                                 <Input
-                                  className="h-8 text-xs"
                                   value={editingRacikanMeta.dosage}
-                                  onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))}
+                                  onChange={(e) =>
+                                    setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))
+                                  }
                                 />
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Signa</Label>
-                                <Combobox allowCustomValue
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Signa / Aturan Pakai</Label>
+                                <Combobox
+                                  allowCustomValue
                                   options={signaOptions}
                                   value={editingRacikanMeta.instructions}
-                                  onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value, frequency: value }))}
+                                  onValueChange={(value) =>
+                                    setEditingRacikanMeta((prev) => ({ ...prev, instructions: value, frequency: value }))
+                                  }
                                   placeholder="Pilih atau ketik signa"
                                   searchPlaceholder="Cari signa..."
                                   emptyText="Tekan enter"
-                                  className="w-full h-8 text-xs"
+                                  className="w-full"
                                 />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Catatan</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Catatan Racikan</Label>
                                 <Input
-                                  className="h-8 text-xs"
                                   value={editingRacikanMeta.notes}
-                                  onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, notes: e.target.value }))}
+                                  onChange={(e) =>
+                                    setEditingRacikanMeta((prev) => ({ ...prev, notes: e.target.value }))
+                                  }
                                   placeholder="Catatan racikan (opsional)"
                                 />
                               </div>
                             </div>
                           </div>
 
-                          <div className="rounded-lg border bg-card p-3.5 space-y-2.5 flex flex-col">
+                          {/* Right Column: Komponen Bahan Obat */}
+                          <div className="p-4 space-y-3 flex flex-col">
                             <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <h4 className="text-xs font-semibold">Pilih Bahan Obat</h4>
-                                <p className="text-[11px] text-muted-foreground">Klik obat untuk menambah dan mengisi dosis bahan.</p>
+                              <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                                Komponen Bahan Obat
                               </div>
-                              <Badge variant="outline" className="text-xs py-0 px-2">{editingRacikanComponents.length} dipilih</Badge>
+                              <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5 font-mono">
+                                {editingRacikanComponents.length} Dipilih
+                              </Badge>
                             </div>
+
                             <div className="relative">
                               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                               <Input
-                                placeholder="Cari nama atau kode obat..."
-                                className="h-8 pl-8 text-xs"
+                                placeholder="Cari nama atau kode bahan obat..."
+                                className="pl-8"
                                 value={editingRacikanSearch}
                                 onChange={(e) => setEditingRacikanSearch(e.target.value)}
                               />
                             </div>
-                            <ScrollArea className="flex-1 min-h-[220px] max-h-[280px] border rounded-md p-1.5">
-                              {/* List obat racikan yang sudah ada beserta input dosis */}
+
+                            <div className="flex-1 min-h-[220px] max-h-[300px] overflow-y-auto border border-neutral-200 dark:border-neutral-800 p-2 space-y-2">
                               {editingRacikanComponents.length > 0 && (
-                                <div className="space-y-1.5 mb-2">
+                                <div className="space-y-1.5">
                                   <div className="flex items-center justify-between px-0.5">
-                                    <span className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                                      <CheckCircle2 className="h-3 w-3" />
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-foreground flex items-center gap-1">
+                                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                       Bahan Terpilih ({editingRacikanComponents.length})
                                     </span>
                                   </div>
-                                  <div className="space-y-1.5">
+                                  <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                                     {editingRacikanComponents.map((item, index) => (
                                       <div
                                         key={`edit-racikan-comp-${item.medicine_id}-${index}`}
-                                        className="rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 flex items-center justify-between gap-2 shadow-xs transition-all"
+                                        className="border-l-4 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/60 dark:bg-neutral-900/40 px-2.5 py-1.5 flex items-center justify-between gap-2"
                                       >
                                         <div className="min-w-0 flex-1">
-                                          <p className="font-medium text-xs text-foreground truncate">{item.medicine_name}</p>
+                                          <p className="font-semibold text-xs text-foreground truncate">{item.medicine_name}</p>
                                           <p className="text-[10px] text-muted-foreground truncate">{item.medicine_code}</p>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
@@ -2771,14 +2776,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                             value={item.dosage || ""}
                                             onChange={(e) => handleEditRacikanComponentDosage(index, e.target.value)}
                                             placeholder="Misal: 1/2 tab"
-                                            className="h-7 w-24 sm:w-28 text-xs bg-background px-2"
+                                            className="!h-7 w-24 sm:w-28 text-xs bg-white dark:bg-neutral-950 px-2"
                                             autoFocus={index === editingRacikanComponents.length - 1 && !item.dosage}
                                           />
                                           <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+                                            className="h-6 w-6 rounded-none text-destructive hover:bg-destructive/10 shrink-0"
                                             onClick={() => handleRemoveEditingRacikanComponent(index)}
                                             title="Hapus bahan"
                                           >
@@ -2791,16 +2796,15 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                 </div>
                               )}
 
-                              {/* Daftar obat kandidat untuk dipilih */}
                               <div>
                                 {editingRacikanComponents.length > 0 && (
-                                  <div className="text-[11px] font-medium text-muted-foreground px-0.5 py-1">
-                                    Pilih Bahan Lainnya:
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5 py-1">
+                                    Pilih Bahan Lainnya
                                   </div>
                                 )}
-                                <div className="divide-y rounded-md border overflow-hidden">
+                                <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                                   {filteredEditingRacikanMedicines.length === 0 ? (
-                                    <div className="text-center py-4 text-xs text-muted-foreground">
+                                    <div className="text-center py-5 text-xs text-muted-foreground">
                                       {editingRacikanSearch ? "Tidak ada obat yang sesuai" : "Semua bahan sudah dipilih"}
                                     </div>
                                   ) : (
@@ -2808,16 +2812,16 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                       <button
                                         key={`edit-racikan-add-${pm.id}`}
                                         type="button"
-                                        className="w-full px-2.5 py-1.5 hover:bg-muted/60 flex items-center justify-between gap-2 text-left transition-colors"
+                                        className="w-full px-2.5 py-2 hover:bg-muted/40 flex items-center justify-between gap-2 text-left transition-colors"
                                         onClick={() => handleAddEditingRacikanComponent(pm)}
                                       >
                                         <div className="min-w-0 flex-1">
-                                          <p className="font-medium text-xs truncate">{pm.medicine.name}</p>
+                                          <p className="font-semibold text-xs text-foreground truncate">{pm.medicine.name}</p>
                                           <p className="text-[10px] text-muted-foreground truncate">
                                             {pm.medicine.code} • {pm.medicine.form || "-"} • {pm.medicine.strength || "-"}
                                           </p>
                                         </div>
-                                        <span className="text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded shrink-0 flex items-center gap-0.5">
+                                        <span className="text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-2 py-0.5 shrink-0 flex items-center gap-0.5">
                                           <Plus className="h-3 w-3" /> Pilih
                                         </span>
                                       </button>
@@ -2825,47 +2829,63 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   )}
                                 </div>
                               </div>
-                            </ScrollArea>
+                            </div>
                           </div>
                         </div>
 
-                        <DialogFooter className="pt-1 gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setShowEditRacikanDialog(false)}>
+                        <DialogFooter className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-none px-4 text-xs"
+                            onClick={() => setShowEditRacikanDialog(false)}
+                          >
                             Batal
                           </Button>
-                          <Button size="sm" onClick={handleSaveEditedRacikan} disabled={editingRacikanComponents.length === 0}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 rounded-none px-4 text-xs"
+                            onClick={handleSaveEditedRacikan}
+                            disabled={editingRacikanComponents.length === 0}
+                          >
                             Simpan Racikan
                           </Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
-                  </div>
+                  </section>
 
-                  <div className="space-y-2">
-                    <Label>Catatan untuk Farmasi</Label>
+                  {/* Section 3: Catatan untuk Farmasi */}
+                  <section className="px-4 sm:px-5 py-4 space-y-3">
+                    <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                      Catatan untuk Farmasi
+                    </div>
                     <Textarea
-                      placeholder="Catatan tambahan untuk apoteker"
+                      placeholder="Catatan atau instruksi tambahan untuk apoteker / petugas farmasi..."
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      className="min-h-[72px] resize-none text-xs rounded-none"
                     />
-                  </div>
+                  </section>
 
                   {/* Submit Button */}
-                  <div className="flex justify-stretch sm:justify-end pt-4">
+                  <div className="flex justify-stretch sm:justify-end px-4 sm:px-5 py-3">
                     <Button
-                      size="lg"
-                      className="w-full sm:w-auto"
-                      disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create') || readOnly}
+                      size="sm"
+                      className="h-8 rounded-none text-xs w-full sm:w-auto"
+                      disabled={submitting || orderItems.length === 0 || !hasPermission("medicine_orders.create") || readOnly}
                       onClick={handleSubmitOrder}
                     >
                       {submitting ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                           Mengirim...
                         </>
                       ) : (
                         <>
-                          <Send className="h-4 w-4 mr-2" />
+                          <Send className="h-3.5 w-3.5 mr-1.5" />
                           Kirim Order ke Farmasi
                         </>
                       )}
@@ -2877,42 +2897,58 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
 
             {/* History Tab */}
             {activeTab === "history" && (
-              <div className="space-y-2">
+              <section className="px-4 sm:px-5 py-4 space-y-3 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Riwayat Order Obat
+                  </div>
+                  <Badge variant="secondary" className="rounded-none h-5 px-1.5 text-[10px] font-mono">
+                    {existingOrders.length} Order
+                  </Badge>
+                </div>
+
                 {existingOrders.length > 0 ? (
-                  <div className="divide-y border rounded-lg">
+                  <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
                     {existingOrders.map((order) => (
-                      <OrderCollapsible 
-                        key={order.id} 
-                        order={order} 
-                        onCancel={handleCancelOrder} 
-                        canCancel={hasPermission("medicine_orders.cancel") || hasPermission("medicine_order.cancel") || hasPermission("medical_records.medicine_order")} 
+                      <OrderCollapsible
+                        key={order.id}
+                        order={order}
+                        onCancel={handleCancelOrder}
+                        canCancel={
+                          hasPermission("medicine_orders.cancel") ||
+                          hasPermission("medicine_order.cancel") ||
+                          hasPermission("medical_records.medicine_order")
+                        }
                       />
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Belum ada riwayat order obat</p>
+                  <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                    Belum ada riwayat order obat pada kunjungan ini.
                   </div>
                 )}
-              </div>
+              </section>
             )}
           </TooltipProvider>
         </div>
       </div>
-      
+
       {/* Cancel Confirmation Dialog */}
       <Dialog open={cancelConfirmOrderId !== null} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-sm rounded-none">
           <DialogHeader>
-            <DialogTitle>Konfirmasi Pembatalan</DialogTitle>
-            <DialogDescription>
-              Apakah Anda yakin ingin membatalkan order ini? Tindakan ini tidak dapat dibatalkan.
+            <DialogTitle className="text-sm font-bold uppercase tracking-tight">Konfirmasi Pembatalan</DialogTitle>
+            <DialogDescription className="text-xs">
+              Apakah Anda yakin ingin membatalkan order obat ini? Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelConfirmOrderId(null)}>Batal</Button>
-            <Button variant="destructive" onClick={handleConfirmCancelOrder}>Ya, Batalkan</Button>
+            <Button variant="outline" size="sm" className="h-8 rounded-none text-xs" onClick={() => setCancelConfirmOrderId(null)}>
+              Batal
+            </Button>
+            <Button variant="destructive" size="sm" className="h-8 rounded-none text-xs" onClick={handleConfirmCancelOrder}>
+              Ya, Batalkan
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

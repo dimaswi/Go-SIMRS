@@ -82,6 +82,7 @@ export function DiagnosisForm({
 
   const [diagnoses, setDiagnoses] = useState<DiagnosisFormItem[]>([]);
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [selectorTargetType, setSelectorTargetType] = useState<"primary" | "secondary">("primary");
   const [searchValue, setSearchValue] = useState("");
   const [expandedDiagnosis, setExpandedDiagnosis] = useState<number | null>(null);
   
@@ -263,16 +264,7 @@ export function DiagnosisForm({
     loadDiagnosis();
   }, [visitId, useExternalData, externalData]);
 
-  const handleAddDiagnosis = (code: string, name: string, diagnosisType: "primary" | "secondary") => {
-    if (diagnosisType === "primary" && diagnoses.some((item) => item.diagnosis_type === "primary")) {
-      toast({
-        variant: "destructive",
-        title: "Diagnosis primer sudah ada",
-        description: "Ubah diagnosis primer yang ada atau tambahkan sebagai diagnosis sekunder.",
-      });
-      return;
-    }
-
+  const handleAddDiagnosis = (code: string, name: string, diagnosisType: "primary" | "secondary" = selectorTargetType) => {
     const newDiagnosis: DiagnosisFormItem = {
       icd10_code: code,
       icd10_name: name,
@@ -285,13 +277,32 @@ export function DiagnosisForm({
       differential_diagnosis: "",
       note: "",
     };
-    setDiagnoses([...diagnoses, newDiagnosis]);
+
+    if (diagnosisType === "primary") {
+      const existingPrimaryIndex = diagnoses.findIndex((item) => item.diagnosis_type === "primary");
+      if (existingPrimaryIndex >= 0) {
+        const updated = [...diagnoses];
+        updated[existingPrimaryIndex] = {
+          ...updated[existingPrimaryIndex],
+          icd10_code: code,
+          icd10_name: name,
+          diagnosis_type: "primary",
+        };
+        setDiagnoses(updated);
+      } else {
+        setDiagnoses([newDiagnosis, ...diagnoses]);
+      }
+    } else {
+      setDiagnoses([...diagnoses, newDiagnosis]);
+    }
+
     setSelectorOpen(false);
     setSearchValue("");
     emitMedicalRecordTabSaved("diagnosis", false);
   };
 
-  const openSelector = () => {
+  const openSelector = (targetType: "primary" | "secondary") => {
+    setSelectorTargetType(targetType);
     setSelectorOpen(true);
     setSearchValue("");
     setSearchResults([]);
@@ -314,29 +325,6 @@ export function DiagnosisForm({
       });
     }
   };
-
-  const renderAddDiagnosisCard = () => (
-    <button
-      type="button"
-      onClick={openSelector}
-      className="w-full border-y border-dashed border-muted-foreground/50 py-4 text-left transition-colors hover:border-primary/70"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="rounded-md bg-primary/10 p-2 text-primary">
-            <Plus className="h-4 w-4" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold">Tambah Diagnosis ICD</p>
-            <p className="text-xs text-muted-foreground">
-              Cari ICD-10 dan ICD-9-CM dalam satu daftar. Primer atau sekunder dipilih saat Anda memilih item.
-            </p>
-          </div>
-        </div>
-        <Badge variant="outline" className="shrink-0">ICD</Badge>
-      </div>
-    </button>
-  );
 
   const handleRemoveDiagnosis = (index: number) => {
     setDiagnoses(diagnoses.filter((_, i) => i !== index));
@@ -471,287 +459,414 @@ export function DiagnosisForm({
     );
   }
 
-  // Render diagnosis card with expandable FHIR details
-  const renderDiagnosisCard = (diagnosis: DiagnosisFormItem, actualIndex: number, isPrimary: boolean = false) => (
-    <div
-      key={actualIndex}
-      className={`px-3 py-3 border-l-4 ${isPrimary ? "border-primary/60 bg-primary/5" : "border-border"}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant={isPrimary ? "default" : "outline"} className="font-mono text-xs">
+  // Render diagnosis row with expandable FHIR details
+  const renderDiagnosisCard = (diagnosis: DiagnosisFormItem, actualIndex: number, isPrimary: boolean = false) => {
+    const severityLabel = severityOptions.find((s) => s.value === diagnosis.severity)?.label;
+    const clinicalLabel = clinicalStatusOptions.find((s) => s.value === diagnosis.clinical_status)?.label;
+    const verificationLabel = verificationStatusOptions.find((s) => s.value === diagnosis.verification_status)?.label;
+
+    return (
+      <div
+        key={actualIndex}
+        className={`border-l-4 ${
+          isPrimary
+            ? "border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/40 dark:bg-neutral-900/20"
+            : "border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-neutral-950"
+        }`}
+      >
+        <div
+          className="flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+          onClick={() => setExpandedDiagnosis(expandedDiagnosis === actualIndex ? null : actualIndex)}
+        >
+          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+            <Badge
+              variant={isPrimary ? "default" : "outline"}
+              className="rounded-none font-mono text-xs h-5 px-1.5 shrink-0"
+            >
               {diagnosis.icd10_code}
             </Badge>
-            {diagnosis.severity && (
-              <Badge variant="secondary" className="text-xs">
-                {severityOptions.find(s => s.value === diagnosis.severity)?.label}
+            <span className="text-xs font-semibold text-foreground break-words">
+              {diagnosis.icd10_name}
+            </span>
+            {clinicalLabel && (
+              <Badge variant="outline" className="rounded-none text-[10px] h-5 px-1.5">
+                {clinicalLabel}
               </Badge>
             )}
-            {diagnosis.clinical_status && (
-              <Badge variant="outline" className="text-xs">
-                {clinicalStatusOptions.find(s => s.value === diagnosis.clinical_status)?.label}
+            {verificationLabel && (
+              <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5">
+                {verificationLabel}
               </Badge>
+            )}
+            {severityLabel && (
+              <Badge variant="secondary" className="rounded-none text-[10px] h-5 px-1.5">
+                {severityLabel}
+              </Badge>
+            )}
+            {diagnosis.body_site && (
+              <span className="text-[11px] text-muted-foreground">
+                • Lokasi: {diagnosis.body_site}
+              </span>
             )}
           </div>
-          <p className="text-sm">{diagnosis.icd10_name}</p>
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 rounded-none"
+              onClick={() => setExpandedDiagnosis(expandedDiagnosis === actualIndex ? null : actualIndex)}
+              title="Detail Diagnosis"
+            >
+              {expandedDiagnosis === actualIndex ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            {!isFormDisabled && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 rounded-none text-muted-foreground hover:text-destructive"
+                onClick={() => handleRemoveDiagnosis(actualIndex)}
+                title="Hapus Diagnosis"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setExpandedDiagnosis(expandedDiagnosis === actualIndex ? null : actualIndex)}
-          >
-            {expandedDiagnosis === actualIndex ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => handleRemoveDiagnosis(actualIndex)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+
+        {/* Expanded FHIR details */}
+        {expandedDiagnosis === actualIndex && (
+          <div className="px-3.5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Status Klinis</Label>
+                <Combobox
+                  allowCustomValue
+                  options={clinicalStatusOptions}
+                  value={diagnosis.clinical_status || "active"}
+                  onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "clinical_status", value)}
+                  placeholder="Pilih status klinis"
+                  searchPlaceholder="Cari status klinis..."
+                  loading={masterDataLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Status Verifikasi</Label>
+                <Combobox
+                  allowCustomValue
+                  options={verificationStatusOptions}
+                  value={diagnosis.verification_status || "confirmed"}
+                  onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "verification_status", value)}
+                  placeholder="Pilih status verifikasi"
+                  searchPlaceholder="Cari status verifikasi..."
+                  loading={masterDataLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Tingkat Keparahan</Label>
+                <Combobox
+                  allowCustomValue
+                  options={severityOptions}
+                  value={diagnosis.severity || ""}
+                  onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "severity", value)}
+                  placeholder="Pilih keparahan"
+                  searchPlaceholder="Cari keparahan..."
+                  loading={masterDataLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Lokasi Anatomi</Label>
+                <Input
+                  placeholder="Contoh: Lengan kanan"
+                  value={diagnosis.body_site || ""}
+                  onChange={(e) => handleUpdateDiagnosis(actualIndex, "body_site", e.target.value)}
+                  className="bg-white dark:bg-neutral-950"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Tanggal Onset</Label>
+                <Input
+                  type="date"
+                  value={diagnosis.onset_date || ""}
+                  onChange={(e) => handleUpdateDiagnosis(actualIndex, "onset_date", e.target.value)}
+                  className="bg-white dark:bg-neutral-950"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Catatan Tambahan</Label>
+                <Textarea
+                  placeholder="Catatan klinis tambahan untuk diagnosis ini..."
+                  value={diagnosis.note || ""}
+                  onChange={(e) => handleUpdateDiagnosis(actualIndex, "note", e.target.value)}
+                  className="min-h-[68px] resize-none text-xs rounded-none bg-white dark:bg-neutral-950"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  Diagnosis Banding
+                </Label>
+                <Textarea
+                  placeholder="Diagnosis banding untuk kode ICD ini..."
+                  value={diagnosis.differential_diagnosis || ""}
+                  onChange={(e) => handleUpdateDiagnosis(actualIndex, "differential_diagnosis", e.target.value)}
+                  className="min-h-[68px] resize-none text-xs rounded-none bg-white dark:bg-neutral-950"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-      
-      {/* Expanded FHIR details */}
-      {expandedDiagnosis === actualIndex && (
-        <div className="mt-4 pt-4 border-t space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs">Status Klinis</Label>
-              <Combobox allowCustomValue
-                options={clinicalStatusOptions}
-                value={diagnosis.clinical_status || "active"}
-                onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "clinical_status", value)}
-                placeholder="Pilih status klinis"
-                searchPlaceholder="Cari status klinis..."
-                loading={masterDataLoading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Status Verifikasi</Label>
-              <Combobox allowCustomValue
-                options={verificationStatusOptions}
-                value={diagnosis.verification_status || "confirmed"}
-                onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "verification_status", value)}
-                placeholder="Pilih status verifikasi"
-                searchPlaceholder="Cari status verifikasi..."
-                loading={masterDataLoading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Keparahan</Label>
-              <Combobox allowCustomValue
-                options={severityOptions}
-                value={diagnosis.severity || ""}
-                onValueChange={(value) => handleUpdateDiagnosis(actualIndex, "severity", value)}
-                placeholder="Pilih keparahan"
-                searchPlaceholder="Cari keparahan..."
-                loading={masterDataLoading}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs">Lokasi Anatomi</Label>
-              <Input
-                placeholder="Contoh: Lengan kanan"
-                value={diagnosis.body_site || ""}
-                onChange={(e) => handleUpdateDiagnosis(actualIndex, "body_site", e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Tanggal Onset</Label>
-              <Input
-                type="date"
-                value={diagnosis.onset_date || ""}
-                onChange={(e) => handleUpdateDiagnosis(actualIndex, "onset_date", e.target.value)}
-                className="h-9"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs">Catatan Tambahan</Label>
-            <Textarea
-              placeholder="Catatan tambahan untuk diagnosis..."
-              value={diagnosis.note || ""}
-              onChange={(e) => handleUpdateDiagnosis(actualIndex, "note", e.target.value)}
-              className="min-h-[60px] resize-none"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs flex items-center gap-2">
-              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              Diagnosa Banding
-            </Label>
-            <Textarea
-              placeholder="Diagnosis banding untuk ICD ini..."
-              value={diagnosis.differential_diagnosis || ""}
-              onChange={(e) => handleUpdateDiagnosis(actualIndex, "differential_diagnosis", e.target.value)}
-              className="min-h-[60px] resize-none"
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
-    <div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
       <div>
-            {!useExternalData && (
-              <EditModeBanner
-                isPatientDischarged={isPatientDischarged}
-                isEditing={isEditing}
-                onRequestEdit={handleRequestEdit}
-                recordTypeLabel="Diagnosis"
-              />
-            )}
-        <fieldset disabled={isFormDisabled}>
-          <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-            <div className="space-y-6">
-            
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Penetapan Diagnosis
-              </div>
-              <div className="space-y-6 p-3 sm:p-4">
-              {renderAddDiagnosisCard()}
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>Primer: {primaryDiagnoses.length}</Badge>
-                <Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>Sekunder: {secondaryDiagnoses.length}</Badge>
-                <Badge variant="outline">Total: {diagnoses.length}</Badge>
-              </div>
-              <div className="space-y-7">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Diagnosis Primer</Badge>
+        {!useExternalData && (
+          <div className="px-4 sm:px-5 pt-3 empty:hidden">
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Diagnosis"
+            />
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
+          <fieldset
+            disabled={isFormDisabled}
+            className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+          >
+            {/* Section 1: Diagnosis Primer (Utama) */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Diagnosis Primer (Utama)
                   </div>
-                  {primaryDiagnoses.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Belum ada diagnosis primer.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {primaryDiagnoses.map((diagnosis) => {
-                        const actualIndex = diagnoses.findIndex(d => d === diagnosis);
-                        return renderDiagnosisCard(diagnosis, actualIndex, true);
-                      })}
-                    </div>
-                  )}
+                  <Badge
+                    variant={primaryDiagnoses.length > 0 ? "default" : "secondary"}
+                    className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                  >
+                    {primaryDiagnoses.length}
+                  </Badge>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Diagnosis Sekunder</Badge>
-                  </div>
-                  {secondaryDiagnoses.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Belum ada diagnosis sekunder.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {secondaryDiagnoses.map((diagnosis) => {
-                        const actualIndex = diagnoses.findIndex(d => d === diagnosis);
-                        return renderDiagnosisCard(diagnosis, actualIndex, false);
-                      })}
-                    </div>
-                  )}
-                </div>
+                {!isFormDisabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openSelector("primary")}
+                    className="h-8 rounded-none px-3 text-xs gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {hasPrimaryDiagnosis ? "Ubah Diagnosis Primer" : "Pilih Diagnosis Primer"}
+                  </Button>
+                )}
               </div>
-              </div>
-            </div>
 
-            </div>
-          </form>
-        </fieldset>
+              {primaryDiagnoses.length === 0 ? (
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  Belum ada diagnosis primer (utama) yang dipilih.
+                </div>
+              ) : (
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
+                  {primaryDiagnoses.map((diagnosis) => {
+                    const actualIndex = diagnoses.findIndex((d) => d === diagnosis);
+                    return renderDiagnosisCard(diagnosis, actualIndex, true);
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Section 2: Diagnosis Sekunder (Penyerta / Komplikasi) */}
+            <section className="px-4 sm:px-5 py-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Diagnosis Sekunder
+                  </div>
+                  <Badge
+                    variant={secondaryDiagnoses.length > 0 ? "default" : "secondary"}
+                    className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                  >
+                    {secondaryDiagnoses.length}
+                  </Badge>
+                </div>
+
+                {!isFormDisabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openSelector("secondary")}
+                    className="h-8 rounded-none px-3 text-xs gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Tambah Diagnosis Sekunder
+                  </Button>
+                )}
+              </div>
+
+              {secondaryDiagnoses.length === 0 ? (
+                <div className="border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/10 px-3.5 py-2.5 text-xs text-muted-foreground">
+                  Belum ada diagnosis sekunder / penyerta yang tercatat.
+                </div>
+              ) : (
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-800">
+                  {secondaryDiagnoses.map((diagnosis) => {
+                    const actualIndex = diagnoses.findIndex((d) => d === diagnosis);
+                    return renderDiagnosisCard(diagnosis, actualIndex, false);
+                  })}
+                </div>
+              )}
+            </section>
+          </fieldset>
+        </form>
       </div>
-          <Dialog open={selectorOpen} onOpenChange={setSelectorOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-            <DialogTitle>Pilih Diagnosis ICD</DialogTitle>
-            <DialogDescription>
-              Hasil ICD-10 dan ICD-9-CM ditampilkan dalam satu daftar. Untuk ICD-10, pilih primer atau sekunder langsung dari item yang dipilih.
-            </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-              <Label htmlFor="diagnosis-selector-search">Cari ICD</Label>
-              <Input id="diagnosis-selector-search" placeholder="Ketik minimal 2 karakter untuk mencari ICD-10 atau ICD-9-CM..." value={searchValue} onChange={(e) => setSearchValue(e.target.value)} />
-              </div>
-              <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1">
-              {searchLoading && (
-                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Mencari ICD...
-                </div>
-              )}
-              {!searchLoading && searchValue.length < 2 && (
-                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                <Search className="mx-auto mb-3 h-8 w-8 opacity-50" />
-                Ketik minimal 2 karakter untuk mulai mencari ICD.
-                </div>
-              )}
-              {!searchLoading && searchValue.length >= 2 && searchResults.length === 0 && (
-                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                Tidak ditemukan kode ICD.
-                </div>
-              )}
-              {searchResults.map((item) => (
-                <div key={item.id} className="space-y-3 border-b pb-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <Badge variant="outline" className="font-mono text-xs shrink-0">{item.code}</Badge>
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium">{item.display}</p>
-                            <Badge variant={item.source === "icd10" ? "default" : "secondary"} className="text-[10px] uppercase">
-                              {item.source === "icd10" ? "ICD-10" : "ICD-9-CM"}
-                            </Badge>
-                            {item.asterisk && <Badge variant="secondary" className="text-[10px]">*</Badge>}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {item.source === "icd10"
-                              ? "Pilih tipe diagnosis dari item ini."
-                              : "ICD-9-CM dipakai sebagai referensi tindakan atau prosedur."}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {item.source === "icd10" ? (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => handleAddDiagnosis(item.code, item.display, "primary")}
-                          disabled={hasPrimaryDiagnosis}
-                        >
-                          Pilih Sebagai Primer
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAddDiagnosis(item.code, item.display, "secondary")}
-                        >
-                          Pilih Sebagai Sekunder
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" variant="outline" onClick={() => handleCopyICD9Code({ id: Number(item.id.replace("icd9cm-", "")), code: item.code, code2: "", display: item.display, valid_code: true, acc_pdx: false, asterisk: !!item.asterisk, im: false, is_active: true })}>
-                          <Copy className="mr-2 h-4 w-4" />
-                          Salin Kode ICD-9-CM
-                        </Button>
-                      </div>
-                    )}
-                </div>
-              ))}
+      {/* Modal Pilih Diagnosis ICD */}
+      <Dialog open={selectorOpen} onOpenChange={setSelectorOpen}>
+        <DialogContent className="max-w-3xl rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <Search className="h-4 w-4" />
+              </div>
+              <div className="text-left min-w-0">
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  {selectorTargetType === "primary"
+                    ? "Pilih Diagnosis Primer (Utama)"
+                    : "Tambah Diagnosis Sekunder"}
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  {selectorTargetType === "primary"
+                    ? "Cari dan pilih kode penyakit ICD-10 untuk ditetapkan sebagai Diagnosis Primer."
+                    : "Cari dan pilih kode penyakit ICD-10 untuk ditambahkan ke daftar Diagnosis Sekunder."}
+                </DialogDescription>
               </div>
             </div>
-          </DialogContent>
-          </Dialog>
+          </DialogHeader>
+
+          <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                id="diagnosis-selector-search"
+                placeholder="Ketik minimal 2 karakter (kode atau nama ICD-10 / ICD-9-CM)..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                className="h-9 pl-8 text-xs rounded-none bg-white dark:bg-neutral-950"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="max-h-[420px] overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
+            {searchLoading && (
+              <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Mencari kode ICD...
+              </div>
+            )}
+            {!searchLoading && searchValue.length < 2 && (
+              <div className="py-10 px-4 text-center text-xs text-muted-foreground">
+                <Search className="mx-auto mb-2 h-6 w-6 opacity-40" />
+                Ketik minimal 2 karakter untuk mulai mencari ICD-10 atau ICD-9-CM.
+              </div>
+            )}
+            {!searchLoading && searchValue.length >= 2 && searchResults.length === 0 && (
+              <div className="py-10 px-4 text-center text-xs text-muted-foreground">
+                Tidak ditemukan kode ICD yang cocok dengan pencarian Anda.
+              </div>
+            )}
+            {searchResults.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  if (item.source === "icd10") {
+                    handleAddDiagnosis(item.code, item.display, selectorTargetType);
+                  }
+                }}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors ${
+                  item.source === "icd10" ? "cursor-pointer" : ""
+                }`}
+              >
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <Badge variant="outline" className="rounded-none font-mono text-xs h-5 px-1.5 shrink-0 mt-0.5">
+                    {item.code}
+                  </Badge>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-foreground">{item.display}</span>
+                      <Badge
+                        variant={item.source === "icd10" ? "default" : "secondary"}
+                        className="rounded-none text-[9px] h-4 px-1 uppercase"
+                      >
+                        {item.source === "icd10" ? "ICD-10" : "ICD-9-CM"}
+                      </Badge>
+                      {item.asterisk && (
+                        <Badge variant="secondary" className="rounded-none text-[9px] h-4 px-1">
+                          *
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {item.source === "icd10" ? (
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 rounded-none px-3 text-xs"
+                      onClick={() => handleAddDiagnosis(item.code, item.display, selectorTargetType)}
+                    >
+                      Pilih
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 rounded-none px-2.5 text-xs"
+                      onClick={() =>
+                        handleCopyICD9Code({
+                          id: Number(item.id.replace("icd9cm-", "")),
+                          code: item.code,
+                          code2: "",
+                          display: item.display,
+                          valid_code: true,
+                          acc_pdx: false,
+                          asterisk: !!item.asterisk,
+                          im: false,
+                          is_active: true,
+                        })
+                      }
+                    >
+                      <Copy className="mr-1.5 h-3 w-3" />
+                      Salin ICD-9-CM
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {!useExternalData && (
         <>
           <EditConfirmDialog

@@ -145,23 +145,23 @@
   }
 
   .medical-record-workspace {
-    font-family: "IBM Plex Sans", "Plus Jakarta Sans", "Segoe UI", "Arial", sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   }
 
   .medical-record-workspace .mr-shell {
-    border-radius: 0.9rem;
-    border-color: hsl(var(--border) / 0.82);
-    background:
-      radial-gradient(circle at 6% -20%, hsl(197 90% 96%), transparent 38%),
-      radial-gradient(circle at 108% 120%, hsl(157 72% 95%), transparent 36%),
-      hsl(var(--background));
-    box-shadow: 0 26px 60px -42px hsl(var(--foreground) / 0.45);
+    border-radius: 0;
+    background: hsl(var(--background));
+    box-shadow: none;
     overflow: hidden;
   }
 
   .medical-record-workspace .mr-sidebar {
-    background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.24));
+    background: rgb(250 250 250 / 0.6);
     min-width: 0;
+  }
+
+  .dark .medical-record-workspace .mr-sidebar {
+    background: rgb(23 23 23 / 0.4);
   }
 
   .medical-record-workspace .mr-main {
@@ -171,19 +171,16 @@
 
   .medical-record-workspace .mr-toolbar,
   .medical-record-workspace .mr-footer {
-    backdrop-filter: blur(8px);
-    background: hsl(var(--background) / 0.86);
+    background: hsl(var(--background));
   }
 
   .medical-record-workspace .mr-content {
-    background:
-      linear-gradient(180deg, hsl(var(--muted) / 0.2), transparent 38%),
-      hsl(var(--background));
+    background: hsl(var(--background));
     scroll-padding-top: 1rem;
   }
 
   .medical-record-workspace .mr-pane > * {
-    animation: mr-fade-up 0.2s ease-out;
+    animation: mr-fade-up 0.14s ease-out;
   }
 
   .medical-record-workspace .mr-tabs {
@@ -197,14 +194,8 @@
   }
 
   .medical-record-workspace .mr-tab-chip {
-    border: 1px solid transparent;
-    border-radius: 0.7rem;
-    transition: all 0.18s ease;
-  }
-
-  .medical-record-workspace .mr-tab-chip:hover {
-    border-color: hsl(var(--border));
-    background: hsl(var(--muted) / 0.58);
+    border-radius: 0;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
   }
 
   .medical-record-workspace .mr-tab-chip[data-tab-id],
@@ -212,87 +203,82 @@
     touch-action: manipulation;
   }
 
-  .medical-record-workspace .mr-tab-item:has(> .mr-tab-chip.bg-primary\/10) > .mr-tab-chip {
-    border-color: hsl(var(--ring) / 0.26);
-    box-shadow: 0 10px 24px -22px hsl(var(--foreground));
-  }
-
   .medical-record-workspace .mr-tab-chip-horizontal {
-    border: 1px solid hsl(var(--border) / 0.9);
-    border-radius: 0.8rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0;
     background: hsl(var(--background));
   }
 
-  .medical-record-workspace .mr-tab-chip-horizontal:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 20px -16px hsl(var(--foreground) / 0.35);
-  }
-
+  .medical-record-workspace input,
+  .medical-record-workspace textarea,
+  .medical-record-workspace select,
+  .medical-record-workspace [role="combobox"],
+  .medical-record-workspace button[aria-haspopup="listbox"],
+  .medical-record-workspace [data-slot="badge"],
   .medical-record-workspace .mr-content .rounded-md.border,
   .medical-record-workspace .mr-content .rounded-lg.border,
   .medical-record-workspace .mr-content .rounded-xl.border,
   .medical-record-workspace .mr-content .border.rounded-md,
   .medical-record-workspace .mr-content .border.rounded-lg,
   .medical-record-workspace .mr-content .border.rounded-xl {
-    border-color: hsl(var(--border) / 0.84);
-    box-shadow: 0 8px 22px -22px hsl(var(--foreground) / 0.36);
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
-  .medical-record-workspace .mr-content input,
+  .medical-record-workspace .mr-content input:not([type="checkbox"]):not([type="radio"]),
   .medical-record-workspace .mr-content textarea,
   .medical-record-workspace .mr-content [role="combobox"],
   .medical-record-workspace .mr-content button[aria-haspopup="listbox"] {
-    border-radius: 0.6rem;
+    border-color: rgb(229 229 229);
+  }
+
+  .dark .medical-record-workspace .mr-content input:not([type="checkbox"]):not([type="radio"]),
+  .dark .medical-record-workspace .mr-content textarea,
+  .dark .medical-record-workspace .mr-content [role="combobox"],
+  .dark .medical-record-workspace .mr-content button[aria-haspopup="listbox"] {
+    border-color: rgb(38 38 38);
   }
 
   .medical-record-workspace .mr-content input:focus,
   .medical-record-workspace .mr-content textarea:focus,
   .medical-record-workspace .mr-content [role="combobox"]:focus,
   .medical-record-workspace .mr-content button[aria-haspopup="listbox"]:focus {
-    box-shadow: 0 0 0 3px hsl(var(--ring) / 0.17);
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.14) !important;
   }
 
   .medical-record-workspace .mr-content table thead {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: hsl(var(--muted) / 0.52);
-    backdrop-filter: blur(6px);
+    background: rgb(250 250 250);
+  }
+
+  .dark .medical-record-workspace .mr-content table thead {
+    background: rgb(23 23 23);
   }
 
   .medical-record-workspace .mr-content .pharmacy-no-sticky-head table thead {
     position: static;
     top: auto;
-    backdrop-filter: none;
   }
 
   .medical-record-workspace .mr-content table tbody tr {
-    transition: background-color 0.16s ease;
+    transition: background-color 0.15s ease;
   }
 
   .medical-record-workspace .mr-content table tbody tr:hover {
     background: hsl(var(--accent) / 0.45);
   }
 
-  .medical-record-workspace .mr-footer .h-8.rounded-none,
-  .medical-record-workspace .mr-toolbar .h-8.rounded-none {
-    border-radius: 0.55rem;
-  }
-
   .medical-record-workspace .mr-footer button,
   .medical-record-workspace .mr-toolbar button {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .medical-record-workspace .mr-footer button:hover,
-  .medical-record-workspace .mr-toolbar button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 18px -16px hsl(var(--foreground));
+    border-radius: 0;
+    box-shadow: none;
   }
 
   @media (max-width: 1279px) {
     .medical-record-workspace .mr-shell {
-      grid-template-columns: minmax(240px, 18%) minmax(0, 82%);
+      grid-template-columns: minmax(220px, 24%) minmax(0, 76%);
     }
   }
 

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { setCasemixContext, restoreCasemixContext } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { formatPatientName } from "@/lib/print-utils";
 import {
   Tooltip,
   TooltipContent,
@@ -12,7 +14,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle, Printer } from "lucide-react";
+import { Activity, CheckCircle2, History, Loader2, Save, Stethoscope, X, XCircle, Printer } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-shell";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, bhpUsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
@@ -496,8 +499,16 @@ export default function VisitShow() {
 
       // Extract patient ID from visit data
       if (visitData.registration?.patient?.id) {
-        setPatientId(visitData.registration.patient.id);
-        setPatientName(visitData.registration.patient.nama_lengkap || "");
+        const p = visitData.registration.patient;
+        setPatientId(p.id);
+        setPatientName(
+          formatPatientName(
+            p.nama_lengkap,
+            p.jenis_kelamin,
+            p.status_perkawinan,
+            p.tanggal_lahir,
+          ) || ""
+        );
       } else if (visitData.registration?.patient_id) {
         setPatientId(visitData.registration.patient_id);
       }
@@ -2049,45 +2060,88 @@ export default function VisitShow() {
     return null;
   }
 
+  const patient = visit.registration?.patient;
+  const formattedPatientName =
+    formatPatientName(
+      patient?.nama_lengkap,
+      patient?.jenis_kelamin,
+      patient?.status_perkawinan,
+      patient?.tanggal_lahir,
+    ) ||
+    patientName ||
+    "Rekam Medis";
+  const patientNoRm = patient?.no_rm || "-";
+  const roomName = visit.room?.name || "-";
+  const doctorName = visit.doctor?.nama_lengkap || "-";
+  const genderLabel =
+    patient?.jenis_kelamin === "L"
+      ? "Laki-laki"
+      : patient?.jenis_kelamin === "P"
+      ? "Perempuan"
+      : "";
+  const ageLabel = (() => {
+    if (!patient?.tanggal_lahir) return "";
+    const birth = new Date(patient.tanggal_lahir);
+    if (Number.isNaN(birth.getTime())) return "";
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return `${age} thn`;
+  })();
+  const visitStatusLabel = (() => {
+    switch (visit.status) {
+      case "waiting":
+        return "Menunggu";
+      case "in_queue":
+        return "Dalam Antrian";
+      case "in_progress":
+        return "Sedang Dilayani";
+      case "completed":
+        return "Selesai";
+      case "cancelled":
+        return "Dibatalkan";
+      default:
+        return visit.status || "-";
+    }
+  })();
+
   return (
-    <div className="medical-record-workspace flex h-full min-h-0 flex-col px-3 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-4">
-      <div className="mr-shell grid min-h-0 flex-1 gap-0 border xl:grid-cols-[minmax(240px,15%)_minmax(0,85%)] 2xl:grid-cols-[minmax(260px,15%)_minmax(0,85%)]">
-        <aside className="mr-sidebar min-h-0 min-w-0 border-r">
-          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-            <div className="min-h-[190px] shrink-0 basis-[30%] border-b">
+    <div className="medical-record-workspace flex h-full min-h-0 flex-col bg-white dark:bg-neutral-950 p-3 sm:p-4">
+      <div className="flex min-h-0 flex-1 flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+        <PageHeader
+          icon={Stethoscope}
+          title={formattedPatientName}
+          badges={
+            <>
+              <Badge
+                variant={visit.status === "cancelled" ? "destructive" : visit.status === "completed" ? "outline" : "default"}
+                className="h-5 rounded-none px-1.5 text-[10px]"
+              >
+                {visitStatusLabel}
+              </Badge>
+              {(genderLabel || ageLabel) && (
+                <Badge variant="secondary" className="h-5 rounded-none px-1.5 text-[10px]">
+                  {[genderLabel, ageLabel].filter(Boolean).join(" • ")}
+                </Badge>
+              )}
+            </>
+          }
+          description={`No. RM: ${patientNoRm} • ${roomName} • ${doctorName} • ${visit.visit_number || "-"}`}
+          onBack={() =>
+            navigate(
+              isCasemixMode && casemixEklaimId
+                ? `/eklaim/data-klaim/${casemixEklaimId}`
+                : "/visits"
+            )
+          }
+          actions={
+            <div className="flex flex-wrap items-center gap-1.5">
               <PatientInfo
                 visit={visit}
-                variant="compact"
-                onCopyHistoryOpen={() => setCopyHistoryDrawerOpen(true)}
+                variant="header-trigger"
                 onVisitRefresh={() => loadVisit(true)}
               />
-            </div>
-            <div className="min-h-0 flex-1 basis-[70%]">
-              <MedicalRecordTabs
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                disabledTabIds={isPharmacy ? lockedPharmacyTabIds : []}
-                disabledTabReason={pharmacyTabLockReason}
-                layout="vertical"
-                indicators={tabIndicators}
-                savedStates={tabSavedStates}
-                isEmergency={isEmergency}
-                isPharmacy={isPharmacy}
-                isRadiology={isRadiology}
-                isLaboratory={isLaboratory}
-                isConsultation={isConsultation}
-                isSurgery={isSurgery}
-                showProcedureTab={showProcedureTab}
-                isInpatient={isInpatient}
-                isFemale={isFemale}
-              />
-            </div>
-          </div>
-        </aside>
-
-        <main className="mr-main flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
-          <div className="mr-toolbar sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
-            <div className="flex items-center justify-end gap-2">
               {isCasemixMode && (
                 <Button
                   variant="outline"
@@ -2106,7 +2160,7 @@ export default function VisitShow() {
                   <PharmacyQueueCallButton
                     visitId={visit.id}
                     initialQueue={visit.room_queue}
-                    patientName={patientName}
+                    patientName={formattedPatientName}
                     iconOnly
                     variant="outline"
                     className="h-8 w-8 rounded-none"
@@ -2172,13 +2226,13 @@ export default function VisitShow() {
                       className="h-8 w-8 rounded-none"
                       onClick={() => setCopyHistoryDrawerOpen(true)}
                       disabled={!patientId}
-                      title="Riwayat"
-                      aria-label="Riwayat"
+                      title="Riwayat Kunjungan"
+                      aria-label="Riwayat Kunjungan"
                     >
                       <History className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Riwayat</TooltipContent>
+                  <TooltipContent>Riwayat Kunjungan</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -2193,87 +2247,114 @@ export default function VisitShow() {
                       />
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent>Cetak</TooltipContent>
+                  <TooltipContent>Cetak Dokumen RM</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-          </div>
+          }
+        />
 
-          {!!medicalRecordSummary?.visit_medicine_items?.length && (
-            <div className="shrink-0 border-b p-3 sm:p-4">
-              <VisitMedicineSummary items={medicalRecordSummary?.visit_medicine_items} />
+        <div className="mr-shell grid min-h-0 flex-1 gap-0 lg:grid-cols-[248px_minmax(0,1fr)]">
+          <aside className="mr-sidebar min-h-0 min-w-0 border-r border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden">
+            <div className="min-h-0 flex-1">
+              <MedicalRecordTabs
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                disabledTabIds={isPharmacy ? lockedPharmacyTabIds : []}
+                disabledTabReason={pharmacyTabLockReason}
+                layout="vertical"
+                indicators={tabIndicators}
+                savedStates={tabSavedStates}
+                isEmergency={isEmergency}
+                isPharmacy={isPharmacy}
+                isRadiology={isRadiology}
+                isLaboratory={isLaboratory}
+                isConsultation={isConsultation}
+                isSurgery={isSurgery}
+                showProcedureTab={showProcedureTab}
+                isInpatient={isInpatient}
+                isFemale={isFemale}
+              />
             </div>
-          )}
+          </aside>
 
-          <div ref={tabContentContainerRef} className="mr-content min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
-            {Array.from(mountedTabs).map(tab => (
-              <div
-                key={tab}
-                data-mr-tab-pane={tab}
-                className={tab === activeTab ? "mr-pane" : "hidden"}
-              >
-                {renderTabContent(tab)}
-              </div>
-            ))}
-            {isPharmacy && visit && !mountedTabs.has("prescription-review") && (
-              <div className="hidden">
-                <PharmacyReview key={`review-modal-controller-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />
+          <main className="mr-main flex min-h-0 min-w-0 flex-col overflow-hidden bg-white dark:bg-neutral-950">
+            {!!medicalRecordSummary?.visit_medicine_items?.length && (
+              <div className="shrink-0 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 p-3 sm:px-4">
+                <VisitMedicineSummary items={medicalRecordSummary?.visit_medicine_items} />
               </div>
             )}
-          </div>
 
-          {!isEditTab && (
-            <div className="mr-footer sticky bottom-0 z-20 shrink-0 border-t bg-background px-3 py-2 sm:px-4">
-              <div className="flex items-center justify-end gap-2">
-                {!isNoButtonTab && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-none"
-                    onClick={handleCancelActiveTabFromFooter}
-                  >
-                    <X className="mr-1.5 h-3.5 w-3.5" />
-                    Batal
-                  </Button>
-                )}
-                {!isNoButtonTab && !isFooterActionHiddenTab && !isAdministrativeTab && (
-                  <Button
-                    size="sm"
-                    className="h-8 rounded-none"
-                    onClick={handleSaveActiveTabFromFooter}
-                  >
-                    <Save className="mr-1.5 h-3.5 w-3.5" />
-                    {isFinalTab ? "Final" : isOrderTab ? "Kirim" : "Simpan"}
-                  </Button>
-                )}
-                {activeTab === "informed-consent" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-none"
-                    onClick={() => {
-                      const footerActionEvent = new CustomEvent<{
-                        tabId: string;
-                        action: "print";
-                        handled: boolean;
-                      }>(FOOTER_ACTION_EVENT, {
-                        detail: {
-                          tabId: activeTab,
-                          action: "print",
-                          handled: false,
-                        },
-                      });
-                      window.dispatchEvent(footerActionEvent);
-                    }}
-                  >
-                    <Printer className="mr-1.5 h-3.5 w-3.5" />
-                    Cetak
-                  </Button>
-                )}
-              </div>
+            <div ref={tabContentContainerRef} className="mr-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-5">
+              {Array.from(mountedTabs).map(tab => (
+                <div
+                  key={tab}
+                  data-mr-tab-pane={tab}
+                  className={tab === activeTab ? "mr-pane" : "hidden"}
+                >
+                  {renderTabContent(tab)}
+                </div>
+              ))}
+              {isPharmacy && visit && !mountedTabs.has("prescription-review") && (
+                <div className="hidden">
+                  <PharmacyReview key={`review-modal-controller-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />
+                </div>
+              )}
             </div>
-          )}
-        </main>
+
+            {!isEditTab && (
+              <div className="mr-footer shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-4 py-2.5">
+                <div className="flex items-center justify-end gap-2">
+                  {!isNoButtonTab && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-none text-xs"
+                      onClick={handleCancelActiveTabFromFooter}
+                    >
+                      <X className="mr-1.5 h-3.5 w-3.5" />
+                      Batal
+                    </Button>
+                  )}
+                  {!isNoButtonTab && !isFooterActionHiddenTab && !isAdministrativeTab && (
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-none px-4 text-xs font-semibold"
+                      onClick={handleSaveActiveTabFromFooter}
+                    >
+                      <Save className="mr-1.5 h-3.5 w-3.5" />
+                      {isFinalTab ? "Final" : isOrderTab ? "Kirim" : "Simpan"}
+                    </Button>
+                  )}
+                  {activeTab === "informed-consent" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-none text-xs"
+                      onClick={() => {
+                        const footerActionEvent = new CustomEvent<{
+                          tabId: string;
+                          action: "print";
+                          handled: boolean;
+                        }>(FOOTER_ACTION_EVENT, {
+                          detail: {
+                            tabId: activeTab,
+                            action: "print",
+                            handled: false,
+                          },
+                        });
+                        window.dispatchEvent(footerActionEvent);
+                      }}
+                    >
+                      <Printer className="mr-1.5 h-3.5 w-3.5" />
+                      Cetak
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
 
       {/* Visit History Drawer */}

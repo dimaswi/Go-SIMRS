@@ -914,387 +914,432 @@ export function AssessmentPlanForm({
   }
 
   return (
-    <div>
+    <div className="-mx-4 sm:-mx-5 -my-4 sm:-my-5">
       <div>
-            {!useExternalData && (
-              <EditModeBanner
-                isPatientDischarged={isPatientDischarged}
-                isEditing={isEditing}
-                onRequestEdit={handleRequestEdit}
-                recordTypeLabel="Assessment & Plan"
-              />
-            )}
+        {!useExternalData && (
+          <div className="px-4 sm:px-5 pt-3 empty:hidden">
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Assessment & Plan"
+            />
+          </div>
+        )}
         <TooltipProvider delayDuration={120}>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-          
-          {/* Section 1: Asesmen Klinis */}
-          <div className="border border-border/70">{/* Clinical Assessment / Clinical Impression */}
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Asesmen Klinis
-            </div>
-            <div className="space-y-4 p-3 sm:p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
-                    Kesan Klinis (Clinical Impression) <span className="text-destructive">*</span>
-                  </Label>
+          <form onSubmit={handleSubmit}>
+            <fieldset
+              disabled={isFormDisabled}
+              className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_textarea]:rounded-none [&_[role=combobox]]:rounded-none"
+            >
+              {/* Section 1: Asesmen Klinis & Prognosis */}
+              <section className="px-4 sm:px-5 py-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                    Asesmen Klinis &amp; Prognosis
+                  </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
+                        size="sm"
+                        className="h-8 rounded-none px-3 text-xs gap-1.5"
                         onClick={handleAutoGenerateClinicalAssessment}
                         disabled={isFormDisabled || generatingClinicalAssessment}
-                        aria-label="Auto generate kesan klinis"
                       >
                         {generatingClinicalAssessment ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <WandSparkles className="h-3.5 w-3.5" />
                         )}
+                        Auto-Generate Kesan Klinis
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">Ambil dari Anamnesis, Pemeriksaan, dan Diagnosis</TooltipContent>
+                    <TooltipContent side="top">
+                      Ambil otomatis dari Anamnesis, Pemeriksaan Fisik, dan Diagnosis
+                    </TooltipContent>
                   </Tooltip>
                 </div>
-                <Textarea
-                  id="clinical_assessment"
-                  placeholder="Tulis ringkasan kesan klinis pasien..."
-                  value={formData.clinical_assessment}
-                  onChange={(e) => handleChange("clinical_assessment", e.target.value)}
-                  className="min-h-[150px] resize-none"
-                  required
-                />
-              </div>
 
-              {/* Prognosis */}
-              <div className="space-y-2">
-                <Label htmlFor="prognosis" className="text-sm font-semibold">
-                  Prognosis
-                </Label>
-                <Textarea
-                  id="prognosis"
-                  placeholder="Tulis prognosis pasien..."
-                  value={formData.prognosis}
-                  onChange={(e) => handleChange("prognosis", e.target.value)}
-                  onBlur={(e) => addPrognosisOption(e.target.value)}
-                  className="min-h-[80px] resize-none"
-                  disabled={isFormDisabled}
-                />
-                <div className="flex flex-wrap gap-2">
-                  {prognosisOptions.map((option) => {
-                    const isActive = formData.prognosis.trim().toLowerCase() === option.toLowerCase();
-                    return (
-                      <Button
-                        key={option}
-                        type="button"
-                        size="sm"
-                        variant={isActive ? "default" : "outline"}
-                        className="h-7"
-                        disabled={isFormDisabled}
-                        onClick={() => {
-                          handleChange("prognosis", option);
-                          addPrognosisOption(option);
-                        }}
-                      >
-                        {option}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Monitoring */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Monitoring
-            </div>
-            <div className="space-y-4 p-3 sm:p-4">
-              {/* Monitoring Plan */}
-              <div className="space-y-2">
-                <Label htmlFor="monitoring_plan" className="text-sm font-semibold flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                  Rencana Monitoring
-                </Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-2">
-                  {MONITORING_CHECKLIST_OPTIONS.map((item) => (
-                    <label key={item} className="flex items-start gap-2 text-sm">
-                      <Checkbox
-                        checked={selectedMonitoringItems.includes(item)}
-                        onCheckedChange={() => handleToggleMonitoringItem(item)}
-                        disabled={isFormDisabled}
-                      />
-                      <span>{item}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="text-sm whitespace-pre-wrap min-h-[72px]">
-                  {formData.monitoring_plan || "Belum ada pilihan monitoring"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Rencana Detail */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Rencana Detail
-            </div>
-            <div className="space-y-4 p-3 sm:p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
-                {filledDetailFields}/6
-              </Badge>
-            </div>
-              <div className="space-y-5">
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="medication_plan" className="text-sm flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-muted-foreground" />
-                      Rencana Obat
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                  {/* Kesan Klinis */}
+                  <div className="lg:col-span-7 space-y-1.5">
+                    <Label htmlFor="clinical_assessment" className="text-xs font-medium">
+                      Kesan Klinis (Clinical Impression) <span className="text-destructive">*</span>
                     </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleSyncMedicationPlanFromOrders}
-                          disabled={isFormDisabled || syncingMedicationPlan}
-                          aria-label="Ambil dari order obat"
-                        >
-                          {syncingMedicationPlan ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <WandSparkles className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Ambil dari Order Obat</TooltipContent>
-                    </Tooltip>
+                    <Textarea
+                      id="clinical_assessment"
+                      placeholder="Tulis ringkasan kesan klinis pasien berdasarkan anamnesis, pemeriksaan fisik, dan diagnosis..."
+                      value={formData.clinical_assessment}
+                      onChange={(e) => handleChange("clinical_assessment", e.target.value)}
+                      className="min-h-[116px] resize-none text-xs rounded-none"
+                      required
+                    />
                   </div>
-                  <Textarea
-                    id="medication_plan"
-                    placeholder="Obat-obatan yang akan diberikan..."
-                    value={formData.medication_plan}
-                    onChange={(e) => handleChange("medication_plan", e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
+
+                  {/* Prognosis */}
+                  <div className="lg:col-span-5 space-y-1.5">
+                    <Label htmlFor="prognosis" className="text-xs font-medium">
+                      Prognosis
+                    </Label>
+                    <Textarea
+                      id="prognosis"
+                      placeholder="Pilih atau tulis prognosis pasien..."
+                      value={formData.prognosis}
+                      onChange={(e) => handleChange("prognosis", e.target.value)}
+                      onBlur={(e) => addPrognosisOption(e.target.value)}
+                      className="min-h-[78px] resize-none text-xs rounded-none"
+                      disabled={isFormDisabled}
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {prognosisOptions.map((option) => {
+                        const isActive = formData.prognosis.trim().toLowerCase() === option.toLowerCase();
+                        return (
+                          <Button
+                            key={option}
+                            type="button"
+                            size="sm"
+                            variant={isActive ? "default" : "outline"}
+                            className="h-7 rounded-none px-2.5 text-[11px]"
+                            disabled={isFormDisabled}
+                            onClick={() => {
+                              handleChange("prognosis", option);
+                              addPrognosisOption(option);
+                            }}
+                          >
+                            {option}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <Label htmlFor="diet_plan" className="text-sm flex items-center gap-2">
-                    <Utensils className="h-4 w-4 text-muted-foreground" />
-                    Rencana Diet
-                  </Label>
+              </section>
+
+              {/* Section 2: Rencana Terapi, Tindakan & Konsultasi (3 Kolom) */}
+              <section className="px-4 sm:px-5 py-4 space-y-3">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Rencana Terapi, Tindakan &amp; Konsultasi
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Rencana Obat */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                      <Label htmlFor="medication_plan" className="text-xs font-medium flex items-center gap-1.5">
+                        <Heart className="h-3.5 w-3.5 text-muted-foreground" />
+                        Rencana Obat
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 rounded-none"
+                            onClick={handleSyncMedicationPlanFromOrders}
+                            disabled={isFormDisabled || syncingMedicationPlan}
+                            aria-label="Ambil dari order obat"
+                          >
+                            {syncingMedicationPlan ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <WandSparkles className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Ambil dari Order Obat</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Textarea
+                      id="medication_plan"
+                      placeholder="Obat-obatan yang akan diberikan..."
+                      value={formData.medication_plan}
+                      onChange={(e) => handleChange("medication_plan", e.target.value)}
+                      className="min-h-[92px] resize-none text-xs rounded-none"
+                    />
+                  </div>
+
+                  {/* Rencana Tindakan */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                      <Label htmlFor="procedure_plan" className="text-xs font-medium flex items-center gap-1.5">
+                        <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" />
+                        Rencana Tindakan
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 rounded-none"
+                            onClick={handleSyncProcedurePlanFromOrders}
+                            disabled={isFormDisabled || syncingProcedurePlan}
+                            aria-label="Ambil dari tindakan"
+                          >
+                            {syncingProcedurePlan ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <WandSparkles className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Ambil dari Tindakan</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Textarea
+                      id="procedure_plan"
+                      placeholder="Prosedur atau tindakan medis yang akan dilakukan..."
+                      value={formData.procedure_plan}
+                      onChange={(e) => handleChange("procedure_plan", e.target.value)}
+                      className="min-h-[92px] resize-none text-xs rounded-none"
+                    />
+                  </div>
+
+                  {/* Rencana Konsultasi */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                      <Label htmlFor="consultation_plan" className="text-xs font-medium flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        Rencana Konsultasi
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 rounded-none"
+                            onClick={handleSyncConsultationPlanFromOrders}
+                            disabled={isFormDisabled || syncingConsultationPlan}
+                            aria-label="Ambil dari order konsultasi"
+                          >
+                            {syncingConsultationPlan ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <WandSparkles className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Ambil dari Order Konsultasi</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Textarea
+                      id="consultation_plan"
+                      placeholder="Konsultasi ke dokter spesialis atau unit terkait..."
+                      value={formData.consultation_plan}
+                      onChange={(e) => handleChange("consultation_plan", e.target.value)}
+                      className="min-h-[92px] resize-none text-xs rounded-none"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Section 3: Rencana Monitoring & Aktivitas (2 Kolom) */}
+              <section className="px-4 sm:px-5 py-4 space-y-3">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Rencana Monitoring &amp; Aktivitas
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Rencana Monitoring */}
                   <div className="space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                      <Label htmlFor="monitoring_plan" className="text-xs font-medium flex items-center gap-1.5">
+                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                        Rencana Monitoring
+                      </Label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2.5">
+                      {MONITORING_CHECKLIST_OPTIONS.map((item) => (
+                        <label key={item} className="flex items-start gap-2 text-xs cursor-pointer select-none">
+                          <Checkbox
+                            checked={selectedMonitoringItems.includes(item)}
+                            onCheckedChange={() => handleToggleMonitoringItem(item)}
+                            disabled={isFormDisabled}
+                            className="mt-0.5 rounded-none"
+                          />
+                          <span className="leading-tight">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <Textarea
+                      id="monitoring_plan"
+                      placeholder="Detail rencana pemantauan klinis pasien..."
+                      value={formData.monitoring_plan}
+                      onChange={(e) => handleChange("monitoring_plan", e.target.value)}
+                      className="min-h-[76px] resize-none text-xs rounded-none"
+                    />
+                  </div>
+
+                  {/* Rencana Aktivitas */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                      <Label htmlFor="activity_plan" className="text-xs font-medium flex items-center gap-1.5">
+                        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                        Rencana Aktivitas
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 rounded-none"
+                            onClick={handleSyncActivityFromSupportOrders}
+                            disabled={isFormDisabled || syncingActivityFromSupportOrders}
+                            aria-label="Ambil saran aktivitas dari order penunjang"
+                          >
+                            {syncingActivityFromSupportOrders ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <WandSparkles className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Ambil Saran dari Order Penunjang</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2.5">
+                      {Array.from(new Set([...BASE_ACTIVITY_OPTIONS, ...activityOrderSuggestions])).map((item) => (
+                        <label key={item} className="flex items-start gap-2 text-xs cursor-pointer select-none">
+                          <Checkbox
+                            checked={selectedActivityItems.includes(item)}
+                            onCheckedChange={() => handleToggleActivityItem(item)}
+                            disabled={isFormDisabled}
+                            className="mt-0.5 rounded-none"
+                          />
+                          <span className="leading-tight">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <Textarea
+                      id="activity_plan"
+                      placeholder="Anjuran aktivitas fisik dan mobilisasi pasien..."
+                      value={formData.activity_plan}
+                      onChange={(e) => handleChange("activity_plan", e.target.value)}
+                      className="min-h-[76px] resize-none text-xs rounded-none"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Section 4: Rencana Diet & Edukasi Pasien (2 Kolom) */}
+              <section className="px-4 sm:px-5 py-4 space-y-3">
+                <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                  Rencana Diet &amp; Edukasi Pasien
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Rencana Diet */}
+                  <div className="space-y-2">
+                    <Label htmlFor="diet_plan" className="text-xs font-medium flex items-center gap-1.5">
+                      <Utensils className="h-3.5 w-3.5 text-muted-foreground" />
+                      Rencana Diet &amp; Nutrisi
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2.5">
                       {DIET_CHECKLIST_OPTIONS.map((item) => (
-                        <label key={item} className="flex items-start gap-2 text-sm">
+                        <label key={item} className="flex items-start gap-2 text-xs cursor-pointer select-none">
                           <Checkbox
                             checked={selectedDietItems.includes(item)}
                             onCheckedChange={() => handleToggleDietItem(item)}
                             disabled={isFormDisabled}
+                            className="mt-0.5 rounded-none"
                           />
-                          <span>{item}</span>
+                          <span className="leading-tight">{item}</span>
                         </label>
                       ))}
                     </div>
+                    <Textarea
+                      id="diet_plan"
+                      placeholder="Detail pengaturan diet dan nutrisi pasien..."
+                      value={formData.diet_plan}
+                      onChange={(e) => handleChange("diet_plan", e.target.value)}
+                      className="min-h-[76px] resize-none text-xs rounded-none"
+                    />
                   </div>
-                  <div className="text-sm whitespace-pre-wrap min-h-[72px]">
-                    {formData.diet_plan || "Belum ada pilihan diet"}
-                  </div>
-                </div>
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="activity_plan" className="text-sm flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-muted-foreground" />
-                      Rencana Aktivitas
-                    </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleSyncActivityFromSupportOrders}
-                          disabled={isFormDisabled || syncingActivityFromSupportOrders}
-                          aria-label="Ambil saran aktivitas dari order penunjang"
-                        >
-                          {syncingActivityFromSupportOrders ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <WandSparkles className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Ambil Saran dari Order Penunjang</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {Array.from(new Set([...BASE_ACTIVITY_OPTIONS, ...activityOrderSuggestions])).map((item) => (
-                      <label key={item} className="flex items-start gap-2 text-sm">
-                        <Checkbox
-                          checked={selectedActivityItems.includes(item)}
-                          onCheckedChange={() => handleToggleActivityItem(item)}
-                          disabled={isFormDisabled}
-                        />
-                        <span>{item}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <Textarea
-                    id="activity_plan"
-                    placeholder="Anjuran aktivitas fisik..."
-                    value={formData.activity_plan}
-                    onChange={(e) => handleChange("activity_plan", e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <Label htmlFor="education_plan" className="text-sm flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    Rencana Edukasi
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Opsional</Badge>
-                  </Label>
+
+                  {/* Rencana Edukasi */}
                   <div className="space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Label htmlFor="education_plan" className="text-xs font-medium flex items-center gap-1.5">
+                      <GraduationCap className="h-3.5 w-3.5 text-muted-foreground" />
+                      Rencana Edukasi
+                      <Badge variant="secondary" className="rounded-none text-[9px] px-1.5 py-0 h-4">
+                        Opsional
+                      </Badge>
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 p-2.5">
                       {EDUCATION_CHECKLIST_OPTIONS.map((item) => (
-                        <label key={item} className="flex items-start gap-2 text-sm">
+                        <label key={item} className="flex items-start gap-2 text-xs cursor-pointer select-none">
                           <Checkbox
                             checked={selectedEducationItems.includes(item)}
                             onCheckedChange={() => handleToggleEducationItem(item)}
                             disabled={isFormDisabled}
+                            className="mt-0.5 rounded-none"
                           />
-                          <span>{item}</span>
+                          <span className="leading-tight">{item}</span>
                         </label>
                       ))}
                     </div>
-                  </div>
-                  <div className="text-sm whitespace-pre-wrap min-h-[72px]">
-                    {formData.education_plan || "Belum ada pilihan edukasi"}
+                    <Textarea
+                      id="education_plan"
+                      placeholder="Detail edukasi pasien dan keluarga..."
+                      value={formData.education_plan}
+                      onChange={(e) => handleChange("education_plan", e.target.value)}
+                      className="min-h-[76px] resize-none text-xs rounded-none"
+                    />
                   </div>
                 </div>
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="procedure_plan" className="text-sm flex items-center gap-2">
-                      <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                      Rencana Tindakan
-                    </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleSyncProcedurePlanFromOrders}
-                          disabled={isFormDisabled || syncingProcedurePlan}
-                          aria-label="Ambil dari tindakan"
-                        >
-                          {syncingProcedurePlan ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <WandSparkles className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Ambil dari Tindakan</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Textarea
-                    id="procedure_plan"
-                    placeholder="Prosedur/tindakan yang akan dilakukan..."
-                    value={formData.procedure_plan}
-                    onChange={(e) => handleChange("procedure_plan", e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="consultation_plan" className="text-sm flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      Rencana Konsultasi
-                    </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleSyncConsultationPlanFromOrders}
-                          disabled={isFormDisabled || syncingConsultationPlan}
-                          aria-label="Ambil dari order konsultasi"
-                        >
-                          {syncingConsultationPlan ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <WandSparkles className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Ambil dari Order Konsultasi</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Textarea
-                    id="consultation_plan"
-                    placeholder="Konsultasi ke spesialis yang diperlukan..."
-                    value={formData.consultation_plan}
-                    onChange={(e) => handleChange("consultation_plan", e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+              </section>
 
-          {/* Section 4: Rencana Penatalaksanaan */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Ringkasan Penatalaksanaan
-            </div>
-            <div className="space-y-2 p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <Label htmlFor="treatment_plan" className="text-sm font-semibold">
-                Rencana Penatalaksanaan <span className="text-destructive">*</span>
-              </Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={handleGenerateTreatmentPlanFromDetails}
-                    disabled={isFormDisabled}
-                    aria-label="Generate ringkasan dari 6 rencana"
-                  >
-                    <WandSparkles className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Ambil dari 6 Rencana</TooltipContent>
-              </Tooltip>
-            </div>
-            <Textarea
-              id="treatment_plan"
-              placeholder="Tulis ringkasan rencana penatalaksanaan..."
-              value={formData.treatment_plan}
-              onChange={(e) => handleChange("treatment_plan", e.target.value)}
-              className="min-h-[180px] resize-none"
-              required
-            />
-            </div>
-          </div>
+              {/* Section 5: Ringkasan Rencana Penatalaksanaan */}
+              <section className="px-4 sm:px-5 py-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+                      Ringkasan Rencana Penatalaksanaan <span className="text-destructive">*</span>
+                    </div>
+                    <Badge
+                      variant={filledDetailFields > 0 ? "default" : "secondary"}
+                      className="rounded-none h-5 px-1.5 text-[10px] font-mono"
+                    >
+                      {filledDetailFields}/6 Rencana Detail
+                    </Badge>
+                  </div>
 
-          </fieldset>
-        </form>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-none px-3 text-xs gap-1.5"
+                        onClick={handleGenerateTreatmentPlanFromDetails}
+                        disabled={isFormDisabled}
+                      >
+                        <WandSparkles className="h-3.5 w-3.5" />
+                        Gabungkan dari Rencana Detail
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Susun ringkasan otomatis dari rencana obat, tindakan, konsultasi, monitoring, aktivitas, diet, dan edukasi
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+
+                <Textarea
+                  id="treatment_plan"
+                  placeholder="Tulis ringkasan rencana penatalaksanaan komprehensif pasien..."
+                  value={formData.treatment_plan}
+                  onChange={(e) => handleChange("treatment_plan", e.target.value)}
+                  className="min-h-[120px] resize-none text-xs rounded-none"
+                  required
+                />
+              </section>
+            </fieldset>
+          </form>
         </TooltipProvider>
       </div>
       {!useExternalData && (

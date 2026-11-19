@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, AlertCircle, Trash2, CheckCircle2, PenTool } from "lucide-react";
+import { Loader2, AlertCircle, Trash2, CheckCircle2, PenTool, Plus, RotateCcw } from "lucide-react";
 import { emitMedicalRecordTabSaved } from "./tab-indicator";
 import { Textarea } from "@/components/ui/textarea";
 import { proceduresApi, type Procedure } from "@/lib/api/procedures";
@@ -18,10 +18,16 @@ import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, Command
 import { ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { signatureApi, type DocumentSignatureStatus } from "@/lib/api/signature";
 import { EmployeeSignatureDialog } from "@/components/signature/employee-signature-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,15 +68,25 @@ function NameInputDialog({ initialName, onCancel, onConfirm }: { initialName: st
   const [name, setName] = useState(initialName);
   return (
     <Dialog open={true} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>Data Penandatangan</DialogTitle>
+      <DialogContent className="sm:max-w-[420px] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-row items-center gap-2.5 space-y-0 text-left">
+          <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+            <PenTool className="h-4 w-4" />
+          </div>
+          <div>
+            <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Data Penandatangan
+            </DialogTitle>
+            <DialogDescription className="text-xs mt-0.5">
+              Masukkan nama lengkap penandatangan sebelum mengisi tanda tangan.
+            </DialogDescription>
+          </div>
         </DialogHeader>
-        <div className="py-4 space-y-2">
-          <Label>Nama Lengkap</Label>
+        <div className="p-4 sm:p-5 space-y-1.5">
+          <Label className="text-xs font-medium">Nama Lengkap *</Label>
           <Input
             autoFocus
-            placeholder="Masukkan nama..."
+            placeholder="Masukkan nama lengkap..."
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -78,17 +94,25 @@ function NameInputDialog({ initialName, onCancel, onConfirm }: { initialName: st
                 onConfirm(name);
               }
             }}
+            className="h-9 text-xs rounded-none"
           />
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>Batal</Button>
-          <Button onClick={() => {
-            if (!name.trim()) return;
-            onConfirm(name);
-          }}>
+        <DialogFooter className="px-4 sm:px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 gap-2">
+          <Button type="button" variant="outline" size="sm" className="h-8 rounded-none text-xs" onClick={onCancel}>
+            Batal
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-none text-xs bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            onClick={() => {
+              if (!name.trim()) return;
+              onConfirm(name);
+            }}
+          >
             Lanjut Tanda Tangan
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -327,8 +351,8 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className="p-6 sm:p-8 flex items-center justify-center min-h-[240px]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -346,32 +370,33 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
   ];
 
   return (
-    <div className="space-y-6 max-w-full mx-auto pb-10">
-      <form id="informed-consent-form" onSubmit={form.handleSubmit(onSubmit)} className="rounded-lg border border-border/70 bg-background overflow-hidden divide-y divide-border/70">
-
-        <div>
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Judul Dokumen</span><span className="text-red-600 text-xs"> * (Wajib)</span>
+    <div>
+      <form
+        id="informed-consent-form"
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="divide-y divide-neutral-200 dark:divide-neutral-800 border-b border-neutral-200 dark:border-neutral-800 [&_input]:h-9 [&_[role=combobox]]:h-9 [&_input]:rounded-none [&_[role=combobox]]:rounded-none [&_input]:text-xs [&_[role=combobox]]:text-xs"
+      >
+        {/* Judul & Pemberi Informasi */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            1. Identitas Dokumen & Pemberi Informasi
           </div>
-          <div className="p-3 sm:p-4">
-            <div className="space-y-2">
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="space-y-1.5 md:col-span-7">
+              <Label className="text-xs font-medium">
+                Judul Dokumen <span className="text-destructive">*</span>
+              </Label>
               <Input
                 {...form.register("judul_tindakan")}
-                placeholder="Masukan Judul Persetujuan"
+                placeholder="Masukkan judul persetujuan tindakan..."
                 className="font-medium"
                 disabled={readOnly}
               />
             </div>
-          </div>
-        </div>
 
-        {/* Dokter */}
-        <div>
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">1. Pemberi Informasi</span>
-          </div>
-          <div className="p-3 sm:p-4">
-            <div className="space-y-2">
+            <div className="space-y-1.5 md:col-span-5">
+              <Label className="text-xs font-medium">Pemberi Informasi (Dokter)</Label>
               <Controller
                 control={form.control}
                 name="dokter_pemberi_informasi_id"
@@ -384,15 +409,13 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
                     value={field.value?.toString() || ""}
                     onValueChange={(val) => {
                       const newId = val ? Number(val) : null;
-                      console.log("Combobox changed to:", newId);
-                      toast({ title: "Dropdown Diklik", description: `Nilai baru: ${newId}` });
                       field.onChange(newId);
                     }}
                     placeholder="Pilih Pegawai..."
                     searchPlaceholder="Cari pegawai..."
                     emptyText="Pegawai tidak ditemukan"
                     disabled={readOnly}
-                    className="w-full h-auto min-h-[2.5rem]"
+                    className="w-full"
                   />
                 )}
               />
@@ -400,75 +423,452 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
           </div>
         </div>
 
-        {/* Tindakan Kedokteran */}
-        <div>
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">2. Jenis Tindakan Kedokteran</span><span className="text-red-600 text-xs"> * (Wajib)</span>
+        {/* 2. Jenis Tindakan Kedokteran */}
+        <div className="p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+              2. Jenis Tindakan Kedokteran <span className="text-destructive">*</span>
+            </div>
+            <span className="text-[11px] font-mono text-muted-foreground">
+              {selectedProcedures.length} dipilih
+            </span>
           </div>
-          <div className="p-3 sm:p-4 space-y-4">
-            <div className="space-y-2">
-              <Popover open={procOpen && !readOnly} onOpenChange={setProcOpen}>
-                <PopoverTrigger asChild>
-                  <Button disabled={readOnly} variant="outline" role="combobox" aria-expanded={procOpen} className="w-full justify-between min-h-[2.5rem] h-auto p-2">
-                    <span className="text-muted-foreground px-2">Pilih Tindakan...</span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                  <Command>
-                    <CommandInput placeholder="Cari master tindakan..." />
-                    <CommandList>
-                      <CommandEmpty>Tidak ada tindakan ditemukan.</CommandEmpty>
-                      <CommandGroup className="max-h-64 overflow-y-auto">
-                        {masterProcedures.map((proc) => (
-                          <CommandItem
-                            key={proc.id}
-                            value={proc.name}
-                            onSelect={() => {
-                              toggleProcedure(proc);
-                            }}
+
+          <Popover open={procOpen && !readOnly} onOpenChange={setProcOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                disabled={readOnly}
+                variant="outline"
+                role="combobox"
+                aria-expanded={procOpen}
+                className="w-full justify-between h-9 rounded-none text-xs px-3 font-normal"
+              >
+                <span className="text-muted-foreground">Pilih Tindakan dari Master...</span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 rounded-none">
+              <Command>
+                <CommandInput placeholder="Cari master tindakan..." className="text-xs" />
+                <CommandList>
+                  <CommandEmpty className="text-xs py-4 text-center text-muted-foreground">
+                    Tidak ada tindakan ditemukan.
+                  </CommandEmpty>
+                  <CommandGroup className="max-h-64 overflow-y-auto">
+                    {masterProcedures.map((proc) => (
+                      <CommandItem
+                        key={proc.id}
+                        value={proc.name}
+                        onSelect={() => {
+                          toggleProcedure(proc);
+                        }}
+                        className="text-xs rounded-none"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-3.5 w-3.5",
+                            selectedProcedures.some((p) => p.id === proc.id) ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {proc.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          {selectedProcedures.length > 0 ? (
+            <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-2 text-left font-semibold">Nama Tindakan</th>
+                    {!readOnly && (
+                      <th className="w-[72px] px-3 py-2 text-center font-semibold">Aksi</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {selectedProcedures.map((p) => (
+                    <tr key={p.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
+                      <td className="px-3 py-2 font-medium">{p.name}</td>
+                      {!readOnly && (
+                        <td className="px-3 py-2 text-center">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-none text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => toggleProcedure(p)}
                           >
-                            <Check
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="border border-dashed border-neutral-300 dark:border-neutral-700 py-5 px-4 text-center text-xs text-muted-foreground">
+              Belum ada tindakan yang dipilih
+            </div>
+          )}
+        </div>
+
+        {/* 3. Penerima Informasi */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            3. Penerima Informasi <span className="text-destructive">*</span>
+          </div>
+
+          {!readOnly && (
+            <Controller
+              control={form.control}
+              name="penerima_informasi_source"
+              render={({ field }) => (
+                <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4 flex-wrap">
+                  <label
+                    htmlFor="source_diri_sendiri"
+                    className={cn(
+                      "flex items-center space-x-2 border px-3 py-2 cursor-pointer text-xs transition-colors",
+                      field.value === "diri_sendiri"
+                        ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] font-semibold"
+                        : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    <RadioGroupItem value="diri_sendiri" id="source_diri_sendiri" />
+                    <span>Diri Sendiri (Pasien)</span>
+                  </label>
+                  <label
+                    htmlFor="source_pj"
+                    className={cn(
+                      "flex items-center space-x-2 border px-3 py-2 cursor-pointer text-xs transition-colors",
+                      field.value === "penanggung_jawab"
+                        ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] font-semibold"
+                        : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    <RadioGroupItem value="penanggung_jawab" id="source_pj" />
+                    <span>Dari Penanggung Jawab Pasien</span>
+                  </label>
+                  <label
+                    htmlFor="source_manual"
+                    className={cn(
+                      "flex items-center space-x-2 border px-3 py-2 cursor-pointer text-xs transition-colors",
+                      field.value === "manual"
+                        ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900/[0.04] dark:bg-white/[0.06] font-semibold"
+                        : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    <RadioGroupItem value="manual" id="source_manual" />
+                    <span>Input Manual</span>
+                  </label>
+                </RadioGroup>
+              )}
+            />
+          )}
+
+          {source === "penanggung_jawab" && !pj?.penanggung_jawab_nama && (
+            <div className="border border-destructive/40 bg-destructive/5 px-3.5 py-2.5 flex items-center gap-2 text-xs text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>Data Tidak Tersedia:</strong> Pasien ini tidak memiliki data Penanggung Jawab pada saat pendaftaran. Silakan ubah ke mode Input Manual.
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Nama Terang</Label>
+              <Input {...form.register("penerima_informasi_nama")} disabled={readOnly || source === "penanggung_jawab"} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Hubungan dengan Pasien</Label>
+              <Controller
+                control={form.control}
+                name="penerima_informasi_hubungan"
+                render={({ field }) => (
+                  <Combobox
+                    options={HUBUNGAN_OPTIONS}
+                    value={field.value ? String(field.value).replace(/\s+/g, "_") : ""}
+                    onValueChange={(val) => field.onChange(val ? val.replace(/_/g, " ") : "")}
+                    disabled={readOnly || source === "penanggung_jawab" || source === "diri_sendiri"}
+                    placeholder="Pilih hubungan..."
+                    className="w-full"
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">No. Identitas (KTP/SIM)</Label>
+              <Input {...form.register("penerima_informasi_no_identitas")} disabled={readOnly || source === "penanggung_jawab"} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">No. Telepon</Label>
+              <Input {...form.register("penerima_informasi_no_telp")} disabled={readOnly || source === "penanggung_jawab"} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Umur (Tahun)</Label>
+              <Controller
+                control={form.control}
+                name="penerima_informasi_umur"
+                render={({ field }) => (
+                  <Input
+                    type="number"
+                    disabled={readOnly || source === "penanggung_jawab"}
+                    value={field.value || ""}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value, 10);
+                      field.onChange(isNaN(parsed) ? undefined : parsed);
+                    }}
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Jenis Kelamin</Label>
+              <Controller
+                control={form.control}
+                name="penerima_informasi_jk"
+                render={({ field }) => (
+                  <Combobox
+                    key={`jk-${field.value || "empty"}`}
+                    options={JK_OPTIONS}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={readOnly || source === "penanggung_jawab"}
+                    placeholder="Pilih jenis kelamin..."
+                    className="w-full"
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+              <Label className="text-xs font-medium">Alamat Lengkap</Label>
+              <Input {...form.register("penerima_informasi_alamat")} disabled={readOnly || source === "penanggung_jawab"} />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Rincian Informasi yang Disampaikan */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            4. Rincian Informasi yang Disampaikan
+          </div>
+
+          <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <th className="px-3 py-2 font-semibold w-1/3 border-r border-neutral-200 dark:border-neutral-800">
+                    Jenis Informasi
+                  </th>
+                  <th className="px-3 py-2 font-semibold">Isi / Penjelasan</th>
+                  <th className="px-3 py-2 font-semibold w-24 text-center border-l border-neutral-200 dark:border-neutral-800">
+                    Checklist
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                {informationItems.map((item) => (
+                  <tr key={item.key} className="hover:bg-neutral-50/40 dark:hover:bg-neutral-900/20">
+                    <td className="px-3 py-2.5 align-top font-medium border-r border-neutral-200 dark:border-neutral-800">
+                      {item.label}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <Textarea
+                        {...form.register(`isi_${item.key}` as any)}
+                        placeholder={item.placeholder}
+                        className="min-h-11 text-xs resize-none bg-transparent p-0 placeholder:text-muted-foreground/50 leading-relaxed !border-0 !ring-0 !shadow-none !outline-none focus:!border-0 focus:!ring-0 focus:!outline-none focus-visible:!border-0 focus-visible:!ring-0 focus-visible:!outline-none rounded-none"
+                        disabled={readOnly}
+                      />
+                    </td>
+                    <td className="px-3 py-2.5 align-top border-l border-neutral-200 dark:border-neutral-800">
+                      <Controller
+                        control={form.control}
+                        name={`info_${item.key}` as any}
+                        render={({ field }) => (
+                          <div className="flex justify-center mt-0.5">
+                            <div
                               className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedProcedures.some(p => p.id === proc.id) ? "opacity-100" : "opacity-0"
+                                "flex h-5 w-5 items-center justify-center rounded-none border cursor-pointer transition-colors",
+                                field.value
+                                  ? "bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-900"
+                                  : "border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                               )}
-                            />
-                            {proc.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                              onClick={() => !readOnly && field.onChange(!field.value)}
+                            >
+                              {field.value && <Check className="w-3.5 h-3.5" />}
+                            </div>
+                          </div>
+                        )}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex items-start gap-3 p-3.5 border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/60 dark:bg-neutral-900/30">
+              <Controller
+                control={form.control}
+                name="pernyataan_dokter"
+                render={({ field }) => (
+                  <Checkbox
+                    disabled={readOnly}
+                    id="pernyataan_dokter"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="mt-0.5 rounded-none"
+                  />
+                )}
+              />
+              <Label htmlFor="pernyataan_dokter" className="text-xs leading-relaxed cursor-pointer">
+                Dengan ini saya (Dokter) menyatakan telah menerangkan hal-hal di atas secara benar, jelas dan memberikan kesempatan untuk bertanya.
+              </Label>
             </div>
 
-            {selectedProcedures.length > 0 ? (
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-muted-foreground">
-                    <tr>
-                      <th className="h-10 px-4 text-left font-medium">Nama Tindakan</th>
+            <div className="flex items-start gap-3 p-3.5 border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-neutral-900 dark:border-l-neutral-100 bg-neutral-50/60 dark:bg-neutral-900/30">
+              <Controller
+                control={form.control}
+                name="stmt_menerima_penjelasan"
+                render={({ field }) => (
+                  <Checkbox
+                    disabled={readOnly}
+                    id="stmt_menerima_penjelasan"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="mt-0.5 rounded-none"
+                  />
+                )}
+              />
+              <Label htmlFor="stmt_menerima_penjelasan" className="text-xs leading-relaxed cursor-pointer">
+                Dengan ini saya (Pasien/Keluarga) menyatakan telah menerima dan memahami informasi dari dokter sebagaimana di atas.
+              </Label>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Pernyataan Persetujuan / Penolakan Tindakan */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            5. Pernyataan Persetujuan / Penolakan Tindakan
+          </div>
+
+          <Controller
+            control={form.control}
+            name="persetujuan_tindakan"
+            render={({ field }) => (
+              <RadioGroup
+                disabled={readOnly}
+                onValueChange={field.onChange}
+                value={field.value}
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                <label
+                  htmlFor="menyetujui"
+                  className={cn(
+                    "flex items-center space-x-2.5 p-3.5 border rounded-none cursor-pointer transition-colors",
+                    field.value === "menyetujui"
+                      ? "border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                  )}
+                >
+                  <RadioGroupItem value="menyetujui" id="menyetujui" />
+                  <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                    SAYA MENYETUJUI TINDAKAN KEDOKTERAN
+                  </span>
+                </label>
+                <label
+                  htmlFor="menolak"
+                  className={cn(
+                    "flex items-center space-x-2.5 p-3.5 border rounded-none cursor-pointer transition-colors",
+                    field.value === "menolak"
+                      ? "border-destructive bg-destructive/5"
+                      : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900/40"
+                  )}
+                >
+                  <RadioGroupItem value="menolak" id="menolak" />
+                  <span className="text-xs font-bold uppercase tracking-wide text-destructive">
+                    SAYA MENOLAK TINDAKAN KEDOKTERAN
+                  </span>
+                </label>
+              </RadioGroup>
+            )}
+          />
+
+          <div className="space-y-2.5">
+            <Label className="text-xs font-medium">Untuk dilakukan tindakan kedokteran berupa:</Label>
+            <div className="flex gap-2">
+              <Input
+                disabled={readOnly}
+                value={keputusanTindakanInput}
+                onChange={(e) => setKeputusanTindakanInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (keputusanTindakanInput.trim()) {
+                      setKeputusanTindakanList([...keputusanTindakanList, keputusanTindakanInput.trim()]);
+                      setKeputusanTindakanInput("");
+                    }
+                  }
+                }}
+                placeholder="Ketik deskripsi tindakan dan tekan Enter..."
+                className="flex-1"
+              />
+              {!readOnly && (
+                <Button
+                  type="button"
+                  disabled={!keputusanTindakanInput.trim()}
+                  onClick={() => {
+                    if (keputusanTindakanInput.trim()) {
+                      setKeputusanTindakanList([...keputusanTindakanList, keputusanTindakanInput.trim()]);
+                      setKeputusanTindakanInput("");
+                    }
+                  }}
+                  className="h-9 rounded-none text-xs gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Tambah
+                </Button>
+              )}
+            </div>
+
+            {keputusanTindakanList.length > 0 && (
+              <div className="border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2 text-center font-semibold w-12">No</th>
+                      <th className="px-3 py-2 text-left font-semibold">Deskripsi Tindakan</th>
                       {!readOnly && (
-                        <th className="h-10 w-[80px] px-4 text-center font-medium">Aksi</th>
+                        <th className="w-[72px] px-3 py-2 text-center font-semibold">Aksi</th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
-                    {selectedProcedures.map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/30">
-                        <td className="px-4 py-3">{p.name}</td>
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                    {keputusanTindakanList.map((t, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
+                        <td className="px-3 py-2 text-center font-mono text-muted-foreground">{idx + 1}</td>
+                        <td className="px-3 py-2 font-medium">{t}</td>
                         {!readOnly && (
-                          <td className="px-4 py-3 flex justify-center">
+                          <td className="px-3 py-2 text-center">
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => toggleProcedure(p)}
+                              className="h-7 w-7 rounded-none text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                setKeputusanTindakanList(keputusanTindakanList.filter((_, i) => i !== idx));
+                              }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </td>
                         )}
@@ -477,326 +877,21 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground bg-muted/10">
-                Belum ada tindakan yang dipilih
-              </div>
             )}
           </div>
-        </div>
 
-        {/* Penerima Informasi */}
-        <div>
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">3. Penerima Informasi</span><span className="text-red-600 text-xs"> * (Wajib)</span>
-          </div>
-          <div className="p-3 sm:p-4 space-y-6">
-            {!readOnly && (
-              <div className="space-y-3">
-                <Controller
-                  control={form.control}
-                  name="penerima_informasi_source"
-                  render={({ field }) => (
-                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-6 flex-wrap">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="diri_sendiri" id="source_diri_sendiri" />
-                        <Label htmlFor="source_diri_sendiri">Diri Sendiri (Pasien)</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="penanggung_jawab" id="source_pj" />
-                        <Label htmlFor="source_pj">Dari Penanggung Jawab Pasien</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="manual" id="source_manual" />
-                        <Label htmlFor="source_manual">Input Manual</Label>
-                      </div>
-                    </RadioGroup>
-                  )}
-                />
-              </div>
-            )}
-
-            {source === "penanggung_jawab" && !pj?.penanggung_jawab_nama && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Data Tidak Tersedia</AlertTitle>
-                <AlertDescription>
-                  Pasien ini tidak memiliki data Penanggung Jawab pada saat pendaftaran. Silakan ubah ke mode Input Manual.
-                </AlertDescription>
-              </Alert>
-            )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
-                <div className="space-y-1">
-                  <Label>Nama Terang</Label>
-                  <Input {...form.register("penerima_informasi_nama")} disabled={readOnly || source === "penanggung_jawab"} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Hubungan dengan Pasien</Label>
-                  <Controller
-                    control={form.control}
-                    name="penerima_informasi_hubungan"
-                    render={({ field }) => (
-                      <Combobox
-                        options={HUBUNGAN_OPTIONS}
-                        value={field.value ? String(field.value).replace(/\s+/g, "_") : ""}
-                        onValueChange={(val) => field.onChange(val ? val.replace(/_/g, " ") : "")}
-                        disabled={readOnly || source === "penanggung_jawab" || source === "diri_sendiri"}
-                        placeholder="Pilih hubungan..."
-                        className="w-full h-9"
-                      />
-                    )}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>No. Identitas (KTP/SIM)</Label>
-                  <Input {...form.register("penerima_informasi_no_identitas")} disabled={readOnly || source === "penanggung_jawab"} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label>No. Telepon</Label>
-                  <Input {...form.register("penerima_informasi_no_telp")} disabled={readOnly || source === "penanggung_jawab"} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Umur (Tahun)</Label>
-                  <Controller
-                    control={form.control}
-                    name="penerima_informasi_umur"
-                    render={({ field }) => (
-                      <Input
-                        type="number"
-                        disabled={readOnly || source === "penanggung_jawab"}
-                        value={field.value || ""}
-                        className="h-9"
-                        onChange={(e) => {
-                          const parsed = parseInt(e.target.value, 10);
-                          field.onChange(isNaN(parsed) ? undefined : parsed);
-                        }}
-                      />
-                    )}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Jenis Kelamin</Label>
-                  <Controller
-                    control={form.control}
-                    name="penerima_informasi_jk"
-                    render={({ field }) => (
-                      <Combobox
-                        key={`jk-${field.value || "empty"}`}
-                        options={JK_OPTIONS}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={readOnly || source === "penanggung_jawab"}
-                        placeholder="Pilih jenis kelamin..."
-                        className="w-full h-9"
-                      />
-                    )}
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <Label>Alamat Lengkap</Label>
-                  <Input {...form.register("penerima_informasi_alamat")} disabled={readOnly || source === "penanggung_jawab"} className="h-9" />
-                </div>
-              </div>
+          <div className="border border-neutral-200 dark:border-neutral-800 border-l-2 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20 px-3.5 py-2.5 text-xs italic text-foreground/80">
+            "Saya memahami perlunya dan manfaat tindakan tersebut sebagaimana telah dijelaskan seperti di atas kepada saya, termasuk resiko dan komplikasi yang mungkin timbul apabila tindakan tersebut dilakukan."
           </div>
         </div>
 
-        {/* Informasi yang Disampaikan */}
-        <div>
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">4. Rincian Informasi yang Disampaikan</span>
-          </div>
-          <div className="p-3 sm:p-4 space-y-4">
-            <div className="border border-border/70">
-              <table className="w-full text-sm text-left border-collapse">
-                <thead className="bg-muted/10 border-b border-border/70">
-                  <tr>
-                    <th className="px-3 py-2 font-medium w-1/3 border-r border-border/70">Jenis Informasi</th>
-                    <th className="px-3 py-2 font-medium">Isi / Penjelasan</th>
-                    <th className="px-3 py-2 font-medium w-24 text-center border-l border-border/70">Checklist</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/70">
-                  {informationItems.map((item) => (
-                    <tr key={item.key} className="bg-transparent hover:bg-slate-50/50">
-                      <td className="px-3 py-2 align-top border-r border-border/70">
-                        {item.label}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <Textarea
-                          {...form.register(`isi_${item.key}` as any)}
-                          placeholder={item.placeholder}
-                          className="min-h-12 resize-none bg-transparent p-0 placeholder:text-muted-foreground/50 leading-relaxed !border-0 !ring-0 !shadow-none !outline-none focus:!border-0 focus:!ring-0 focus:!outline-none focus-visible:!border-0 focus-visible:!ring-0 focus-visible:!outline-none rounded-none"
-                          disabled={readOnly}
-                        />
-                      </td>
-                      <td className="px-3 py-2 align-top border-l border-border/70">
-                        <Controller
-                          control={form.control}
-                          name={`info_${item.key}` as any}
-                          render={({ field }) => (
-                            <div className="flex justify-center mt-1">
-                              <div
-                                className={`flex h-5 w-5 items-center justify-center rounded border cursor-pointer transition-colors ${field.value ? 'bg-primary border-primary' : 'border-input hover:bg-accent'}`}
-                                onClick={() => !readOnly && field.onChange(!field.value)}
-                              >
-                                {field.value && <Check className="text-white w-3.5 h-3.5" />}
-                              </div>
-                            </div>
-                          )}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-4 space-y-4 mt-6">
-              <div className="flex items-center gap-3 p-3 bg-blue-50 text-blue-900 rounded-md border border-blue-100">
-                <Controller
-                  control={form.control}
-                  name="pernyataan_dokter"
-                  render={({ field }) => (
-                    <Checkbox disabled={readOnly} id="pernyataan_dokter" checked={field.value} onCheckedChange={field.onChange} />
-                  )}
-                />
-                <Label htmlFor="pernyataan_dokter" className="leading-snug cursor-pointer">
-                  Dengan ini saya (Dokter) menyatakan telah menerangkan hal-hal diatas secara benar, jelas dan memberikan kesempatan untuk bertanya.
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-green-50 text-green-900 rounded-md border border-green-100">
-                <Controller
-                  control={form.control}
-                  name="stmt_menerima_penjelasan"
-                  render={({ field }) => (
-                    <Checkbox disabled={readOnly} id="stmt_menerima_penjelasan" checked={field.value} onCheckedChange={field.onChange} />
-                  )}
-                />
-                <Label htmlFor="stmt_menerima_penjelasan" className="leading-snug cursor-pointer">
-                  Dengan ini saya (Pasien/Keluarga) menyatakan telah menerima dan memahami informasi dari dokter sebagaimana di atas.
-                </Label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Persetujuan atau Penolakan */}
-        <div className="bg-background">
-          <div className="border-b border-primary/20 bg-primary/5 px-3 py-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">5. Pernyataan Persetujuan / Penolakan Tindakan</span>
-          </div>
-          <div className="p-3 sm:p-4 space-y-6">
-
-            <div className="space-y-4">
-              <Controller
-                control={form.control}
-                name="persetujuan_tindakan"
-                render={({ field }) => (
-                  <RadioGroup disabled={readOnly} onValueChange={field.onChange} value={field.value} className="flex gap-6">
-                    <div className="flex items-center space-x-2 p-3 border rounded-md cursor-pointer hover:bg-slate-50 flex-1">
-                      <RadioGroupItem value="menyetujui" id="menyetujui" />
-                      <Label htmlFor="menyetujui" className="font-bold text-green-700 cursor-pointer">SAYA MENYETUJUI TINDAKAN KEDOKTERAN</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 border rounded-md cursor-pointer hover:bg-slate-50 flex-1">
-                      <RadioGroupItem value="menolak" id="menolak" />
-                      <Label htmlFor="menolak" className="font-bold text-red-700 cursor-pointer">SAYA MENOLAK TINDAKAN KEDOKTERAN</Label>
-                    </div>
-                  </RadioGroup>
-                )}
-              />
-
-              <div className="space-y-3 pt-2">
-                <Label>Untuk dilakukan tindakan kedokteran berupa:</Label>
-                <div className="flex gap-2">
-                  <Input
-                    disabled={readOnly}
-                    value={keputusanTindakanInput}
-                    onChange={(e) => setKeputusanTindakanInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (keputusanTindakanInput.trim()) {
-                          setKeputusanTindakanList([...keputusanTindakanList, keputusanTindakanInput.trim()]);
-                          setKeputusanTindakanInput("");
-                        }
-                      }
-                    }}
-                    placeholder="Ketik deskripsi tindakan dan tekan Enter..."
-                    className="flex-1"
-                  />
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      disabled={!keputusanTindakanInput.trim()}
-                      onClick={() => {
-                        if (keputusanTindakanInput.trim()) {
-                          setKeputusanTindakanList([...keputusanTindakanList, keputusanTindakanInput.trim()]);
-                          setKeputusanTindakanInput("");
-                        }
-                      }}
-                    >
-                      Tambah
-                    </Button>
-                  )}
-                </div>
-
-                {keputusanTindakanList.length > 0 && (
-                  <div className="rounded-md border overflow-hidden mt-2">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-muted-foreground">
-                        <tr>
-                          <th className="h-10 px-4 text-center font-medium w-12">No</th>
-                          <th className="h-10 px-4 text-left font-medium">Deskripsi Tindakan</th>
-                          {!readOnly && (
-                            <th className="h-10 w-[80px] px-4 text-center font-medium">Aksi</th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {keputusanTindakanList.map((t, idx) => (
-                          <tr key={idx} className="hover:bg-muted/30">
-                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
-                            <td className="px-4 py-3 font-medium">{t}</td>
-                            {!readOnly && (
-                              <td className="px-4 py-3 flex justify-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    setKeputusanTindakanList(keputusanTindakanList.filter((_, i) => i !== idx));
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-yellow-50 text-yellow-900 p-4 rounded-md border border-yellow-200 text-sm italic">
-              "Saya memahami perlunya dan manfaat tindakan tersebut sebagaimana telah dijelaskan seperti di atas kepada saya, termasuk resiko dan komplikasi yang mungkin timbul apabila tindakan tersebut dilakukan."
-            </div>
-
-          </div>
-        </div>
-
-        {/* Daftar Saksi & Petugas */}
-        <div className="space-y-4">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">6. Tanda Tangan & Petugas Pendukung</span>
+        {/* 6. Tanda Tangan & Petugas Pendukung */}
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="border-l-2 border-neutral-900 dark:border-neutral-100 pl-2.5 text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
+            6. Tanda Tangan & Petugas Pendukung
           </div>
 
-          <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { id: "pasien", label: "Pasien / PJ" },
               { id: "dokter", label: "Dokter Pelaksana" },
@@ -807,8 +902,13 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
               const isSigned = sigStatus?.signed_slots?.[slot.id];
               const detail = sigStatus?.slot_details?.[slot.id];
               return (
-                <div key={slot.id} className="space-y-2">
-                  <Label className="text-xs text-muted-foreground uppercase font-semibold text-center block w-full truncate" title={slot.label}>{slot.label}</Label>
+                <div key={slot.id} className="space-y-1.5">
+                  <Label
+                    className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold text-center block w-full truncate"
+                    title={slot.label}
+                  >
+                    {slot.label}
+                  </Label>
                   <div
                     onClick={async () => {
                       if (readOnly) return;
@@ -819,7 +919,11 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
                       }
 
                       if (!consentId) {
-                        toast({ variant: "destructive", title: "Belum Disimpan", description: "Harap klik Submit untuk menyimpan form persetujuan ini terlebih dahulu sebelum mengisi tanda tangan." });
+                        toast({
+                          variant: "destructive",
+                          title: "Belum Disimpan",
+                          description: "Harap klik Submit untuk menyimpan form persetujuan ini terlebih dahulu sebelum mengisi tanda tangan.",
+                        });
                         return;
                       }
 
@@ -835,28 +939,35 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
                       }
                     }}
                     className={cn(
-                      "h-32 border-2 rounded-lg flex flex-col items-center justify-center transition-all",
+                      "h-28 border rounded-none flex flex-col items-center justify-center transition-colors p-2",
                       isSigned
-                        ? "border-green-500 bg-green-50 text-green-700 cursor-default"
-                        : readOnly ? "border-dashed border-gray-300 bg-gray-50 opacity-60 cursor-not-allowed" : "border-dashed border-gray-300 hover:border-primary hover:bg-muted cursor-pointer"
+                        ? "border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                        : readOnly
+                        ? "border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/40 dark:bg-neutral-900/20 opacity-60 cursor-not-allowed"
+                        : "border-dashed border-neutral-300 dark:border-neutral-700 hover:border-neutral-900 dark:hover:border-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-900/40 cursor-pointer"
                     )}
                   >
                     {isSigned ? (
                       <>
-                        <CheckCircle2 className="w-8 h-8 mb-2 text-green-500" />
-                        <span className="text-[10px] font-medium px-2 text-center break-words w-full line-clamp-2" title={detail?.signed_by_name || detail?.signer_name}>
+                        <CheckCircle2 className="w-6 h-6 mb-1.5 text-emerald-600 dark:text-emerald-400" />
+                        <span
+                          className="text-[11px] font-medium px-1 text-center break-words w-full line-clamp-2"
+                          title={detail?.signed_by_name || detail?.signer_name}
+                        >
                           {detail?.signed_by_name || detail?.signer_name || "Telah Ditandatangani"}
                         </span>
                         {detail?.signed_at && (
-                          <span className="text-[9px] mt-1 opacity-70">
-                            {new Date(detail.signed_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          <span className="text-[10px] font-mono mt-0.5 opacity-75">
+                            {new Date(detail.signed_at).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                           </span>
                         )}
                       </>
                     ) : (
                       <>
-                        <PenTool className="w-6 h-6 mb-2 opacity-40" />
-                        <span className="text-[10px] font-medium opacity-60 text-center px-2">Klik untuk<br />Tanda Tangan</span>
+                        <PenTool className="w-5 h-5 mb-1.5 opacity-40" />
+                        <span className="text-[10px] font-medium opacity-70 text-center">
+                          Klik untuk Tanda Tangan
+                        </span>
                       </>
                     )}
                   </div>
@@ -877,10 +988,9 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
           initialName={signState.name}
           onCancel={() => setSignState(null)}
           onConfirm={(name) => {
-            // Save to form temporary
-            if (signState.slot === 'pasien') form.setValue('penerima_informasi_nama', name);
-            if (signState.slot === 'saksi1') form.setValue('saksi_1_nama', name);
-            if (signState.slot === 'saksi2') form.setValue('saksi_2_nama', name);
+            if (signState.slot === "pasien") form.setValue("penerima_informasi_nama", name);
+            if (signState.slot === "saksi1") form.setValue("saksi_1_nama", name);
+            if (signState.slot === "saksi2") form.setValue("saksi_2_nama", name);
             setSignState({ ...signState, step: "canvas", name });
           }}
         />
@@ -888,62 +998,98 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
 
       {signState?.step === "canvas" && (
         <Dialog open={true} onOpenChange={(v) => !v && setSignState(null)}>
-          <DialogContent className="max-w-[95vw] sm:max-w-[1000px] h-[85vh] flex flex-col p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle>Tanda Tangan: {signState.name}</DialogTitle>
+          <DialogContent className="max-w-[95vw] sm:max-w-[900px] h-[82vh] rounded-none p-0 gap-0 border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col">
+            <DialogHeader className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-row items-center gap-2.5 space-y-0 text-left shrink-0">
+              <div className="size-8 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <PenTool className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-bold uppercase tracking-tight">
+                  Tanda Tangan: {signState.name}
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Bubuhkan tanda tangan pada area kanvas di bawah ini lalu klik simpan.
+                </DialogDescription>
+              </div>
             </DialogHeader>
-            <div className="border rounded-lg bg-slate-50 flex-1 relative overflow-hidden">
-              <SignatureCanvas
-                ref={sigPad}
-                canvasProps={{ className: "w-full h-full cursor-crosshair" }}
-              />
+
+            <div className="flex-1 p-4 sm:p-5 flex flex-col min-h-0">
+              <div className="border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 flex-1 relative overflow-hidden">
+                <SignatureCanvas
+                  ref={sigPad}
+                  canvasProps={{ className: "w-full h-full cursor-crosshair" }}
+                />
+              </div>
             </div>
-            <div className="flex justify-between mt-4">
-              <Button variant="outline" onClick={() => sigPad.current?.clear()} disabled={isSigning}>
+
+            <DialogFooter className="px-4 sm:px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 shrink-0 flex flex-wrap items-center justify-between gap-2 sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-none text-xs gap-1.5"
+                onClick={() => sigPad.current?.clear()}
+                disabled={isSigning}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
                 Ulangi
               </Button>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => setSignState(null)} disabled={isSigning}>Batal</Button>
-                <Button onClick={async () => {
-                  if (sigPad.current?.isEmpty()) {
-                    toast({ variant: "destructive", title: "Tanda tangan masih kosong" });
-                    return;
-                  }
-                  setIsSigning(true);
-                  try {
-                    const base64 = sigPad.current?.toDataURL();
-                    const linkRes = await signatureApi.getPatientLink("INFORMED_CONSENT", consentId!, signState.name, signState.slot);
-                    await api.post("/signature/submit", {
-                      token: linkRes.data.token,
-                      signature_image: base64,
-                      photo_image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-                    });
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-none text-xs"
+                  onClick={() => setSignState(null)}
+                  disabled={isSigning}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 rounded-none text-xs bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  onClick={async () => {
+                    if (sigPad.current?.isEmpty()) {
+                      toast({ variant: "destructive", title: "Tanda tangan masih kosong" });
+                      return;
+                    }
+                    setIsSigning(true);
+                    try {
+                      const base64 = sigPad.current?.toDataURL();
+                      const linkRes = await signatureApi.getPatientLink("INFORMED_CONSENT", consentId!, signState.name, signState.slot);
+                      await api.post("/signature/submit", {
+                        token: linkRes.data.token,
+                        signature_image: base64,
+                        photo_image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+                      });
 
-                    // Update form signed name fields
-                    const payload = { ...form.getValues() };
-                    if (signState.slot === 'pasien') payload.signer_name_pasien = signState.name;
-                    if (signState.slot === 'saksi1') payload.signer_name_saksi1 = signState.name;
-                    if (signState.slot === 'saksi2') payload.signer_name_saksi2 = signState.name;
+                      const payload = { ...form.getValues() };
+                      if (signState.slot === "pasien") payload.signer_name_pasien = signState.name;
+                      if (signState.slot === "saksi1") payload.signer_name_saksi1 = signState.name;
+                      if (signState.slot === "saksi2") payload.signer_name_saksi2 = signState.name;
 
-                    form.reset(payload);
-                    await medicalRecordsApi.saveInformedConsent(visitId, payload).catch(() => { });
+                      form.reset(payload);
+                      await medicalRecordsApi.saveInformedConsent(visitId, payload).catch(() => { });
 
-                    const sigRes = await signatureApi.getDocumentSignature("INFORMED_CONSENT", consentId!);
-                    setSigStatus(sigRes.data);
+                      const sigRes = await signatureApi.getDocumentSignature("INFORMED_CONSENT", consentId!);
+                      setSigStatus(sigRes.data);
 
-                    setSignState(null);
-                    toast({ title: "Berhasil", description: "Tanda tangan disimpan" });
-                  } catch (e) {
-                    toast({ variant: "destructive", title: "Gagal menyimpan", description: "Terjadi kesalahan" });
-                  } finally {
-                    setIsSigning(false);
-                  }
-                }} disabled={isSigning}>
-                  {isSigning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      setSignState(null);
+                      toast({ title: "Berhasil", description: "Tanda tangan disimpan" });
+                    } catch (e) {
+                      toast({ variant: "destructive", title: "Gagal menyimpan", description: "Terjadi kesalahan" });
+                    } finally {
+                      setIsSigning(false);
+                    }
+                  }}
+                  disabled={isSigning}
+                >
+                  {isSigning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
                   Simpan Tanda Tangan
                 </Button>
               </div>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -968,17 +1114,19 @@ export function InformedConsentForm({ visitId, consentId, readOnly, onSaved }: I
       )}
 
       <AlertDialog open={!!revokeConfirmSlot} onOpenChange={(open) => !open && setRevokeConfirmSlot(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-none border-neutral-200 dark:border-neutral-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Tanda Tangan</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-sm font-bold uppercase tracking-tight">
+              Hapus Tanda Tangan
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
               Apakah Anda yakin ingin menghapus tanda tangan {revokeConfirmSlot?.label}? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-none text-xs">Batal</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-8 rounded-none text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
                 if (!revokeConfirmSlot) return;
                 try {
